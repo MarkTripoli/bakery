@@ -5,11 +5,17 @@ import type { PgDatabase } from "../../../platform/database.ts";
 import { artifactContentActionDefinition } from "../content-action.ts";
 import { createArtifactReadHandlers } from "../reads.ts";
 import { createPreviewHostHandler } from "./host.ts";
+import { createRunningPreviewHandler } from "./running-host.ts";
+import {
+  createRunningPreviewReauthorizer,
+  runningPreviewAccessActionDefinition,
+} from "./running-authority.ts";
 import {
   isPreviewRequestHost,
   PREVIEW_EXCHANGE_PATH,
   PREVIEW_VIEW_PREFIX,
   previewHostname,
+  runningPreviewLabel,
 } from "./shared.ts";
 
 export type ArtifactPreviewHostOptions = {
@@ -18,6 +24,8 @@ export type ArtifactPreviewHostOptions = {
   previewOrigin: string;
   publicBaseUrl: string;
   secret: string;
+  /** Host the registered ports of running-app previews are reached on. */
+  upstreamHost?: string;
 };
 
 /**
@@ -31,9 +39,9 @@ export function createArtifactPreviewHost(
   const authority = new PostgresAuthorityRunner(options.database);
   const registry = new ActionRegistry(authority).register(
     artifactContentActionDefinition,
-  );
+  ).register(runningPreviewAccessActionDefinition);
   const handlers = createArtifactReadHandlers(options.secret);
-  return createPreviewHostHandler({
+  const artifacts = createPreviewHostHandler({
     database: options.database,
     previewOrigin: options.previewOrigin,
     publicBaseUrl: options.publicBaseUrl,
@@ -41,6 +49,27 @@ export function createArtifactPreviewHost(
     contentAction: registry.get("artifactVersions.content"),
     readContent: (context) => handlers.readArtifactContent(context),
   });
+  const running = createRunningPreviewHandler({
+    database: options.database,
+    previewOrigin: options.previewOrigin,
+    publicBaseUrl: options.publicBaseUrl,
+    upstreamHost: options.upstreamHost,
+    reauthorize: createRunningPreviewReauthorizer(
+      options.database,
+      authority,
+      registry.get(runningPreviewAccessActionDefinition.name),
+    ),
+  });
+  const previewHost = previewHostname(options.previewOrigin);
+  // The preview host itself shows stored artifacts; every name below it is one
+  // running app's own origin (a name that is not a registered route key gets
+  // the same refusal page as an ended preview).
+  return (request) => {
+    const hostname = previewHostname(request.url);
+    if (hostname === previewHost) return artifacts(request);
+    const label = runningPreviewLabel(request.url, previewHost);
+    return running(request, label ?? "");
+  };
 }
 
 /** True for a path owned by the preview host; the app host must not serve it. */

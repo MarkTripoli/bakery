@@ -782,6 +782,10 @@ export function registerLoopReadCases(): void {
           createdAt: "2026-11-15T01:00:00.000Z",
           updatedAt: "2026-11-15T01:00:00.000Z",
           version: 2,
+          // The reader holds pullRequest:merge here, and the method is the squash
+          // default Bakery merges with.
+          mayMerge: true,
+          mergeMethod: "squash",
         });
         assertEquals(
           ids(await list({ repositoryId: first.repositoryId })),

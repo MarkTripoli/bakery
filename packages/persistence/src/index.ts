@@ -45,7 +45,13 @@ export type {
   ClaimReplay,
   ClaimsRepository,
 } from "./claims.ts";
-export type { AuditEntry, EventScope } from "./event-audit.ts";
+export type {
+  AuditEntry,
+  DomainEventFacts,
+  DomainEventProjection,
+  EventScope,
+} from "./event-audit.ts";
+export { registerDomainEventProjection } from "./event-audit.ts";
 export type {
   AttemptAuthorityRow,
   AttemptExecutionScope,
@@ -86,6 +92,7 @@ export {
   appendAttemptEvent,
   applyStartedLifecycle,
   assertArtifactReference,
+  type AttemptLockMode,
   loadAttemptAuthority,
   loadEventsByIds,
   loadExistingEvent,

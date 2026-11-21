@@ -90,6 +90,15 @@ function accent(message: string): string {
   return output;
 }
 
+/** The English letters behind an en-XA row's accents (the inverse of the accenting). */
+export function unaccent(text: string): string {
+  const inverse = new Map(
+    Object.entries(ACCENTS).map(([plain, accented]) => [accented, plain]),
+  );
+  return [...text].map((character) => inverse.get(character) ?? character)
+    .join("");
+}
+
 /** en-XA row for an English message, padded to the minimum expansion. */
 export function pseudoAccented(message: string): string {
   const body = `⟦${accent(message)}⟧`;

@@ -47,13 +47,6 @@ function randomToken(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 }
 
-async function returnToSignInFormIfThrottled(page: Page): Promise<void> {
-  if (await page.getByTestId("sign-in-throttled").isVisible()) {
-    await page.getByRole("button", { name: "Return to sign in", exact: true })
-      .click();
-  }
-}
-
 async function signIn(
   page: Page,
   email: string,
@@ -61,7 +54,6 @@ async function signIn(
 ): Promise<void> {
   await page.goto("/sign-in");
   await submitUntilAccepted(page, "/api/auth/sign-in/email", async () => {
-    await returnToSignInFormIfThrottled(page);
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();

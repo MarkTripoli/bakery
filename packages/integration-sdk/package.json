@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@bakery/contracts": "workspace:*",
+    "@bakery/i18n": "workspace:*",
     "zod": "4.5.4"
   }
 }

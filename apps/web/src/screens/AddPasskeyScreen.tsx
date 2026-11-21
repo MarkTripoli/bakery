@@ -2,6 +2,7 @@ import * as UI from "@bakery/ui";
 import { PASSKEYS_SETTINGS_PATH } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import type { SecurityFailure } from "../app/security-failures.ts";
+import { formatWait } from "../app/retry-wait.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   isDisconnected,
@@ -59,7 +60,7 @@ export type AddPasskeyScreenProps = {
  * lives in the container; this only renders the step it reports.
  */
 export function AddPasskeyScreen(props: AddPasskeyScreenProps) {
-  const { translate } = useI18n();
+  const { locale, translate } = useI18n();
   const { async, step } = props;
 
   if (step === "success") {
@@ -178,7 +179,7 @@ export function AddPasskeyScreen(props: AddPasskeyScreenProps) {
                 {props.failure.retryAfterSeconds === null
                   ? translate(props.failure.messageKey)
                   : translate(props.failure.messageKey, {
-                    retryAfterSeconds: props.failure.retryAfterSeconds,
+                    wait: formatWait(props.failure.retryAfterSeconds, locale),
                   })}
               </UI.InlineNotice>
             )

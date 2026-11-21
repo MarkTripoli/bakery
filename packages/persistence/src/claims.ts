@@ -38,6 +38,27 @@ import {
   rebindPreparedIdentityOperation as rebindPreparedIdentityOperationInternal,
 } from "./secret-identity.ts";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+
+/**
+ * The agent session a claim hands an attempt of a job (the `agentSessionId`
+ * of its assignment), as a scalar subquery over the job row aliased
+ * `jobAlias`. Run admission creates exactly one session per step (the insert
+ * is guarded by "not exists" under a per-step advisory lock), and the
+ * application role cannot change a session afterwards, so the step's first
+ * session is the one every attempt of the step was told to run under and the
+ * one its worker results must name. A later session on the same step (a
+ * coordinator or continuation session) is never the attempt's. Callers that
+ * record which session an attempt acted in use this so they agree with the
+ * claim.
+ */
+export function assignedAgentSessionSql(jobAlias: string): string {
+  return `(select assigned_session.id
+     from bakery.agent_sessions assigned_session
+    where assigned_session.organization_id = ${jobAlias}.organization_id
+      and assigned_session.run_step_id = ${jobAlias}.run_step_id
+    order by assigned_session.created_at asc, assigned_session.id asc
+    limit 1)`;
+}
 export {
   DEFAULT_LEASE_SECONDS,
   IDEMPOTENCY_REPLAY_TTL_SECONDS,
@@ -88,6 +109,24 @@ export type ClaimableJob = {
   installationReservationId: string | null;
   /** Oldest server-created harness session for the job's run step, if any. */
   agentSessionId: string | null;
+  /**
+   * The person this work is done for: the run's `requested_by`.
+   *
+   * The session credential's `actsForPrincipalId` comes from here, never from
+   * the worker's own identity. A worker acts for the person who started the
+   * run, and O50 requires the audit to name that person rather than the host
+   * that happened to pick the job up. Null when the job has no run - a
+   * coordinator turn or an onboarding job - and the caller decides then.
+   */
+  actsForPrincipalId: string | null;
+  /**
+   * The type of that principal, from `bakery.principals`.
+   *
+   * Carried because a session call runs the called action's own authority
+   * guard as the person the run is for, and that guard needs a typed subject -
+   * a principal id alone cannot tell it whether it is looking at a human.
+   */
+  actsForPrincipalType: string | null;
   /**
    * The W3C context of the request that created the run, from its
    * `run.requested` event, or null when there is none (a coordinator turn or an
@@ -171,6 +210,8 @@ export type ClaimsRepository = {
     principalId: string | null;
     requestId: string;
     traceId: string;
+    /** The attempt's W3C span context, kept so later events can join its trace. */
+    traceparent: string;
     fence: bigint;
     encryptReplay: () => Promise<string>;
   }): Promise<void>;
@@ -345,14 +386,29 @@ export function createClaimsRepository(
        select id, action, requirements, input,
           current_checkpoints, agent_config, skill_refs, agent_version_id,
           billing, installation_reservation_id, current_fence,
+          ${assignedAgentSessionSql("jobs")} as agent_session_id,
           (
-            select session.id
-              from bakery.agent_sessions session
-             where session.organization_id = jobs.organization_id
-               and session.run_step_id = jobs.run_step_id
-             order by session.created_at asc, session.id asc
+            select candidate_run.requested_by
+              from bakery.run_steps claim_step
+              join bakery.workflow_runs candidate_run
+                on candidate_run.organization_id = claim_step.organization_id
+               and candidate_run.id = claim_step.run_id
+             where claim_step.organization_id = jobs.organization_id
+               and claim_step.id = jobs.run_step_id
              limit 1
-          ) as agent_session_id,
+          ) as acts_for_principal_id,
+          (
+            select candidate_principal.principal_type
+              from bakery.run_steps claim_step
+              join bakery.workflow_runs candidate_run
+                on candidate_run.organization_id = claim_step.organization_id
+               and candidate_run.id = claim_step.run_id
+              join bakery.principals candidate_principal
+                on candidate_principal.id = candidate_run.requested_by
+             where claim_step.organization_id = jobs.organization_id
+               and claim_step.id = jobs.run_step_id
+             limit 1
+          ) as acts_for_principal_type,
           (
             select event.traceparent
               from bakery.run_steps claim_step
@@ -465,6 +521,8 @@ export function createClaimsRepository(
           installation_reservation_id: string | null;
           current_fence: string | number;
           agent_session_id: string | null;
+          acts_for_principal_id: string | null;
+          acts_for_principal_type: string | null;
           original_traceparent: string | null;
         }>("fetch forward 1 from claim_candidates");
         const row = jobs.rows[0];
@@ -599,6 +657,8 @@ export function createClaimsRepository(
           billing: row.billing,
           installationReservationId: row.installation_reservation_id,
           agentSessionId: row.agent_session_id,
+          actsForPrincipalId: row.acts_for_principal_id,
+          actsForPrincipalType: row.acts_for_principal_type,
           originalTraceparent: row.original_traceparent,
           currentFence: row.current_fence,
         };
@@ -729,6 +789,11 @@ export function createClaimsRepository(
       return await prepareIdentityOperationInternal(transaction, input);
     },
     async recordAssignment(options) {
+      await transaction.query(
+        `update bakery.job_attempts set traceparent = $3
+          where organization_id = $1 and id = $2`,
+        [options.organizationId, options.attemptId, options.traceparent],
+      );
       const scope = await transaction.query<{
         applicationId: string;
         repositoryId: string | null;

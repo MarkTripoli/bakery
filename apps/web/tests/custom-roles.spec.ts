@@ -225,6 +225,38 @@ for (
   test.describe(viewport.name, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
+    test("the form words the overrule permission and files it under Tasks and runs", async ({ page }) => {
+      await rolesFixture(page);
+      await page.goto("/settings/organization/roles");
+      const panel = page.getByTestId("custom-roles");
+      await panel.getByRole("button", { name: "Create custom role" }).click();
+      const area = panel.getByTestId("permission-area-work");
+      if ((await area.getAttribute("data-state")) !== "open") {
+        await area.locator("summary").click();
+      }
+      // Said as what the person may do, with the key beside it; it does not
+      // read as accepting the review, and it is not mistaken for the neighbours.
+      const row = area.getByLabel("review:accept");
+      await expect(row).toBeVisible();
+      await expect(
+        area.getByText("Overrule reviews that asked for changes"),
+      ).toBeVisible();
+      await expect(area.getByText("Overrule and accept")).toHaveCount(0);
+      // The still is the window with the row in it, at the design's sizes.
+      const evidence = process.env.BAKERY_EVIDENCE_DIR;
+      if (evidence) {
+        await page.setViewportSize(
+          viewport.name === "desktop"
+            ? { width: 1440, height: 900 }
+            : { width: 390, height: 844 },
+        );
+        await row.scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: `${evidence}/roles-overrule-${viewport.name}.png`,
+        });
+      }
+    });
+
     test("creates, edits, assigns, unassigns and deletes a custom role", async ({ page }) => {
       const state = await rolesFixture(page);
       await page.goto("/settings/organization/roles");

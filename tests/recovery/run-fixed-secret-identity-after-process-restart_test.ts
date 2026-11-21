@@ -241,7 +241,7 @@ async function createIdentityRequest(
     workerFixture.principalId,
     {
       action: "secret.identity.read",
-      input: { secretRef: placeholder },
+      input: { identityRef: placeholder },
     },
   );
   const created = await fixture.request("/v1/secrets", {
@@ -256,7 +256,7 @@ async function createIdentityRequest(
   const secret = await created.json() as { id: string };
   await workerFixture.pgDatabase.query(
     `update bakery.jobs
-        set input = jsonb_set(input, '{secretRef}', to_jsonb($2::text), true)
+        set input = jsonb_set(input, '{identityRef}', to_jsonb($2::text), true)
       where organization_id = $1 and id = $3`,
     [workerFixture.organizationId, secret.id, job.jobId],
   );
@@ -264,7 +264,7 @@ async function createIdentityRequest(
     `update bakery.workflow_runs
         set snapshot = jsonb_set(
           snapshot,
-          '{workflow,normalizedSpec,steps,0,with,secretRef}',
+          '{workflow,normalizedSpec,steps,0,with,identityRef}',
           to_jsonb($2::text),
           true
         )

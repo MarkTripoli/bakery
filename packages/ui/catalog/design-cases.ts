@@ -181,6 +181,9 @@ export const EnterpriseDesignCaseSchema = z
       .describe(
         "Where the app renders this case: an app route, or a Storybook story scored by its whole-artboard element.",
       ),
+    designRuling: NonBlankSchema.optional().describe(
+      "UX ruling citation, issue#comment, that licensed re-anchoring this reference to the shipped app instead of a Paper export; every ruled case in a manifest cites the same ruling.",
+    ),
     deviceChrome: DeviceChromeSchema.optional().describe(
       "Optional device chrome band excluded from the comparison; phone cases only. Mutually exclusive with comparisonRegion.",
     ),

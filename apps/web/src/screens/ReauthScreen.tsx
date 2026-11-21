@@ -1,6 +1,7 @@
 import * as UI from "@bakery/ui";
 import { RouterLink } from "../app/router-link.tsx";
 import type { SecurityFailure } from "../app/security-failures.ts";
+import { formatWait } from "../app/retry-wait.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useAuthBrandProps } from "./auth-brand.tsx";
 import { PasswordNotSetNotice } from "./password-not-set.tsx";
@@ -38,7 +39,7 @@ export type ReauthScreenProps = {
  * sent the person here.
  */
 export function ReauthScreen(props: ReauthScreenProps) {
-  const { translate } = useI18n();
+  const { locale, translate } = useI18n();
   const brand = useAuthBrandProps();
   const { async, failure } = props;
   const failed = failure !== null && failure.kind !== "offline" &&
@@ -63,7 +64,7 @@ export function ReauthScreen(props: ReauthScreenProps) {
         {failure.retryAfterSeconds === null
           ? translate(failure.messageKey)
           : translate(failure.messageKey, {
-            retryAfterSeconds: failure.retryAfterSeconds,
+            wait: formatWait(failure.retryAfterSeconds, locale),
           })}
       </UI.InlineNotice>
     )

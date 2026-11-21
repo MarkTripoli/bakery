@@ -71,6 +71,10 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
+    # How many verification lines are still open at the PR head: the
+    # `verification` job below runs only when it is 0.
+    outputs:
+      open: ${{ steps.metadata.outputs.open }}
     steps:
       - name: Maintainers only
         id: maintainer
@@ -112,8 +116,32 @@ jobs:
         with:
           deno-version: v2.9.1
       - name: Validate live PR and owning issue metadata
+        id: metadata
         if: steps.maintainer.outputs.allowed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check pr "$PR_NUMBER"
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/description-check.json"
+          # Only a format error fails this job. A verification line nobody has
+          # ticked at the PR head is not an error: it keeps `verification` skipped.
+          deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check pr "$PR_NUMBER" | tee "$result"
+          open=$(jq '.pending | length' "$result")
+          echo "open=$open" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Verification: $open open at this head"
+            jq -r '.pending[] | "- " + .' "$result"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Green only when every sign-off is ticked or N/A at the PR head. While any is
+  # open (or after a push moved the head past the ticks) this job is skipped, never
+  # red, so an unsigned PR shows grey instead of failing. It writes nothing.
+  verification:
+    needs: pull-request
+    if: github.event_name == 'pull_request_target' && needs.pull-request.result == 'success' && needs.pull-request.outputs.open == '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - run: echo "Every verification line is ticked or marked N/A at the PR head."

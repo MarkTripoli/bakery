@@ -349,11 +349,58 @@ Deno.test("a field whose name says it holds a secret is dropped and its name not
   for (const name of names) assert(!serialized.includes(`"${name}"`));
 });
 
+/**
+ * Whether a field name reads as one that could hold a credential. Token
+ * counts are the one exception, and only by exact name: a model's usage is a
+ * count of tokens, not a token, and its value is held to a non-negative
+ * integer by the registry (pinned below). Every other name that says token
+ * still fails, including a new field next to them.
+ */
+const TOKEN_COUNT_FIELDS: ReadonlySet<string> = new Set([
+  "bakery.usage.input_tokens",
+  "bakery.usage.output_tokens",
+]);
+const CREDENTIAL_NAME =
+  /authorization|cookie|token|secret|password|private[_-]?key|credential|api[_-]?key|session|bearer/i;
+function readsAsCredential(name: string): boolean {
+  return !TOKEN_COUNT_FIELDS.has(name) && CREDENTIAL_NAME.test(name);
+}
+
 Deno.test("no registered field name could hold a secret, now or after an addition", () => {
-  const forbidden =
-    /authorization|cookie|token|secret|password|private[_-]?key|credential|api[_-]?key|session|bearer/i;
   for (const name of TELEMETRY_ATTRIBUTE_NAMES) {
-    assert(!forbidden.test(name), `${name} reads as a credential field`);
+    assert(!readsAsCredential(name), `${name} reads as a credential field`);
+  }
+});
+
+Deno.test("a token count is not a credential, a token is, and a count field holds only a count", () => {
+  // Counts of tokens read as plain usage.
+  assert(!readsAsCredential("bakery.usage.input_tokens"));
+  assert(!readsAsCredential("bakery.usage.output_tokens"));
+  // Anything else that says token still reads as a credential, including a new
+  // field beside the counts and the same word in a plural.
+  for (
+    const name of [
+      "token",
+      "access_token",
+      "refresh_token",
+      "bakery.usage.access_token",
+      "bakery.usage.tokens",
+      "bakery.usage.cached_tokens",
+      "bakery.auth.bearer",
+    ]
+  ) {
+    assert(readsAsCredential(name), `${name} must still read as a credential`);
+  }
+  // The exception is safe because the count fields take only a count: a
+  // credential-shaped string sent to one is dropped, and an integer is kept.
+  const sentinel = "sentinel-value-7c1f";
+  for (const name of TOKEN_COUNT_FIELDS) {
+    const refused = redactTelemetryAttributes({ [name]: sentinel });
+    assertEquals(refused.attributes, {}, name);
+    assert(!JSON.stringify(refused).includes(sentinel), name);
+    assertEquals(redactTelemetryAttributes({ [name]: 12 }).attributes, {
+      [name]: 12,
+    });
   }
 });
 

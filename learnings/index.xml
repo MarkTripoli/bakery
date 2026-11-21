@@ -139,6 +139,7 @@
   <entry file="capture-mode-must-match-the-property.xml" scope="process" />
   <entry file="check-the-rails-before-ruling-on-db-shape.xml" scope="process" />
   <entry file="compare-the-region-not-the-image.xml" scope="project" />
+  <entry file="mutant-must-be-proven-applied.xml" scope="project" />
   <entry file="first-lawful-path-exercise-updates-its-expected-value.xml" scope="process" />
   <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
   <entry file="measure-the-right-tree-and-the-mutation.xml" scope="process" />
@@ -163,4 +164,5 @@
   <entry file="a-default-that-means-two-things.xml" scope="project" />
   <entry file="the-thing-exists-and-nothing-calls-it.xml" scope="project" />
   <entry file="wiring-needs-a-request.xml" scope="project" />
+  <entry file="never-dead-end-the-user.xml" scope="project" />
 </learnings>

@@ -1,6 +1,7 @@
 import type { CheckKind, CheckReason } from "@bakery/contracts/check-evidence";
 import { StandardError } from "@bakery/contracts/http";
 import type { RepositoryRuleMode } from "@bakery/contracts/repository-rules";
+import type { RequirementStatus } from "../review-loop/evidence.ts";
 import {
   assessFreshness,
   type BoundPart,
@@ -27,29 +28,6 @@ export type CheckRequirement = {
   /** `require` blocks, `warn` retains findings, `guide` is ignored. */
   readonly mode: RepositoryRuleMode;
 };
-
-/**
- * - `passed`: a fresh, coherent pass.
- * - `failed`: the newest row says the check ran and did not pass.
- * - `unavailable`: the newest row says the check could not be observed (or was
- *   canceled, or contradicts itself).
- * - `stale`: the newest row is a pass bound to an identity that has changed.
- *   Only a pass can be stale; a row that did not pass keeps its own status
- *   whether or not the candidate has moved.
- * - `missing`: there is no concluded evidence (no row, or only a pending one).
- * - `not_blocking`: the requirement is guidance only and was not consulted.
- */
-export const REQUIREMENT_STATUSES = Object.freeze(
-  [
-    "passed",
-    "failed",
-    "unavailable",
-    "stale",
-    "missing",
-    "not_blocking",
-  ] as const,
-);
-export type RequirementStatus = typeof REQUIREMENT_STATUSES[number];
 
 export type RequirementReason =
   | CheckReason

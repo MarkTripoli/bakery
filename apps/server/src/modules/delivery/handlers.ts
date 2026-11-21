@@ -8,6 +8,7 @@ import {
   listMergeEntries,
   type MergeEntryCreateInput,
 } from "./merge-entries.ts";
+import { listMergeAttempts } from "./merge-attempts.ts";
 import {
   type MergeDispatchDependencies,
   mergePullRequest,
@@ -20,22 +21,46 @@ import {
   createRunDeliveryDecisionsListHandler,
   createRunReviewsListHandler,
 } from "./postgres.ts";
+import { acceptReview } from "./review-accept.ts";
+import { createMetricSourcesLister, getMetricSeries } from "./metrics.ts";
 
 export function createDeliveryHandlers(
   secret: string,
   merge: MergeDispatchDependencies,
 ): DeliveryActionHandlers {
+  const metricSources = createMetricSourcesLister(secret);
   return {
     checksList: createChecksListHandler(secret),
     runReviewsList: createRunReviewsListHandler(secret),
+    runReviewsAccept: async (context, input) =>
+      contractSchemas.ReviewCycle.parse(await acceptReview(context, input)),
     reviewFindingsList: createReviewFindingsListHandler(secret),
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
     pullRequestsList: createPullRequestsListHandler(secret),
+    metricsGet: async (context, input) =>
+      contractSchemas.MetricSeries.parse(await getMetricSeries(context, input)),
+    metricsSources: async (context, input) =>
+      contractSchemas["Page<MetricSource>"].parse(
+        await metricSources(context, input),
+      ),
     mergeEntriesList: async (context, input) => {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       return contractSchemas["Page<MergeEntry>"].parse(
         await listMergeEntries(
+          transaction,
+          organizationId,
+          principalId,
+          secret,
+          input,
+        ),
+      );
+    },
+    mergeAttemptsList: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas["Page<MergeAttempt>"].parse(
+        await listMergeAttempts(
           transaction,
           organizationId,
           principalId,

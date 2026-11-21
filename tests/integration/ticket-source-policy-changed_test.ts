@@ -67,7 +67,10 @@ Deno.test("source_policy_changed: a stale revision is refused with nothing writt
       fx.reader.setIssue({ number, labels: [] });
       fx.facts.set(number, `2026-06-01T00:00:0${number}Z`);
     }
-    await read(await post(fx, `${SOURCES}/${sourceId}/previews`, {}), 201);
+    // A preview stores nothing, so cache the issues the way a poll does.
+    for (const number of [1, 2]) {
+      await fx.admit(sourceId, { number, origin: "poll" });
+    }
 
     // A policy edit moves the revision from 1 to 2.
     const source = await read<SourceView>(

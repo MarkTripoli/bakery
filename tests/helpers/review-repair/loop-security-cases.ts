@@ -147,6 +147,55 @@ function registerIndependenceCases(): void {
       assertEquals((await world.cycles()).length, 1);
     }));
 
+  /** A steer written as the real handlers write it: kind steer, bound to a session. */
+  const steerSession = (world: LoopWorld, sessionId: string) =>
+    world.fixture.pgDatabase.query(
+      `insert into bakery.decisions_ledger (
+         organization_id, task_id, run_id, kind, subject_kind, subject_id,
+         decided_by, text, detail
+       ) values ($1, $2, $3, 'steer', 'session', $4, $5, 'Look at X first.',
+                 $6::jsonb)`,
+      [
+        world.fixture.organizationId,
+        world.taskId,
+        world.runId,
+        sessionId,
+        world.fixture.principalId,
+        JSON.stringify({
+          actorKind: "agent",
+          steersReviewer: true,
+          mode: "steer",
+        }),
+      ],
+    );
+
+  Deno.test("a steered reviewer is refused as not independent, and the refusal records no review", () =>
+    withReviewedRun(async (world) => {
+      const review = await world.review(0);
+      await steerSession(world, review.sessionId);
+      // Steered: it is labelled and does not count where independence is required.
+      await expectDenied(
+        world,
+        review,
+        review.report(),
+        independence("review_steered"),
+      );
+      assertEquals((await world.cycles()).length, 0);
+    }));
+
+  Deno.test("the control: a steer of some other session does not make the reviewer steered", () =>
+    withReviewedRun(async (world) => {
+      const implement = (await world.steps()).find((step) =>
+        step.step_key === "implement"
+      )!;
+      const [implementer] = await world.sessionIds(implement.id);
+      const review = await world.review(0);
+      // The implementer was steered (as people do), the reviewer was not.
+      await steerSession(world, implementer);
+      await expectAccepted(review, review.report());
+      assertEquals((await world.cycles()).length, 1);
+    }));
+
   Deno.test("the repair session is an implementing session too: a later review cannot name it", () =>
     withReviewedRun(async (world) => {
       const first = await world.review(0);

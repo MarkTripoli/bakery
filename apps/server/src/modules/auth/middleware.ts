@@ -27,6 +27,11 @@ import {
   resolveSessionAssurance,
   SessionAssurance,
 } from "./domain/assurance.ts";
+import {
+  claimsDesktopCredential,
+  desktopAuthorization,
+  desktopCredentialFromAuthorization,
+} from "./domain/desktop-sign-in.ts";
 
 export type AuthVariables = {
   principal: AuthenticatedSubject;
@@ -86,12 +91,69 @@ async function readSignedSessionToken(
   }
 }
 
+/**
+ * The session token a request authenticates with: the desktop app's bearer
+ * credential when present (it is the token of its own session row), else the
+ * signed browser cookie. Live-update sockets read it here, so a revoked or
+ * expired desktop sign-in is refused exactly as a browser one is.
+ */
 export async function readSessionToken(
   headers: Headers,
   secret: string,
+  path?: string,
 ): Promise<string | null> {
+  const desktop = desktopCredentialFromAuthorization(
+    desktopAuthorization(headers, path),
+  );
+  if (desktop !== null) return desktop;
   const cookie = getSessionCookie(headers);
   return cookie ? await readSignedSessionToken(cookie, secret) : null;
+}
+
+/** The provider's session cookie names; the secure one is read on HTTPS origins. */
+export const SESSION_COOKIE_NAMES = [
+  "better-auth.session_token",
+  "__Secure-better-auth.session_token",
+] as const;
+
+/** HMAC-SHA256 signed cookie value, the provider's own format. */
+export async function signSessionToken(token: string, secret: string) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token)),
+  );
+  let binary = "";
+  for (const byte of signature) binary += String.fromCharCode(byte);
+  return `${token}.${btoa(binary)}`;
+}
+
+/**
+ * Request headers that carry a desktop credential as its session cookie and
+ * nothing else: any cookie the request sent is dropped, and so is the
+ * Authorization header, so the provider sees exactly one session.
+ */
+export async function desktopSessionHeaders(
+  source: Headers,
+  credential: string,
+  secret: string,
+): Promise<Headers> {
+  const headers = new Headers(source);
+  headers.delete("authorization");
+  // A socket's carried credential is consumed here; the provider sees only
+  // the cookie.
+  headers.delete("sec-websocket-protocol");
+  const signed = await signSessionToken(credential, secret);
+  headers.set(
+    "cookie",
+    SESSION_COOKIE_NAMES.map((name) => `${name}=${signed}`).join("; "),
+  );
+  return headers;
 }
 
 export function createOriginGuard(options: {
@@ -99,6 +161,16 @@ export function createOriginGuard(options: {
   trustedOrigins: readonly string[];
 }): MiddlewareHandler {
   return async (context, next) => {
+    // A desktop credential is a bearer value, never ambient, so a page on
+    // another origin cannot make the browser send it: no origin applies. The
+    // session middleware after this guard validates it.
+    if (
+      desktopCredentialFromAuthorization(
+        desktopAuthorization(context.req.raw.headers, context.req.path),
+      ) !== null
+    ) {
+      return await next();
+    }
     const origin = context.req.raw.headers.get("origin");
     if (
       origin === null ||
@@ -179,7 +251,34 @@ export function createBrowserSessionMiddleware(options: {
       await next();
       return;
     }
+    // The desktop app's credential is the token of a real sign-in session.
+    // It is re-presented to the provider as that session's signed cookie, so
+    // expiry, renewal, assurance, revocation and principal resolution are the
+    // browser path below, unchanged. Bearer, so no origin check applies.
+    let headers = context.req.raw.headers;
+    let desktop = false;
+    const desktopClaim = desktopAuthorization(
+      context.req.raw.headers,
+      context.req.path,
+    );
+    if (claimsDesktopCredential(desktopClaim)) {
+      const credential = desktopCredentialFromAuthorization(desktopClaim);
+      if (credential === null) {
+        return problemResponse(
+          context,
+          new StandardError({ code: AuthProblemCode.Invalid }),
+          { publicBaseUrl: options.publicBaseUrl },
+        );
+      }
+      headers = await desktopSessionHeaders(
+        headers,
+        credential,
+        options.secret,
+      );
+      desktop = true;
+    }
     if (
+      !desktop &&
       options.checkOrigin !== false &&
       ["POST", "PUT", "PATCH", "DELETE"].includes(context.req.method) &&
       !options.trustedOrigins.includes(
@@ -192,14 +291,15 @@ export function createBrowserSessionMiddleware(options: {
         { publicBaseUrl: options.publicBaseUrl },
       );
     }
-    const cookie = getSessionCookie(context.req.raw.headers);
+    const cookie = getSessionCookie(headers);
     if (!cookie && options.allowAnonymous) {
       await next();
       return;
     }
     const token = await readSessionToken(
-      context.req.raw.headers,
+      headers,
       options.secret,
+      context.req.path,
     );
     let state: SessionState | null = null;
     if (token) {
@@ -223,7 +323,7 @@ export function createBrowserSessionMiddleware(options: {
     let session: Awaited<ReturnType<typeof options.auth.api.getSession>>;
     try {
       session = await options.auth.api.getSession({
-        headers: context.req.raw.headers,
+        headers,
         query: { disableCookieCache: true },
       });
     } catch (cause) {
@@ -310,10 +410,13 @@ export function createActionContext(
   context: Context<{ Variables: AuthVariables }>,
 ): ActionContextSeed {
   const principal = context.get("principal");
+  const peer = (context.env as { remoteAddr?: Deno.Addr } | undefined)
+    ?.remoteAddr;
   return {
     principal,
     locale: requestLocale(context.req.raw, principal),
     sessionId: context.get("sessionId"),
     accessToken: context.get("accessToken"),
+    clientAddress: peer?.transport === "tcp" ? peer.hostname : undefined,
   };
 }

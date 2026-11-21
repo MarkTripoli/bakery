@@ -24,7 +24,6 @@ function specimen(
       <SignInScreen
         email=""
         onBackToSignIn={() => {}}
-        onReturnToSignIn={() => {}}
         onEmailChange={() => {}}
         onPasswordChange={() => {}}
         onRetry={() => {}}
@@ -49,7 +48,17 @@ export const loginSpecimens: Readonly<Record<string, () => JSX.Element>> = {
   // Paper does not draw.
   invalid: specimen({ failure: "auth.signIn.genericFailure" }),
   loading: specimen({ pending: true }),
-  offline: specimen({ state: "offline" }),
-  unavailable: specimen({ state: "unavailable" }),
-  throttled: specimen({ state: "throttled" }),
+  "rate-limited": specimen({
+    failure: "auth.signIn.rateLimited",
+    failureParams: { wait: "3 minutes" },
+  }),
+  blocked: specimen({ failure: "auth.signIn.locked" }),
+  offline: specimen({
+    failure: "auth.signIn.offlineNotice",
+    failureTone: "warning",
+  }),
+  unavailable: specimen({
+    failure: "auth.signIn.unreachable",
+    failureTone: "warning",
+  }),
 };

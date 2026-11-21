@@ -1,7 +1,9 @@
 import { githubIntegration } from "./integration-providers/github.ts";
+import type { ProviderManifest } from "@bakery/integration-sdk/provider";
 import {
   PROVIDER_IDENTITIES,
   providerIdentityDefects,
+  PROVIDERS,
 } from "../integrations/registry.ts";
 
 /**
@@ -20,6 +22,25 @@ import {
  */
 const DEFINITIONS = Object.freeze([githubIntegration] as const);
 
+/**
+ * The provider packages the gate deploys, as their activated manifests.
+ *
+ * Section 12.4 has the gate's deployed list derive from the registry rather than
+ * being listed separately, and this is that derivation for the packages that exist:
+ * `PROVIDERS` is what `activateProviders` accepted at startup, so a provider that
+ * failed activation is not here and cannot be routed to.
+ *
+ * A provider package and a legacy definition are different tiers for now - a
+ * definition carries actions, the invoke door and the gate broker's request
+ * templates, none of which the provider tier describes yet - so the deployed set is
+ * their union and each entry keeps the tier it came from. Converting GitHub to the
+ * provider tier is its own item; until then neither list may claim a gate id the
+ * other holds.
+ */
+const PROVIDER_MANIFESTS = Object.freeze(
+  PROVIDERS.providers.map((provider) => provider.manifest),
+);
+
 /** Gate ids that the registry deploys, in registry order. */
 const REGISTERED_GATE_IDS: readonly string[] = Object.freeze(
   PROVIDER_IDENTITIES.map((identity) => identity.gateId),
@@ -33,22 +54,40 @@ const REGISTERED_GATE_IDS: readonly string[] = Object.freeze(
  */
 export function deployedIntegrationsDefects(): string[] {
   const defects: string[] = [...providerIdentityDefects()];
-  const defined = new Set(
-    DEFINITIONS.map((definition) => definition.manifest.id),
-  );
+  const defined = new Map<string, "definition" | "provider">([
+    ...DEFINITIONS.map(
+      (definition) => [definition.manifest.id, "definition"] as const,
+    ),
+    ...PROVIDER_MANIFESTS.map((manifest) =>
+      [
+        manifest.integrationId,
+        "provider",
+      ] as const
+    ),
+  ]);
   const registered = new Set(REGISTERED_GATE_IDS);
 
   for (const gateId of REGISTERED_GATE_IDS) {
     if (!defined.has(gateId)) {
       defects.push(
-        `The registry deploys ${gateId} but no integration definition matches it; the gate would route to a provider that does not exist.`,
+        `The registry deploys ${gateId} but neither a definition nor a provider package matches it; the gate would route to a provider that does not exist.`,
       );
     }
   }
-  for (const gateId of defined) {
+  for (const gateId of defined.keys()) {
     if (!registered.has(gateId)) {
       defects.push(
-        `The definition ${gateId} is deployed but the registry has no identity for it; a connection could not name it.`,
+        `The integration ${gateId} is deployed but the registry has no identity for it; a connection could not name it.`,
+      );
+    }
+  }
+  // Both tiers are read by the gate now, so their meeting point has to be checked
+  // too: a gate id claimed by a definition and by a provider package would be two
+  // providers answering one route, and the first would win silently.
+  for (const manifest of PROVIDER_MANIFESTS) {
+    if (DEFINITIONS.some((d) => d.manifest.id === manifest.integrationId)) {
+      defects.push(
+        `Both a definition and the provider package ${manifest.slug} answer ${manifest.integrationId}; the gate would route to only one of them.`,
       );
     }
   }
@@ -113,8 +152,72 @@ function freezeDeep<T>(value: T): T {
  * Ordered by the registry rather than by the literal's own order, so the deployed
  * list has one ordering rule and it is the one the registry states.
  */
+/**
+ * The deployed set, in registry order: legacy definitions plus provider packages.
+ *
+ * Ordered by the registry rather than by either list's own order, so the deployed
+ * list has one ordering rule and it is the one the registry states. A provider
+ * package contributes its manifest and no definition, because it has no actions to
+ * contribute yet - which is why the two are kept apart here rather than merged into
+ * a shape that would have to pretend one of them is the other.
+ */
+export type DeployedIntegrationEntry =
+  | {
+    readonly kind: "definition";
+    readonly definition: (typeof DEFINITIONS)[number];
+  }
+  | { readonly kind: "provider"; readonly provider: ProviderManifest };
+
+export const deployedIntegrationEntries: readonly DeployedIntegrationEntry[] =
+  freezeDeep(
+    REGISTERED_GATE_IDS.map((gateId): DeployedIntegrationEntry | null => {
+      const definition = DEFINITIONS.find((d) => d.manifest.id === gateId);
+      if (definition !== undefined) return { kind: "definition", definition };
+      const provider = PROVIDER_MANIFESTS.find((m) =>
+        m.integrationId === gateId
+      );
+      return provider === undefined ? null : { kind: "provider", provider };
+    }).filter((entry): entry is DeployedIntegrationEntry => entry !== null),
+  );
+
+/** The legacy definitions, in the same registry order. */
 export const deployedIntegrations = freezeDeep(
-  REGISTERED_GATE_IDS.map((gateId) =>
-    DEFINITIONS.find((definition) => definition.manifest.id === gateId)
-  ).filter((definition) => definition !== undefined),
+  deployedIntegrationEntries.flatMap((entry) =>
+    entry.kind === "definition" ? [entry.definition] : []
+  ),
 );
+
+/**
+ * The provider packages the gate deploys, by slug and by gate id.
+ *
+ * Separate from `deployedIntegrations` because the two tiers carry different
+ * things: a definition brings actions, and a provider package brings a manifest and
+ * its ports. Merging them would mean inventing a shape in which a manifest has
+ * actions or a definition has ports, and either would be a field one tier has to
+ * pretend to have.
+ *
+ * This is what makes a registered provider reachable: the connection writer resolves
+ * a provider row id through it, and the intake path resolves a webhook path by slug,
+ * so a package that is deployed but absent here would be "exists, nothing calls it".
+ */
+export const deployedProviders = freezeDeep(
+  deployedIntegrationEntries.flatMap((entry) =>
+    entry.kind === "provider" ? [entry.provider] : []
+  ),
+);
+
+/** The deployed provider manifest for a slug, or `undefined`. */
+export function deployedProviderBySlug(
+  slug: string,
+): ProviderManifest | undefined {
+  return deployedProviders.find((manifest) => manifest.slug === slug);
+}
+
+/** The deployed provider manifest for a gate id, or `undefined`. */
+export function deployedProviderByIntegrationId(
+  integrationId: string,
+): ProviderManifest | undefined {
+  return deployedProviders.find((manifest) =>
+    manifest.integrationId === integrationId
+  );
+}

@@ -1,13 +1,12 @@
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import {
   CONNECTED_CLIENTS_PATH,
   PASSKEYS_SETTINGS_PATH,
   PASSWORD_SETTINGS_PATH,
   SESSIONS_SETTINGS_PATH,
-  SIGN_OUT_PATH,
   TWO_FACTOR_SETTINGS_PATH,
 } from "../app/auth-paths.ts";
-import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   SecurityAsyncBoundary,
@@ -31,11 +30,11 @@ export type SecurityHubScreenProps = {
 };
 
 /**
- * The full account-and-security hub — Paper V-0 `security` (auth.js
- * `security`, full capabilities): identity, sign-in methods (password and
- * passkeys), account protection (two-factor), and account access (active
- * sessions; the email address lives in the identity header), then the sign-out link. There is no
- * connected-clients row until that feature ships.
+ * The account-and-security hub: who you are, then one list of the ways you
+ * sign in and where you are signed in (password, passkeys, two-factor, active
+ * sessions, connected apps). Each row is the control, with an arrow showing it
+ * opens; two-factor, while off, offers its own "Turn on" button. Signing out
+ * lives in the account menu.
  */
 export function SecurityHubScreen(
   {
@@ -52,6 +51,25 @@ export function SecurityHubScreen(
   }: SecurityHubScreenProps,
 ) {
   const { translate } = useI18n();
+  const navigate = useNavigate();
+  const SecurityRow = (
+    { description, icon, label, title, to }: {
+      readonly description: string;
+      readonly icon: "lock" | "key" | "computer" | "plug" | "shield";
+      readonly label: string;
+      readonly title: string;
+      readonly to: string;
+    },
+  ) => (
+    <UI.DescriptionItem
+      action={<UI.IconGlyph name="arrow" size="large" />}
+      aria-label={label}
+      description={description}
+      icon={<UI.IconGlyph name={icon} size="large" />}
+      onSelect={() => void navigate({ to })}
+      title={title}
+    />
+  );
   return (
     <UI.SettingsContent data-testid="security-hub">
       <UI.AuthHeading
@@ -78,111 +96,82 @@ export function SecurityHubScreen(
           icon={<UI.IconGlyph name="person" size="large" />}
           title={displayName}
         />
-        {
-          /* auth.js `security`: this group is `<section class="stack">`, a
-              20px column, so the first row sits 64px below the heading. */
-        }
-        <UI.SettingsSection
-          title={translate("settings.security.signInMethodsHeading")}
-          variant="stack"
-        >
-          <div>
-            <UI.DescriptionItem
-              action={
-                <RouterLink
-                  aria-label={translate("settings.security.changePasswordAria")}
-                  to={PASSWORD_SETTINGS_PATH}
-                >
-                  {translate("settings.security.change")}
-                </RouterLink>
-              }
-              description={translate("settings.security.passwordDescription")}
-              icon={<UI.IconGlyph name="lock" size="large" />}
-              title={translate("settings.security.passwordTitle")}
-            />
-            <UI.DescriptionItem
-              action={
-                <RouterLink
-                  aria-label={translate("settings.security.managePasskeysAria")}
-                  to={PASSKEYS_SETTINGS_PATH}
-                >
-                  {translate("auth.settings.security.manage")}
-                </RouterLink>
-              }
-              description={passkeyCount === 0
-                ? translate("settings.security.passkeysNone")
-                : translate("settings.security.passkeysCount", {
-                  count: passkeyCount,
-                })}
-              icon={<UI.IconGlyph name="key" size="large" />}
-              title={translate("settings.security.passkeysTitle")}
-            />
-          </div>
-        </UI.SettingsSection>
-        <UI.SettingsSection
-          title={translate("auth.settings.security.accountProtectionHeading")}
-        >
-          <UI.DescriptionItem
-            action={
-              <RouterLink
-                aria-label={translate(
-                  twoFactorEnabled
-                    ? "settings.security.manageTwoFactorAria"
-                    : "settings.security.setUpTwoFactorAria",
-                )}
-                to={TWO_FACTOR_SETTINGS_PATH}
-              >
-                {translate(
-                  twoFactorEnabled
-                    ? "auth.settings.security.manage"
-                    : "auth.settings.security.setUp",
-                )}
-              </RouterLink>
-            }
-            description={twoFactorEnabled
-              ? translate("auth.settings.security.twoFactorDescriptionOn", {
-                count: backupCodesRemaining,
-              })
-              : translate("auth.settings.security.twoFactorDescriptionOff")}
-            icon={<UI.IconGlyph name="shield" size="large" />}
-            title={translate("auth.settings.security.twoFactorTitle")}
+        <div>
+          <SecurityRow
+            description={translate("settings.security.passwordDescription")}
+            icon="lock"
+            label={translate("settings.security.changePasswordAria")}
+            title={translate("settings.security.passwordTitle")}
+            to={PASSWORD_SETTINGS_PATH}
           />
-        </UI.SettingsSection>
-        <UI.SettingsSection
-          title={translate("auth.settings.security.accountAccessHeading")}
-        >
-          <UI.DescriptionItem
-            action={
-              <RouterLink
-                aria-label={translate("settings.security.manageSessionsAria")}
-                to={SESSIONS_SETTINGS_PATH}
-              >
-                {translate("auth.settings.security.manage")}
-              </RouterLink>
-            }
+          <SecurityRow
+            description={passkeyCount === 0
+              ? translate("settings.security.passkeysNone")
+              : translate("settings.security.passkeysCount", {
+                count: passkeyCount,
+              })}
+            icon="key"
+            label={translate("settings.security.managePasskeysAria")}
+            title={translate("settings.security.passkeysTitle")}
+            to={PASSKEYS_SETTINGS_PATH}
+          />
+          {twoFactorEnabled
+            ? (
+              <SecurityRow
+                description={translate(
+                  "auth.settings.security.twoFactorDescriptionOn",
+                  { count: backupCodesRemaining },
+                )}
+                icon="shield"
+                label={translate("settings.security.manageTwoFactorAria")}
+                title={translate("auth.settings.security.twoFactorTitle")}
+                to={TWO_FACTOR_SETTINGS_PATH}
+              />
+            )
+            : (
+              <UI.DescriptionItem
+                action={
+                  <UI.Inline gap="compact">
+                    <UI.Badge tone="neutral">
+                      {translate("auth.settings.security.twoFactorOff")}
+                    </UI.Badge>
+                    <UI.Button
+                      aria-label={translate(
+                        "settings.security.setUpTwoFactorAria",
+                      )}
+                      onClick={() =>
+                        void navigate({ to: TWO_FACTOR_SETTINGS_PATH })}
+                      variant="secondary"
+                    >
+                      {translate("auth.settings.security.turnOn")}
+                    </UI.Button>
+                  </UI.Inline>
+                }
+                description={translate(
+                  "auth.settings.security.twoFactorDescriptionOff",
+                )}
+                icon={<UI.IconGlyph name="shield" size="large" />}
+                title={translate("auth.settings.security.twoFactorTitle")}
+                titleStyle="item"
+              />
+            )}
+          <SecurityRow
             description={translate(
               "auth.settings.security.activeSessionsDescription",
             )}
-            icon={<UI.IconGlyph name="computer" size="large" />}
+            icon="computer"
+            label={translate("settings.security.manageSessionsAria")}
             title={translate("auth.sessions.title")}
+            to={SESSIONS_SETTINGS_PATH}
           />
-          <UI.DescriptionItem
-            action={
-              <RouterLink
-                aria-label={translate("settings.security.manageClientsAria")}
-                to={CONNECTED_CLIENTS_PATH}
-              >
-                {translate("auth.settings.security.manage")}
-              </RouterLink>
-            }
+          <SecurityRow
             description={translate("settings.security.clientsDescription")}
-            icon={<UI.IconGlyph name="plug" size="large" />}
+            icon="plug"
+            label={translate("settings.security.manageClientsAria")}
             title={translate("auth.settings.clients.title")}
+            to={CONNECTED_CLIENTS_PATH}
           />
-        </UI.SettingsSection>
-        <RouterLink to={SIGN_OUT_PATH}>
-          {translate("auth.settings.security.signOutOfSession")}
-        </RouterLink>
+        </div>
       </SecurityAsyncBoundary>
     </UI.SettingsContent>
   );

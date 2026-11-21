@@ -8,7 +8,13 @@ import {
   MemoryProvenanceSchema,
 } from "@bakery/contracts/memory-promotion";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { appendDomainEvent } from "@bakery/persistence/event-audit";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import {
+  type MemorySource,
+  readerMayReadArtifactVersions,
+  resolveMemorySources,
+} from "./memory-source-state.ts";
 
 /**
  * Memory persistence (#22, chapter 17 "Memory promotes evidence, never policy").
@@ -71,13 +77,19 @@ type MemoryRevision = z.output<typeof contractSchemas.MemoryRevision>;
 const iso = (value: Date | string | null): string | null =>
   value === null ? null : new Date(value).toISOString();
 
-function toEntry(row: MemoryRow): MemoryEntry {
+function toEntry(
+  row: MemoryRow,
+  currentRevision: MemoryRevision | null,
+): MemoryEntry {
   return {
     id: row.id,
     repositoryId: row.repository_id,
     topic: row.topic,
     tags: (row.tags ?? []) as MemoryEntry["tags"],
     currentRevisionId: row.current_revision_id,
+    currentRevision,
+    // The entry's source state is its current revision's.
+    sourceState: currentRevision?.sourceState ?? "unknown",
     status: row.status as MemoryEntry["status"],
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
@@ -96,14 +108,27 @@ function decimalString(value: string | number): string {
     : `${whole}.${fraction.slice(0, 6).padEnd(1, "0")}`;
 }
 
-function toRevision(row: RevisionRow): MemoryRevision {
+function toRevision(
+  row: RevisionRow,
+  source: MemorySource,
+  createdByName: string | null,
+): MemoryRevision {
+  const sourceState = source.state;
   return {
     id: row.id,
     memoryId: row.memory_id,
     revision: row.revision,
     body: row.body,
     reason: row.reason,
-    sourceArtifactVersionId: row.source_artifact_version_id,
+    // Withheld when the reader cannot read artifact versions: those reads answer
+    // a denied read as not found, so naming the id here would confirm a record
+    // the reader's own artifact reads refuse to.
+    sourceArtifactVersionId: sourceState === "no_access"
+      ? null
+      : row.source_artifact_version_id,
+    sourceState,
+    sourceName: source.name,
+    sourceRevision: source.revision,
     supersedesId: row.supersedes_id,
     // `decimal` is an exact decimal string on the wire, never a float: the
     // driver already returns numeric as text, so it is passed through rather
@@ -111,10 +136,122 @@ function toRevision(row: RevisionRow): MemoryRevision {
     confidence: decimalString(row.confidence),
     expiresAt: iso(row.expires_at),
     createdBy: row.created_by,
+    createdByName,
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
     version: row.version,
   };
+}
+
+/** Display names of the principals who made these revisions: one query, never one per row. */
+async function creatorNames(
+  transaction: PgTransactionClient,
+  rows: readonly RevisionRow[],
+): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((row) => row.created_by))];
+  const names = new Map<string, string>();
+  if (ids.length === 0) return names;
+  const found = await transaction.query<{ id: string; display_name: string }>(
+    `select id, display_name from bakery.principals where id = any($1::uuid[])`,
+    [ids],
+  );
+  for (const principal of found.rows) {
+    if (principal.display_name.trim() !== "") {
+      names.set(principal.id, principal.display_name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Revisions as this reader sees them: one batched source lookup per call, never
+ * one per row.
+ */
+async function revisionsForReader(
+  context: ActionContext,
+  transaction: PgTransactionClient,
+  organizationId: string,
+  rows: readonly RevisionRow[],
+): Promise<MemoryRevision[]> {
+  const sources = await resolveMemorySources(transaction, {
+    organizationId,
+    readerMayRead: readerMayReadArtifactVersions(context),
+    versionIds: rows.map((row) => row.source_artifact_version_id),
+  });
+  const names = await creatorNames(transaction, rows);
+  return rows.map((row) =>
+    toRevision(
+      row,
+      sources.get(row.source_artifact_version_id) ??
+        { state: "unknown", name: null, revision: null },
+      names.get(row.created_by) ?? null,
+    )
+  );
+}
+
+/**
+ * Entries as this reader sees them, each with its current revision (wording,
+ * source, confidence, expiry) so a list needs no read per row. One query loads
+ * every current revision and one resolves their sources, whatever the page size.
+ */
+async function entriesForReader(
+  context: ActionContext,
+  transaction: PgTransactionClient,
+  organizationId: string,
+  rows: readonly MemoryRow[],
+): Promise<MemoryEntry[]> {
+  const revisionIds = rows.flatMap((row) =>
+    row.current_revision_id === null ? [] : [row.current_revision_id]
+  );
+  const current = new Map<string, MemoryRevision>();
+  if (revisionIds.length > 0) {
+    const revisionRows = await transaction.query<RevisionRow>(
+      `select ${REVISION_COLUMNS} from bakery.memory_revisions r
+        where r.organization_id = $1 and r.id = any($2::uuid[])`,
+      [organizationId, revisionIds],
+    );
+    for (
+      const revision of await revisionsForReader(
+        context,
+        transaction,
+        organizationId,
+        revisionRows.rows,
+      )
+    ) {
+      current.set(revision.id, revision);
+    }
+  }
+  return rows.map((row) =>
+    toEntry(
+      row,
+      row.current_revision_id === null
+        ? null
+        : current.get(row.current_revision_id) ?? null,
+    )
+  );
+}
+
+/** One content-free invalidation, written in the transaction of the change. */
+async function appendMemoryEvent(
+  context: ActionContext,
+  transaction: PgTransactionClient,
+  input: {
+    organizationId: string;
+    eventType: "memories.created" | "memories.updated" | "memory.revised";
+    memoryId: string;
+    repositoryId: string;
+    version: number;
+  },
+): Promise<void> {
+  await appendDomainEvent(transaction, {
+    organizationId: input.organizationId,
+    repositoryId: input.repositoryId,
+    eventType: input.eventType,
+    aggregateId: input.memoryId,
+    aggregateVersion: input.version,
+    payload: { resourceId: input.memoryId, resourceVersion: input.version },
+    traceId: context.traceId,
+  });
 }
 
 /**
@@ -361,7 +498,17 @@ export async function createMemory(
                 created_at, updated_at, version`,
     [revision.rows[0].id, organizationId, created.id],
   );
-  return toEntry(updated.rows[0]);
+  const row = updated.rows[0];
+  await appendMemoryEvent(context, transaction, {
+    organizationId,
+    eventType: "memories.created",
+    memoryId: row.id,
+    repositoryId: row.repository_id,
+    version: Number(row.version),
+  });
+  return (await entriesForReader(context, transaction, organizationId, [row]))[
+    0
+  ];
 }
 
 export async function addMemoryRevision(
@@ -458,15 +605,25 @@ export async function addMemoryRevision(
     ],
   );
 
-  await transaction.query(
+  const moved = await transaction.query<{ version: number }>(
     `update bakery.memory_entries
         set current_revision_id = $1,
             updated_at = now(),
             version = version + 1
-      where organization_id = $2 and id = $3`,
+      where organization_id = $2 and id = $3
+      returning version`,
     [inserted.rows[0].id, organizationId, memoryId],
   );
-  return toRevision(inserted.rows[0]);
+  await appendMemoryEvent(context, transaction, {
+    organizationId,
+    eventType: "memory.revised",
+    memoryId,
+    repositoryId: entry.repository_id,
+    version: Number(moved.rows[0].version),
+  });
+  return (await revisionsForReader(context, transaction, organizationId, [
+    inserted.rows[0],
+  ]))[0];
 }
 
 export async function listMemoryRevisions(
@@ -489,7 +646,12 @@ export async function listMemoryRevisions(
   const visible = rows.rows.slice(0, limit);
   const last = visible.at(-1);
   return {
-    items: visible.map(toRevision),
+    items: await revisionsForReader(
+      context,
+      transaction,
+      organizationId,
+      visible,
+    ),
     nextCursor: rows.rows.length > limit && last ? String(last.revision) : null,
   };
 }
@@ -513,7 +675,9 @@ export async function getMemory(
       params: { reason: "memory_not_found" },
     });
   }
-  return toEntry(rows.rows[0]);
+  return (await entriesForReader(context, transaction, organizationId, [
+    rows.rows[0],
+  ]))[0];
 }
 
 /**
@@ -650,7 +814,17 @@ export async function updateMemory(
       },
     });
   }
-  return toEntry(rows.rows[0]);
+  const row = rows.rows[0];
+  await appendMemoryEvent(context, transaction, {
+    organizationId,
+    eventType: "memories.updated",
+    memoryId: row.id,
+    repositoryId: row.repository_id,
+    version: Number(row.version),
+  });
+  return (await entriesForReader(context, transaction, organizationId, [row]))[
+    0
+  ];
 }
 
 /** One row per accepted entry, newest first, joined to its current revision. */
@@ -676,7 +850,12 @@ export async function listMemory(
   const visible = rows.rows.slice(0, limit);
   const last = visible.at(-1);
   return {
-    items: visible.map(toEntry),
+    items: await entriesForReader(
+      context,
+      transaction,
+      organizationId,
+      visible,
+    ),
     nextCursor: rows.rows.length > limit && last ? last.cursor_at : null,
   };
 }

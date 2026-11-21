@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   AUTH_RETURN_TO_KEY,
   consumeReturnTo,
+  isDesktopSignInReturn,
   postSignInDestination,
   rememberDestination,
   rememberReturnTo,
@@ -177,4 +178,32 @@ Deno.test("postSignInDestination lets a public deep link win over the organizati
     "/settings/appearance",
   );
   assertEquals(selected.entries.has(AUTH_RETURN_TO_KEY), false);
+});
+
+Deno.test("only the exact desktop sign-in question is a return that leaves the app", () => {
+  const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  assertEquals(
+    isDesktopSignInReturn(`/api/desktop/sign-in?request=${id}`),
+    true,
+  );
+  for (
+    const target of [
+      `/api/desktop/sign-in?request=${id}&next=//evil.example`,
+      `/api/desktop/sign-in?request=${id}#x`,
+      "/api/desktop/sign-in?request=not-a-uuid",
+      `//evil.example/api/desktop/sign-in?request=${id}`,
+      `https://evil.example/api/desktop/sign-in?request=${id}`,
+      `/api/desktop/sign-in/../../v1?request=${id}`,
+      `/api/other?request=${id}`,
+    ]
+  ) assertEquals(isDesktopSignInReturn(target), false, target);
+});
+
+Deno.test("a stored desktop sign-in question wins after sign-in, even before an organization is chosen", () => {
+  const storage = recordingStorage();
+  const target =
+    "/api/desktop/sign-in?request=0f8fad5b-d9cb-469f-a165-70867728950e";
+  storage.setItem(AUTH_RETURN_TO_KEY, target);
+  assertEquals(postSignInDestination({ outcome: "choose", storage }), target);
+  assertEquals(storage.entries.has(AUTH_RETURN_TO_KEY), false);
 });

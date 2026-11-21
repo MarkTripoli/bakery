@@ -308,7 +308,13 @@ export async function openApprovalFixture() {
     return Number(rows[0].count);
   };
 
-  /** A bearer token for a principal of the given type, live-capped by its developer role. */
+  /**
+   * An identity for a principal of the given type, live-capped by its developer
+   * role. A human acts through a signed-in browser session, the way a person
+   * does: a request that carries an access token is an agent's action and needs
+   * a grant to decide (chapter 25, O50/O52), so a bearer token would not model
+   * a person. A service or worker identity presents a bearer token.
+   */
   const tokenFor = async (
     type: "service" | "worker" | "human",
     options: { role?: string; organizationId?: string } = {},
@@ -339,6 +345,17 @@ export async function openApprovalFixture() {
         ...crypto.getRandomValues(new Uint8Array(32)),
       ),
     ).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+    if (type === "human") {
+      return {
+        cookie: await cookie({
+          principalId,
+          principalType: "human",
+          displayName: "token human",
+          userId,
+        }),
+        principalId,
+      };
+    }
     const secret = `bky_${body}`;
     await fx.owner`
       insert into bakery.access_tokens (

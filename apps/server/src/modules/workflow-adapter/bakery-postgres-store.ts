@@ -50,6 +50,10 @@ import {
   type LogicalInvocationKey,
 } from "./invocation-contract.ts";
 import { type AuthoritativeState, decideResume } from "./resume-decision.ts";
+import {
+  recordNotesDelivered,
+  undeliveredStepNotes,
+} from "../execution/step-notes.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
 import {
   nextPlanStep,
@@ -2091,7 +2095,18 @@ export function createBakeryPostgresWorkflowRepository(options: {
         const input = profileContext.success
           ? { ...value, repositoryProfile: profileContext.data }
           : value;
-        if (!executionJobInputFitsTransport(input)) {
+        // Notes left for this step before it started (#412) travel with the
+        // job's input; they are marked delivered below, only once the job
+        // exists. The budget digest is taken over `input`, without the notes.
+        const stepNotes = await undeliveredStepNotes(transaction, {
+          organizationId: row.organizationId,
+          runId: row.runId,
+          stepKey: row.stepKey,
+        });
+        const jobInput = stepNotes.length === 0
+          ? input
+          : { ...input, stepNotes: stepNotes.map((note) => note.body) };
+        if (!executionJobInputFitsTransport(jobInput)) {
           throw new StandardError({ code: "STATE_CONFLICT" });
         }
         await assertSecretIdentityRepositoryAdmission(transaction, {
@@ -2105,8 +2120,8 @@ export function createBakeryPostgresWorkflowRepository(options: {
             : null,
           requestedBy: row.requestedBy,
           runId: row.runId,
-          secretRef: typeof value.secretRef === "string"
-            ? value.secretRef
+          identityRef: typeof value.identityRef === "string"
+            ? value.identityRef
             : null,
         });
         const requirements = repositoryExecutionRequirements(
@@ -2156,7 +2171,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
         await transaction.query(
           "release savepoint workflow_budget_reservation",
         );
-        await transaction.query(
+        const createdJob = await transaction.query<{ id: string }>(
           `insert into bakery.jobs (
              organization_id, run_step_id, action, input, status,
              available_at, priority, max_attempts,
@@ -2168,12 +2183,13 @@ export function createBakeryPostgresWorkflowRepository(options: {
            ) values ($1, $2, $3, $4::jsonb, 'queued', now(), 0, $5,
                      $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb,
                      $15, $16::jsonb, $17::jsonb, $18::jsonb, $19)
-           on conflict (run_step_id, action) do nothing`,
+           on conflict (run_step_id, action) do nothing
+           returning id`,
           [
             row.organizationId,
             row.runStepId,
             action,
-            JSON.stringify(input ?? {}),
+            JSON.stringify(jobInput ?? {}),
             action === "secret.identity.read"
               ? 1
               : planDispatch?.retry.maxAttempts ?? options.maxAttempts,
@@ -2193,6 +2209,14 @@ export function createBakeryPostgresWorkflowRepository(options: {
             budgetReservation?.installationReservationId ?? null,
           ],
         );
+        const newJobId = createdJob.rows[0]?.id;
+        if (newJobId !== undefined && stepNotes.length > 0) {
+          await recordNotesDelivered(transaction, {
+            organizationId: row.organizationId,
+            jobId: newJobId,
+            noteIds: stepNotes.map((note) => note.id),
+          });
+        }
         if (agent && workerActionOutputCarriesSession(action)) {
           // Worker results must name a server-created session of this step.
           await transaction.query(

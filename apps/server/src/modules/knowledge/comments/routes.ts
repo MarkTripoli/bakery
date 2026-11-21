@@ -10,6 +10,9 @@ import {
 } from "@bakery/contracts/contracts";
 import { createComment, updateComment } from "./store.ts";
 import { commentQueries } from "./queries.ts";
+import { loadVersion } from "./rows.ts";
+import { searchMentionCandidates } from "../../conversation/mentions.ts";
+import { requireWorkTransaction } from "../../work/work-transaction.ts";
 import type { OrganizationBlobStore } from "../../catalog/storage-port.ts";
 
 export function registerCommentActions(
@@ -55,6 +58,30 @@ export function registerCommentActions(
     output: contractSchemas["Page<ArtifactComment>"],
     policy: read,
     handler: (context, input) => list(context, input, false),
+  });
+  registry.register({
+    name: "artifactComments.mentionCandidates",
+    method: HttpMethod.Get,
+    path: "/v1/artifact-versions/:id/mention-candidates",
+    input: contractSchemas.MentionCandidateQuery,
+    output: contractSchemas["Page<MentionCandidate>"],
+    policy: read,
+    handler: async (context, input) => {
+      const work = requireWorkTransaction(context);
+      // Resolves the version inside the caller's organization or 404s.
+      const version = await loadVersion(work, context.params.id);
+      return await searchMentionCandidates(context, work.transaction, {
+        action: "artifactComments.mentionCandidates",
+        secret,
+        scope: {
+          kind: "comment_thread",
+          conversationId: version.conversation_id,
+          artifactId: version.artifact_id,
+        },
+        scopeId: version.id,
+        query: input,
+      });
+    },
   });
   registry.register({
     name: "artifactComments.listAcrossVersions",

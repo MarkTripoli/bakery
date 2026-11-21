@@ -140,6 +140,26 @@ export type WebhookIngress = {
     /** Candidate secrets, so a rotation window can accept the old one briefly. */
     secrets: readonly Uint8Array[];
     now: Date;
+    /**
+     * Whether `secret` signs `body` to `signature`, compared in constant time.
+     *
+     * Supplied by the host because HMAC is cryptography, and the rule that keeps
+     * providers from implementing any is the same rule that keeps the arithmetic in
+     * a maintained library: `node:crypto` is banned in a provider package (rail
+     * B1f), and a hand-written SHA-256 here would be a second implementation of a
+     * primitive to get right. It stays synchronous on purpose - the body must not
+     * be held open across an `await` between the signature check and the parse -
+     * which Web Crypto cannot offer and `createHmac` can.
+     *
+     * Optional so a provider that does not sign ignores it, and absent means "the
+     * host supplied no verifier": a provider must then refuse rather than accept,
+     * because an unverifiable delivery is indistinguishable from a forged one.
+     */
+    signatureMatches?: (input: {
+      secret: Uint8Array;
+      body: Uint8Array;
+      signature: Uint8Array;
+    }) => boolean;
   }):
     | {
       ok: true;

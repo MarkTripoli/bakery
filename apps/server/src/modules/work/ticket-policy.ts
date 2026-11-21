@@ -1,7 +1,10 @@
 import { unprocessable } from "@bakery/contracts/http";
 import {
+  type TicketPreviewFilters,
+  TicketPreviewFiltersSchema,
   type TicketRequestIntent,
   type TicketSourcePolicy,
+  TicketSourcePolicyInputSchema,
   TicketSourcePolicySchema,
 } from "@bakery/contracts/ticket-admission";
 
@@ -41,6 +44,50 @@ export function parseTicketSourcePolicy(value: unknown): TicketSourcePolicy {
       "ticket_source_policy_invalid",
       parsed.error,
     );
+  }
+  return parsed.data;
+}
+
+/**
+ * The policy to store from one a client sent. `automatic.since` is the
+ * server's: `now` when automatic admission is switched on (on create, on
+ * every false-to-true flip, and when a disabled source is enabled again, which
+ * the caller passes as no `previous`), unchanged while it stays on, null
+ * while off. Whatever the client sent for it is ignored. A preview of a draft
+ * (#69) stamps it the same way, so the draft is judged by the window saving
+ * would give it.
+ */
+export function storedTicketSourcePolicy(
+  value: unknown,
+  previous: TicketSourcePolicy | null,
+  now: Date,
+): TicketSourcePolicy {
+  const parsed = TicketSourcePolicyInputSchema.safeParse(value);
+  if (!parsed.success) {
+    throw unprocessable(
+      ["policy"],
+      "ticket_source_policy_invalid",
+      parsed.error,
+    );
+  }
+  const enabled = parsed.data.automatic.enabled;
+  const since = !enabled
+    ? null
+    : previous?.automatic.enabled === true
+    ? previous.automatic.since
+    : now.toISOString();
+  return parseTicketSourcePolicy({
+    ...parsed.data,
+    automatic: { enabled, since },
+  });
+}
+
+/** The `filters` of a preview; absent or empty narrows nothing, anything else unknown is 422. */
+export function parsePreviewFilters(value: unknown): TicketPreviewFilters {
+  if (value === undefined || value === null) return {};
+  const parsed = TicketPreviewFiltersSchema.safeParse(value);
+  if (!parsed.success) {
+    throw unprocessable(["filters"], "filters_invalid", parsed.error);
   }
   return parsed.data;
 }

@@ -4,12 +4,14 @@ import type {
   WorkflowPresetResponse,
 } from "../../api/client.ts";
 
-/** The two lists the Library offers. */
-export type LibraryTab = "workflows" | "agents";
+/** The lists the Library offers. */
+export type LibraryTab = "workflows" | "agents" | "memory" | "evaluations";
 
 /** The tab a `?tab=` value names; anything else is Workflows. */
 export function libraryTab(value: unknown): LibraryTab {
-  return value === "agents" ? "agents" : "workflows";
+  return value === "agents" || value === "memory" || value === "evaluations"
+    ? value
+    : "workflows";
 }
 
 /** What a workflow or agent of the organization is doing now, in one badge. */

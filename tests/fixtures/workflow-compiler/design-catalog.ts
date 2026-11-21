@@ -238,7 +238,42 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
     status: enumOf("completed", "failed"),
     measured: bool(),
   }),
+  // Shapes mirror the EvaluationCheckInput / EvaluationScoreInput inventory
+  // entries in docs/technical-design/transport-schemas.json and the pinned
+  // output contracts in packages/contracts/src/contracts.ts.
+  EvaluationCheckInput: obj({
+    evaluationResultId: uuid(),
+    outputArtifactVersionId: uuid(),
+    check: obj({
+      kind: enumOf("json_schema", "contains", "equals"),
+      config: jsonValue(),
+    }),
+  }),
+  EvaluationCheckOutput: obj({
+    state: enumOf("passed", "failed", "error"),
+    score: nullable(num()),
+    reason: nullable(str()),
+  }),
+  EvaluationScoreInput: obj({
+    evaluationResultId: uuid(),
+    outputArtifactVersionId: uuid(),
+    rubric: nonEmpty({ maxLength: 20000 }),
+    outputSchema: jsonValue(),
+  }),
+  EvaluationScoreOutput: obj({
+    state: enumOf("passed", "failed", "unscored", "error"),
+    score: nullable(num()),
+    reason: nullable(str()),
+    judgeOutput: jsonValue(),
+  }),
   TaskBriefInput: obj({ taskId: uuid() }),
+  SecretIdentityReadInput: obj({ identityRef: uuid() }),
+  SecretIdentityOutput: obj({
+    status: enumOf("completed", "denied", "uncertain"),
+    accountId: str({ minLength: 1, maxLength: 16 }),
+    login: nonEmpty({ maxLength: 39 }),
+    code: nonEmpty({ maxLength: 64 }),
+  }, ["status"]),
   // #554 added these two actions to the registry without adding their IO here,
   // so the design catalog could not resolve them and this test went red on
   // main. Shapes mirror docs/technical-design/transport-schemas.json and the

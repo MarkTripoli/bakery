@@ -10,9 +10,22 @@ import type {
   CheckRow,
   DeliveryModel,
   FindingRow,
+  MergeView,
   NowCard,
 } from "./model.ts";
 import type { DecisionPhase } from "./use-approval-decision.ts";
+import {
+  MERGE_NOTICE_KEYS,
+  MERGE_REFUSAL_ABOVE,
+  mergeBlockedCopy,
+  type MergeCardAction,
+  mergeNoChecksCopy,
+  mergeReadyCopy,
+  mergeStepCopy,
+  type MergeTarget,
+  mergeWorkingCopy,
+} from "./merge-copy.ts";
+import type { MergePhase } from "./merge-refusal.ts";
 
 export type DeliveryViewState = "loading" | "error" | "forbidden" | "ready";
 
@@ -35,6 +48,16 @@ export type DeliverySectionViewProps = Readonly<{
   ) => Promise<DecisionPhase>;
   /** Reads the approvals again after a failed read. */
   onRetryApprovals: () => void;
+  /** Where a request to merge, or to check an unknown merge, stands. */
+  mergePhase: MergePhase;
+  /** The branch and commit the last merge request named, for its refusal. */
+  mergeTarget: MergeTarget | null;
+  /** Asks Bakery to merge; resolves to how it ended (`idle` when accepted). */
+  onMerge: (view: MergeView) => Promise<MergePhase>;
+  /** Reads GitHub again for an unknown merge; it never sends a second merge. */
+  onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
+  /** Forgets the last merge notice before a new attempt. */
+  onClearMerge: () => void;
 }>;
 
 /** The Now card's title takes focus after a decision, so it is announced. */
@@ -49,7 +72,13 @@ type Translate = ReturnType<typeof useI18n>["translate"];
 type NowCopy = Readonly<{
   title: string;
   body: string;
-  action: "tell" | "rules" | "decide" | "retryApprovals" | null;
+  action:
+    | "tell"
+    | "rules"
+    | "decide"
+    | "retryApprovals"
+    | Exclude<MergeCardAction, null>
+    | null;
 }>;
 
 function nowCopy(t: Translate, now: NowCard): NowCopy {
@@ -98,6 +127,45 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
       return {
         title: t("tasks.delivery.now.approved.title"),
         body: t("tasks.delivery.now.approved.body"),
+        action: null,
+      };
+    case "mergeReady":
+      return mergeReadyCopy(t, now);
+    case "mergeNoPermission":
+      return {
+        title: t("tasks.delivery.now.mergeNoPermission.title"),
+        body: t("tasks.delivery.now.mergeNoPermission.body"),
+        action: null,
+      };
+    case "mergeUnknown":
+      return {
+        title: t("tasks.delivery.now.mergeUnknown.title"),
+        body: t("tasks.delivery.now.mergeUnknown.body", { head: now.head }),
+        action: "checkAgain",
+      };
+    case "mergeWorking":
+      return mergeWorkingCopy(t);
+    case "mergeBlocked":
+      return mergeBlockedCopy(t, now);
+    case "mergeNoChecks":
+      return mergeNoChecksCopy(t, now.head);
+    case "mergeRefused":
+      return {
+        title: t("tasks.delivery.now.mergeRefused.title"),
+        body: t("tasks.delivery.now.mergeRefused.body"),
+        action: "refused",
+      };
+    case "mergeMoved":
+      return {
+        title: t(
+          now.tried
+            ? "tasks.delivery.now.mergeMoved.title"
+            : "tasks.delivery.now.mergeMovedUntried.title",
+        ),
+        body: t("tasks.delivery.now.mergeMoved.body", {
+          approved: now.approved,
+          current: now.current,
+        }),
         action: null,
       };
     case "changesRequested":
@@ -204,7 +272,15 @@ function nowTone(now: NowCard): "success" | "information" | "warning" {
     case "fixing":
     case "changesRequested":
     case "rejected":
+    case "mergeUnknown":
+    case "mergeWorking":
       return "information";
+    case "mergeBlocked":
+    case "mergeNoChecks":
+    case "mergeReady":
+    case "mergeNoPermission":
+    case "mergeRefused":
+    case "mergeMoved":
     case "approval":
     case "approvalUnknown":
     case "paused":
@@ -283,7 +359,12 @@ const SEVERITY_TONE = {
 
 /** The badge beside "Delivery" once the work is approved, and the tone it takes. */
 const AFTER_APPROVAL_TONE = {
+  readyToMerge: "warning",
+  mergeUnknown: "neutral",
   waitingForMerge: "information",
+  merging: "information",
+  mergeBlocked: "danger",
+  changedAfterApproval: "warning",
   merged: "success",
   notMerged: "warning",
   approved: "neutral",
@@ -300,9 +381,14 @@ export function DeliverySectionView(
   {
     decisionPhase,
     lastUpdated,
+    mergePhase,
+    mergeTarget,
     model,
     offline,
+    onCheckAgain,
+    onClearMerge,
     onDecide,
+    onMerge,
     onOpenRules,
     onRetry,
     onRetryApprovals,
@@ -327,7 +413,11 @@ export function DeliverySectionView(
           tone={AFTER_APPROVAL_TONE[model.afterApproval.badge]}
         >
           {t(
-            `tasks.delivery.afterApproval.badge.${model.afterApproval.badge}` as MessageKey,
+            `tasks.delivery.afterApproval.badge.${
+              model.afterApproval.badge === "mergeBlocked"
+                ? "notMerged"
+                : model.afterApproval.badge
+            }` as MessageKey,
           )}
         </UI.Badge>
       )}
@@ -364,9 +454,14 @@ export function DeliverySectionView(
           <ReadyView
             decisionPhase={decisionPhase}
             lastUpdated={lastUpdated}
+            mergePhase={mergePhase}
+            mergeTarget={mergeTarget}
             model={model}
             offline={offline}
+            onCheckAgain={onCheckAgain}
+            onClearMerge={onClearMerge}
             onDecide={onDecide}
+            onMerge={onMerge}
             onOpenRules={onOpenRules}
             onRetryApprovals={onRetryApprovals}
             onTellBakery={onTellBakery}
@@ -386,6 +481,8 @@ const NOTICE_COPY: Readonly<
   unknown: "tasks.delivery.approval.unknown",
 };
 
+const MERGE_NOTICE_ID = "delivery-merge-notice";
+
 type ApprovalDialog = "approve" | "changes" | "reject";
 
 /** The contract's limit for a decision's comment, counted as the server does. */
@@ -399,9 +496,14 @@ function ReadyView(
   {
     decisionPhase,
     lastUpdated,
+    mergePhase,
+    mergeTarget,
     model,
     offline,
+    onCheckAgain,
+    onClearMerge,
     onDecide,
+    onMerge,
     onOpenRules,
     onRetryApprovals,
     onTellBakery,
@@ -410,6 +512,11 @@ function ReadyView(
     offline: boolean;
     lastUpdated: string | null;
     decisionPhase: DecisionPhase;
+    mergePhase: MergePhase;
+    mergeTarget: MergeTarget | null;
+    onMerge: (view: MergeView) => Promise<MergePhase>;
+    onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
+    onClearMerge: () => void;
     onDecide: (
       choice: ApprovalChoice,
       comment: string,
@@ -424,6 +531,7 @@ function ReadyView(
   const fieldId = useId();
   const changesFieldId = `${fieldId}-changes`;
   const [dialog, setDialog] = useState<ApprovalDialog | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [comment, setComment] = useState("");
   const deciding = decisionPhase === "deciding";
   const copy = nowCopy(t, model.now);
@@ -465,12 +573,81 @@ function ReadyView(
   const closeDialog = () => {
     if (!deciding) setDialog(null);
   };
+  const merge = model.merge;
+  const mergeWorking = mergePhase === "working";
+  // The merge moved on (someone else merged, the pull request changed, the
+  // outcome became unknown): a dialog asking to merge would only be refused.
+  useEffect(() => {
+    if (mergeOpen && !mergeWorking && merge?.startable !== true) {
+      setMergeOpen(false);
+    }
+  }, [mergeOpen, mergeWorking, merge?.startable]);
+  const openMerge = () => {
+    onClearMerge();
+    setMergeOpen(true);
+  };
+  const confirmMerge = async () => {
+    if (merge === null) return;
+    await onMerge(merge);
+    // The dialog closes with the answer, whatever it was; what happened is said
+    // once, in the card, where the person looks next.
+    setMergeOpen(false);
+    focusAfterPaint(() =>
+      document.querySelector("dialog[open]") !== null ? null : (
+        document.getElementById(MERGE_NOTICE_ID) ??
+          document.getElementById(NOW_TITLE_ID)
+      )
+    );
+  };
+  const checkAgain = async () => {
+    if (merge === null) return;
+    await onCheckAgain(merge.pullRequestId);
+    focusAfterPaint(() => document.getElementById(NOW_TITLE_ID));
+  };
   const openDialog = (next: ApprovalDialog) => {
     setDialog(next);
     // A note is typed straight away, so its field, not the close button, takes focus.
     if (next === "changes") focusAfterPaint(fieldInOpenDialog(changesFieldId));
   };
 
+  const mergeDisabled = offline || mergeWorking;
+  const mergeButton = (variant: "primary" | "secondary", again = false) => (
+    <UI.Button
+      disabled={mergeDisabled}
+      key="merge"
+      onClick={openMerge}
+      variant={variant}
+    >
+      {t(
+        again
+          ? "tasks.delivery.merge.again.button"
+          : "tasks.delivery.merge.button",
+      )}
+    </UI.Button>
+  );
+  const checkAgainButton = (
+    <UI.Button
+      disabled={mergeDisabled}
+      key="checkAgain"
+      loading={mergeWorking}
+      onClick={() => void checkAgain()}
+      variant="primary"
+    >
+      {t("tasks.delivery.merge.checkAgain.button")}
+    </UI.Button>
+  );
+  const openOnGitHub = merge === null ? null : (
+    <UI.Link
+      href={merge.url}
+      key="openOnGitHub"
+      rel="noreferrer"
+      target="_blank"
+      variant="button"
+    >
+      {t("tasks.delivery.afterApproval.openOnGitHub")}
+      <span aria-hidden="true">↗</span>
+    </UI.Link>
+  );
   // A person who was refused cannot decide, so the answers go away for them.
   const canDecide = copy.action === "decide" && decisionPhase !== "forbidden";
   const answerDisabled = offline || deciding;
@@ -529,6 +706,21 @@ function ReadyView(
   // the answers are full width and stacked, with the primary last.
   const action = phone
     ? otherButton
+    : copy.action === "merge"
+    ? mergeButton("primary")
+    : copy.action === "mergeAgain"
+    ? mergeButton("primary", true)
+    : copy.action === "openOnGitHub"
+    ? openOnGitHub
+    : copy.action === "checkAgain"
+    ? checkAgainButton
+    : copy.action === "refused"
+    ? (
+      <UI.Inline>
+        {openOnGitHub}
+        {merge?.startable === true ? mergeButton("secondary") : null}
+      </UI.Inline>
+    )
     : copy.action === "decide"
     ? canDecide
       ? <UI.Inline>{approveButton}{changesButton}{rejectButton}</UI.Inline>
@@ -538,6 +730,19 @@ function ReadyView(
     : otherButton;
   const phoneActions = !phone
     ? null
+    : copy.action === "merge"
+    ? [mergeButton("primary")]
+    : copy.action === "mergeAgain"
+    ? [mergeButton("primary", true)]
+    : copy.action === "openOnGitHub"
+    ? [openOnGitHub]
+    : copy.action === "checkAgain"
+    ? [checkAgainButton]
+    : copy.action === "refused"
+    ? [
+      openOnGitHub,
+      merge?.startable === true ? mergeButton("secondary") : null,
+    ]
     : canDecide
     ? [rejectButton, changesButton, approveButton]
     : copy.action === "retryApprovals"
@@ -570,6 +775,55 @@ function ReadyView(
     )
     : null;
   const confirmDisabled = deciding || offline || decisionPhase === "forbidden";
+  // Once the re-read lands on Unknown the card says exactly that, so the
+  // notice would only repeat it; on Ready, Refused or Merged it still says
+  // why the page changed.
+  // A stopped merge that GitHub did not merge says so by itself, after a
+  // reload too, until a newer merge replaces it.
+  const settledNotMerged = mergePhase === "idle" &&
+    merge?.afterNotMerged === true;
+  const mergeNotice: MessageKey | null =
+    Object.hasOwn(MERGE_NOTICE_KEYS, mergePhase) &&
+      !(mergePhase === "noAnswer" && merge?.state === "unknown")
+      ? MERGE_NOTICE_KEYS[mergePhase as keyof typeof MERGE_NOTICE_KEYS]
+      : settledNotMerged
+      ? MERGE_NOTICE_KEYS.notMerged
+      : null;
+  const mergeNoticeIsError = mergePhase === "error" ||
+    mergePhase === "unreachable" || MERGE_REFUSAL_ABOVE.has(mergePhase);
+  const mergeNoticeProps = {
+    icon: mergeNoticeIsError ? undefined : ("info" as const),
+    tone: mergeNoticeIsError ? ("error" as const) : ("neutral" as const),
+  };
+  // The sentences that name the branch or the commit take them from the
+  // request, else from the pull request as it now is.
+  const noticeArgs = {
+    branch: mergeTarget?.branch ?? merge?.targetBranch ?? "",
+    head: mergeTarget?.head ?? merge?.headSha.slice(0, 7) ?? "",
+  };
+  // A lost answer that left no record at all: the card is back to Ready, so the
+  // notice goes above it, where it is read first, and says there is no attempt
+  // to look for. Elsewhere it keeps its place under the card.
+  const noRecord = mergePhase === "noAnswer" &&
+    (merge?.state === "ready" || merge?.state === "noPermission");
+  // A refusal that started nothing is told before the card it leaves unchanged.
+  const noticeAbove = noRecord || MERGE_REFUSAL_ABOVE.has(mergePhase);
+  const mergeNoticeElement = mergeNotice !== null && !mergeOpen
+    ? (
+      <UI.InlineNotice
+        data-testid="delivery-merge-notice"
+        id={MERGE_NOTICE_ID}
+        role="status"
+        tabIndex={-1}
+        {...mergeNoticeProps}
+      >
+        {t(
+          noRecord ? "tasks.delivery.merge.notice.noRecord" : mergeNotice,
+          noticeArgs,
+        )}
+      </UI.InlineNotice>
+    )
+    : null;
   const nowContent = (
     <>
       <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
@@ -587,6 +841,7 @@ function ReadyView(
   );
   return (
     <>
+      {noticeAbove && mergeNoticeElement}
       <UI.AlertBanner
         action={action}
         data-testid="delivery-now"
@@ -619,7 +874,8 @@ function ReadyView(
           {t(refusal)}
         </UI.InlineNotice>
       )}
-      {model.outOfDate && (
+      {!noticeAbove && mergeNoticeElement}
+      {model.outOfDate && !model.pullRequestMoved && (
         <UI.InlineNotice
           data-testid="delivery-out-of-date"
           icon="refresh"
@@ -666,6 +922,49 @@ function ReadyView(
           {t("tasks.delivery.approval.approveDialog.body", { head })}
         </UI.Text>
         {dialog === "approve" && dialogNotice}
+      </UI.AlertDialog>
+      <UI.AlertDialog
+        cancelAction={
+          <UI.Button
+            disabled={mergeWorking}
+            onClick={() => !mergeWorking && setMergeOpen(false)}
+            variant="secondary"
+          >
+            {t("core.actions.cancel")}
+          </UI.Button>
+        }
+        confirmAction={
+          <UI.Button
+            disabled={mergeDisabled || mergePhase === "forbidden"}
+            loading={mergeWorking}
+            onClick={() => void confirmMerge()}
+            variant="primary"
+          >
+            {t("tasks.delivery.merge.confirm.confirm")}
+          </UI.Button>
+        }
+        onOpenChange={(open) => !open && !mergeWorking && setMergeOpen(false)}
+        open={mergeOpen && merge !== null}
+        state={mergeWorking ? "confirming" : "open"}
+        title={t("tasks.delivery.merge.confirm.title", {
+          number: merge?.providerNumber ?? 0,
+        })}
+        variant="security"
+      >
+        <UI.Stack gap="compact">
+          <UI.Text>
+            {t("tasks.delivery.merge.confirm.body", {
+              head: merge === null ? "" : merge.headSha.slice(0, 7),
+              method: t(
+                `tasks.delivery.merge.method.${
+                  merge?.method ?? "squash"
+                }` as MessageKey,
+              ),
+            })}
+          </UI.Text>
+          <UI.Text>{t("tasks.delivery.merge.confirm.changed")}</UI.Text>
+          <UI.Text>{t("tasks.delivery.merge.confirm.final")}</UI.Text>
+        </UI.Stack>
       </UI.AlertDialog>
       <UI.Dialog
         dismissLabel={t("core.actions.close")}
@@ -784,6 +1083,17 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
     : null;
   const pullRequest = after?.pullRequest ?? null;
   const mergeCommit = pullRequest?.mergedSha ?? null;
+  // The Merge step's mark and sentence follow what Bakery recorded.
+  const mergeStep = mergeStepCopy(t, {
+    merge: model.merge,
+    pullRequest,
+    mergeCommit,
+  });
+  // The approval was for the commit the pull request no longer ends at.
+  const approvalOlder =
+    model.pullRequestMoved && model.merge?.approvedSha != null
+      ? model.merge.approvedSha.slice(0, 7)
+      : null;
   const copyMergeCommit = async () => {
     if (mergeCommit === null) return;
     try {
@@ -913,7 +1223,12 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
           summary={checks.rows.length === 0
             ? t("tasks.delivery.checks.none")
             : olderRows.length > 0 && headShort !== null
-            ? t("tasks.delivery.checks.runningAgain", { sha: headShort })
+            ? t(
+              model.pullRequestMoved
+                ? "tasks.delivery.checks.noneForCommit"
+                : "tasks.delivery.checks.runningAgain",
+              { sha: headShort },
+            )
             : failedAny
             ? t("tasks.delivery.checks.failedOf", {
               failed: checks.failed,
@@ -1049,13 +1364,22 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
         {model.approval !== null && (
           <UI.StepItem
             data-testid="delivery-approval-step"
-            status={APPROVAL_STEP[model.approval.state].status}
-            statusLabel={APPROVAL_STEP[model.approval.state].label === null
+            status={approvalOlder === null
+              ? APPROVAL_STEP[model.approval.state].status
+              : "running"}
+            statusLabel={approvalOlder !== null
+              ? label("running")
+              : APPROVAL_STEP[model.approval.state].label === null
               ? label(APPROVAL_STEP[model.approval.state].status)
               : t(APPROVAL_STEP[model.approval.state].label as MessageKey)}
-            summary={t(
-              `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
-            )}
+            summary={approvalOlder === null
+              ? t(
+                `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
+              )
+              : t("tasks.delivery.approval.step.approvedOlder", {
+                sha: approvalOlder,
+                current: (model.headSha ?? "").slice(0, 7),
+              })}
             title={
               <>
                 {t("tasks.delivery.approval.title")}
@@ -1129,27 +1453,11 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               </UI.Button>
             )}
             data-testid="delivery-merge-step"
-            status={mergeCommit !== null
-              ? "done"
-              : pullRequest === null || pullRequest.status === "merged"
-              ? "unknown"
-              : "upcoming"}
-            statusLabel={label(
-              mergeCommit !== null
-                ? "done"
-                : pullRequest === null || pullRequest.status === "merged"
-                ? "unknown"
-                : "upcoming",
-            )}
-            summary={mergeCommit !== null
-              ? t("tasks.delivery.afterApproval.merge.merged", {
-                commit: mergeCommit.slice(0, 7),
-              })
-              : pullRequest === null || pullRequest.status === "merged"
-              ? t("tasks.delivery.afterApproval.merge.unknown")
-              : pullRequest.status === "open"
-              ? t("tasks.delivery.afterApproval.merge.notYet")
-              : t("tasks.delivery.afterApproval.merge.notMerged")}
+            status={mergeStep.status}
+            statusLabel={mergeStep.status === "running"
+              ? t("tasks.delivery.status.inProgress")
+              : label(mergeStep.status)}
+            summary={mergeStep.summary}
             title={t("tasks.delivery.afterApproval.merge.title")}
           />
         )}

@@ -20,6 +20,15 @@ import {
   createServerTelemetryFromConfig,
   SERVER_TELEMETRY_CLOSE_MS,
 } from "./platform/telemetry.ts";
+import { createAlertEvaluator } from "./modules/monitoring/alert-evaluator.ts";
+import { createDestinationLoader } from "./modules/monitoring/destination-loader.ts";
+import {
+  createDestinationFanout,
+  createPinnedFetch,
+  createProviderRegistry,
+  createPublicHttpsPolicy,
+  otlpProvider,
+} from "./platform/telemetry-destinations/index.ts";
 import {
   startOperationalMetricSampling,
   stopSamplingThenCloseTelemetry,
@@ -192,7 +201,38 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   // costs a counter and nothing is queued - the behaviour before this slice.
   // Read with the rest of the runtime configuration, so the app never reads the
   // environment itself (#306).
-  const telemetry = createServerTelemetryFromConfig(config.telemetry);
+  // Destinations are saved in the app, so the fan-out starts empty and the loader
+  // fills it from the database and keeps it current.
+  const telemetryRegistry = createProviderRegistry([otlpProvider]);
+  const telemetryDeliveryDependencies = {
+    fetch: createPinnedFetch(),
+    addressPolicy: createPublicHttpsPolicy(),
+  };
+  const destinationFanout = createDestinationFanout({
+    registry: telemetryRegistry,
+    dependencies: telemetryDeliveryDependencies,
+  });
+  const destinationLoader = createDestinationLoader({
+    database: pgDatabase,
+    secretsKey: config.secretsKey,
+    fanout: destinationFanout,
+  });
+  const telemetry = createServerTelemetryFromConfig(config.telemetry, {
+    destinations: destinationFanout.send,
+  });
+  destinationLoader.start();
+  // The five alert rules are checked on a timer; what changes goes to the
+  // enabled alert channels, signed.
+  const alertEvaluator = createAlertEvaluator({
+    database: pgDatabase,
+    secretsKey: config.secretsKey,
+    // The pinned fetch, so a name re-pointed after the address check cannot
+    // send a signed alert to an internal address.
+    fetch: telemetryDeliveryDependencies.fetch,
+    addressPolicy: telemetryDeliveryDependencies.addressPolicy,
+    fanout: destinationFanout,
+  });
+  alertEvaluator.start();
   // Sampling the ledger is what puts an application metric in the registry at
   // all; before this, the registry held zero series and nothing flushed.
   const operationalMetrics = startOperationalMetricSampling({
@@ -205,6 +245,16 @@ async function runServer(config: RuntimeConfig): Promise<void> {
     sink: telemetry.sink,
   });
   const app = createApp({
+    telemetryDestinations: {
+      registry: telemetryRegistry,
+      fanout: destinationFanout,
+      providerDependencies: telemetryDeliveryDependencies,
+      secretsKey: config.secretsKey,
+      // Soon after a save, the running server picks the change up.
+      refresh: () => {
+        setTimeout(() => void destinationLoader.refresh(), 300);
+      },
+    },
     telemetry,
     config,
     database,
@@ -246,6 +296,8 @@ async function runServer(config: RuntimeConfig): Promise<void> {
           eventsSocketRegistry.closeAll(1001, "server shutdown");
           await server.shutdown();
         } finally {
+          destinationLoader.stop();
+          alertEvaluator.stop();
           // Stop sampling before the final flush, so the last metric record is
           // the last sample rather than a reading of a database already closing.
           await stopSamplingThenCloseTelemetry({
@@ -253,6 +305,9 @@ async function runServer(config: RuntimeConfig): Promise<void> {
             closeTelemetry: () =>
               telemetry.close(SERVER_TELEMETRY_CLOSE_MS).catch(() => {}),
           });
+          await destinationFanout.close(SERVER_TELEMETRY_CLOSE_MS).catch(
+            () => {},
+          );
           await Promise.all([
             closePgDatabase(pgDatabase),
             closeDatabase(database),

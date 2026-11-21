@@ -930,9 +930,47 @@ test("accepts the bakery-heavy pool label, with or without an architecture pin",
   }
 });
 
+test("the full integration lane stays in the heavy pool and asks for an x64 runner", () => {
+  // The integration suite fails on ARM64 runners (onboarding answers 500, the
+  // release manifest has no ARM64 build), so the lane must not land on one.
+  const document = parseDocument(
+    readFileSync(join(WORKFLOW_DIR, "ci.yml"), "utf8"),
+  ).toJS();
+  const labels = document.jobs.integration["runs-on"].map((label) =>
+    String(label).toLowerCase()
+  );
+  assert(labels.includes("bakery-heavy"));
+  assert(labels.includes("x64"));
+});
+
 test("a self-hosted label set without a pool label is still refused, naming the pools", () => {
   rejectsCandidate(
     "jobs:\n  build:\n    runs-on: [self-hosted, linux, x64]\n    steps: []\n",
     /must include ovh, hetzner or bakery-heavy/,
   );
+});
+
+// Run 44475126928: the agx64 runners share their host with the agent seats, and
+// when that host swaps every browser test in flight misses its budget at once.
+// The browser lanes ask for the hetzner half of the heavy pool by label.
+test("the Storybook and web shell browser lanes run on the hetzner half of the heavy pool", () => {
+  const jobs = parseDocument(
+    readFileSync(join(WORKFLOW_DIR, "ci.yml"), "utf8"),
+    { version: "1.2" },
+  ).toJS().jobs;
+  for (
+    const job of [
+      "ui_storybook_browser",
+      "ui_web",
+      "ui_web_b",
+      "ui_web_c",
+      "ui_web_d",
+    ]
+  ) {
+    const labels = jobs[job]["runs-on"];
+    assert(Array.isArray(labels), `${job} must list its runner labels`);
+    for (const label of ["self-hosted", "linux", "hetzner", "bakery-heavy"]) {
+      assert(labels.includes(label), `${job} must ask for ${label}`);
+    }
+  }
 });

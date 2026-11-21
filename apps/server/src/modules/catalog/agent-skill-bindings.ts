@@ -11,6 +11,7 @@ type SkillBindingRow = Readonly<{
   status: string;
   skill_enabled: boolean;
   source_enabled: boolean;
+  skill_scope: string;
 }>;
 
 export type ResolvedAgentSkillPin = Readonly<{
@@ -61,7 +62,8 @@ export async function resolveAgentSkillBindings(
   const result = await transaction.query<SkillBindingRow>(
     `select version.id, version.digest, version.status,
             skill.enabled as skill_enabled,
-            source.enabled as source_enabled
+            source.enabled as source_enabled,
+            skill.scope as skill_scope
        from bakery.skill_versions as version
        join bakery.skills as skill
          on skill.organization_id = version.organization_id
@@ -82,6 +84,12 @@ export async function resolveAgentSkillBindings(
     // Organization scope is part of the lookup, so foreign and absent IDs are
     // intentionally indistinguishable to callers.
     if (!row) bindingError(bindingName, "skill_binding_unavailable");
+    // An agent is shared by the organization, so it can never carry a personal
+    // skill; the refusal is the same one an absent skill gets, so it does not
+    // reveal that somebody holds a personal skill with that version.
+    if (row.skill_scope === "personal") {
+      bindingError(bindingName, "skill_binding_unavailable");
+    }
     if (row.status !== "published") {
       bindingError(bindingName, "skill_binding_not_published");
     }

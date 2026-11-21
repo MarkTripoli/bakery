@@ -10,6 +10,14 @@ import {
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
 
+/**
+ * The editor's save state, in the page's own status line. The shell adds an
+ * empty live region for notification arrivals, which is also a status, so the
+ * one with words is the one to read.
+ */
+const saveStatus = (page: Page) =>
+  page.getByRole("status").filter({ hasText: /\S/ });
+
 registerPageHealth(test);
 
 /**
@@ -679,7 +687,7 @@ for (
       await expect(page.getByRole("button", { name: "Check the steps" }))
         .toHaveCount(0);
       // The header says the draft is saved, not that it is unsaved.
-      await expect(page.getByRole("status")).toContainText("Saved");
+      await expect(saveStatus(page)).toContainText("Saved");
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-diagram");
     });
@@ -824,7 +832,7 @@ for (
       await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
         .toBeGreaterThan(0);
       expect(seen.draftSaves[0].ifMatch).not.toBeNull();
-      await expect(page.getByRole("status")).toContainText("Saved");
+      await expect(saveStatus(page)).toContainText("Saved");
     });
 
     test("publish offers both forms when the draft differs from the version in use", async ({ page }) => {
@@ -886,12 +894,12 @@ test("the state selector shows the save states a spec cannot force", async ({ pa
   // State menu, #67). Development builds only.
   await libraryFixture(page, WORLD);
   await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=save-failed`);
-  await expect(page.getByRole("status")).toContainText("Not saved");
+  await expect(saveStatus(page)).toContainText("Not saved");
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   await shot(page, "workflow-editor-save-failed");
 
   await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=saving`);
-  await expect(page.getByRole("status")).toContainText("Saving…");
+  await expect(saveStatus(page)).toContainText("Saving…");
   await shot(page, "workflow-editor-saving");
 });
 
@@ -928,7 +936,7 @@ test("the leave warning is armed only while a change is unsaved", async ({ page 
   // Straight to the address: on a phone the Edit action lives in the More menu,
   // and this spec is about the leave warning, not about how a person got here.
   await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
-  await expect(page.getByRole("status")).toContainText("Saved");
+  await expect(saveStatus(page)).toContainText("Saved");
   // Saved and untouched: this page contributes nothing — other parts of the app
   // may register their own listener, so the baseline is what it is and the
   // editor's contribution is the delta from here.
@@ -941,7 +949,7 @@ test("the leave warning is armed only while a change is unsaved", async ({ page 
     .click();
   await expect.poll(net).toBe(baseline + 1);
   // Once the draft is saved again, nothing is armed.
-  await expect(page.getByRole("status")).toContainText("Saved", {
+  await expect(saveStatus(page)).toContainText("Saved", {
     timeout: 10_000,
   });
   await expect.poll(net).toBe(baseline);

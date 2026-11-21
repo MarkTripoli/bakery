@@ -1,4 +1,5 @@
 import {
+  ACTOR_ROLE_RANK_ACT,
   TICKET_CHECK_MAX_EVIDENCE,
   type TicketIssueRef,
   type TicketPresetPin,
@@ -33,6 +34,7 @@ import type {
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketStatusRead,
 } from "./ticket-source-reader.ts";
 import type { TicketRouteResolution } from "./ticket-routing.ts";
 
@@ -113,6 +115,13 @@ export type ReadinessInput = {
   issue: TicketIssueRead;
   /** Answer of the links read; null when it was not made (treated as unavailable). */
   links: TicketLinksRead | null;
+  /**
+   * Answer of the status read; null when it was not made, which only matters
+   * when the policy names statuses. A provider that reports no statuses answers
+   * `unsupported`, and a policy that names statuses against it is a
+   * configuration error rather than a ticket that waits forever.
+   */
+  statuses: TicketStatusRead | null;
   /** One proof per native blocker. A blocker without an entry has no proof. */
   proofs: readonly BlockerProofEntry[];
   authority: ReadinessAuthorityFacts;
@@ -197,7 +206,7 @@ function providerUnavailable(failure: TicketReadFailure | null): Outcome {
 }
 
 function issueRefText(ref: TicketIssueRef): string {
-  return `${ref.repositoryFullName}#${ref.number}`;
+  return `${ref.container.displayName}#${ref.number}`;
 }
 
 /**
@@ -332,12 +341,15 @@ function ticketSupported(context: Context): Outcome {
   if (present === null) return providerUnavailable(null);
   const { snapshot } = present.normalized;
   if (
-    snapshot.repositoryFullName.toLowerCase() !==
+    snapshot.container.externalId.toLowerCase() !==
       input.source.repositoryFullName.toLowerCase()
   ) {
+    // The source names its repository in GitHub terms; the snapshot carries the
+    // neutral container. Comparing their ids is what keeps a ticket from another
+    // repository out, without admission learning what a repository is.
     return rejected(
       "repository_mismatch",
-      evidenceRef(`repository:${snapshot.repositoryFullName}`),
+      evidenceRef(`repository:${snapshot.container.displayName}`),
     );
   }
   if (snapshot.state === "closed") {
@@ -463,6 +475,38 @@ function acceptancePresent(context: Context): Outcome | null {
       ? passed()
       : waiting("acceptance_missing");
   });
+}
+
+/**
+ * A source may require that the ticket sits in one of the statuses it names.
+ *
+ * Both halves of the rule are matched by provider id, never by display name, so
+ * renaming a column or translating a board does not change what admits work.
+ * With no statuses configured the label alone decides and this check reports
+ * nothing at all, which keeps every existing source valid.
+ */
+function statusReady(context: Context): Outcome | null {
+  const required = context.input.policy.readiness.statuses;
+  if (required === undefined || required.length === 0) return null;
+  const answer = context.input.statuses;
+  if (answer === null) return waiting("provider_unavailable");
+  if (answer.kind === "unsupported") {
+    // Asking a label-only provider for a status is a misconfiguration, and a
+    // ticket that waited for one would wait forever. It gets its own reason so
+    // the report says the provider has no statuses at all, which is a different
+    // fix from "this ticket is not in the status you named".
+    return waiting("status_unsupported");
+  }
+  if (answer.kind !== "present") return providerUnavailable(answer);
+  const held = new Set(answer.statuses.map((status) => status.id));
+  if (required.some((id) => held.has(id))) {
+    return passed(
+      ...answer.statuses
+        .filter((status) => required.includes(status.id))
+        .map((status) => evidenceRef(`status:${status.id}`)),
+    );
+  }
+  return waiting("status_missing");
 }
 
 const BLOCKER_REASON_PRIORITY = [
@@ -643,7 +687,7 @@ function authorityLive(context: Context): Outcome {
     return waiting("actor_unverifiable", evidenceRef("label:unverified"));
   }
   const actor = evidenceRef(`github_actor:${provenance.actorId}`);
-  if (!delegation.githubActorIds.includes(provenance.actorId)) {
+  if (!delegation.externalActorIds.includes(provenance.actorId)) {
     return waiting("actor_not_allowlisted", actor);
   }
   const role = authority.actorRole;
@@ -654,7 +698,9 @@ function authorityLive(context: Context): Outcome {
   if (role.userId !== provenance.actorId) {
     return waiting("actor_unverifiable", actor);
   }
-  if (role.permission !== "admin" && role.permission !== "write") {
+  // A rank, not a role name: the provider's own ladder is mapped once where
+  // the role is read, so admission never learns what "write" means.
+  if (role.rank < ACTOR_ROLE_RANK_ACT) {
     return waiting("actor_role_insufficient", actor);
   }
   return passed(actor, evidenceRef(`role:${role.permission}`));
@@ -688,6 +734,7 @@ function evaluateChecks(context: Context): TicketReadinessCheck[] {
     ["intent_authorized", intentAuthorized(context)],
     ["epic_excluded", epicExcluded(context)],
     ["acceptance_present", acceptancePresent(context)],
+    ["status_ready", statusReady(context)],
     ["dependencies_satisfied", dependenciesSatisfied(context)],
     ["no_active_admission", noActiveAdmission(input)],
     ["repository_ready", repositoryReady(input)],

@@ -1076,6 +1076,10 @@ Deno.test("real deployed registry activates and discovery lists bakery.github", 
   assertEquals(found[0]!.scopes, { required: [], optional: [] });
   assertEquals(found[0]!.actions, [
     { id: "github.issue.comment.create", version: 1, effect: "write" },
+    { id: "github.issue.comment.update", version: 1, effect: "write" },
+    { id: "github.issue.create", version: 1, effect: "write" },
+    { id: "github.issue.labels.add", version: 1, effect: "write" },
+    { id: "github.issue.label.remove", version: 1, effect: "write" },
   ]);
   assert(Object.isFrozen(registry));
   assert(Object.isFrozen(found));
@@ -1109,7 +1113,11 @@ Deno.test("activation rejects unbranded, duplicate and unknown-profile integrati
   ]);
   assertEquals(activationDefects([githubIntegration, githubIntegration]), [
     "duplicate-provider",
-    "duplicate-action",
+    // One for each of the integration's actions.
+    ...Array.from(
+      { length: githubIntegration.manifest.actions.length },
+      () => "duplicate-action",
+    ),
   ]);
   const other = fixtureIntegration({ id: "fixture.other" });
   const same = fixtureIntegration({ id: "fixture.same" });
@@ -1308,7 +1316,17 @@ Deno.test("capability report: baseline is available, granted and schema-valid", 
   const port = countingPort(() => snapshotFor(digest));
   const report = await computeConnectionCapabilities(registry, port, KEY);
   assertEquals(report.activation, "ready");
-  assertEquals(report.actions.length, 1);
+  assertEquals(
+    report.actions.map((action) => action.actionId),
+    [
+      "github.issue.comment.create",
+      "github.issue.comment.update",
+      "github.issue.create",
+      "github.issue.labels.add",
+      "github.issue.label.remove",
+    ],
+  );
+  assert(report.actions.every((action) => action.available));
   const [entry] = report.actions;
   assertEquals(entry!.actionId, "github.issue.comment.create");
   assertEquals(entry!.effect, "write");

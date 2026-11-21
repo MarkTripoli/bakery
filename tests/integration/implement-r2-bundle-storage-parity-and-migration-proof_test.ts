@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { proveSkillObjectMigrationCli } from "../helpers/skill-object-migration-cli.ts";
 import { SkillFileStoreError } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import { assertEquals, assertRejects } from "@std/assert";
@@ -108,7 +109,17 @@ Deno.test("pinned S3 fixture returns 412; both adapters satisfy immutable contra
         new PutObjectCommand({ Bucket: fixture.bucket, Key: key, Body: bytes }),
       );
     });
+    // The contract deletes its own object at the end (collection needs that), so
+    // the filesystem holds nothing until this proof stores one to migrate.
+    const migrated = new TextEncoder().encode("bytes to migrate\n");
+    const migratedDigest = createHash("sha256").update(migrated).digest("hex");
+    await filesystem.putIfAbsent(
+      skillObjectKey(crypto.randomUUID(), crypto.randomUUID(), migratedDigest),
+      migrated,
+      migratedDigest,
+    );
     const inventory = await collectSkillInventory(filesystem);
+    assertEquals(inventory.length, 1, "one object to migrate");
     await copySkillInventory(filesystem, opened.store, inventory);
     await verifySkillInventory(opened.store, inventory);
     await copySkillInventory(filesystem, opened.store, inventory);

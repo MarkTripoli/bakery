@@ -1,5 +1,10 @@
 import type { PgTransactionClient } from "@bakery/persistence";
 import { unprocessable } from "@bakery/contracts/http";
+import {
+  pinStoragePath,
+  StorageNameError,
+  storageQueryOf,
+} from "../knowledge/storage-tree.ts";
 
 /**
  * The key an input value uses to declare a pinned artifact version.
@@ -48,6 +53,35 @@ export function declaredArtifactVersionIds(inputs: unknown): string[] {
   return ids;
 }
 
+/** Pins one version for a run: the row a worker's read is checked against. */
+async function insertRunInputPin(
+  transaction: PgTransactionClient,
+  pin: {
+    organizationId: string;
+    runId: string;
+    artifactId: string;
+    versionId: string;
+    sha256: string;
+    sizeBytes: number;
+  },
+): Promise<void> {
+  await transaction.query(
+    `insert into bakery.run_input_pins (
+       organization_id, run_id, artifact_id, artifact_version_id,
+       sha256, size_bytes
+     ) values ($1, $2, $3, $4, $5, $6)
+     on conflict (organization_id, run_id, artifact_version_id) do nothing`,
+    [
+      pin.organizationId,
+      pin.runId,
+      pin.artifactId,
+      pin.versionId,
+      pin.sha256,
+      pin.sizeBytes,
+    ],
+  );
+}
+
 /**
  * Pins, at admission, the exact version each declared input resolved to.
  *
@@ -89,19 +123,167 @@ export async function pinDeclaredRunInputs(
     if (!row) {
       throw unprocessable(["inputs"], "input_artifact_unavailable");
     }
+    await insertRunInputPin(transaction, {
+      organizationId: options.organizationId,
+      runId: options.runId,
+      artifactId: row.artifact_id,
+      versionId: row.id,
+      sha256: row.sha256,
+      sizeBytes: row.size_bytes,
+    });
+  }
+}
+
+/** The most path inputs one run may name, so admission does a bounded number of lookups. */
+export const MAX_INPUT_PATHS = 100;
+
+/** One input's resolution: the pin a storage path became. */
+export type ResolvedInputPath = Readonly<{
+  inputName: string;
+  storagePath: string;
+  entryId: string;
+  artifactId: string;
+  versionId: string;
+  sha256: string;
+}>;
+
+/**
+ * Resolves the storage paths a run names for its inputs, at admission.
+ *
+ * `inputPaths` maps a declared input name to an absolute path. Each path is
+ * resolved in the caller's organization to the file's current version, and that
+ * version id becomes the value of the named input: it fits the declared `uuid`
+ * type a plan run checks, and it is the pin the run keeps. The path survives
+ * only as a label (see `recordInputPaths`). A path that does not resolve to a
+ * file with a current version is refused with one code, whether it is missing or
+ * in another organization, so a caller learns nothing about another tree.
+ */
+export async function resolveInputPaths(
+  transaction: PgTransactionClient,
+  options: {
+    organizationId: string;
+    inputs: unknown;
+    inputPaths: unknown;
+  },
+): Promise<{ inputs: unknown; resolved: ResolvedInputPath[] }> {
+  if (options.inputPaths === undefined || options.inputPaths === null) {
+    return { inputs: options.inputs, resolved: [] };
+  }
+  const paths = options.inputPaths;
+  if (typeof paths !== "object" || Array.isArray(paths)) {
+    throw unprocessable(["inputPaths"], "input_paths_not_object");
+  }
+  const named = Object.entries(paths as Record<string, unknown>);
+  if (named.length > MAX_INPUT_PATHS) {
+    throw unprocessable(["inputPaths"], "input_storage_paths_too_many");
+  }
+  const supplied = options.inputs;
+  if (
+    supplied !== null && supplied !== undefined &&
+    (typeof supplied !== "object" || Array.isArray(supplied))
+  ) {
+    throw unprocessable(["inputs"], "inputs_not_object");
+  }
+  const merged: Record<string, unknown> = {
+    ...((supplied ?? {}) as Record<string, unknown>),
+  };
+  const db = storageQueryOf(transaction);
+  const resolved: ResolvedInputPath[] = [];
+  for (const [inputName, path] of named) {
+    if (inputName === "" || typeof path !== "string") {
+      throw unprocessable(
+        ["inputPaths", inputName],
+        "input_storage_path_invalid",
+      );
+    }
+    if (Object.hasOwn(merged, inputName)) {
+      throw unprocessable(
+        ["inputPaths", inputName],
+        "input_storage_path_conflict",
+      );
+    }
+    let pin;
+    try {
+      pin = await pinStoragePath(db, {
+        organizationId: options.organizationId,
+        path,
+      });
+    } catch (error) {
+      if (error instanceof StorageNameError) {
+        throw unprocessable(
+          ["inputPaths", inputName],
+          "input_storage_path_invalid",
+        );
+      }
+      throw error;
+    }
+    if (!pin) {
+      throw unprocessable(
+        ["inputPaths", inputName],
+        "input_storage_path_unavailable",
+      );
+    }
+    merged[inputName] = pin.versionId;
+    resolved.push({
+      inputName,
+      storagePath: pin.label,
+      entryId: pin.entryId,
+      artifactId: pin.artifactId,
+      versionId: pin.versionId,
+      sha256: pin.sha256,
+    });
+  }
+  return { inputs: merged, resolved };
+}
+
+/**
+ * Pins what each path resolved to and records the path as a label, in the run's
+ * admission transaction. The pin is the same row a declared version input gets,
+ * keyed by the run and the version, so the worker reads exactly these bytes
+ * whatever the path points at later.
+ */
+export async function recordInputPaths(
+  transaction: PgTransactionClient,
+  options: {
+    organizationId: string;
+    runId: string;
+    resolved: readonly ResolvedInputPath[];
+  },
+): Promise<void> {
+  for (const item of options.resolved) {
+    const version = await transaction.query<{ size_bytes: number }>(
+      `select size_bytes from bakery.artifact_versions
+        where organization_id = $1 and id = $2`,
+      [options.organizationId, item.versionId],
+    );
+    if (!version.rows[0]) {
+      throw unprocessable(
+        ["inputPaths", item.inputName],
+        "input_storage_path_unavailable",
+      );
+    }
+    await insertRunInputPin(transaction, {
+      organizationId: options.organizationId,
+      runId: options.runId,
+      artifactId: item.artifactId,
+      versionId: item.versionId,
+      sha256: item.sha256,
+      sizeBytes: version.rows[0].size_bytes,
+    });
     await transaction.query(
-      `insert into bakery.run_input_pins (
-         organization_id, run_id, artifact_id, artifact_version_id,
-         sha256, size_bytes
-       ) values ($1, $2, $3, $4, $5, $6)
-       on conflict (organization_id, run_id, artifact_version_id) do nothing`,
+      `insert into bakery.run_input_paths (
+         organization_id, run_id, input_name, storage_path, entry_id,
+         artifact_id, artifact_version_id, sha256
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         options.organizationId,
         options.runId,
-        row.artifact_id,
-        row.id,
-        row.sha256,
-        row.size_bytes,
+        item.inputName,
+        item.storagePath,
+        item.entryId,
+        item.artifactId,
+        item.versionId,
+        item.sha256,
       ],
     );
   }

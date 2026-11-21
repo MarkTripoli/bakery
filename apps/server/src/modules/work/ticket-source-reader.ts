@@ -1,6 +1,7 @@
 import type {
   TicketIssueRef,
   TicketSnapshotInput,
+  TicketStatusRef,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
 
@@ -14,6 +15,35 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 
 /** Reference to one issue: provider id, number and repository. */
 export type IssueRef = TicketIssueRef;
+
+/**
+ * Which ticket a read is about, in the engine's words rather than one provider's.
+ *
+ * The ordinal - GitHub's issue number - used to be the subject of every read,
+ * which made the port itself GitHub-shaped: a tracker that addresses tickets as
+ * `ENG-42` could not be read through it at all. The two halves are separate on
+ * purpose:
+ *
+ * - `externalKey` is what a person quotes and what a link contains, so every
+ *   entry point has it;
+ * - `externalId` is the provider's immutable id, which survives a rename and is
+ *   what the engine dedupes on. It is null when the caller genuinely does not
+ *   know it yet - the poll returns ordinals and update markers, not ids - and a
+ *   reader that can check it must: a key that now resolves to a different id
+ *   means the ticket was not the one asked for.
+ */
+export type TicketRef = {
+  externalId: string | null;
+  externalKey: string;
+};
+
+/** Build a reference from the key a person quotes, and the id when it is known. */
+export function ticketRef(
+  externalKey: string | number,
+  externalId: string | null = null,
+): TicketRef {
+  return { externalId, externalKey: String(externalKey) };
+}
 
 /**
  * Why a provider read gave no answer. Never treated as a pass. The reason is
@@ -43,6 +73,15 @@ export type TicketSourceHandle = {
   organizationId: string;
   connectionId: string;
   resourceId: string;
+  /**
+   * The provider slug of the connection this source reads.
+   *
+   * On the handle rather than looked up per read: every read already carries the
+   * handle, and a lookup would be a database round trip per call to learn
+   * something the caller loaded to build the handle in the first place. It is a
+   * slug, not a type: the work module never enumerates providers.
+   */
+  provider: string;
   repositoryFullName: string;
   externalRepositoryId: string;
 };
@@ -103,12 +142,17 @@ export type TicketLabelProvenance =
   | { kind: "unverifiable"; reason: string }
   | TicketReadFailure;
 
-/** Answer of `readActorRole`: the actor's repository permission. */
+/**
+ * Answer of `readActorRole`: the actor's role, as its provider name and its
+ * position on that provider's ladder. Admission compares the rank, so a
+ * provider with other role names fits without admission learning them.
+ */
 export type TicketActorRole =
   | {
     kind: "present";
     userId: string;
     permission: "admin" | "write" | "read" | "none";
+    rank: number;
   }
   | { kind: "absent" }
   | TicketReadFailure;
@@ -129,15 +173,34 @@ export type TicketIssueListPage =
   }
   | TicketReadFailure;
 
+/** The statuses an item sits in, or the reason they could not be read. */
+export type TicketStatusRead =
+  | { kind: "present"; statuses: TicketStatusRef[] }
+  | { kind: "unsupported" }
+  | TicketReadFailure;
+
+/** One label the provider holds; `id` is the opaque id routing rules store. */
+export type TicketLabel = { id: string; name: string; color: string | null };
+
+/**
+ * One page of the provider's labels (#69). A provider without labels answers
+ * `unsupported`, never an empty page, so a page can tell "none set up" from
+ * "this tracker has no labels".
+ */
+export type TicketLabelPage =
+  | { kind: "present"; labels: TicketLabel[]; hasNext: boolean }
+  | { kind: "unsupported" }
+  | TicketReadFailure;
+
 export interface TicketSourceReader {
   readIssue(
     handle: TicketSourceHandle,
-    number: number,
+    ref: TicketRef,
     signal: AbortSignal,
   ): Promise<TicketIssueRead>;
   readLinks(
     handle: TicketSourceHandle,
-    number: number,
+    ref: TicketRef,
     signal: AbortSignal,
   ): Promise<TicketLinksRead>;
   readPredecessorProof(
@@ -147,7 +210,7 @@ export interface TicketSourceReader {
   ): Promise<PredecessorProof | TicketReadFailure>;
   readLabelProvenance(
     handle: TicketSourceHandle,
-    number: number,
+    ref: TicketRef,
     label: string,
     signal: AbortSignal,
   ): Promise<TicketLabelProvenance>;
@@ -156,11 +219,38 @@ export interface TicketSourceReader {
     login: string,
     signal: AbortSignal,
   ): Promise<TicketActorRole>;
+  /**
+   * The statuses the item currently sits in, in the provider's own terms.
+   *
+   * A provider that only labels answers `unsupported` rather than an empty
+   * list: an empty list would read as "a provider with statuses, none of them
+   * configured", which is a different thing and would let a misconfigured
+   * source look like a ticket that simply is not ready.
+   */
+  /**
+   * `issue` is the snapshot the caller has already read, when it has one: a
+   * status comes from that snapshot's state and reason, so asking the provider
+   * again would spend a second call to learn what is already known. It is
+   * optional because a caller that has only a number still gets a correct
+   * answer, at the cost of the read.
+   */
+  readStatuses(
+    handle: TicketSourceHandle,
+    ref: TicketRef,
+    signal: AbortSignal,
+    issue?: TicketSnapshotInput,
+  ): Promise<TicketStatusRead>;
   listIssues(
     handle: TicketSourceHandle,
     request: { page: number; since: string | null },
     signal: AbortSignal,
   ): Promise<TicketIssueListPage>;
+  /** One page (1-based) of the labels the source's container holds, read live. */
+  readLabels(
+    handle: TicketSourceHandle,
+    request: { page: number },
+    signal: AbortSignal,
+  ): Promise<TicketLabelPage>;
 }
 
 /**

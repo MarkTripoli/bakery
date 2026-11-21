@@ -59,6 +59,14 @@ export type McpPinnedState = Readonly<{
   allowedOperations: readonly string[];
   /** Whether the host dispatching this call may currently run MCP work. */
   dispatchingHostEligible: boolean;
+  /**
+   * Set for a personal connection (O27): who it belongs to, and whether its owner
+   * has granted the workflow this call is made for. Absent or null is an
+   * organization connection.
+   */
+  personal?:
+    | Readonly<{ ownerPrincipalId: string; useGrantLive: boolean }>
+    | null;
 }>;
 
 /** Reads the pinned state for one invocation. Server-side; never caller-supplied. */
@@ -84,6 +92,8 @@ export type McpPinnedStatePort = {
     repositoryId?: string | null;
     skillVersionOwnerId?: string | null;
     automationVersionId?: string | null;
+    /** The person who started the run, or null when none did. */
+    startedByPrincipalId?: string | null;
   }): Promise<McpPinnedState | null>;
 };
 
@@ -125,6 +135,13 @@ export type McpInvokeInput =
     repositoryId?: string | null;
     skillVersionOwnerId?: string | null;
     automationVersionId?: string | null;
+    /**
+     * The person who started the run this call belongs to. Absent or null means no
+     * person did (a schedule, a webhook, an automation), and a personal connection
+     * is refused for that: it acts as its owner, and nobody is there to answer for
+     * it. An organization connection does not read this.
+     */
+    startedByPrincipalId?: string | null;
   }>;
 
 export type McpInvokeResult = Readonly<{
@@ -132,6 +149,11 @@ export type McpInvokeResult = Readonly<{
   output: unknown;
   /** The digest the call ran against, recorded so an audit can tie it to a snapshot. */
   digest: string;
+  /**
+   * Whom the call acted for: the owner of a personal connection, so the feed and
+   * the audit can say so, or null for an organization connection.
+   */
+  actingForPrincipalId: string | null;
 }>;
 
 /**
@@ -173,7 +195,10 @@ export function operationAllowed(
  * rather than a set of early returns scattered through the transport.
  */
 export function mcpInvocationDenial(
-  input: Pick<McpInvokeInput, "toolName" | "pinnedDigest" | "hostId">,
+  input: Pick<
+    McpInvokeInput,
+    "toolName" | "pinnedDigest" | "hostId" | "startedByPrincipalId"
+  >,
   state: McpPinnedState,
 ): { denial: McpInvocationDenial; detail: string } | null {
   // A revoked or disabled connection is refused before anything else: the
@@ -192,6 +217,27 @@ export function mcpInvocationDenial(
       denial: "connection_revoked",
       detail: `The MCP connection is ${state.connectionStatus}, not enabled.`,
     };
+  }
+  // A personal connection acts as its owner (O27). It is never used without a
+  // person behind the run, and a run someone else started needs the owner's
+  // explicit grant to this workflow.
+  if (state.personal) {
+    if (!input.startedByPrincipalId) {
+      return {
+        denial: "personal_unattended",
+        detail: "A personal connection is not used by a run no person started.",
+      };
+    }
+    if (
+      input.startedByPrincipalId !== state.personal.ownerPrincipalId &&
+      !state.personal.useGrantLive
+    ) {
+      return {
+        denial: "personal_use_not_granted",
+        detail:
+          "The owner of this personal connection has not granted it to this workflow.",
+      };
+    }
   }
   if (!state.grantLive) {
     return {
@@ -299,7 +345,11 @@ export async function invokeMcpTool(
   }
   // The contract schema covers only what travels on the wire, so the caller
   // context parsed alongside it is merged back here rather than being dropped.
-  const input = { ...parsed.data, hostId: rawInput.hostId };
+  const input = {
+    ...parsed.data,
+    hostId: rawInput.hostId,
+    startedByPrincipalId: rawInput.startedByPrincipalId ?? null,
+  };
 
   const state = await deps.pinnedState.load({
     organizationId: rawInput.organizationId,
@@ -315,6 +365,7 @@ export async function invokeMcpTool(
     repositoryId: rawInput.repositoryId ?? null,
     skillVersionOwnerId: rawInput.skillVersionOwnerId ?? null,
     automationVersionId: rawInput.automationVersionId ?? null,
+    startedByPrincipalId: rawInput.startedByPrincipalId ?? null,
   });
   if (state === null) {
     // An unknown connection is a denial, not an empty pass. Falling through to
@@ -341,6 +392,7 @@ export async function invokeMcpTool(
     // Safe by construction: `mcpInvocationDenial` above returned null only
     // after establishing a pinned snapshot exists.
     digest: state.pinnedSnapshot!.digest,
+    actingForPrincipalId: state.personal?.ownerPrincipalId ?? null,
   };
 }
 
@@ -357,6 +409,9 @@ export async function mcpManifestDigest(manifest: {
     name: string;
     description: string;
     inputSchema: unknown;
+    /** Present only when the server declared one; absent leaves the digest as it was. */
+    outputSchema?: unknown;
+    annotations?: unknown;
   }[];
 }): Promise<string> {
   return await sha256Hex(canonicalJson({
@@ -365,6 +420,12 @@ export async function mcpManifestDigest(manifest: {
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
+      ...(tool.outputSchema === undefined
+        ? {}
+        : { outputSchema: tool.outputSchema }),
+      ...(tool.annotations === undefined
+        ? {}
+        : { annotations: tool.annotations }),
     })),
   }));
 }

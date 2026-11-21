@@ -3,11 +3,14 @@ import {
   isTicketAutoResumableReason,
   isTicketExplicitResumeReason,
   isTicketNonSuspendingReason,
+  TICKET_AUTO_RESUMABLE_REASONS,
+  TICKET_EXPLICIT_RESUME_REASONS,
   type TicketReadinessReport,
   type TicketReasonCode,
   type TicketRequestDisposition,
   type TicketRequestIntent,
 } from "@bakery/contracts/ticket-admission";
+import type { TicketDeliveryVerdict } from "./ticket-delivery.ts";
 
 /**
  * The disposition machine of a ticket request: which moves are legal and what
@@ -49,6 +52,13 @@ export type RecheckCurrent = {
    * set, the plan's projection of its child tasks decides the outcome.
    */
   planStatus?: string | null;
+  /**
+   * Whether the source's completion policy is met by the evidence found now
+   * (see `ticketDeliveryVerdict`). A finished run ends the request as
+   * completed only when it is: until then the request stays open, and a run
+   * that failed or was canceled still ends it.
+   */
+  delivery: TicketDeliveryVerdict;
 };
 
 export type RecheckDecision =
@@ -137,7 +147,32 @@ function planOutcome(status: string): RecheckDecision | null {
   return null;
 }
 
+/** Whether the work behind the request ended successfully, as the recheck reads it. */
+export function requestWorkFinished(
+  current: Pick<
+    RecheckCurrent,
+    "hasRun" | "runStatus" | "taskStatus" | "planStatus"
+  >,
+): boolean {
+  if (current.planStatus != null) return current.planStatus === "completed";
+  if (current.hasRun && finishedDisposition(current.runStatus) !== null) {
+    return current.runStatus === "completed";
+  }
+  return current.taskStatus === "completed";
+}
+
 function terminalOutcome(current: RecheckCurrent): RecheckDecision | null {
+  const outcome = endedOutcome(current);
+  // A finished run is not delivery: the request stays open until the source's
+  // completion policy is met, so nothing reads "done" before it is true.
+  if (
+    outcome?.action === "terminal" && outcome.disposition === "completed" &&
+    !current.delivery.delivered
+  ) return null;
+  return outcome;
+}
+
+function endedOutcome(current: RecheckCurrent): RecheckDecision | null {
   if (current.planStatus != null) return planOutcome(current.planStatus);
   const run = current.hasRun ? finishedDisposition(current.runStatus) : null;
   if (run !== null) {
@@ -257,4 +292,123 @@ export function decideRecheck(
     return { action: "advance" };
   }
   return NONE;
+}
+
+/**
+ * Every reason a disposition stores: the suspension reasons (auto-resumable
+ * and explicit-resume) and the run or task end a request finished with. The
+ * non-suspending reasons never reach a disposition. `ticketRequests.list`
+ * and `.get` (#69) answer this closed set as `dispositionReasonCode`.
+ */
+export const TICKET_DISPOSITION_REASON_CODES = Object.freeze(
+  [
+    ...TICKET_AUTO_RESUMABLE_REASONS,
+    ...TICKET_EXPLICIT_RESUME_REASONS,
+    "run_completed",
+    "run_failed",
+    "run_canceled",
+    "task_completed",
+    "task_failed",
+    "task_canceled",
+  ] as const satisfies readonly (TicketReasonCode | TicketTerminalReason)[],
+);
+export type TicketDispositionReasonCode =
+  typeof TICKET_DISPOSITION_REASON_CODES[number];
+
+/** The stored reason as a closed code; a value outside the set reads as none. */
+export function dispositionReasonCode(
+  stored: string | null,
+): TicketDispositionReasonCode | null {
+  return (TICKET_DISPOSITION_REASON_CODES as readonly string[]).includes(
+      stored ?? "",
+    )
+    ? stored as TicketDispositionReasonCode
+    : null;
+}
+
+/** Why a request's run was paused, in the words the ticket page uses. */
+export type TicketPausedReason =
+  | "edited_after_setup"
+  | "label_removed"
+  | "hold_label_added"
+  | "dependency_unreadable";
+
+const PAUSED_REASONS: Readonly<Partial<Record<string, TicketPausedReason>>> =
+  Object.freeze({
+    acceptance_changed: "edited_after_setup",
+    label_withdrawn: "label_removed",
+    label_missing: "label_removed",
+    held: "hold_label_added",
+    proof_unavailable: "dependency_unreadable",
+    inaccessible: "dependency_unreadable",
+    links_truncated: "dependency_unreadable",
+  });
+
+/**
+ * Why the run was paused. A pause is only ever requested of a suspended
+ * request (`decideRecheck`), so its cause is the suspension reason stored with
+ * it; null when no pause was requested, or when the reason is none of the four
+ * the page names (`dispositionReasonCode` still carries it).
+ */
+export function pausedReason(
+  pauseRequestedAt: unknown,
+  stored: string | null,
+): TicketPausedReason | null {
+  if (pauseRequestedAt === null || stored === null) return null;
+  return PAUSED_REASONS[stored] ?? null;
+}
+
+/** One progress value for display, from the disposition and the run. */
+export type TicketRequestProgress =
+  | "pending"
+  | "waiting"
+  | "admitted"
+  | "active"
+  | "suspended"
+  | "completed"
+  | "failed"
+  | "canceled"
+  | "rejected";
+
+/**
+ * The progress the ticket page shows. A terminal disposition, `pending` and
+ * `suspended` are shown as stored. Otherwise the run decides, because the
+ * recheck that moves the disposition runs on its own schedule: a run that
+ * failed or was canceled shows its end, a completed one shows completed only
+ * once the source's completion policy is met (`delivered`), and active until
+ * then, a queued run `admitted`, a paused run `suspended`, a run
+ * waiting for input, capacity or a block `waiting`, and a running or stopping
+ * run `active`. With no run the disposition stands. Unknown run statuses
+ * leave the disposition as stored.
+ */
+export function ticketRequestProgress(
+  disposition: TicketRequestDisposition,
+  runStatus: string | null,
+  delivered: boolean,
+): TicketRequestProgress {
+  if (
+    !isNonterminalTicketDisposition(disposition) ||
+    disposition === "suspended" || runStatus === null
+  ) return disposition;
+  switch (runStatus) {
+    // A finished run whose delivery is not proven yet is still open work.
+    case "completed":
+      return delivered ? "completed" : "active";
+    case "failed":
+    case "canceled":
+      return runStatus;
+    case "queued":
+      return "admitted";
+    case "paused":
+      return "suspended";
+    case "waiting_input":
+    case "waiting_capacity":
+    case "blocked":
+      return "waiting";
+    case "running":
+    case "canceling":
+      return "active";
+    default:
+      return disposition;
+  }
 }

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
@@ -112,6 +113,22 @@ export class S3SkillObjectStore implements SkillObjectStore {
         throw new SkillFileStoreError("SKILL_CONTENT_INTEGRITY_FAILED");
       }
       return bytes;
+    } catch (error) {
+      throw mapSkillS3Error(error);
+    }
+  }
+
+  async delete(key: string): Promise<boolean> {
+    assertSkillObjectKey(key);
+    // A missing key is an answer, not a failure: collection may run twice after
+    // a crash between the store call and the row update.
+    const present = await this.stat(key);
+    if (present === null) return false;
+    try {
+      await this.client.send(
+        new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return true;
     } catch (error) {
       throw mapSkillS3Error(error);
     }

@@ -20,6 +20,7 @@ import {
   contractSchemas,
 } from "../../packages/contracts/src/contracts.ts";
 import { createHealthApp } from "../../packages/contracts/src/health-app.ts";
+import { HEALTH_API_COMPATIBILITY } from "../../packages/contracts/src/health.ts";
 import { createApiRouter } from "../../packages/contracts/src/http.ts";
 
 const ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
@@ -48,6 +49,7 @@ Deno.test("client accepts typed readiness 503 responses from the real health rou
       state: "unavailable",
       reason: "DEPENDENCY_UNAVAILABLE",
     }],
+    compatibility: HEALTH_API_COMPATIBILITY,
   });
 });
 

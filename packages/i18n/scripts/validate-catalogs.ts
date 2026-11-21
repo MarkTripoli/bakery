@@ -1,6 +1,6 @@
 import IntlMessageFormat from "intl-messageformat";
 import { supportedLocales } from "../src/locale.ts";
-import { minimumPseudoLength } from "./pseudo.ts";
+import { minimumPseudoLength, unaccent } from "./pseudo.ts";
 
 const root = decodeURIComponent(new URL("..", import.meta.url).pathname);
 const namespacePrefixes = [
@@ -29,14 +29,31 @@ const namespacePrefixes = [
   "clients.",
   "oauth.",
   "organizationSettings.",
+  "installation.monitoring.",
+  "organizationStorage.",
   "features.",
   "access.",
   "issues.",
+  "files.",
   "machines.",
   "library.",
   "repository.rules.",
   "notifications.",
   "session.",
+  // Installation-wide pages that are not settings forms: usage is what the
+  // installation spent, and the design names its keys `installation.usage.*`
+  // rather than filing a read-only report under the settings namespace.
+  "installation.",
+  // The Delivery page: what was delivered and how long it took.
+  "delivery.",
+  // Mentions: the picker, the notified line and the People added dialog.
+  "mentions.",
+  // Batches (#58): the list, the start page and a batch's own page.
+  "batches.",
+  // Provider copy: `integrations.<slug>.*` is the one namespace where a provider's
+  // own strings live, and `check-provider-literals.ts` exempts exactly it. The two
+  // rails have to agree, so the prefix is allowed here rather than the keys moved.
+  "integrations.",
 ] as const;
 
 /**
@@ -55,13 +72,20 @@ const pseudoExpansionPrefixes = [
   "clients.",
   "oauth.",
   "organizationSettings.",
+  "installation.monitoring.",
+  "organizationStorage.",
   "features.",
   "access.",
   "shell.navigation.machines",
   "issues.",
+  "files.",
   "machines.",
   "repository.rules.",
   "session.",
+  "installation.",
+  "delivery.",
+  "mentions.",
+  "batches.",
 ] as const;
 
 function argumentNames(message: string): string[] {
@@ -171,12 +195,22 @@ export function validateCatalogSources(
             errors.push(
               `${locale}: ${key} must be ⟦…⟧ and at least 35% longer than English`,
             );
+          } // A row made from an earlier English text no longer says what the
+          // English says: it must still begin with the current source.
+          else if (!unaccent(message.slice(1, -1)).startsWith(source)) {
+            errors.push(
+              `${locale}: ${key} is stale: it no longer starts with the English text (regenerate it with pnpm --dir packages/i18n pseudo after deleting the row)`,
+            );
           }
         } else if (
           locale === "ar-XB" &&
           (!message.startsWith("⟪") || !message.endsWith("⟫"))
         ) {
           errors.push(`${locale}: ${key} must be wrapped in ⟪…⟫`);
+        } else if (locale === "ar-XB" && message.slice(1, -1) !== source) {
+          errors.push(
+            `${locale}: ${key} is stale: it differs from the English text (regenerate it with pnpm --dir packages/i18n pseudo after deleting the row)`,
+          );
         }
       }
       const expected = argumentNames(String(english[key]));

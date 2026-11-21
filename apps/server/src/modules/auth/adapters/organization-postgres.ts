@@ -71,6 +71,7 @@ type OrganizationAccessRow = OrganizationRow & { role: string | null };
 type MembershipRow = KeysetRow & {
   organizationId: string;
   principalId: string | null;
+  displayName: string;
   role: string | null;
   status: string;
   joinedAt: Timestamp;
@@ -196,6 +197,7 @@ function membership(row: MembershipRow) {
     id: row.id,
     organizationId: row.organizationId,
     principalId: row.principalId,
+    displayName: row.displayName,
     role: row.role === null ? null : row.role,
     status: row.status,
     joinedAt: timestamp(row.joinedAt),
@@ -535,7 +537,10 @@ export class PostgresOrganizationStore {
           joined_at, created_at, updated_at, version
         ) values ($1, $2, $3, $4, $5, $6, $6, $6, 1)
         returning id, organization_id as "organizationId",
-          principal_id as "principalId", role, status,
+          principal_id as "principalId",
+          (select principal.display_name from bakery.principals as principal
+            where principal.id = principal_id) as "displayName",
+          role, status,
           joined_at as "joinedAt", created_at as "createdAt",
           updated_at as "updatedAt", version,
           created_at as "cursorCreatedAt"`,
@@ -629,7 +634,10 @@ export class PostgresOrganizationStore {
           and membership.id = $2
         returning membership.id,
           membership.organization_id as "organizationId",
-          membership.principal_id as "principalId", membership.role,
+          membership.principal_id as "principalId",
+          (select principal.display_name from bakery.principals as principal
+            where principal.id = membership.principal_id) as "displayName",
+          membership.role,
           membership.status, membership.joined_at as "joinedAt",
           membership.created_at as "createdAt",
           membership.updated_at as "updatedAt", membership.version,
@@ -1235,7 +1243,9 @@ export class PostgresOrganizationStore {
     const result = await client.query<MembershipRow>(
       `select membership.id,
         membership.organization_id as "organizationId",
-        principal.id as "principalId", membership.role, membership.status,
+        principal.id as "principalId",
+        principal.display_name as "displayName", membership.role,
+        membership.status,
         membership.joined_at as "joinedAt",
         membership.created_at as "createdAt",
         membership.updated_at as "updatedAt", membership.version,

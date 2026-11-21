@@ -120,7 +120,7 @@ const checkRow = (
   headSha: head,
   baseSha: BASE,
   profileDigest: null,
-  policyDigest: "policy-1",
+  policyDigest: sha("c"),
   subjectDigest: sha("a"),
   checkerDigest: null,
   titleDigest: null,
@@ -158,7 +158,7 @@ const reviewRow = (
   implementerPrincipalId: uuid(34),
   headSha: over.head,
   baseSha: BASE,
-  policyDigest: "policy-1",
+  policyDigest: sha("c"),
   status: over.status,
   findingCount: over.findings,
   blockingCount: over.blocking,
@@ -202,7 +202,7 @@ const decisionRow = (
   reason,
   headSha: head,
   baseSha: BASE,
-  policyDigest: "policy-1",
+  policyDigest: sha("c"),
   failedChecks: [],
   blockingFingerprints: fingerprints,
   limits: { maxRepairCycles: 2, maxLoopDurationMs: 600000, maxFindings: 25 },
@@ -229,6 +229,62 @@ const pullRequestRow = (
   createdAt: at(6),
   updatedAt: at(6),
   version: 1,
+  // What the server says about merging: may this person, and with what method.
+  mayMerge: true,
+  mergeMethod: "squash",
+  // The branch it merges into: named in the cards and sent when a merge is queued.
+  targetBranch: "main",
+  ...over,
+});
+
+/** A queued merge as `mergeEntries.list` returns it, newest first. */
+const mergeEntryRow = (
+  status:
+    | "queued"
+    | "validating"
+    | "merging"
+    | "merged"
+    | "blocked"
+    | "canceled",
+  over: Record<string, unknown> = {},
+) => ({
+  id: uuid(900),
+  pullRequestId: uuid(600 + 482),
+  repositoryId: uuid(13),
+  targetBranch: "main",
+  expectedHeadSha: NEW,
+  expectedBaseSha: BASE,
+  status,
+  externalEffectId: null,
+  runId,
+  policyDigest: sha("c"),
+  reviewCycleId: reviewId,
+  createdAt: at(7),
+  updatedAt: at(8),
+  version: 1,
+  blockedReason: null,
+  ...over,
+});
+
+/** An entry the queue stopped, with the reason it recorded. */
+const stoppedEntry = (blockedReason: string | null) =>
+  mergeEntryRow("blocked", { blockedReason });
+
+const mergeAttemptRow = (
+  state: "merged" | "refused" | "unknown",
+  over: Record<string, unknown> = {},
+) => ({
+  id: uuid(800),
+  pullRequestId: uuid(600 + 482),
+  providerNumber: 482,
+  repositoryId: uuid(13),
+  baseBranch: "main",
+  expectedHeadSha: NEW,
+  state,
+  providerStatus: state === "refused" ? 405 : null,
+  mergedSha: state === "merged" ? sha("9") : null,
+  createdAt: at(7),
+  settledAt: state === "unknown" ? null : at(7),
   ...over,
 });
 
@@ -239,10 +295,14 @@ type Scenario = {
   decisions?: ReturnType<typeof decisionRow>[];
   /** The task's pull requests, as `pullRequests.list` returns them (oldest first). */
   pullRequests?: ReturnType<typeof pullRequestRow>[];
+  /** The chosen pull request's merge attempts, newest first. */
+  mergeAttempts?: ReturnType<typeof mergeAttemptRow>[];
+  /** The chosen pull request's queued merges, newest first. */
+  mergeEntries?: ReturnType<typeof mergeEntryRow>[];
 };
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
 
-const problemBody = (status: number, code: string) => ({
+const problemBody = (status: number, code: string, reason?: string) => ({
   type: "about:blank",
   title: code,
   status,
@@ -251,6 +311,8 @@ const problemBody = (status: number, code: string) => ({
   requestId: uuid(110),
   traceId: uuid(111),
   retryable: false,
+  // The rule a refused merge names: a conflict or failed precondition only.
+  ...(reason === undefined ? {} : { reason }),
 });
 
 /** The run-stage approval the server asks when a clean candidate needs a person. */
@@ -421,6 +483,18 @@ async function mockDelivery(page: Page, scenario: Scenario) {
   await page.route(
     "**/v1/pull-requests?*",
     (route) => route.fulfill({ json: page_(scenario.pullRequests ?? []) }),
+  );
+  // The attempts read: none unless the scenario serves some. Read per request,
+  // so a test that settles an attempt changes what the next read returns.
+  await page.route(
+    "**/v1/merge-attempts?*",
+    (route) => route.fulfill({ json: page_(scenario.mergeAttempts ?? []) }),
+  );
+  // The queued merges: none unless the scenario serves some. Read per request,
+  // like the attempts, so a test that queues one changes the next read.
+  await page.route(
+    "**/v1/merge-entries?*",
+    (route) => route.fulfill({ json: page_(scenario.mergeEntries ?? []) }),
   );
 }
 
@@ -1423,7 +1497,7 @@ test("before approval the after-approval group and its badge are not drawn", asy
   await expect(page.getByTestId("delivery-outcome-badge")).toHaveCount(0);
 });
 
-test("an approved run with a pull request open says so, badges Waiting for merge and links to GitHub", async ({ page }) => {
+test("an approved run with a pull request open says so, badges Ready to merge and links to GitHub", async ({ page }) => {
   await openApproved(page, { pullRequests: [pullRequestRow(482)] });
   const section = page.getByTestId("delivery-section");
   await expect(pullRequestStep(page)).toContainText(
@@ -1431,7 +1505,7 @@ test("an approved run with a pull request open says so, badges Waiting for merge
   );
   await expect(mergeStep(page)).toContainText("Not merged yet.");
   await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Waiting for merge",
+    "Ready to merge",
   );
   await expect(section).toContainText(
     "Releases are not tracked in Bakery yet.",
@@ -1685,3 +1759,858 @@ test("still: the task's other pull requests, closed and opened", async ({ page }
     await fresh.close();
   }
 });
+
+// ---- merging from Bakery (#57).
+
+type Merged = { merges: Array<Record<string, unknown>>; reconciles: number };
+
+/** Opens an approved candidate whose pull request and attempts the test owns. */
+async function openMerge(
+  page: Page,
+  scenario: Scenario,
+  answers: {
+    merge?: (route: Route) => Promise<void> | void;
+    reconcile?: (route: Route) => Promise<void> | void;
+    /** Registered after the run mocks, so these answers win. */
+    stub?: (page: Page) => Promise<void>;
+  } = {},
+): Promise<Merged> {
+  const seen: Merged = { merges: [], reconciles: 0 };
+  await mockRun(page);
+  await mockDelivery(page, scenario);
+  await answers.stub?.(page);
+  await mockApprovals(page, [approvedRow()]);
+  // Queuing a merge is a POST to the queue; the list above is a GET.
+  await page.route("**/v1/merge-entries", async (route) => {
+    if (route.request().method() !== "POST") return await route.fallback();
+    seen.merges.push(route.request().postDataJSON() as Record<string, unknown>);
+    if (answers.merge) return await answers.merge(route);
+    await route.fulfill({ json: mergeEntryRow("queued") });
+  });
+  await page.route("**/v1/merge-attempts/reconcile", async (route) => {
+    seen.reconciles += 1;
+    if (answers.reconcile) return await answers.reconcile(route);
+    await route.fulfill({ json: { reconciled: 0, merged: 0, refused: 0 } });
+  });
+  await page.goto(`/tasks/${id}`);
+  await expect(afterApprovalHeading(page)).toBeVisible();
+  return seen;
+}
+
+test("an approved candidate at the reviewed head offers Merge, asks first, and queues the candidate it saw once", async ({ page }) => {
+  const scenario: Scenario = { ...CLEAN, pullRequests: [pullRequestRow(482)] };
+  const seen = await openMerge(page, scenario, {
+    merge: async (route) => {
+      // The server queues the merge; the next reads say so.
+      scenario.mergeEntries = [mergeEntryRow("queued")];
+      await route.fulfill({ json: mergeEntryRow("queued") });
+    },
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Ready to merge");
+  await expect(now).toContainText(
+    "Checks and the review passed for commit 91d0aa3, and it was approved.",
+  );
+  await button(now, "Merge").click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Merge pull request #482?",
+  });
+  await expect(dialog).toContainText(
+    "Bakery merges commit 91d0aa3 exactly, as a squash merge.",
+  );
+  await expect(dialog).toContainText("A merge cannot be undone from Bakery.");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  expect(seen.merges).toHaveLength(0);
+  await button(now, "Merge").click();
+  await button(dialog, "Merge").click();
+  // The card becomes the queue's: Bakery checks, then merges, and the person
+  // has nothing to do. Focus goes to its title so the change is announced.
+  await expect(now).toContainText("Checking before the merge");
+  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Merging",
+  );
+  await expect(mergeStep(page)).toContainText(
+    "About to check that nothing changed since the review.",
+  );
+  expect(seen.merges).toHaveLength(1);
+  // The page names the exact head and base it read, the branch, and the run,
+  // rules, review and checks behind them. It never chooses any of them.
+  expect(seen.merges[0]).toEqual({
+    pullRequestId: uuid(600 + 482),
+    repositoryId: uuid(13),
+    targetBranch: "main",
+    expectedHeadSha: NEW,
+    expectedBaseSha: BASE,
+    runId,
+    policyDigest: sha("c"),
+    reviewCycleId: reviewId,
+    checkRunIds: [uuid(100), uuid(101)],
+  });
+  await expect(page.locator("#delivery-now-title")).toBeFocused();
+});
+
+for (
+  const [status, sentence] of [
+    ["queued", "About to check that nothing changed since the review."],
+    ["validating", "Checking that nothing changed since the review."],
+    ["merging", "Merging into main."],
+  ] as const
+) {
+  test(`a ${status} merge is one card with nothing to press, and only the Merge step's sentence says where it is`, async ({ page }) => {
+    const seen = await openMerge(page, {
+      ...CLEAN,
+      pullRequests: [pullRequestRow(482)],
+      mergeEntries: [mergeEntryRow(status)],
+    });
+    const now = nowCard(page);
+    await expect(now).toContainText("Checking before the merge");
+    await expect(now).toContainText(
+      "Bakery is checking that nothing changed since the review, then it merges. Nothing for you to do.",
+    );
+    await expect(now.getByRole("button")).toHaveCount(0);
+    await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+      "Merging",
+    );
+    await expect(mergeStep(page)).toContainText(sentence);
+    await expect(mergeStep(page)).toHaveAttribute("data-state", "running");
+    // The mark says In progress; "Running" is for the run's own steps.
+    await expect(mergeStep(page)).toContainText("In progress");
+    await expect(mergeStep(page)).not.toContainText("Running");
+    // A reload, or another person looking, sees the same.
+    await page.reload();
+    await expect(nowCard(page)).toContainText("Checking before the merge");
+    expect(seen.merges).toHaveLength(0);
+  });
+}
+
+test("a merging entry whose newest attempt is unknown is the unknown card with Check again", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeEntries: [mergeEntryRow("merging")],
+    mergeAttempts: [mergeAttemptRow("unknown")],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Bakery does not know whether this merged");
+  await expect(button(now, "Check again")).toBeVisible();
+  await expect(now.getByRole("button")).toHaveCount(1);
+});
+
+for (
+  const [reason, title, text, action, mayMerge] of [
+    [
+      "head_moved",
+      "Not merged: the pull request changed",
+      "Bakery merges only what was checked.",
+      null,
+      true,
+    ],
+    [
+      "base_moved",
+      "Not merged: main changed",
+      "main got new commits after the checks ran, and Bakery merges only what was checked. Checks and the review need to pass again on top of main.",
+      null,
+      true,
+    ],
+    [
+      "evidence_changed",
+      "Not merged: the review or the rules changed",
+      "What was checked no longer matches. The repository's rules or the review changed after the merge was asked for. Checks and the review need to pass again.",
+      null,
+      true,
+    ],
+    [
+      "checks_not_passed",
+      "Not merged: a check no longer passes",
+      "GitHub reports a required check that has not passed for commit 91d0aa3. Open the pull request to see which one.",
+      "Open on GitHub",
+      true,
+    ],
+    [
+      "not_open",
+      "Not merged: the pull request is closed",
+      "It was closed on GitHub before Bakery could merge it. Nothing was merged.",
+      "Open on GitHub",
+      true,
+    ],
+    [
+      "not_permitted",
+      "Not merged: permission was removed",
+      "The person who asked for this merge can no longer merge in this repository. Someone who can merge can start it again.",
+      "Merge again",
+      true,
+    ],
+    [
+      "not_permitted",
+      "Not merged: permission was removed",
+      "Someone who can merge can start it again.",
+      null,
+      false,
+    ],
+    [
+      "unavailable",
+      "Not merged: Bakery could not finish",
+      "Bakery could not reach GitHub after several tries, so it stopped. Nothing was merged.",
+      "Merge again",
+      true,
+    ],
+    [
+      null,
+      "Bakery did not merge this",
+      "The merge was stopped and Bakery was not told why. Open the pull request to check it.",
+      "Open on GitHub",
+      true,
+    ],
+  ] as const
+) {
+  test(`a merge stopped for ${reason}${mayMerge ? "" : " by a reader who may not merge"} says so, with ${action ?? "no button"}`, async ({ page }) => {
+    await openMerge(page, {
+      ...CLEAN,
+      pullRequests: [pullRequestRow(482, { mayMerge })],
+      mergeEntries: [stoppedEntry(reason)],
+    });
+    const now = nowCard(page);
+    await expect(now).toContainText(title);
+    await expect(now).toContainText(text);
+    await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+      "Not merged",
+    );
+    await expect(mergeStep(page)).toContainText("Bakery did not merge.");
+    await expect(mergeStep(page)).toHaveAttribute("data-state", "failed");
+    // One primary action, or none: pressing it must be able to help.
+    const buttons = now.getByRole("button");
+    const links = now.getByRole("link", { name: /Open on GitHub/ });
+    await expect(buttons).toHaveCount(action === "Merge again" ? 1 : 0);
+    await expect(links).toHaveCount(action === "Open on GitHub" ? 1 : 0);
+    if (action === "Merge again") {
+      await expect(button(now, "Merge again")).toBeVisible();
+    }
+    if (action === "Open on GitHub") {
+      await expect(links).toHaveAttribute(
+        "href",
+        "https://github.com/o/r/pull/482",
+      );
+    }
+  });
+}
+
+test("Merge again opens the same confirmation as Merge and queues the same candidate", async ({ page }) => {
+  const seen = await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeEntries: [stoppedEntry("unavailable")],
+  });
+  await button(nowCard(page), "Merge again").click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Merge pull request #482?",
+  });
+  await expect(dialog).toContainText(
+    "Bakery merges commit 91d0aa3 exactly, as a squash merge.",
+  );
+  await button(dialog, "Merge").click();
+  await expect.poll(() => seen.merges.length).toBe(1);
+  expect(seen.merges[0]?.expectedHeadSha).toBe(NEW);
+});
+
+test("a merge GitHub did not make brings the Ready card back with the notice and Merge", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeEntries: [stoppedEntry("not_merged")],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Ready to merge");
+  await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+    "GitHub did not merge it. You can merge again.",
+  );
+  await expect(button(now, "Merge")).toBeVisible();
+});
+
+test("a stopped merge stops showing when the pull request's head changes", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482, { headSha: OLD })],
+    mergeEntries: [stoppedEntry("checks_not_passed")],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Not merged: the pull request changed");
+  await expect(now).toContainText("now ends at 4be19c2");
+  await expect(now.getByRole("button")).toHaveCount(0);
+});
+
+test("someone who may not merge is told so and is offered no button", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482, { mayMerge: false })],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Ready to merge");
+  await expect(now).toContainText(
+    "Someone who can merge in this repository can do it here.",
+  );
+  await expect(now.getByRole("button")).toHaveCount(0);
+});
+
+test("an attempt whose outcome is unknown says so after a reload, offers only Check again, and never Merge", async ({ page }) => {
+  const scenario: Scenario = {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeAttempts: [mergeAttemptRow("unknown")],
+  };
+  const seen = await openMerge(page, scenario);
+  const now = nowCard(page);
+  await expect(now).toContainText("Bakery does not know whether this merged");
+  await expect(now).toContainText(
+    "Checking again never sends a second merge.",
+  );
+  await expect(button(now, "Check again")).toBeVisible();
+  await expect(now.getByRole("button", { name: "Merge", exact: true }))
+    .toHaveCount(0);
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Merge unknown",
+  );
+  await expect(mergeStep(page)).toContainText(
+    "Bakery cannot tell whether these changes were merged.",
+  );
+  // A reload shows the same: the answer is read, not remembered by the page.
+  await page.reload();
+  await expect(nowCard(page)).toContainText(
+    "Bakery does not know whether this merged",
+  );
+  expect(seen.merges).toHaveLength(0);
+});
+
+test("Check again settles an unknown merge by reading GitHub and never sends a merge", async ({ page }) => {
+  const scenario: Scenario = {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeAttempts: [mergeAttemptRow("unknown")],
+  };
+  const seen = await openMerge(page, scenario, {
+    reconcile: async (route) => {
+      scenario.mergeAttempts = [mergeAttemptRow("refused")];
+      await route.fulfill({ json: { reconciled: 1, merged: 0, refused: 1 } });
+    },
+  });
+  const now = nowCard(page);
+  await button(now, "Check again").click();
+  await expect(now).toContainText("GitHub refused the merge");
+  await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+    "GitHub did not merge it. You can merge again.",
+  );
+  expect(seen.reconciles).toBe(1);
+  expect(seen.merges).toHaveLength(0);
+});
+
+test("Check again that cannot reach GitHub keeps the outcome unknown and says so", async ({ page }) => {
+  await openMerge(
+    page,
+    {
+      ...CLEAN,
+      pullRequests: [pullRequestRow(482)],
+      mergeAttempts: [mergeAttemptRow("unknown")],
+    },
+    {
+      reconcile: (route) =>
+        route.fulfill({
+          status: 502,
+          contentType: "application/problem+json",
+          json: problemBody(502, "PROVIDER_UNAVAILABLE"),
+        }),
+    },
+  );
+  const now = nowCard(page);
+  await button(now, "Check again").click();
+  await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+    "GitHub could not be reached. The outcome is still unknown.",
+  );
+  await expect(now).toContainText("Bakery does not know whether this merged");
+});
+
+test("a refused merge says so, links to GitHub and offers Merge as a secondary action", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeAttempts: [mergeAttemptRow("refused")],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("GitHub refused the merge");
+  await expect(mergeStep(page)).toContainText("GitHub refused the merge.");
+  await expect(now.getByRole("link", { name: /Open on GitHub/ }))
+    .toHaveAttribute("href", "https://github.com/o/r/pull/482");
+  await expect(button(now, "Merge")).toBeVisible();
+});
+
+test("a pull request that moved after the approval is not offered to merge, and says which commits", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482, { headSha: OLD })],
+  });
+  const now = nowCard(page);
+  // Nothing was tried, so the title says what changed, not that a merge failed.
+  await expect(now).toContainText(
+    "The pull request changed since it was approved",
+  );
+  await expect(now).toContainText("Commit 91d0aa3 was approved");
+  await expect(now).toContainText("now ends at 4be19c2");
+  await expect(now.getByRole("button")).toHaveCount(0);
+  // The results, review and approval are marked as being for the older commit,
+  // not shown as green for the commit the pull request no longer ends at.
+  const section = page.getByTestId("delivery-section");
+  // One notice, not two: the warning card says it, the steps are marked.
+  await expect(section.getByTestId("delivery-out-of-date")).toHaveCount(0);
+  await expect(now).toContainText(
+    "The results below are for the older commit and no longer count.",
+  );
+  await expect(now).toContainText(
+    "Checks and the review need to pass for 4be19c2, and it needs approving again, before it can merge.",
+  );
+  await expect(page.getByTestId("delivery-outcome-badge")).toContainText(
+    "Changed after approval",
+  );
+  await expect(section).toContainText("Older commit 91d0aa3");
+  // The approval was for that older commit: it says so and promises nothing.
+  await expect(page.getByTestId("delivery-approval-step")).toContainText(
+    "Approved for older commit 91d0aa3. Commit 4be19c2 needs approving again.",
+  );
+  await expect(page.getByTestId("delivery-approval-step")).not.toContainText(
+    "Bakery may merge these changes",
+  );
+  // Nothing is re-running: the page must not say the results are running again.
+  await expect(section).toContainText("No results for commit 4be19c2.");
+  await expect(section).not.toContainText("Running again");
+});
+
+for (
+  const [name, status, code, reason, says, above] of [
+    [
+      "the pull request changed under it",
+      412,
+      "PRECONDITION_FAILED",
+      "head_moved",
+      "The pull request changed just now. The latest is shown.",
+      false,
+    ],
+    [
+      "the review changed under it",
+      412,
+      "PRECONDITION_FAILED",
+      "review_evidence_stale",
+      "The pull request changed just now. The latest is shown.",
+      false,
+    ],
+    [
+      "another change is merging into the branch",
+      409,
+      "STATE_CONFLICT",
+      "target_merge_in_progress",
+      "Another change is merging into main right now. Nothing was started. Try again in a moment.",
+      true,
+    ],
+    [
+      "the branch changed",
+      412,
+      "PRECONDITION_FAILED",
+      "base_moved",
+      "main changed just now. The latest is shown.",
+      true,
+    ],
+    [
+      "the pull request is no longer open",
+      409,
+      "STATE_CONFLICT",
+      "pull_request_not_open",
+      "This pull request is no longer open. Nothing was merged.",
+      true,
+    ],
+    [
+      "the review has blocking findings",
+      409,
+      "STATE_CONFLICT",
+      "review_findings_blocking",
+      "The review has findings that block the merge.",
+      true,
+    ],
+    [
+      "a required check has not passed",
+      409,
+      "STATE_CONFLICT",
+      "checks_not_passed",
+      "A required check has not passed for commit 91d0aa3.",
+      true,
+    ],
+    [
+      "a required check has no result",
+      412,
+      "PRECONDITION_FAILED",
+      "check_runs_missing",
+      "A required check has not passed for commit 91d0aa3.",
+      true,
+    ],
+    [
+      "this person may not merge",
+      403,
+      "AUTH_FORBIDDEN",
+      undefined,
+      "Someone who can merge in this repository can do it here.",
+      false,
+    ],
+    [
+      "the pull request is gone",
+      404,
+      "RESOURCE_NOT_FOUND",
+      undefined,
+      "The merge was not started. Nothing changed. Try again.",
+      false,
+    ],
+    [
+      "of a conflict the page has no words for",
+      409,
+      "STATE_CONFLICT",
+      "something_new",
+      "The merge was not started. Nothing changed. Try again.",
+      false,
+    ],
+  ] as const
+) {
+  test(`a merge refused because ${name} says so once, ${above ? "above" : "in"} the card, and starts nothing`, async ({ page }) => {
+    const seen = await openMerge(
+      page,
+      { ...CLEAN, pullRequests: [pullRequestRow(482)] },
+      {
+        merge: (route) =>
+          route.fulfill({
+            status,
+            contentType: "application/problem+json",
+            json: problemBody(status, code, reason),
+          }),
+      },
+    );
+    const now = nowCard(page);
+    await button(now, "Merge").click();
+    await button(
+      page.getByRole("alertdialog", { name: "Merge pull request #482?" }),
+      "Merge",
+    ).click();
+    const notice = page.getByTestId("delivery-merge-notice");
+    await expect(notice).toContainText(says);
+    await expect(notice).not.toContainText("did not get an answer");
+    // The dialog closes with the answer, and nothing was started.
+    await expect(page.getByRole("alertdialog")).toBeHidden();
+    expect(seen.merges).toHaveLength(1);
+    if (above) {
+      // A refusal that started nothing is told before the card it leaves as it was.
+      const before = await notice.evaluate((element, card) =>
+        Boolean(
+          element.compareDocumentPosition(
+            document.querySelector(`[data-testid="${card}"]`)!,
+          ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ), "delivery-now");
+      expect(before).toBe(true);
+    }
+  });
+}
+
+for (
+  const [name, recorded, lands, noticeStays] of [
+    [
+      "an unsettled attempt",
+      "unknown",
+      "Bakery does not know whether this merged",
+      false,
+    ],
+    ["a refused attempt", "refused", "GitHub refused the merge", true],
+    ["no attempt at all", null, "Ready to merge", true],
+  ] as const
+) {
+  test(`a merge whose answer never arrived reads back ${name}, and never says nothing changed`, async ({ page }) => {
+    const scenario: Scenario = {
+      ...CLEAN,
+      pullRequests: [pullRequestRow(482)],
+    };
+    const seen = await openMerge(page, scenario, {
+      merge: async (route) => {
+        // The answer was lost on the way back; the server may have recorded
+        // an attempt.
+        if (recorded !== null) {
+          scenario.mergeAttempts = [mergeAttemptRow(recorded)];
+        }
+        await route.fulfill({
+          status: 503,
+          contentType: "application/problem+json",
+          json: problemBody(503, "UNAVAILABLE"),
+        });
+      },
+    });
+    const now = nowCard(page);
+    await button(now, "Merge").click();
+    await button(page.getByRole("alertdialog"), "Merge").click();
+    // What it recorded is what the card says now.
+    await expect(now).toContainText(lands);
+    const notice = page.getByTestId("delivery-merge-notice");
+    if (noticeStays) {
+      await expect(notice).toContainText(
+        recorded === null
+          ? "Bakery did not get an answer and has no record of a merge attempt. Open the pull request on GitHub to see whether it merged before you merge again."
+          : "Bakery did not get an answer, so the merge may or may not have started.",
+      );
+      await expect(notice).not.toContainText("Nothing changed");
+      if (recorded === null) {
+        // Above the card, where it is read first.
+        const above = await notice.evaluate((element, card) =>
+          Boolean(
+            element.compareDocumentPosition(
+              document.querySelector(`[data-testid="${card}"]`)!,
+            ) & Node.DOCUMENT_POSITION_FOLLOWING,
+          ), "delivery-now");
+        expect(above).toBe(true);
+      }
+    } else {
+      // The card already says exactly this, so the notice would repeat it.
+      await expect(notice).toHaveCount(0);
+    }
+    expect(seen.merges).toHaveLength(1);
+  });
+}
+
+test("an approved commit with no check results says so, offers no Merge, and never says Ready to merge", async ({ page }) => {
+  const seen = await openMerge(page, {
+    ...CLEAN,
+    checks: [],
+    pullRequests: [pullRequestRow(482)],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("No check results for this commit");
+  await expect(now).toContainText(
+    "Bakery merges only what was checked, and it has no check results for commit 91d0aa3. Open the pull request to see its checks.",
+  );
+  await expect(now).not.toContainText("Ready to merge");
+  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(now.getByRole("link", { name: /Open on GitHub/ }))
+    .toHaveAttribute("href", "https://github.com/o/r/pull/482");
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Approved",
+  );
+  expect(seen.merges).toHaveLength(0);
+});
+
+test("offline, merging is disabled", async ({ page, context }) => {
+  await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
+  await context.setOffline(true);
+  await expect(button(nowCard(page), "Merge")).toBeDisabled();
+});
+
+test("the merge states have no accessibility violations and fit a 390px screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
+  await expect(button(nowCard(page), "Merge")).toBeVisible();
+  const overflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth > globalThis.innerWidth
+  );
+  expect(overflow).toBe(false);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
+const MERGE_STILLS = [
+  ["ready", { pullRequests: [pullRequestRow(482)] }],
+  [
+    "no-permission",
+    { pullRequests: [pullRequestRow(482, { mayMerge: false })] },
+  ],
+  [
+    "unknown",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeAttempts: [mergeAttemptRow("unknown")],
+    },
+  ],
+  [
+    "refused",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeAttempts: [mergeAttemptRow("refused")],
+    },
+  ],
+  ["moved", { pullRequests: [pullRequestRow(482, { headSha: OLD })] }],
+  [
+    "checking",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeEntries: [mergeEntryRow("validating")],
+    },
+  ],
+  [
+    "no-checks",
+    { checks: [], pullRequests: [pullRequestRow(482)] },
+  ],
+  [
+    "stopped-branch",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeEntries: [stoppedEntry("base_moved")],
+    },
+  ],
+  [
+    "stopped-check",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeEntries: [stoppedEntry("checks_not_passed")],
+    },
+  ],
+  [
+    "stopped-unavailable",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeEntries: [stoppedEntry("unavailable")],
+    },
+  ],
+] as const;
+
+/**
+ * The stills show one consistent state: a finished run on an approved change,
+ * and a side panel that loads (nothing to show) instead of reporting an error.
+ */
+async function stubStillsPage(page: Page) {
+  const empty = (route: Route) => route.fulfill({ json: page_([]) });
+  for (
+    const pattern of [
+      "**/v1/conversations/*/messages*",
+      "**/v1/conversations/*/turns*",
+      "**/v1/conversations/*/participants*",
+      "**/v1/plan-revisions*",
+      "**/v1/questions*",
+      "**/v1/coordination-plans*",
+    ]
+  ) await page.route(pattern, empty);
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) =>
+      route.fulfill({
+        json: {
+          ...run,
+          status: "completed",
+          finishedAt: "2026-01-01T00:09:00.000Z",
+        },
+      }),
+  );
+}
+
+/** The whole delivery section: the steps, the Now card and After approval. */
+async function stillOfSection(page: Page, file: string) {
+  const section = page.getByTestId("delivery-section");
+  await section.scrollIntoViewIfNeeded();
+  await section.screenshot({
+    path: `${STILLS}/${file}`,
+    animations: "disabled",
+  });
+}
+
+const STILL_SIZES = [["1440", 1440, 900], ["390", 390, 844]] as const;
+/** Tall enough that the whole section, steps and After approval, is in view. */
+const TALL = { "1440": 2400, "390": 3200 } as const;
+
+// One test per still: a fresh page and its own timeout and retry, so a slow or
+// crashed page costs one still and not the other seven of its state.
+for (const [name, scenario] of MERGE_STILLS) {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      test(`still: merge, ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await openMerge(page, { ...CLEAN, ...scenario }, {
+          stub: stubStillsPage,
+        });
+        await page.setViewportSize({ width, height: TALL[size] });
+        await stillOfSection(page, `merge-${name}-${size}-${scheme}.png`);
+        await page.setViewportSize({ width, height });
+        if (name === "ready") {
+          // The confirmation, with the focus ring on Cancel where it lands.
+          await button(nowCard(page), "Merge").click();
+          const dialog = page.getByRole("alertdialog");
+          await dialog.waitFor();
+          await expect(button(dialog, "Cancel")).toBeFocused();
+          await page.screenshot({
+            path: `${STILLS}/merge-confirm-${size}-${scheme}.png`,
+            animations: "disabled",
+          });
+        }
+      });
+    }
+  }
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  for (const [size, width, height] of STILL_SIZES) {
+    test(`still: merge, the branch is busy, ${size} ${scheme}`, async ({ page }) => {
+      test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+      test.setTimeout(laneBudgetMs(90_000));
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height });
+      await openMerge(
+        page,
+        { ...CLEAN, pullRequests: [pullRequestRow(482)] },
+        {
+          stub: stubStillsPage,
+          merge: (route) =>
+            route.fulfill({
+              status: 409,
+              contentType: "application/problem+json",
+              json: problemBody(
+                409,
+                "STATE_CONFLICT",
+                "target_merge_in_progress",
+              ),
+            }),
+        },
+      );
+      await button(nowCard(page), "Merge").click();
+      await button(page.getByRole("alertdialog"), "Merge").click();
+      await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+        "Another change is merging into main right now.",
+      );
+      await expect(page.getByRole("alertdialog")).toBeHidden();
+      await page.setViewportSize({ width, height: TALL[size] });
+      await stillOfSection(page, `merge-branch-busy-${size}-${scheme}.png`);
+    });
+  }
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  for (const [size, width, height] of STILL_SIZES) {
+    test(`still: merge, the answer never arrived, ${size} ${scheme}`, async ({ page }) => {
+      test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+      test.setTimeout(laneBudgetMs(90_000));
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height });
+      const scenario: Scenario = {
+        ...CLEAN,
+        pullRequests: [pullRequestRow(482)],
+      };
+      await openMerge(page, scenario, {
+        stub: stubStillsPage,
+        merge: async (route) => {
+          // The answer was lost and nothing was recorded: the read that
+          // follows shows the page as it was, with the notice saying why.
+          await route.fulfill({
+            status: 503,
+            contentType: "application/problem+json",
+            json: problemBody(503, "UNAVAILABLE"),
+          });
+        },
+      });
+      await button(nowCard(page), "Merge").click();
+      await button(page.getByRole("alertdialog"), "Merge").click();
+      await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+        "has no record of a merge attempt",
+      );
+      await expect(nowCard(page)).toContainText("Ready to merge");
+      await page.setViewportSize({ width, height: TALL[size] });
+      await stillOfSection(page, `merge-no-answer-${size}-${scheme}.png`);
+    });
+  }
+}

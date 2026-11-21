@@ -15,11 +15,13 @@ import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { formatFileSize } from "./file-size.ts";
 import {
   isDiffMediaType,
   isExtractableMediaType,
   MAX_TEXT_PREVIEW_BYTES,
 } from "./artifact-media.ts";
+import { ArtifactPreviewBody } from "./ArtifactContentPreview.tsx";
 import { FingerprintRow } from "./FingerprintRow.tsx";
 import { stepTitle } from "./task-timeline.ts";
 
@@ -52,7 +54,15 @@ export function TaskArtifactPane(
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t } = useI18n();
+  const { translate: t, locale } = useI18n();
+  const translateForSize = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) =>
+    (t as (id: string, v?: Record<string, string | number>) => string)(
+      key,
+      values,
+    );
   const [picked, setPicked] = useState<
     { artifactId: string; versionId: string } | null
   >(null);
@@ -249,8 +259,12 @@ export function TaskArtifactPane(
     ? "loading"
     : artifact === undefined || selected === undefined
     ? "empty"
+    // Extraction is how a *text* file is read; an image, a video or a refusal is
+    // decided by `previewState` inside the body, which owns that table. Marking
+    // anything else "unavailable" here hid every picture and every refusal the
+    // pane could have shown (#437).
     : !extractable
-    ? "unavailable"
+    ? "ready"
     : extraction === undefined
     ? "error"
     : extraction.hasMore
@@ -290,6 +304,20 @@ export function TaskArtifactPane(
   const openHref = artifact
     ? `/tasks/${taskId}/artifacts/${artifact.id}`
     : undefined;
+  // What the selected version is, said the same way the artifact page says it.
+  // The pane has its own Download and Open in the footer, so the preview offers
+  // no second copy of them.
+  // Rendered, not called: a function call would put the preview's hooks on this
+  // component and change its hook count whenever the selection appears (#437).
+  const preview = selected === undefined ? undefined : (
+    <ArtifactPreviewBody
+      version={selected}
+      label={t("tasks.artifactPane.preview")}
+      // The pane caps the text and fades the cut, so its Download and Open stay above
+      // the fold (#437).
+      cutText
+    />
+  );
   return (
     <UI.ArtifactPane
       details={artifact && selected
@@ -308,7 +336,13 @@ export function TaskArtifactPane(
               testId="artifact-fingerprint-row"
             />
             <UI.DetailRow label={t("tasks.artifact.size")}>
-              {t("artifact.retrieval.sizeValue", { size: selected.sizeBytes })}
+              {t("artifact.retrieval.sizeValue", {
+                size: formatFileSize(
+                  selected.sizeBytes,
+                  locale,
+                  translateForSize,
+                ),
+              })}
             </UI.DetailRow>
             <UI.DetailRow label={t("tasks.artifact.madeBy")}>
               {madeBy}
@@ -321,7 +355,7 @@ export function TaskArtifactPane(
           artifactId: artifact.id,
           version: String(selected.revision),
           digest: selected.sha256,
-          size: t("artifact.retrieval.sizeValue", { size: selected.sizeBytes }),
+          size: formatFileSize(selected.sizeBytes, locale, translateForSize),
           mediaType: selected.mediaType,
           provenance: selected.runStepId ?? t("tasks.artifact.unknown"),
           labels: {
@@ -346,7 +380,7 @@ export function TaskArtifactPane(
       onVersionChange={(versionId) =>
         artifact && setPicked({ artifactId: artifact.id, versionId })}
       openHref={openHref}
-      previewText={extraction?.text}
+      preview={preview}
       state={state}
       title={artifact?.name}
       version={selected?.id ?? ""}

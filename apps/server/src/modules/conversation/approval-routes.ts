@@ -22,11 +22,37 @@ import {
  * handlers and is refused there with `approval_requires_human`, rather than
  * being unauthenticated.
  */
+/**
+ * The approvals and plan-revision registry, built once so the routes and the
+ * session tool gateway (#414) run the same handlers under the same authority
+ * guard rather than two registrations that could drift.
+ */
+export function createApprovalRegistry(options: {
+  database: PgDatabase;
+  cursorSecret: string;
+}) {
+  return createApprovalActionRegistry(
+    {
+      planRevisionsList: createPlanRevisionsListHandler(options.cursorSecret),
+      planRevisionsGet: getPlanRevision,
+      approvalsList: createApprovalsListHandler(options.cursorSecret),
+      approvalsGet: getApproval,
+      approvalsDecide: decideApproval,
+      approvalsRevoke: revokeApproval,
+    },
+    {
+      authorityRunner: new PostgresAuthorityRunner(options.database),
+      commandRunner: createPostgresCommandRunner(),
+    },
+  );
+}
+
 export function createApprovalRoutes(options: {
   database: PgDatabase;
   session: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  registry?: ReturnType<typeof createApprovalRegistry>;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   for (const path of ["/v1/plan-revisions", "/v1/approvals"]) {
@@ -36,22 +62,7 @@ export function createApprovalRoutes(options: {
   app.route(
     "/",
     createApiRouter({
-      registry: createApprovalActionRegistry(
-        {
-          planRevisionsList: createPlanRevisionsListHandler(
-            options.cursorSecret,
-          ),
-          planRevisionsGet: getPlanRevision,
-          approvalsList: createApprovalsListHandler(options.cursorSecret),
-          approvalsGet: getApproval,
-          approvalsDecide: decideApproval,
-          approvalsRevoke: revokeApproval,
-        },
-        {
-          authorityRunner: new PostgresAuthorityRunner(options.database),
-          commandRunner: createPostgresCommandRunner(),
-        },
-      ),
+      registry: options.registry ?? createApprovalRegistry(options),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),

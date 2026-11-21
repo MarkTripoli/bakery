@@ -210,12 +210,15 @@ async function completeLikeTheHandler(
       }),
       { sha256: session.sha256, sizeBytes: Number(session.sizeBytes) },
     );
+    // The bytes are in the store by now, so recording them is allowed.
     const blob = await recordBlob(tx, {
       organizationId: fixture.organizationId,
       principalId: fixture.principalId,
       sha256: session.sha256,
       sizeBytes: bytes.byteLength,
       mediaType: session.mediaType,
+    }, {
+      stat: () => Promise.resolve({ sizeBytes: bytes.byteLength }),
     });
     await completeUploadSession(tx, {
       organizationId: fixture.organizationId,

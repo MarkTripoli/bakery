@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  chooseFilter,
   issuesFixture,
   OPEN,
   ready,
@@ -43,9 +44,7 @@ for (
       // The age of the saved copy.
       await expect(page.getByText("Updated from GitHub 5 minutes ago"))
         .toBeVisible();
-      await page.getByRole("radio", { name: "All open" }).click({
-        force: true,
-      });
+      await chooseFilter(page, "All open");
       await expect(row(page, 202)).toContainText("Waiting");
       await expect(row(page, 202)).toContainText(
         "acme/web · Depends on #201, which is still open.",
@@ -116,12 +115,10 @@ for (
     test("In progress shows what Bakery is working on, and Closed asks for closed issues", async ({ page }) => {
       const seen = await issuesFixture(page);
       await page.goto("/issues");
-      await page.getByRole("radio", { name: "In progress" }).click({
-        force: true,
-      });
+      await chooseFilter(page, "In progress");
       await expect(row(page, 204)).toContainText("In progress");
       await expect(row(page, 201)).toHaveCount(0);
-      await page.getByRole("radio", { name: "Closed" }).click();
+      await chooseFilter(page, "Closed");
       await expect(row(page, 190)).toContainText("Closed");
       await expect(row(page, 190)).toContainText("Closed on GitHub.");
       expect(seen.lists.some((query) => query.includes("state=closed")))
@@ -216,7 +213,11 @@ for (
         }],
       });
       await page.goto("/issues");
-      await expect(row(page, 2000)).toContainText("Can start");
+      // Several pages are read one after another, which a busy runner takes
+      // longer than the default five seconds to finish.
+      await expect(row(page, 2000)).toContainText("Can start", {
+        timeout: 20_000,
+      });
       await expect(page.getByText("No issue is ready to start")).toHaveCount(0);
     });
 
@@ -230,11 +231,15 @@ for (
           request: { disposition: "active" },
         }],
       });
+      const firstPage = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === "/v1/external-tickets"
+      );
       await page.goto("/issues");
-      await page.getByRole("radio", { name: "In progress" }).click({
-        force: true,
+      await firstPage;
+      await chooseFilter(page, "In progress");
+      await expect(row(page, 2001)).toContainText("In progress", {
+        timeout: 20_000,
       });
-      await expect(row(page, 2001)).toContainText("In progress");
     });
 
     test("when the search gives up at 200 issues, it says how far it looked and offers Load more", async ({ page }) => {

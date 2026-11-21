@@ -10,6 +10,7 @@
 export const SETUP_PATH: string = "/setup";
 export const SIGN_IN_PATH: string = "/sign-in";
 export const TWO_FACTOR_PATH: string = "/sign-in/two-factor";
+export const FORGOT_PASSWORD_PATH: string = "/sign-in/forgot-password";
 export const RECOVERY_CODE_PATH: string = "/sign-in/recovery-code";
 export const SIGN_OUT_PATH: string = "/sign-out";
 export const REGISTER_PATH: string = "/register";
@@ -27,6 +28,8 @@ export const ORGANIZATIONS_PATH: string = "/organizations";
  * selected organization.
  */
 export const ORGANIZATION_SETTINGS_PATH: string = "/organization/settings";
+/** How much the organization can store and how long Bakery keeps things (#448). */
+export const ORGANIZATION_STORAGE_PATH: string = "/organization/storage";
 export const SECURITY_SETTINGS_PATH: string = "/settings/security";
 export const TWO_FACTOR_SETTINGS_PATH: string = "/settings/security/two-factor";
 export const TWO_FACTOR_SETUP_PATH: string =
@@ -62,6 +65,7 @@ export const PERSONAL_SETTINGS_PATH: string = "/settings/profile";
 const AUTH_ENTRY_FIXTURE_PREFIXES = [
   "setup-",
   "login-",
+  "forgot-",
   "expired-",
   "invite-login-",
   "totp-challenge-",
@@ -89,6 +93,7 @@ export function isPublicAuthPath(pathname: string): boolean {
     SIGN_IN_PATH,
     TWO_FACTOR_PATH,
     RECOVERY_CODE_PATH,
+    FORGOT_PASSWORD_PATH,
     SIGN_OUT_PATH,
     REGISTER_PATH,
   ] as const;

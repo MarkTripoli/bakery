@@ -47,6 +47,14 @@ import {
   type BindingTarget,
 } from "../application/bindings.ts";
 import {
+  hasLivePowerGrant,
+  hasLiveRunGrant,
+  RUN_GRANT_ACTIONS,
+  RUN_POWER_ACTIONS,
+  type RunGrantKind,
+  type RunPower,
+} from "../application/run-grants.ts";
+import {
   authorizeOrganizationAction,
   isOrganizationMember,
   permissionForAction,
@@ -132,13 +140,28 @@ function assertOrganizationPathMatches(
   }
 }
 
+/**
+ * The organization header, or, for an action that declares
+ * `organizationIdQuery`, that query parameter when the header is absent. Both
+ * go through the same parsing. When both are present they must agree; a
+ * disagreement is reported as not found, like a header and path mismatch.
+ */
 function requiredOrganizationId(
   action: ActionDefinition,
   context: ActionContext,
 ): OrganizationId {
-  const organizationId = requireOrganizationIdValue(
-    context.request.headers.get(ORGANIZATION_HEADER),
-  );
+  const header = context.request.headers.get(ORGANIZATION_HEADER);
+  const queryName = action.policy.organizationIdQuery;
+  const query = queryName === undefined
+    ? null
+    : new URL(context.request.url).searchParams.get(queryName);
+  const organizationId = requireOrganizationIdValue(header ?? query);
+  if (
+    header !== null && query !== null &&
+    requireOrganizationIdValue(query) !== organizationId
+  ) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
   assertOrganizationPathMatches(action, context, organizationId);
   return organizationId;
 }
@@ -340,7 +363,54 @@ async function resolveOrganizationActorForSubject(
  * no binding reaches answers exactly as before, so a foreign or hidden
  * resource stays indistinguishable from a missing one.
  */
-function authorizeWithBindings(
+export function authorizeWithBindings(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  resolveTarget: (
+    kind: NonNullable<(typeof BINDABLE_ACTIONS)[keyof typeof BINDABLE_ACTIONS]>,
+  ) => Promise<BindingTarget | undefined>,
+  holdsRunGrant: (kind: RunGrantKind) => Promise<boolean> = () =>
+    Promise.resolve(false),
+  holdsRunPower: (power: RunPower) => Promise<boolean> = () =>
+    Promise.resolve(false),
+): Promise<OrganizationActor> {
+  return (async () => {
+    try {
+      return await authorizeThroughBindings(action, actor, resolveTarget);
+    } catch (denied) {
+      // Last: the right to see this one run, given by a request. Only a
+      // permission miss is widened, like the other fallbacks: a scope miss, a
+      // binding fault or any later denial is the real answer and passes on. Only
+      // the actions in RUN_GRANT_ACTIONS ask; any other action keeps the answer
+      // the role and the bindings gave.
+      const kind = RUN_GRANT_ACTIONS[action.name as CatalogActionName];
+      const power = RUN_POWER_ACTIONS[action.name as CatalogActionName];
+      const human = actor.subject.principalType === PrincipalType.Human;
+      const widened = isPermissionMiss(denied) && human && (
+        (kind !== undefined && await holdsRunGrant(kind)) ||
+        (power !== undefined && await holdsRunPower(power))
+      );
+      if (widened) {
+        const permission = permissionForAction(
+          action.name as CatalogActionName,
+        );
+        if (
+          actor.tokenScopes !== undefined &&
+          !scopeAllows(permission, actor.tokenScopes)
+        ) {
+          throw new StandardError({
+            code: "INSUFFICIENT_SCOPE",
+            params: { requiredScopes: minimalScopes(permission) },
+          });
+        }
+        return actor;
+      }
+      throw denied;
+    }
+  })();
+}
+
+function authorizeThroughBindings(
   action: ActionDefinition,
   actor: OrganizationActor,
   resolveTarget: (
@@ -393,6 +463,174 @@ function authorizeWithBindings(
 }
 
 /**
+ * Conversation actions a direct mention grant can open, and only on the
+ * conversation named by the route id: read the conversation and its
+ * transcript, see who takes part, find people to mention, and reply. Agent
+ * execution, turn control, task and repository actions are never here.
+ */
+const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
+  "conversations.get",
+  "messages.list",
+  "messages.create",
+  "conversationParticipants.list",
+  "conversations.mentionCandidates",
+  "conversationAccess.sharers",
+]);
+
+/**
+ * When the organization role refused a conversation action, a live direct
+ * grant on exactly that conversation may still allow it. The grant row is read
+ * `for share`, so a concurrent revoke is ordered before or after this request
+ * rather than interleaved with it. A grant never helps a non-human, a member
+ * without a system role, or a guest with no custom role, and a token still has
+ * to carry the scope the action needs.
+ */
+async function authorizeWithConversationGrant(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  conversationId: string | undefined,
+  denied: unknown,
+): Promise<OrganizationActor> {
+  if (
+    !CONVERSATION_GRANT_ACTIONS.has(action.name) ||
+    conversationId === undefined || !isUuid(conversationId) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined ||
+    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+  ) throw denied;
+  // Only a permission miss falls back to a grant; any other error is the answer.
+  if (!isPermissionMiss(denied)) throw denied;
+  const grant = await transaction.query(
+    `select 1 from bakery.conversation_access_grants
+     where organization_id = $1 and conversation_id = $2
+       and principal_id = $3 and revoked_at is null
+     for share`,
+    [actor.organizationId, conversationId, actor.subject.principalId],
+  );
+  if (grant.rows.length !== 1) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return { ...actor, conversationGrant: { conversationId } };
+}
+
+/**
+ * Document actions a direct document grant can open, and only on the one
+ * document the route names (directly, or through its version or comment).
+ * `read_comment` opens reading the document, its versions and its comments
+ * and writing a comment; only `edit` also opens publishing a version. Task,
+ * repository, agent and resharing actions are never here, and neither is
+ * artifacts.list: a grantee reaches the document from where they were told.
+ */
+const ARTIFACT_GRANT_ACTIONS: ReadonlyMap<
+  string,
+  { target: "artifact" | "version" | "comment"; level: "read_comment" | "edit" }
+> = new Map([
+  ["artifacts.get", { target: "artifact", level: "read_comment" }],
+  ["artifactVersions.list", { target: "artifact", level: "read_comment" }],
+  [
+    "artifactComments.listAcrossVersions",
+    { target: "artifact", level: "read_comment" },
+  ],
+  ["artifactAccess.list", { target: "artifact", level: "read_comment" }],
+  ["artifactAccess.sharers", { target: "artifact", level: "read_comment" }],
+  ["artifactVersions.content", { target: "version", level: "read_comment" }],
+  ["artifactVersions.probe", { target: "version", level: "read_comment" }],
+  ["artifactVersions.extract", { target: "version", level: "read_comment" }],
+  ["artifactComments.list", { target: "version", level: "read_comment" }],
+  ["artifactComments.create", { target: "version", level: "read_comment" }],
+  [
+    "artifactComments.mentionCandidates",
+    { target: "version", level: "read_comment" },
+  ],
+  ["artifactComments.update", { target: "comment", level: "read_comment" }],
+]);
+
+/**
+ * When the organization role refused a document action, a live direct grant on
+ * exactly that document may still allow it. The grant row is read `for share`
+ * so a concurrent revoke is ordered before or after this request. A grant never
+ * helps a non-human or a member with no system role, and a token still has to
+ * carry the scope the action needs.
+ */
+async function authorizeWithArtifactGrant(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  routeId: string | undefined,
+  denied: unknown,
+): Promise<OrganizationActor> {
+  const rule = ARTIFACT_GRANT_ACTIONS.get(action.name);
+  if (
+    rule === undefined || routeId === undefined || !isUuid(routeId) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined ||
+    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+  ) throw denied;
+  if (!isPermissionMiss(denied)) throw denied;
+  const found = await transaction.query<{ artifactId: string; level: string }>(
+    rule.target === "artifact"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_access_grants as grant_row
+          where grant_row.organization_id = $1 and grant_row.artifact_id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : rule.target === "version"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_versions as version
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = version.organization_id
+            and grant_row.artifact_id = version.artifact_id
+          where version.organization_id = $1 and version.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_comments as comment
+           join bakery.artifact_versions as version
+             on version.organization_id = comment.organization_id
+            and version.id = comment.artifact_version_id
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = version.organization_id
+            and grant_row.artifact_id = version.artifact_id
+          where comment.organization_id = $1 and comment.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`,
+    [actor.organizationId, routeId, actor.subject.principalId],
+  );
+  const grant = found.rows[0];
+  if (grant === undefined) throw denied;
+  // A grant that reads and comments is refused the verbs only `edit` opens.
+  if (rule.level === "edit" && grant.level !== "edit") {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return {
+    ...actor,
+    artifactGrant: {
+      artifactId: grant.artifactId,
+      level: grant.level as "read_comment" | "edit",
+    },
+  };
+}
+
+/**
  * Read-state changes on the caller's OWN inbox. Every one of these handlers
  * scopes to recipient = the authenticated principal and never accepts a
  * recipient from the request, so a member whose role lacks
@@ -405,6 +643,42 @@ const OWN_INBOX_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "notifications.markAllRead",
   "notifications.undoMarkAllRead",
 ]);
+
+/**
+ * The asked person's own view of the requests addressed to them (issue #456).
+ * A person asked may hold nothing but the right to see one run, including a bare
+ * Guest, so a role-based permission would refuse exactly the people the view is
+ * for. The handler scopes to recipient = the authenticated principal and never
+ * accepts a recipient from the request, so this is a principal-equals-recipient
+ * rule, not a role grant: it reaches no other action and nobody else's requests.
+ */
+const OWN_REQUEST_READ_ACTIONS: ReadonlySet<string> = new Set([
+  "runRequests.mine",
+]);
+
+export function authorizeOwnRequestRead(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  denied: unknown,
+): OrganizationActor {
+  if (
+    !isPermissionMiss(denied) ||
+    !OWN_REQUEST_READ_ACTIONS.has(action.name) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined
+  ) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return actor;
+}
 
 function isPermissionMiss(error: unknown): boolean {
   return error instanceof StandardError &&
@@ -553,7 +827,8 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
           action.name ===
             AuthImplementedAction.InstallationAdministratorsCreate ||
           action.name ===
-            AuthImplementedAction.InstallationAdministratorsRevoke;
+            AuthImplementedAction.InstallationAdministratorsRevoke ||
+          action.name === AuthImplementedAction.PasswordResetLinksCreate;
         const organizationCreation =
           action.name === AuthImplementedAction.OrganizationsCreate;
         if (installationMutation || organizationCreation) {
@@ -562,7 +837,8 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
             installationMutation ? "update" : "share",
           );
           const target = action.name ===
-              AuthImplementedAction.InstallationAdministratorsCreate
+                AuthImplementedAction.InstallationAdministratorsCreate ||
+              action.name === AuthImplementedAction.PasswordResetLinksCreate
             ? (input as { principalId: string }).principalId
             : action.name ===
                 AuthImplementedAction.InstallationAdministratorsRevoke
@@ -595,7 +871,47 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 id: context.params.id,
                 input,
               }),
-          ).catch((denied) => authorizeOwnInboxWrite(action, actor, denied));
+            (kind) =>
+              hasLiveRunGrant(
+                transaction,
+                organizationId,
+                claimedSubject.principalId,
+                kind,
+                context.params.id,
+              ),
+            (power) =>
+              hasLivePowerGrant(
+                transaction,
+                organizationId,
+                claimedSubject.principalId,
+                power,
+                context.params.id,
+              ),
+          )
+            .catch(async (denied) => {
+              // The two fallbacks cover disjoint actions and each rethrows the
+              // original denial untouched, so only a permission miss is widened.
+              if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
+                return await authorizeWithConversationGrant(
+                  transaction,
+                  action,
+                  actor,
+                  context.params.id,
+                  denied,
+                );
+              }
+              if (ARTIFACT_GRANT_ACTIONS.has(action.name)) {
+                return await authorizeWithArtifactGrant(
+                  transaction,
+                  action,
+                  actor,
+                  context.params.id,
+                  denied,
+                );
+              }
+              return authorizeOwnInboxWrite(action, actor, denied);
+            })
+            .catch((denied) => authorizeOwnRequestRead(action, actor, denied));
           subject = permitted.subject;
           authority = permitted;
         } else {

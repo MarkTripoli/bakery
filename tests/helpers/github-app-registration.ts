@@ -20,6 +20,7 @@ import type {
   TicketFactIndex,
   TicketSourceReader,
 } from "../../apps/server/src/modules/work/ticket-source-reader.ts";
+import type { TicketNoteWriter } from "../../apps/server/src/modules/work/ticket-notes.ts";
 
 export const registrationPath = "/v1/integration-app-registrations/github";
 export const beginPath = "/v1/integration-app-registrations/github/manifest";
@@ -56,6 +57,8 @@ export async function openGitHubAppFixture(
     /** Ticket reads and fact index the ticket routes use; the live ones by default. */
     ticketReader?: TicketSourceReader;
     ticketFactIndex?: TicketFactIndex;
+    /** Status-note writer of the ticket routes; the integration gate by default. */
+    ticketNoteWriter?: TicketNoteWriter;
     /** Extra runtime environment, such as the server budget policy. */
     env?: Record<string, string>;
   } = {},
@@ -79,6 +82,7 @@ export async function openGitHubAppFixture(
     installationTokenBroker: broker,
     ticketReader: options.ticketReader,
     ticketFactIndex: options.ticketFactIndex,
+    ticketNoteWriter: options.ticketNoteWriter,
     env: options.env,
   });
   await clearGitHubAppRegistrations(fixture);

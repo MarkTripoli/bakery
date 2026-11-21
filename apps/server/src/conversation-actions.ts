@@ -100,6 +100,23 @@ export type ConversationActionHandlers = {
   ) =>
     | z.output<typeof contractSchemas["Page<ConversationTurn>"]>
     | Promise<z.output<typeof contractSchemas["Page<ConversationTurn>"]>>;
+  mentionCandidates: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.MentionCandidateQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<MentionCandidate>"]>>;
+  accessList: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ConversationAccessQuery>,
+  ) => Promise<
+    z.output<typeof contractSchemas["Page<ConversationAccessGrant>"]>
+  >;
+  accessRevoke: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ConversationAccessRevoke>,
+  ) => Promise<z.output<typeof contractSchemas.ConversationAccessGrant>>;
+  accessSharers: (
+    context: ActionContext,
+  ) => Promise<z.output<typeof contractSchemas.ConversationSharers>>;
 };
 
 export function createConversationActionRegistry(
@@ -153,6 +170,44 @@ export function createConversationActionRegistry(
     output: contractSchemas["Page<ConversationParticipant>"],
     policy: queryPolicy,
     handler: handlers.participantsList,
+  });
+  registry.register({
+    name: ConversationImplementedAction.ConversationsMentionCandidates,
+    method: HttpMethod.Get,
+    path: "/v1/conversations/:id/mention-candidates",
+    input: contractSchemas.MentionCandidateQuery,
+    output: contractSchemas["Page<MentionCandidate>"],
+    policy: queryPolicy,
+    handler: handlers.mentionCandidates,
+  });
+  registry.register({
+    name: ConversationImplementedAction.ConversationAccessList,
+    method: HttpMethod.Get,
+    path: "/v1/conversations/:id/access",
+    input: contractSchemas.ConversationAccessQuery,
+    output: contractSchemas["Page<ConversationAccessGrant>"],
+    policy: queryPolicy,
+    handler: handlers.accessList,
+  });
+  registry.register({
+    name: ConversationImplementedAction.ConversationAccessSharers,
+    method: HttpMethod.Get,
+    path: "/v1/conversations/:id/access/sharers",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.ConversationSharers,
+    policy: queryPolicy,
+    handler: handlers.accessSharers,
+  });
+  registry.register({
+    name: ConversationImplementedAction.ConversationAccessRevoke,
+    method: HttpMethod.Post,
+    path: "/v1/conversations/:id/access/:principalId/revoke",
+    input: contractSchemas.ConversationAccessRevoke,
+    output: contractSchemas.ConversationAccessGrant,
+    policy: { ...queryPolicy, type: ActionKind.Command },
+    explicitIdempotency: "key-and-if-match",
+    successStatus: 200,
+    handler: handlers.accessRevoke,
   });
   registry.register({
     name: ConversationImplementedAction.ConversationsList,

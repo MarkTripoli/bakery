@@ -30,6 +30,17 @@ export interface SkillObjectStore {
    * site.
    */
   stat(objectKey: string): Promise<{ sizeBytes: number } | null>;
+  /**
+   * Remove one object, answering whether it was there.
+   *
+   * Retention collection is the only caller: a bundle that nothing may install
+   * again is reclaimed here rather than left to an out-of-band sweep, because
+   * a sweep has no way to know that an install no longer pins it. Deleting an
+   * absent key is not an error - a purged version may be collected twice after
+   * a crash between the store call and the row update - so `false` reports
+   * "there was nothing to reclaim", not "the call failed".
+   */
+  delete(objectKey: string): Promise<boolean>;
   list(): AsyncIterable<SkillObject>;
 }
 

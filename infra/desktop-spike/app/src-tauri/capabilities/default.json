@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The spike window may use the deep-link and opener plugins.",
+  "windows": ["main"],
+  "permissions": ["core:default", "deep-link:default", "opener:default"]
+}

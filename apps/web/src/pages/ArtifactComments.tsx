@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { landOn } from "../notifications/landed.ts";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { contractSchemas } from "@bakery/contracts/contracts";
@@ -15,6 +16,8 @@ import {
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { useConnectivity } from "../app/connectivity.ts";
+import { useMentionField } from "../mentions/useMentionField.tsx";
 import {
   type ArtifactCommentComposerModel,
   ArtifactCommentComposerView,
@@ -26,11 +29,15 @@ import {
   ArtifactCommentAnchor,
 } from "./ArtifactCommentAnchor.tsx";
 
-export function ArtifactComments({ artifact, version, commentId }: {
-  readonly artifact: ArtifactResponse;
-  readonly version: ArtifactVersionResponse;
-  readonly commentId?: string;
-}) {
+export function ArtifactComments(
+  { artifact, version, commentId, landed = false }: {
+    readonly artifact: ArtifactResponse;
+    readonly version: ArtifactVersionResponse;
+    readonly commentId?: string;
+    /** The comment is where a notification landed: centre it, outline it once. */
+    readonly landed?: boolean;
+  },
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate: t } = useI18n();
@@ -109,12 +116,16 @@ export function ArtifactComments({ artifact, version, commentId }: {
     if (focusedComment.current === commentId) return;
     const element = document.getElementById(`comment-${commentId}`);
     if (element) {
-      element.focus();
-      element.scrollIntoView({ block: "nearest" });
+      if (landed) landOn(element);
+      else {
+        element.focus();
+        element.scrollIntoView({ block: "nearest" });
+      }
       focusedComment.current = commentId;
     }
   }, [
     commentId,
+    landed,
     foundComment,
     comments.isError,
     comments.isPending,
@@ -122,6 +133,14 @@ export function ArtifactComments({ artifact, version, commentId }: {
     comments.isFetching,
     comments.fetchNextPage,
   ]);
+  const connectivity = useConnectivity();
+  const mentionField = useMentionField({
+    source: { kind: "comment", id: reply?.artifactVersionId ?? version.id },
+    value: body,
+    onValue: setBody,
+    offline: connectivity === "offline",
+    disabled: busy,
+  });
   const submit = async () => {
     if (!scope.organizationId || busy || (!reply && invalidAnchor)) return;
     const bytes = new TextEncoder().encode(body.trim()).length;
@@ -132,6 +151,11 @@ export function ArtifactComments({ artifact, version, commentId }: {
     const input = contractSchemas.ArtifactCommentCreate.safeParse({
       body: body.trim(),
       ...(reply ? { rootId: reply.id } : anchor ? { anchor } : {}),
+      ...(mentionField.mentions.length > 0
+        ? {
+          mentions: mentionField.mentions.map((mention) => mention.principalId),
+        }
+        : {}),
     });
     if (!input.success) {
       setFailure("failed");
@@ -160,6 +184,11 @@ export function ArtifactComments({ artifact, version, commentId }: {
     if (abort.signal.aborted) return;
     setBusy(false);
     if (!result.ok) {
+      // A refused mention wrote nothing: the draft stays and the names say why.
+      if (mentionField.refuse(result.error)) {
+        pending.current = null;
+        return;
+      }
       setFailure(
         result.error.kind === "problem" && result.error.problem.status === 412
           ? "conflict"
@@ -168,6 +197,7 @@ export function ArtifactComments({ artifact, version, commentId }: {
       return;
     }
     pending.current = null;
+    mentionField.clear();
     setBody("");
     setReply(null);
     setAnchor(null);
@@ -212,7 +242,9 @@ export function ArtifactComments({ artifact, version, commentId }: {
     submitLabel: t(
       reply ? "artifact.comments.sendReply" : "artifact.comments.post",
     ),
-    disabled: busy || comments.isError || (!reply && invalidAnchor),
+    disabled: busy || comments.isError || (!reply && invalidAnchor) ||
+      mentionField.refused,
+    mentionField,
     mode: reply
       ? {
         kind: "reply",

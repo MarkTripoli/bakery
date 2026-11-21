@@ -7,6 +7,7 @@ import {
 import { RouterLink } from "../app/router-link.tsx";
 import { totpQrModules, totpSetupKey } from "../app/totp-enrolment.ts";
 import type { TwoFactorFailure } from "../app/two-factor-failures.ts";
+import { formatWait } from "../app/retry-wait.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
 /** Exported so the container can focus the field a failure rejected. */
@@ -58,7 +59,7 @@ export function TotpSetupScreen(
     step,
   }: TotpSetupScreenProps,
 ) {
-  const { translate } = useI18n();
+  const { locale, translate } = useI18n();
   // The enrolment URI is fixed for the whole scan step; encode it once, not
   // on every keystroke in the code field.
   const totpUri = step.kind === "scan" ? step.totpUri : null;
@@ -72,7 +73,7 @@ export function TotpSetupScreen(
         {failure.retryAfterSeconds === null
           ? translate(failure.messageKey)
           : translate(failure.messageKey, {
-            retryAfterSeconds: failure.retryAfterSeconds,
+            wait: formatWait(failure.retryAfterSeconds, locale),
           })}
       </UI.InlineNotice>
     )

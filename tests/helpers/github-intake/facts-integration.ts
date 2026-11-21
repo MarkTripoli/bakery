@@ -1024,6 +1024,13 @@ function observation(
     headSha: SHA_A,
     baseSha: SHA_B,
     mergedSha: null,
+    // The schema defaults these to null (unknown); spelled out because the type has no defaults.
+    openedAt: null,
+    closedAt: null,
+    mergedAt: null,
+    additions: null,
+    deletions: null,
+    changedFiles: null,
     providerUpdatedAt: at(0),
     observedStartedAt: at(5),
     ...overrides,

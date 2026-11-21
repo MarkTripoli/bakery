@@ -25,7 +25,7 @@ test("new text comments anchor a verified line to the selected immutable revisio
   await page.goto(PATH);
   await openComments(page);
   await page.getByRole("checkbox", {
-    name: "Anchor to this revision",
+    name: "Anchor to this version",
     exact: true,
   }).check();
   await page.locator("#artifact-anchor-location").fill("1");

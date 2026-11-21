@@ -678,76 +678,76 @@ Deno.test("production run and step reads isolate real PostgreSQL organizations",
   }
 });
 
-Deno.test(
-  "application role preserves immutable published workflow versions",
-  async () => {
-    const adminPool = openPgDatabase(adminDatabaseUrl, 1);
-    const admin = await adminPool.connect();
-    const suffix = crypto.randomUUID();
-    const email = `issue36-workflow-grants-${suffix}@example.test`;
-    const userId = crypto.randomUUID();
-    const principalId = crypto.randomUUID();
-    const organizationId = crypto.randomUUID();
-    let transactionOpen = false;
-    try {
-      await admin.query("begin");
-      transactionOpen = true;
-      await admin.query(
-        `insert into public."user" (
+async function assertAppRolePreservesPublishedWorkflowVersions(): Promise<
+  void
+> {
+  const adminPool = openPgDatabase(adminDatabaseUrl, 1);
+  const admin = await adminPool.connect();
+  const suffix = crypto.randomUUID();
+  const email = `issue36-workflow-grants-${suffix}@example.test`;
+  const userId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const organizationId = crypto.randomUUID();
+  let transactionOpen = false;
+  try {
+    await admin.query("begin");
+    transactionOpen = true;
+    await admin.query(
+      `insert into public."user" (
            id, name, email, "emailVerified", "createdAt", "updatedAt"
          ) values ($1, $2, $3, true, $4, $4)`,
-        [userId, "Issue 36 Workflow Grants", email, now],
-      );
-      await admin.query(
-        `insert into bakery.principals (
+      [userId, "Issue 36 Workflow Grants", email, now],
+    );
+    await admin.query(
+      `insert into bakery.principals (
            id, provider_user_id, display_name, principal_type
          ) values ($1, $2, $3, 'human')`,
-        [principalId, userId, "Issue 36 Workflow Grants"],
-      );
-      await admin.query(
-        `insert into bakery.organizations (
+      [principalId, userId, "Issue 36 Workflow Grants"],
+    );
+    await admin.query(
+      `insert into bakery.organizations (
            id, name, slug, metadata, created_at, updated_at, version
          ) values ($1, $2, $3, '{}'::jsonb, $4, $4, 1)`,
-        [
-          organizationId,
-          "Issue 36 Workflow Grants",
-          `issue36-workflow-grants-${suffix}`,
-          now,
-        ],
-      );
-      await admin.query(
-        `insert into bakery.organization_memberships (
+      [
+        organizationId,
+        "Issue 36 Workflow Grants",
+        `issue36-workflow-grants-${suffix}`,
+        now,
+      ],
+    );
+    await admin.query(
+      `insert into bakery.organization_memberships (
            id, organization_id, principal_id, role, status,
            joined_at, created_at, updated_at, version
          ) values ($1, $2, $3, 'developer', 'active', $4, $4, $4, 1)`,
-        [crypto.randomUUID(), organizationId, principalId, now],
-      );
-      const scope = await seedRun(
-        admin,
-        principalId,
-        organizationId,
-        "workflow-grants",
-      );
-      const expectPermissionDenied = async (
-        sql: string,
-        values: unknown[] = [],
-      ): Promise<void> => {
-        await admin.query("savepoint privilege_check");
-        try {
-          const error = await assertRejects(
-            () => admin.query(sql, values),
-            Error,
-          );
-          assertEquals((error as { code?: string }).code, "42501");
-        } finally {
-          await admin.query("rollback to savepoint privilege_check");
-          await admin.query("release savepoint privilege_check");
-        }
-      };
+      [crypto.randomUUID(), organizationId, principalId, now],
+    );
+    const scope = await seedRun(
+      admin,
+      principalId,
+      organizationId,
+      "workflow-grants",
+    );
+    const expectPermissionDenied = async (
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<void> => {
+      await admin.query("savepoint privilege_check");
+      try {
+        const error = await assertRejects(
+          () => admin.query(sql, values),
+          Error,
+        );
+        assertEquals((error as { code?: string }).code, "42501");
+      } finally {
+        await admin.query("rollback to savepoint privilege_check");
+        await admin.query("release savepoint privilege_check");
+      }
+    };
 
-      await admin.query("set local role bakery_app");
-      const lifecycleColumnGrants = await admin.query(
-        `select
+    await admin.query("set local role bakery_app");
+    const lifecycleColumnGrants = await admin.query(
+      `select
            has_column_privilege(
              'bakery_app', 'bakery.workflow_runs', 'organization_id', 'UPDATE'
            ) as run_organization_id,
@@ -838,144 +838,144 @@ Deno.test(
            has_column_privilege(
              'bakery_app', 'bakery.run_steps', 'created_at', 'UPDATE'
            ) as step_created_at`,
-      );
-      assertEquals(lifecycleColumnGrants.rows[0], {
-        run_organization_id: false,
-        run_status: true,
-        run_inngest_run_id: true,
-        run_started_at: true,
-        run_finished_at: true,
-        run_updated_at: true,
-        run_version: true,
-        run_id: false,
-        run_task_id: false,
-        run_workflow_version_id: false,
-        run_repository_profile_id: false,
-        run_requested_by: false,
-        run_snapshot: false,
-        run_budget_limit_usd: false,
-        run_created_at: false,
-        step_organization_id: false,
-        step_status: true,
-        step_output: true,
-        step_error: true,
-        step_started_at: true,
-        step_finished_at: true,
-        step_updated_at: true,
-        step_version: true,
-        step_id: false,
-        step_run_id: false,
-        step_key: false,
-        step_position: false,
-        step_iteration: false,
-        step_input: false,
-        step_created_at: false,
-      });
-      const readable = await admin.query(
-        `select id, status
+    );
+    assertEquals(lifecycleColumnGrants.rows[0], {
+      run_organization_id: false,
+      run_status: true,
+      run_inngest_run_id: true,
+      run_started_at: true,
+      run_finished_at: true,
+      run_updated_at: true,
+      run_version: true,
+      run_id: false,
+      run_task_id: false,
+      run_workflow_version_id: false,
+      run_repository_profile_id: false,
+      run_requested_by: false,
+      run_snapshot: false,
+      run_budget_limit_usd: false,
+      run_created_at: false,
+      step_organization_id: false,
+      step_status: true,
+      step_output: true,
+      step_error: true,
+      step_started_at: true,
+      step_finished_at: true,
+      step_updated_at: true,
+      step_version: true,
+      step_id: false,
+      step_run_id: false,
+      step_key: false,
+      step_position: false,
+      step_iteration: false,
+      step_input: false,
+      step_created_at: false,
+    });
+    const readable = await admin.query(
+      `select id, status
            from bakery.workflow_versions
           where organization_id = $1 and id = $2`,
-        [scope.organizationId, scope.workflowVersionId],
-      );
-      assertEquals(readable.rows, [{
-        id: scope.workflowVersionId,
-        status: "published",
-      }]);
+      [scope.organizationId, scope.workflowVersionId],
+    );
+    assertEquals(readable.rows, [{
+      id: scope.workflowVersionId,
+      status: "published",
+    }]);
 
-      const insertedWorkflowVersionId = crypto.randomUUID();
-      await admin.query(
-        `insert into bakery.workflow_versions (
+    const insertedWorkflowVersionId = crypto.randomUUID();
+    await admin.query(
+      `insert into bakery.workflow_versions (
            id, organization_id, workflow_id, revision, source_yaml,
            normalized_spec, digest, status, created_by, created_at, updated_at,
            version
          ) values ($1, $2, $3, 2, '', $4::jsonb, $5, 'published', $6, $7, $7, 1)`,
-        [
-          insertedWorkflowVersionId,
-          scope.organizationId,
-          scope.workflowId,
-          JSON.stringify({
-            apiVersion: "bakery.dev/v1",
-            kind: "workflow",
-            steps: [],
-          }),
-          "1".repeat(64),
-          principalId,
-          now,
-        ],
-      );
-      await expectPermissionDenied(
-        `update bakery.workflow_versions
+      [
+        insertedWorkflowVersionId,
+        scope.organizationId,
+        scope.workflowId,
+        JSON.stringify({
+          apiVersion: "bakery.dev/v1",
+          kind: "workflow",
+          steps: [],
+        }),
+        "1".repeat(64),
+        principalId,
+        now,
+      ],
+    );
+    await expectPermissionDenied(
+      `update bakery.workflow_versions
             set status = 'draft'
           where organization_id = $1 and id = $2`,
-        [scope.organizationId, scope.workflowVersionId],
-      );
-      await expectPermissionDenied(
-        `delete from bakery.workflow_versions
+      [scope.organizationId, scope.workflowVersionId],
+    );
+    await expectPermissionDenied(
+      `delete from bakery.workflow_versions
           where organization_id = $1 and id = $2`,
-        [scope.organizationId, scope.workflowVersionId],
-      );
+      [scope.organizationId, scope.workflowVersionId],
+    );
 
-      const runtimeRunId = crypto.randomUUID();
-      const runtimeStepId = crypto.randomUUID();
-      await admin.query(
-        `insert into bakery.workflow_runs (
+    const runtimeRunId = crypto.randomUUID();
+    const runtimeStepId = crypto.randomUUID();
+    await admin.query(
+      `insert into bakery.workflow_runs (
            id, organization_id, task_id, workflow_version_id,
            repository_profile_id, requested_by, inngest_run_id, status,
            snapshot, budget_limit_usd, created_at, updated_at, version
          ) values ($1, $2, $3, $4, null, $5, null, 'completed',
            '{}'::jsonb, 0, $6, $6, 1)`,
-        [
-          runtimeRunId,
-          scope.organizationId,
-          scope.taskId,
-          scope.workflowVersionId,
-          principalId,
-          now,
-        ],
-      );
-      await admin.query(
-        `insert into bakery.run_steps (
+      [
+        runtimeRunId,
+        scope.organizationId,
+        scope.taskId,
+        scope.workflowVersionId,
+        principalId,
+        now,
+      ],
+    );
+    await admin.query(
+      `insert into bakery.run_steps (
            id, organization_id, run_id, step_key, position, iteration,
            status, input, output, error, created_at, updated_at, version
          ) values ($1, $2, $3, 'runtime_check', 2, 0, 'pending',
            '{}'::jsonb, null, null, $4, $4, 1)`,
-        [runtimeStepId, scope.organizationId, runtimeRunId, now],
-      );
-      const runtimeRows = await admin.query(
-        `select
+      [runtimeStepId, scope.organizationId, runtimeRunId, now],
+    );
+    const runtimeRows = await admin.query(
+      `select
            (select count(*)::int from bakery.workflow_runs
              where organization_id = $1 and id = $2) as run_count,
            (select count(*)::int from bakery.run_steps
              where organization_id = $1 and id = $3) as step_count`,
-        [scope.organizationId, runtimeRunId, runtimeStepId],
-      );
-      assertEquals(runtimeRows.rows[0], { run_count: 1, step_count: 1 });
-      await admin.query(
-        `update bakery.workflow_runs
+      [scope.organizationId, runtimeRunId, runtimeStepId],
+    );
+    assertEquals(runtimeRows.rows[0], { run_count: 1, step_count: 1 });
+    await admin.query(
+      `update bakery.workflow_runs
             set updated_at = updated_at
           where organization_id = $1 and id = $2`,
-        [scope.organizationId, runtimeRunId],
-      );
-      await admin.query(
-        `update bakery.run_steps
+      [scope.organizationId, runtimeRunId],
+    );
+    await admin.query(
+      `update bakery.run_steps
             set updated_at = updated_at
           where organization_id = $1 and id = $2`,
-        [scope.organizationId, runtimeStepId],
-      );
-      await expectPermissionDenied(
-        `delete from bakery.workflow_runs
+      [scope.organizationId, runtimeStepId],
+    );
+    await expectPermissionDenied(
+      `delete from bakery.workflow_runs
           where organization_id = $1 and id = $2`,
-        [scope.organizationId, runtimeRunId],
-      );
-      await expectPermissionDenied(
-        `delete from bakery.run_steps
+      [scope.organizationId, runtimeRunId],
+    );
+    await expectPermissionDenied(
+      `delete from bakery.run_steps
           where organization_id = $1 and id = $2`,
-        [scope.organizationId, runtimeStepId],
-      );
+      [scope.organizationId, runtimeStepId],
+    );
 
-      await admin.query("reset role");
-      const ownerRows = await admin.query(
-        `select
+    await admin.query("reset role");
+    const ownerRows = await admin.query(
+      `select
            (select count(*)::int from bakery.workflow_versions
              where organization_id = $1
                and id = any($2::uuid[])) as version_count,
@@ -983,25 +983,39 @@ Deno.test(
              where organization_id = $1 and id = $3) as run_count,
            (select count(*)::int from bakery.run_steps
              where organization_id = $1 and id = $4) as step_count`,
-        [
-          scope.organizationId,
-          [scope.workflowVersionId, insertedWorkflowVersionId],
-          runtimeRunId,
-          runtimeStepId,
-        ],
-      );
-      assertEquals(ownerRows.rows[0], {
-        version_count: 2,
-        run_count: 1,
-        step_count: 1,
-      });
+      [
+        scope.organizationId,
+        [scope.workflowVersionId, insertedWorkflowVersionId],
+        runtimeRunId,
+        runtimeStepId,
+      ],
+    );
+    assertEquals(ownerRows.rows[0], {
+      version_count: 2,
+      run_count: 1,
+      step_count: 1,
+    });
+  } finally {
+    try {
+      if (transactionOpen) await admin.query("rollback");
     } finally {
-      try {
-        if (transactionOpen) await admin.query("rollback");
-      } finally {
-        admin.release();
-        await closePgDatabase(adminPool);
-      }
+      admin.release();
+      await closePgDatabase(adminPool);
+    }
+  }
+}
+
+Deno.test(
+  "application role preserves immutable published workflow versions",
+  async () => {
+    // This test builds its own schema instead of reading what the test above
+    // migrated, so a fixture that failed or timed out there cannot leave this
+    // one without its tables.
+    const fixture = await openAuthFixture();
+    try {
+      await assertAppRolePreservesPublishedWorkflowVersions();
+    } finally {
+      await fixture.close();
     }
   },
 );

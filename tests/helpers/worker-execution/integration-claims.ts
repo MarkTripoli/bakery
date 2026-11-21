@@ -14,6 +14,7 @@ import { withWorkerFixture } from "./scenarios.ts";
 import { claimAssignment } from "./scenarios.ts";
 import { openRepositoryInspectionHarness } from "../repository-inspection.ts";
 import { seedEligibleNonmodelJob } from "./nonmodel-job.ts";
+import { assertClaimReplay } from "./replay-assert.ts";
 
 type RejectedClaimPrefix = {
   jobIds: string[];
@@ -389,7 +390,10 @@ Deno.test("lost claim replay rebinds the live attempt before the replacement hea
       },
     );
     assertEquals(replay.status, 200);
-    assertEquals(new Uint8Array(await replay.arrayBuffer()), firstClaimRaw);
+    assertClaimReplay(
+      new Uint8Array(await replay.arrayBuffer()),
+      firstClaimRaw,
+    );
     const eventId = crypto.randomUUID();
     const event = await workerRequest(
       fixture,

@@ -43,9 +43,14 @@ import {
 import {
   assertSessionToolAllowed,
   listSessionTools,
+  powerForSessionScope,
   type SessionTool,
   SessionToolError,
 } from "./session-tools.ts";
+import {
+  agentHoldsPower,
+  attemptOrigin,
+} from "../auth/application/agent-power-grants.ts";
 import type { WorkerIdentity } from "./shared.ts";
 import { sha256Hex } from "../../platform/canonical-json.ts";
 
@@ -70,6 +75,7 @@ const POLICY_REFUSALS: ReadonlySet<string> = new Set([
   "SESSION_CREDENTIAL_FENCE_STALE",
   "SESSION_SCOPE_DENIED",
   "SESSION_TOOL_DENIED",
+  "SESSION_TOOL_PEOPLE_ONLY",
   "SESSION_TOOL_UNKNOWN",
 ]);
 
@@ -129,10 +135,15 @@ async function openSessionCall(input: SessionGatewayInput): Promise<{
     throw new SessionOperationError("SESSION_CREDENTIAL_INVALID");
   }
 
+  // The operation runs on its own connection while this transaction holds the
+  // attempt, and its writes reference the attempt (the step write set's
+  // foreign key). `no key update` still stops the fence moving but lets that
+  // key-share check through; `update` would leave each waiting on the other.
   const claimed = await claimAttempt({
     transaction: input.transaction,
     identity: input.identity,
     attemptId: input.attemptId,
+    lock: "no key update",
     proof: {
       tokenHash: claim.leaseTokenHash,
       fence: claim.fence.toString(),
@@ -188,7 +199,15 @@ export async function callSessionTool(
     & Readonly<{
       tool: string;
       arguments: unknown;
-      execute: (tool: SessionTool) => Promise<unknown>;
+      /**
+       * Runs the operation. Handed the resolved claim, because the operation
+       * runs as the person the run is for: `actsForPrincipalId` and its type
+       * live on the claim, and a session must never exceed that person.
+       */
+      execute: (
+        tool: SessionTool,
+        claim: SessionOperationClaim,
+      ) => Promise<unknown>;
     }>,
 ): Promise<SessionCallResult> {
   // A refusal that happens before a credential resolves cannot be recorded in
@@ -251,8 +270,46 @@ export async function callSessionTool(
     throw error;
   }
 
+  // Holding a granted power's scope proves the grant was live at claim, not that
+  // it still is: a revoked grant stops the next call, as it does for a decision.
+  const power = powerForSessionScope(scope);
+  if (power !== null) {
+    const origin = await attemptOrigin(
+      input.transaction,
+      open.claim.organizationId,
+      input.attemptId,
+    );
+    const stillGranted = origin !== null && await agentHoldsPower(
+      input.transaction,
+      {
+        organizationId: open.claim.organizationId,
+        power,
+        workflowId: origin.workflowId,
+        accessTokenId: null,
+      },
+    );
+    if (!stillGranted) {
+      const error = new SessionToolError(
+        "SESSION_TOOL_DENIED",
+        tool.name,
+        scope,
+      );
+      await recordSessionOperationAudit(input.transaction, {
+        organizationId: open.claim.organizationId,
+        credentialId: open.credentialId,
+        attemptId: input.attemptId,
+        actsForPrincipalId: open.claim.actsForPrincipalId,
+        workerSessionId: open.claim.workerSessionId,
+        operation: tool.name,
+        scope,
+        outcome: outcomeOf(error),
+      });
+      throw error;
+    }
+  }
+
   try {
-    const result = await input.execute(tool);
+    const result = await input.execute(tool, open.claim);
     // After the work, before the answer: a lease that lapsed while the
     // operation ran must leave the caller with nothing.
     await reassertAttempt(open.claimed);

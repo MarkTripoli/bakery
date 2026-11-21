@@ -22,6 +22,8 @@ import { ISSUES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { reasonSentence } from "./IssuesList.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
+import { IssueWork } from "./IssueWork.tsx";
+import { IssueWorkBanner } from "./IssueWorkBanner.tsx";
 import { type StartRefusal, StartWorkDialog } from "./StartWorkDialog.tsx";
 import { StartWorkNotices } from "./StartWorkNotices.tsx";
 import {
@@ -602,6 +604,12 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             />
           )
           : null}
+        <IssueWorkBanner
+          issueId={issueId}
+          issueUrl={row.safeUrl}
+          isAdmin={isAdmin}
+          onStartAgain={() => openDialog("start")}
+        />
         <StartWorkNotices
           number={number}
           started={started}
@@ -635,6 +643,14 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           </UI.Text>
         </UI.Stack>
         {phone ? card : null}
+        <IssueWork
+          issueId={issueId}
+          issueUrl={row.safeUrl}
+          canWrite={access.data?.role === "admin" ||
+            access.data?.role === "developer"}
+          reasonSentence={(code) => reasonSentence(row, code, translate)}
+          onStart={() => openDialog("start")}
+        />
         {description.body !== ""
           ? (
             <UI.Stack gap="compact">

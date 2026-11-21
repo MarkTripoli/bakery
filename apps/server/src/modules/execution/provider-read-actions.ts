@@ -10,6 +10,8 @@ import {
   assertImplementedActionRegistry,
   ProviderReadsImplementedAction,
   providerReadsImplementedActions,
+  ProviderWritesImplementedAction,
+  providerWritesImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import {
   ActionAccess,
@@ -53,9 +55,25 @@ export type ProviderReadHandlers = {
   ) => Promise<z.output<typeof contractSchemas.ProviderIncident>>;
 };
 
+/**
+ * The two route commands. Incidents have none: nothing a caller says opens or
+ * closes one, so there is no operation to register.
+ */
+export type ProviderWriteHandlers = {
+  createRoute: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ProviderRouteCreate>,
+  ) => Promise<z.output<typeof contractSchemas.ProviderRoute>>;
+  updateRoute: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ProviderRouteUpdate>,
+  ) => Promise<z.output<typeof contractSchemas.ProviderRoute>>;
+};
+
 export function createProviderReadActionRegistry(
   database: PgDatabase,
   handlers: ProviderReadHandlers,
+  writes: ProviderWriteHandlers,
 ): ActionRegistry {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -113,7 +131,35 @@ export function createProviderReadActionRegistry(
     handler: handlers.getIncident,
   });
 
+  // Admin, not Developer: a route says where outbound work and spend may go.
+  const writePolicy = {
+    type: ActionKind.Command,
+    access: ActionAccess.Admin,
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  } as const;
+  registry.register({
+    name: ProviderWritesImplementedAction.ProviderRoutesCreate,
+    method: HttpMethod.Post,
+    path: "/v1/provider-routes",
+    input: contractSchemas.ProviderRouteCreate,
+    output: contractSchemas.ProviderRoute,
+    policy: writePolicy,
+    handler: writes.createRoute,
+  });
+  registry.register({
+    name: ProviderWritesImplementedAction.ProviderRoutesUpdate,
+    method: HttpMethod.Patch,
+    path: "/v1/provider-routes/:id",
+    input: contractSchemas.ProviderRouteUpdate,
+    output: contractSchemas.ProviderRoute,
+    policy: writePolicy,
+    handler: writes.updateRoute,
+  });
+
   assertRegisteredActions(registry);
-  assertImplementedActionRegistry(registry, providerReadsImplementedActions);
+  assertImplementedActionRegistry(registry, [
+    ...providerReadsImplementedActions,
+    ...providerWritesImplementedActions,
+  ]);
   return registry;
 }

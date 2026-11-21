@@ -43,6 +43,9 @@ import { TaskConversation } from "./task-conversation/TaskConversation.tsx";
 
 const ArtifactLink = createLink(UI.ArtifactPreview);
 import { useTaskReadSync } from "./task-read-sync.ts";
+import { type LandingSearch, parseLanding } from "../notifications/landing.ts";
+import { useLandingArrival } from "../notifications/useLandingArrival.ts";
+import { useTaskLanding } from "../notifications/useTaskLanding.ts";
 
 const statuses = [
   "draft",
@@ -57,8 +60,19 @@ const statuses = [
 
 /** Restore the same authenticated organization used by the existing composer. */
 export function TasksPage(
-  { composing = false, questionDefaults, references, taskId }: {
+  {
+    composing = false,
+    landing,
+    questionDefaults,
+    references,
+    stripLanding,
+    taskId,
+  }: {
     composing?: boolean;
+    /** Where a notification landed on this task (see notifications/landing.ts). */
+    landing?: LandingSearch;
+    /** Takes the read marker out of the address once the landing is done. */
+    stripLanding?: () => void;
     /** Option preselected per question id; a design fixture supplies it. */
     questionDefaults?: Readonly<Record<string, string>>;
     /** Task reference text by id; a design fixture supplies Paper's keys. */
@@ -102,6 +116,8 @@ export function TasksPage(
       <Detail
         key={`${scope.sessionGeneration}:${scope.organizationId}:${taskId}`}
         id={taskId}
+        landing={landing}
+        stripLanding={stripLanding}
         scopeRestore={scopeRestore}
         references={references}
         questionDefaults={questionDefaults}
@@ -493,9 +509,21 @@ function InboxResults(
   );
 }
 
+const NO_LANDING: LandingSearch = Object.freeze({});
+const NO_STRIP = () => {};
+
 function Detail(
-  { id, questionDefaults, references, scopeRestore }: {
+  {
+    id,
+    landing = NO_LANDING,
+    questionDefaults,
+    references,
+    scopeRestore,
+    stripLanding = NO_STRIP,
+  }: {
     id: string;
+    landing?: LandingSearch;
+    stripLanding?: () => void;
     scopeRestore: OrganizationScopeRestore;
     questionDefaults?: Readonly<Record<string, string>>;
     references?: Readonly<Record<string, string>>;
@@ -520,6 +548,20 @@ function Detail(
     (query.error?.kind === "problem" && query.error.problem.status === 403);
   const missing = !valid ||
     (query.error?.kind === "problem" && query.error.problem.status === 404);
+  // A notification's landing: bring its part into view, say when it is gone,
+  // mark the notification read once the part is on screen.
+  const landingStep = parseLanding(landing.at);
+  const landingStepId = landingStep?.kind === "step" ? landingStep.id : null;
+  const landed = useTaskLanding(
+    landing,
+    valid && !query.isPending && query.data !== undefined,
+  );
+  const partGone = landing.gone === true || landed.missing;
+  const arrival = useLandingArrival({
+    search: landing,
+    ready: partGone || landed.settled,
+    strip: stripLanding,
+  });
   // A failed refresh keeps the last good read mounted, so the run controls
   // keep their uncertain receipt.
   const task = query.data;
@@ -529,6 +571,13 @@ function Detail(
         task={task}
         references={references}
         questionDefaults={questionDefaults}
+        banner={partGone
+          ? (
+            <UI.InlineNotice tone="information">
+              {t("notifications.landing.partGone")}
+            </UI.InlineNotice>
+          )
+          : undefined}
         state={syncConnectivity === "reconnecting" ? "reconnecting" : "ready"}
         aside={task.currentRunId
           ? (
@@ -542,6 +591,9 @@ function Detail(
           : undefined}
         extras={
           <>
+            <UI.VisuallyHidden aria-live="polite" as="div" role="status">
+              {arrival}
+            </UI.VisuallyHidden>
             {!online && (
               <UI.InlineNotice tone="warning">
                 {t("tasks.live.offline")}
@@ -565,6 +617,7 @@ function Detail(
             <TaskLiveReads
               task={task}
               enabled={!query.isError && valid}
+              landingStepId={landingStepId}
               onConnectivity={setSyncConnectivity}
               artifacts={task.currentRunId
                 ? <TaskArtifacts taskId={id} presentation="run" />
@@ -675,9 +728,10 @@ function Detail(
 }
 
 function TaskLiveReads(
-  { task, enabled, onConnectivity, artifacts }: {
+  { task, enabled, landingStepId, onConnectivity, artifacts }: {
     task: TaskResponse;
     enabled: boolean;
+    landingStepId?: string | null;
     onConnectivity: (connectivity: DurableSyncConnectivity) => void;
     artifacts?: ReactNode;
   },
@@ -696,6 +750,7 @@ function TaskLiveReads(
         enabled={enabled}
         connectivity={observed}
         artifacts={artifacts}
+        landingStepId={landingStepId}
       />
     )
     : enabled && task.status === "draft"

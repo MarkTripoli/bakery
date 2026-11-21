@@ -11,7 +11,6 @@ import {
 } from "@bakery/contracts/http";
 import { type RepositoryVersionedProfileConfig } from "@bakery/contracts/repository-inspection";
 import {
-  actionAndInputFromSnapshot,
   admitRepositoryProfile,
   executionJobInputFitsTransport,
 } from "@bakery/persistence/repository-admission";
@@ -21,17 +20,19 @@ import {
   STEP_OUTPUT_ALLOWANCE_BYTES,
 } from "@bakery/contracts/repository-rules";
 import { workflowPresetById } from "@bakery/contracts/workflow-presets";
-import {
-  type FrozenActionBinding,
-  workflowActionBinding,
-} from "@bakery/persistence";
+import type { FrozenActionBinding } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
-import { planReviewLoopLimits } from "../delivery/plan-review-loop.ts";
+import { planReviewLoopLimits } from "../review-loop/limits.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
-import { pinDeclaredRunInputs } from "./run-input-pins.ts";
+import { auditAgentSessionId } from "../auth/application/agent-power-grants.ts";
+import {
+  pinDeclaredRunInputs,
+  recordInputPaths,
+  resolveInputPaths,
+} from "./run-input-pins.ts";
 import { requestRunStart } from "./run-start.ts";
 import { resolveDependencyReadiness } from "./dependency-readiness.ts";
 import {
@@ -44,13 +45,7 @@ import {
 } from "./postgres.ts";
 import {
   deriveRunWorkspaceRequirement,
-  extractFixedWorkflowSteps,
   type FixedWorkflowStep,
-  insertRunSteps,
-  reviewLoopLimitsFor,
-  stepReferencesEarlierOutput,
-  WorkflowNotExecutableError,
-  WorkflowNotFixedError,
 } from "./run-steps.ts";
 import {
   resolveScopeProfileDefaults,
@@ -67,19 +62,14 @@ import {
   evaluateLaneAdmission,
   type LaneCoordinationSnapshot,
 } from "./coordination-admission.ts";
-import {
-  type FrozenStepAgents,
-  resolveFrozenStepAgents,
-} from "./agent-run-admission.ts";
+import type { FrozenStepAgents } from "./agent-run-admission.ts";
 import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
 import { fixedPolicyPins as fixedPolicyPinsOf } from "../repository-rules/policy-digest.ts";
-import {
-  assertPlanSatisfiesRules,
-  assertStepsSatisfyRules,
-} from "../workflows/rule-guard.ts";
+import { assertPlanSatisfiesRules } from "../workflows/rule-guard.ts";
 import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 import {
   type PlanAdmission,
   resolvePlanAdmission,
@@ -556,6 +546,8 @@ async function appendRunFacts(
     taskVersion: number;
     status: RunStatus;
     reason: string | null;
+    /** The agent session that made the call (O50), or null. */
+    agentSessionId: string | null;
     requestId: string;
     traceId: string;
   },
@@ -563,8 +555,8 @@ async function appendRunFacts(
   await transaction.query(
     `insert into bakery.audit_events (
        organization_id, principal_id, operation, resource_type, resource_id,
-       outcome, request_id, trace_id, details
-     ) values ($1, $2, 'runs.create', 'workflow_run', $3, 'succeeded', $4, $5, $6::jsonb)`,
+       outcome, request_id, trace_id, details, agent_session_id
+     ) values ($1, $2, 'runs.create', 'workflow_run', $3, 'succeeded', $4, $5, $6::jsonb, $7)`,
     [
       options.organizationId,
       options.principalId,
@@ -572,6 +564,7 @@ async function appendRunFacts(
       options.requestId,
       options.traceId,
       JSON.stringify({ status: options.status, reason: options.reason }),
+      options.agentSessionId,
     ],
   );
   if (options.status === "queued") {
@@ -849,11 +842,10 @@ async function loadDependencies(
 
 /**
  * The worker transport bounds the complete job input, including the
- * server-injected repository profile, so measure that exact resolved input
- * before any run exists. A step that reads earlier step outputs cannot be
- * resolved here and is measured from its literal input plus the 2,048-byte
- * `STEP_OUTPUT_ALLOWANCE_BYTES`, which covers identifiers such as artifact and
- * version ids but not the repair step: its input carries the failed checks and
+ * server-injected repository profile, so measure what admission can before any
+ * run exists: the run's inputs, the profile and rules every job carries, and the
+ * 2,048-byte `STEP_OUTPUT_ALLOWANCE_BYTES`, which covers identifiers such as
+ * artifact and version ids but not the repair step: its input carries the failed checks and
  * the blocking findings, up to about 23.9 kB in the worst case. That step fits
  * only because the pinned profile and rules always leave at least 30,000 bytes
  * of the job input bound (`ORGANIZATION_RULES_MAX_BYTES`) and the
@@ -864,79 +856,35 @@ async function loadDependencies(
  */
 function assertJobInputsFit(
   snapshot: RunSnapshot,
-  steps: readonly FixedWorkflowStep[],
-  repositoryId: string | null,
   options: { strict: boolean },
 ): void {
   // A preset's oversized brief is reported on its description; a plain
   // workflow's input comes from the run inputs.
   const inputsPath = options.strict ? ["description"] : ["inputs"];
-  const refuse = (base: Record<string, unknown>): void => {
-    const withProfile = (profile: unknown) =>
-      snapshot.repositoryProfile === null
-        ? base
-        : { ...base, repositoryProfile: profile };
-    if (
-      executionJobInputFitsTransport(withProfile(snapshot.repositoryProfile))
-    ) {
-      return;
-    }
-    // Name the pinned rules when they alone push the input over the bound.
-    const { repositoryRules: _pin, ...bareProfile } =
-      snapshot.repositoryProfile ?? {};
-    if (
-      snapshot.repositoryProfile !== null &&
-      executionJobInputFitsTransport(withProfile(bareProfile))
-    ) {
-      throw unprocessable(["repositoryRules"], "repository_rules_too_large");
-    }
-    throw unprocessable(inputsPath, "inputs_too_large");
-  };
   // A compiled plan has no steps to resolve here: each action's input is built
   // by the engine from earlier results. What admission can bound is the run's
   // own inputs plus the profile and rules every job carries.
-  if (snapshot.runtime !== undefined) {
-    refuse({
-      inputs: snapshot.inputs,
-      stepOutputAllowance: "x".repeat(STEP_OUTPUT_ALLOWANCE_BYTES),
-    });
+  const base: Record<string, unknown> = {
+    inputs: snapshot.inputs,
+    stepOutputAllowance: "x".repeat(STEP_OUTPUT_ALLOWANCE_BYTES),
+  };
+  const withProfile = (profile: unknown) =>
+    snapshot.repositoryProfile === null
+      ? base
+      : { ...base, repositoryProfile: profile };
+  if (executionJobInputFitsTransport(withProfile(snapshot.repositoryProfile))) {
     return;
   }
-  for (const step of steps) {
-    // A step whose input cannot be resolved here (it reads an earlier step's
-    // output, or, for a plain workflow, a request key that is absent) is
-    // measured from its literal input plus an allowance for those identifiers.
-    // Presets keep the original rule: only an earlier-output reference may be
-    // unresolved, anything else is an error.
-    const estimate = () =>
-      refuse({
-        ...(isPlainRecord(step.input) ? step.input : {}),
-        stepOutputAllowance: "x".repeat(STEP_OUTPUT_ALLOWANCE_BYTES),
-      });
-    let resolved: unknown;
-    try {
-      resolved = actionAndInputFromSnapshot({
-        runSnapshot: snapshot,
-        stepKey: step.key,
-        stepOutputs: {},
-        repositoryId,
-      }).input;
-    } catch (error) {
-      if (
-        options.strict && (!(error instanceof Error) ||
-          error.message !== "WORKFLOW_INPUT_UNRESOLVED" ||
-          !stepReferencesEarlierOutput(step))
-      ) throw error;
-      estimate();
-      continue;
-    }
-    if (!isPlainRecord(resolved)) continue;
-    refuse(resolved);
+  // Name the pinned rules when they alone push the input over the bound.
+  const { repositoryRules: _pin, ...bareProfile } =
+    snapshot.repositoryProfile ?? {};
+  if (
+    snapshot.repositoryProfile !== null &&
+    executionJobInputFitsTransport(withProfile(bareProfile))
+  ) {
+    throw unprocessable(["repositoryRules"], "repository_rules_too_large");
   }
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  throw unprocessable(inputsPath, "inputs_too_large");
 }
 
 export async function createRunCommand(
@@ -946,6 +894,8 @@ export async function createRunCommand(
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
+  // A backup holds the installation: no run is admitted until it lets go.
+  await assertNotQuiesced(transaction, "intake");
   requireCommandMetadata(context);
   const taskId = context.params.id;
   if (!taskId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -1036,11 +986,21 @@ export async function createRunCommand(
   const budgetLimitUsd = validateBudgetLimitUsd(
     input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,
   );
-  const inputs = preset
+  const suppliedInputs = preset
     ? presetBriefInputs(task, approvedPlan)
     : input.inputs === undefined
     ? null
     : input.inputs;
+  validateRunInputs(suppliedInputs);
+  // A storage path an input names is resolved now, to the version it points at,
+  // and the run keeps that pin; the path stays only as a label.
+  if (preset && input.inputPaths !== undefined) {
+    throw unprocessable(["inputPaths"], "input_paths_not_allowed_with_preset");
+  }
+  const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
+    transaction,
+    { organizationId, inputs: suppliedInputs, inputPaths: input.inputPaths },
+  );
   validateRunInputs(inputs);
 
   let profile: ProfileRow | null = null;
@@ -1100,95 +1060,53 @@ export async function createRunCommand(
       },
     }),
   };
-  // The fixed executor runs a flat list of actions. A compiler-grammar version
-  // that has container nodes is one it cannot run: it is a compiled plan, and
-  // the engine decides each of its steps as the run goes.
-  let steps: readonly FixedWorkflowStep[] = [];
-  let planAdmission: PlanAdmission | null = null;
-  // The document decides, not the execution mode. A fixed workflow is a flat
-  // step list by definition and has no compiler document to admit; a
-  // compiler-grammar version is a plan, and the engine decides each of its
-  // steps as the run goes. Dispatching on the execution mode instead sent
-  // fixed workflows into the plan compiler, which refused them as
-  // `field_unknown` because a fixed spec is not a compiler document.
-  try {
-    steps = extractFixedWorkflowSteps(
-      workflow.normalized_spec,
-      profile?.config.workflow.kind,
-    );
-  } catch (error) {
-    if (error instanceof WorkflowNotExecutableError) {
-      planAdmission = await resolvePlanAdmission(transaction, {
-        organizationId,
-        definition: workflow.normalized_spec,
-        profileAgentBindings: profile?.config.agentBindings,
-      });
-    } else if (error instanceof WorkflowNotFixedError) {
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "workflow_not_fixed" },
-      });
-    } else {
-      throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
-    }
-  }
-
-  if (planAdmission !== null) {
-    // A plan binds a repository through its inputs, and that binding is only
-    // meaningful if the run is actually bound to that repository. Without this
-    // a caller could point a step at a repository the task never had, and
-    // nothing downstream would notice: `$task.repositoryId` is the task's own
-    // (nullable) repository while `$input.repositoryId` is whatever was sent.
-    await assertSuppliedRepositoryIsBound(
-      transaction,
+  // Every run is a compiled plan (#400): the engine decides each step as the
+  // run goes. A document the plan compiler refuses, the retired flat grammar
+  // (a bare step list with no compiler fields) included, is refused here as
+  // `workflow_plan_not_compilable`, before anything is written.
+  const planAdmission: PlanAdmission = await resolvePlanAdmission(
+    transaction,
+    {
       organizationId,
-      task,
-      inputs,
-    );
-  }
+      definition: workflow.normalized_spec,
+      profileAgentBindings: profile?.config.agentBindings,
+    },
+  );
 
-  let reviewLoop: ReviewLoopLimits | null = null;
-  let stepAgents: FrozenStepAgents = {};
-  if (planAdmission !== null) {
-    // A plan that reviews freezes its loop bounds like a flat run does, from
-    // the plan itself (its `repeat` bound); a plan without a review freezes none.
-    reviewLoop = planReviewLoopLimits(planAdmission.document);
-    // A plan that reviews and repairs needs the same effects a flat review
-    // loop does; a profile whose fixed policy denies one must fail here, not
-    // after implement spends.
-    if (
-      reviewLoop !== null && profile !== null &&
-      fixedPolicyDeniesSteps(profile.config, planAdmission.sites)
-    ) {
-      throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
-    }
-    assertBudgetCoversReservations(
-      planAdmission.sites.map((site) => ({
-        key: site.qualifiedId,
-        action: site.action,
-      })),
-      planAdmission.stepAgents,
-      budgetLimitUsd,
-    );
-  } else {
-    // A review and repair loop runs checks and a review after implement, so a
-    // profile that cannot run them must fail here, not after implement spends.
-    reviewLoop = reviewLoopLimitsFor(workflow.normalized_spec);
-    if (
-      reviewLoop !== null && profile !== null &&
-      fixedPolicyDeniesSteps(profile.config, steps)
-    ) {
-      throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
-    }
+  // A plan binds a repository through its inputs, and that binding is only
+  // meaningful if the run is actually bound to that repository. Without this
+  // a caller could point a step at a repository the task never had, and
+  // nothing downstream would notice: `$task.repositoryId` is the task's own
+  // (nullable) repository while `$input.repositoryId` is whatever was sent.
+  await assertSuppliedRepositoryIsBound(
+    transaction,
+    organizationId,
+    task,
+    inputs,
+  );
 
-    stepAgents = await resolveFrozenStepAgents(
-      transaction,
-      organizationId,
-      steps,
-      profile?.config.agentBindings,
-    );
-    assertBudgetCoversReservations(steps, stepAgents, budgetLimitUsd);
+  // A plan that reviews freezes its loop bounds from the plan itself (its
+  // `repeat` bound); a plan without a review freezes none.
+  const reviewLoop: ReviewLoopLimits | null = planReviewLoopLimits(
+    planAdmission.document,
+  );
+  // A plan that reviews and repairs runs checks and a review after implement, so
+  // a profile whose fixed policy denies one of those effects must fail here, not
+  // after implement spends.
+  if (
+    reviewLoop !== null && profile !== null &&
+    fixedPolicyDeniesSteps(profile.config, planAdmission.sites)
+  ) {
+    throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
   }
+  assertBudgetCoversReservations(
+    planAdmission.sites.map((site) => ({
+      key: site.qualifiedId,
+      action: site.action,
+    })),
+    planAdmission.stepAgents,
+    budgetLimitUsd,
+  );
 
   const dependencies = await loadDependencies(
     transaction,
@@ -1250,18 +1168,14 @@ export async function createRunCommand(
   // The run's own steps must carry every check the pinned rules require; this
   // evaluates only the run being admitted, never a run already admitted.
   if (pinnedRules !== null) {
-    if (planAdmission === null) {
-      assertStepsSatisfyRules(pinnedRules, steps);
-    } else {
-      // A plan is read through its shape: a check counts only when it runs
-      // after the last revision on every path through the plan.
-      assertPlanSatisfiesRules(pinnedRules, planAdmission.document);
-    }
+    // A plan is read through its shape: a check counts only when it runs
+    // after the last revision on every path through the plan.
+    assertPlanSatisfiesRules(pinnedRules, planAdmission.document);
   }
   // What a plan run freezes beside the sections every run has, read back the
   // way the engine reads it before anything is inserted. The `$task` is the
   // task as it is at admission.
-  const planSections = planAdmission === null ? null : await writePlanRun({
+  const planSections = await writePlanRun({
     document: planAdmission.document,
     task: toTask(
       {
@@ -1279,7 +1193,7 @@ export async function createRunCommand(
   });
   const builtSnapshot = buildRunSnapshot({
     executionMode: input.executionMode,
-    inputs: planSections === null ? inputs : planSections.inputs,
+    inputs: planSections.inputs,
     workflow: {
       id: workflow.id,
       revision: workflow.revision,
@@ -1300,11 +1214,10 @@ export async function createRunCommand(
       ...fixedPolicyPins,
       repositoryRules: pinnedRules,
     },
-    stepAgents,
-    stepActions: Object.fromEntries(steps.map((step) => [
-      step.key,
-      workflowActionBinding(step.action, step.requires),
-    ])),
+    // A plan freezes no per-step agent or action binding (its agents are in
+    // `planAgents`); the keys stay for readers that still look at both.
+    stepAgents: {},
+    stepActions: {},
     dependencies: dependencySnapshot,
     reviewLoop,
     workspaceRequirement,
@@ -1315,7 +1228,7 @@ export async function createRunCommand(
     admission: { ...builtSnapshot.admission, status, reason },
     coordination: lane.snapshot,
   };
-  const snapshot: RunSnapshot = planSections === null ? laneSnapshot : {
+  const snapshot: RunSnapshot = {
     ...laneSnapshot,
     runtime: planSections.runtime,
     task: planSections.task,
@@ -1324,9 +1237,7 @@ export async function createRunCommand(
   };
 
   if (preset || snapshot.repositoryProfile !== null) {
-    assertJobInputsFit(snapshot, steps, task.repository_id, {
-      strict: preset !== undefined,
-    });
+    assertJobInputsFit(snapshot, { strict: preset !== undefined });
   }
 
   const inserted = await transaction.query<RunRow>(
@@ -1366,19 +1277,19 @@ export async function createRunCommand(
   );
   const run = inserted.rows[0];
   if (!run) throw new Error("RUN_INSERT_FAILED");
-  // A plan run has no steps here (the engine appends each one as the plan
-  // decides it), so nothing is inserted for it.
-  await insertRunSteps(transaction, {
-    organizationId,
-    runId: run.id,
-    steps,
-  });
+  // A plan run has no steps here: the engine appends each one as the plan
+  // decides it.
   // Pin the exact version each declared input resolved to, now, so a later
   // publication of the same path cannot change what this run reads.
   await pinDeclaredRunInputs(transaction, {
     organizationId,
     runId: run.id,
     inputs,
+  });
+  await recordInputPaths(transaction, {
+    organizationId,
+    runId: run.id,
+    resolved: resolvedInputPaths,
   });
   const taskUpdate = await transaction.query<{ id: string; version: number }>(
     `update bakery.tasks
@@ -1400,6 +1311,11 @@ export async function createRunCommand(
     taskVersion: taskUpdate.rows[0].version,
     status,
     reason,
+    agentSessionId: await auditAgentSessionId(
+      transaction,
+      context,
+      organizationId,
+    ),
     requestId: context.requestId,
     traceId: context.traceId,
   });

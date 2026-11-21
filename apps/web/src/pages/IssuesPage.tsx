@@ -193,11 +193,27 @@ export function IssuesPage() {
       </UI.Button>
     )
     : null;
-  const headerActions = canRefresh
+  // Batches (#58): the way into the list of bounded runs of issues, for those who may read them.
+  const batchesButton = access.data?.capabilities.includes("batch:read")
+    ? (
+      <UI.Button
+        variant="secondary"
+        onClick={() =>
+          void navigate({
+            to: "/issues/batches",
+            search: { repository: undefined },
+          })}
+      >
+        {translate("batches.link" as never)}
+      </UI.Button>
+    )
+    : null;
+  const headerActions = canRefresh || batchesButton !== null
     ? (
       <UI.Inline gap="compact">
-        {refreshButton}
+        {canRefresh ? refreshButton : null}
         {moreMenu}
+        {batchesButton}
       </UI.Inline>
     )
     : moreMenu;

@@ -55,19 +55,6 @@ function randomToken(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 }
 
-/**
- * A rate-limited submit replaces the form with Paper's `throttled`
- * interstitial ("A short pause", `SignInScreen`); its "Return to sign in"
- * restores the form, so every retry path first steps back through it when
- * it is showing.
- */
-async function returnToSignInFormIfThrottled(page: Page): Promise<void> {
-  if (await page.getByTestId("sign-in-throttled").isVisible()) {
-    await page.getByRole("button", { name: "Return to sign in", exact: true })
-      .click();
-  }
-}
-
 /** Mouse/tap sign-in: used everywhere except assertion 1's keyboard-only case. */
 async function signIn(
   page: Page,
@@ -79,9 +66,7 @@ async function signIn(
     "/api/auth/sign-in/email",
     async () => {
       // A failed submit clears the password field (SignInPage's own error
-      // handling) and a 429 swaps in the throttled interstitial, so a retry
-      // steps back to the form and refills both fields, not just re-click.
-      await returnToSignInFormIfThrottled(page);
+      // handling), so a retry refills both fields, not just re-click.
       await page.getByLabel("Email").fill(email);
       await page.getByLabel("Password", { exact: true }).fill(password);
       await page.getByRole("button", { name: "Sign in", exact: true })
@@ -383,13 +368,6 @@ test.describe("auth journey", () => {
         // that content is empty (password, after a failure) or unchanged
         // (email). A 429 first has to leave the throttled interstitial —
         // still keyboard-only: focus its button and press Enter.
-        if (await page.getByTestId("sign-in-throttled").isVisible()) {
-          await page.getByRole("button", {
-            name: "Return to sign in",
-            exact: true,
-          }).focus();
-          await page.keyboard.press("Enter");
-        }
         await page.getByLabel("Email").focus();
         await page.keyboard.press("ControlOrMeta+a");
         await page.keyboard.type(ADMIN_EMAIL);
@@ -447,14 +425,7 @@ test.describe("auth journey", () => {
         "/api/auth/sign-in/email",
         async () => {
           // A failed submit clears the password field, so a retry must
-          // refill both fields, not just re-tap — after tapping back out
-          // of the throttled interstitial when a 429 put it up.
-          if (await mobilePage.getByTestId("sign-in-throttled").isVisible()) {
-            await mobilePage.getByRole("button", {
-              name: "Return to sign in",
-              exact: true,
-            }).tap();
-          }
+          // refill both fields, not just re-tap.
           await email.fill(ADMIN_EMAIL);
           await password.fill(ADMIN_PASSWORD);
           await mobilePage.getByRole("button", {
@@ -741,7 +712,7 @@ test.describe("auth journey", () => {
       await expect(barePage.getByTestId("join")).toBeVisible();
       await expect(
         barePage.getByRole("heading", {
-          name: "You’re invited to the kitchen.",
+          name: "You need an invitation",
         }),
       ).toBeVisible();
       await expectNoAxeViolations(barePage);
@@ -899,7 +870,7 @@ test.describe("auth journey", () => {
       await signIn(strangerPage, strangerEmail, strangerPassword);
       await expect(
         strangerPage.getByText(
-          "Email or password is incorrect. Please try again.",
+          "That email and password do not match. Try again.",
         ),
       ).toBeVisible();
 
@@ -1103,9 +1074,10 @@ test.describe("auth journey", () => {
       page.getByRole("heading", { name: "Account and security", level: 1 }),
     ).toBeVisible();
     await expectNoAxeViolations(page);
-    await expect(page.getByText("Off · Add a six-digit authenticator code."))
+    await expect(page.getByText("Add a six-digit authenticator code."))
       .toBeVisible();
-    await page.getByRole("link", {
+    // Two-factor off is a row with a Turn on button, not a link to a page.
+    await page.getByRole("button", {
       name: "Set up two-factor authentication",
       exact: true,
     })
@@ -1409,7 +1381,7 @@ test.describe("auth journey", () => {
     await page.getByRole("button", { name: "Back to security", exact: true })
       .click();
     await expect(page).toHaveURL("/settings/security");
-    await expect(page.getByText("Off · Add a six-digit authenticator code."))
+    await expect(page.getByText("Add a six-digit authenticator code."))
       .toBeVisible();
 
     // Sign out, sign in -> straight to / without a challenge.

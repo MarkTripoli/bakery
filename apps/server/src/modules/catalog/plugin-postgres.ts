@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
+import { blobKeyLock } from "../../platform/blob-key-lock.ts";
 import { StandardError } from "@bakery/contracts/http";
 import {
   parseSdkRange,
@@ -19,6 +20,10 @@ import {
 } from "../../platform/postgres-errors.ts";
 import { blobObjectKey, SkillFileStoreError } from "./storage-port.ts";
 import type { ScopedOrganizationBlobStore } from "./blob-store.ts";
+import {
+  assertVersionPagesInBundle,
+  storedManifestPages,
+} from "./plugin-pages.ts";
 
 /**
  * Package and version persistence (#15, B14.01, slice 1).
@@ -111,6 +116,7 @@ function toVersion(row: VersionRow, organizationId: string): PluginVersion {
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
     version: row.version,
+    pages: storedManifestPages(row.manifest).map((page) => ({ ...page })),
   };
 }
 
@@ -391,11 +397,22 @@ export async function createPluginVersion(
   // Verifies the object exists and hashes to the declared digest. Its size is
   // deliberately not stored: it is derivable from the object, and a stored copy
   // would be one more number to keep in agreement with the bytes.
-  await assertBundleHeld(dependencies.bundles, {
+  const bundle = await assertBundleHeld(dependencies.bundles, {
     organizationId,
     bundleObjectRef: input.bundleObjectRef,
     bundleDigest: input.bundleDigest,
   });
+  // A page is checked against the very bytes just verified, so a version
+  // cannot name a page its bundle does not carry.
+  await assertVersionPagesInBundle(input.manifest, bundle);
+
+  // The bundle collector deletes bytes while holding this same lock, so a
+  // version cannot be published into the window between the collector deciding
+  // an object is unshared and the object being deleted.
+  await transaction.query(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [blobKeyLock(organizationId, input.bundleObjectRef)],
+  );
 
   try {
     const rows = await transaction.query<VersionRow>(
@@ -466,7 +483,7 @@ async function assertBundleHeld(
     bundleObjectRef: string;
     bundleDigest: string;
   },
-): Promise<number> {
+): Promise<Uint8Array> {
   if (bundles === undefined) {
     throw new StandardError({
       code: "DEPENDENCY_UNAVAILABLE",
@@ -492,7 +509,7 @@ async function assertBundleHeld(
   // `read` hashes the bytes and compares both the digest and the size, so a
   // truncated or swapped object is refused here rather than at first use.
   try {
-    await bundles.read(
+    return await bundles.read(
       input.organizationId,
       input.bundleDigest,
       stat.sizeBytes,
@@ -510,5 +527,4 @@ async function assertBundleHeld(
     }
     throw error;
   }
-  return stat.sizeBytes;
 }

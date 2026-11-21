@@ -12,7 +12,7 @@ import {
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { formatMicroUsd, parseMicroUsd } from "../work/budget.ts";
 import { activeLoopElapsedMs } from "../work/human-approval-store.ts";
-import { reviewLoopSteps } from "./loop-steps.ts";
+import { reviewLoopSteps } from "../review-loop/loop-steps.ts";
 import {
   isPlanRunSnapshot,
   loopSnapshotOf,
@@ -22,7 +22,7 @@ import type {
   DecisionBudget,
   DecisionReviewStatus,
   PriorDecision,
-} from "./repair-loop.ts";
+} from "../review-loop/decision.ts";
 
 /**
  * The only module that writes `review_cycles`, `review_findings` and

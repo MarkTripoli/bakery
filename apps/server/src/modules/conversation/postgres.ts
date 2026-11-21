@@ -12,6 +12,13 @@ import {
   type PgTransactionClient,
 } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import type { AuthorizedActionContext } from "../auth/application/authority.ts";
+import {
+  commitMessageMentions,
+  resolveMentions,
+  sameMentions,
+  storedMessageMentions,
+} from "./mentions.ts";
 
 const MAX_MESSAGE_BODY_BYTES = 32 * 1024;
 const MAX_QUEUED_TURNS = 50;
@@ -233,10 +240,27 @@ export async function createMessage(
   );
   const existing = replay.rows[0];
   if (existing) {
-    if (!sameCanonicalInput(existing, input)) {
+    if (
+      !sameCanonicalInput(existing, input) ||
+      !sameMentions(
+        await storedMessageMentions(transaction, organizationId, existing.id),
+        input.mentions,
+      )
+    ) {
       throw new StandardError({ code: "IDEMPOTENCY_PAYLOAD_MISMATCH" });
     }
     return toMessage(existing);
+  }
+
+  // Someone here only through a mention grant may read and reply; asking the
+  // agent to act is execution, which a grant never carries.
+  const authority = (context as Partial<AuthorizedActionContext>).authority;
+  if (
+    authority && "conversationGrant" in authority &&
+    authority.conversationGrant !== undefined &&
+    input.intent !== "discussion"
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
   }
 
   if (
@@ -262,6 +286,13 @@ export async function createMessage(
     input.intent === "agent_request" &&
     !await hasQueuedTurnCapacity(transaction, organizationId, conversationId)
   ) stateConflict("conversation_queue_full");
+
+  // Every mention is checked against current state before anything is
+  // written; one refusal rejects the whole send with the draft intact.
+  const mentions = await resolveMentions(context, transaction, {
+    kind: "conversation",
+    conversationId,
+  }, input.mentions);
 
   const next = await transaction.query<{ sequence: string }>(
     `select (coalesce(max(sequence), 0) + 1)::text as sequence
@@ -295,7 +326,7 @@ export async function createMessage(
   const message = inserted.rows[0];
   if (!message) throw new Error("MESSAGE_INSERT_FAILED");
 
-  await appendDomainEvent(transaction, {
+  const messageEventId = await appendDomainEvent(transaction, {
     organizationId,
     applicationId: scope.applicationId,
     repositoryId: scope.repositoryId,
@@ -311,6 +342,17 @@ export async function createMessage(
       intent: input.intent,
     },
     traceId: context.traceId,
+  });
+
+  await commitMessageMentions(context, transaction, {
+    organizationId,
+    conversationId,
+    applicationId: scope.applicationId,
+    repositoryId: scope.repositoryId,
+    messageId: message.id,
+    messageSequence: sequence,
+    sourceEventId: messageEventId,
+    resolved: mentions,
   });
 
   if (input.intent === "agent_request") {
@@ -363,7 +405,13 @@ export async function createMessage(
     resourceId: message.id,
     requestId: context.requestId,
     traceId: context.traceId,
-    details: { conversationId, intent: input.intent, sequence },
+    details: {
+      conversationId,
+      intent: input.intent,
+      sequence,
+      mentioned: mentions.people.map((person) => person.principalId),
+      granted: mentions.toGrant,
+    },
   });
   return toMessage(message);
 }

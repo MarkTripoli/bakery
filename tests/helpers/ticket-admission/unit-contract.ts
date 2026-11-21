@@ -1,3 +1,5 @@
+import { issueNumberFromRef } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import { z } from "zod";
 import {
@@ -187,6 +189,7 @@ Deno.test("issue 82 contract: the vocabulary lists hold exactly the documented m
     "intent_authorized",
     "epic_excluded",
     "acceptance_present",
+    "status_ready",
     "dependencies_satisfied",
     "no_active_admission",
     "repository_ready",
@@ -223,7 +226,7 @@ Deno.test("issue 82 contract: the body, title, label and list caps are the docum
   assertEquals(TICKET_SNAPSHOT_MAX_LABELS, 50);
   assertEquals(TICKET_SNAPSHOT_MAX_BLOCKERS, 50);
   assertEquals(TICKET_CHECK_MAX_EVIDENCE, 5);
-  assertEquals(TICKET_REPORT_MAX_CHECKS, 12);
+  assertEquals(TICKET_REPORT_MAX_CHECKS, 13);
 });
 
 type TransportField = { name: string; enum?: string[] };
@@ -287,6 +290,34 @@ Deno.test("issue 82 contract: the TypeScript vocabulary equals the transport enu
     field.name === "intent"
   );
   assertEquals(create?.enum, [...TICKET_REQUEST_INTENTS]);
+});
+
+Deno.test("issue 82 contract: the receipt key refuses a duplicate that names no registration", async () => {
+  // The behavioural half of this lives in the schema lane, where two null
+  // registrations are inserted and the second is refused. This half exists
+  // because that test cannot run without a database: dropping the clause below
+  // leaves a plain unique, whose NULLs are all distinct, and nothing else in
+  // the tree would say so.
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../../apps/server/src/modules/work/migrations/bakery/0206_provider_neutral_ticket_sources.sql",
+      import.meta.url,
+    ),
+  );
+  const receipt = /add constraint inbound_events_delivery_unique([\s\S]*?);/
+    .exec(sql);
+  assert(receipt, "0206 rebuilds the receipt key");
+  assert(
+    /unique\s+nulls\s+not\s+distinct\s*\(registration_id,\s*external_delivery_id\)/i
+      .test(receipt[1]),
+    "the receipt key must treat null registrations as one value",
+  );
+  // Rebuilt, not added beside the old key: dropping and adding in one statement
+  // is what keeps a window without the constraint from existing.
+  assert(
+    /drop constraint inbound_events_delivery_unique/.test(sql),
+    "the old key is dropped in the same statement",
+  );
 });
 
 Deno.test("issue 82 contract: the ticket_requests projection names the migration's columns", async () => {
@@ -503,10 +534,10 @@ Deno.test("issue 82 contract: policy bounds on labels and delegation", () => {
   );
 
   const principalId = crypto.randomUUID();
-  const withDelegation = (githubActorIds: unknown) =>
+  const withDelegation = (externalActorIds: unknown) =>
     TicketSourcePolicySchema.safeParse({
       ...validPolicy(),
-      delegation: { principalId, githubActorIds },
+      delegation: { principalId, externalActorIds },
     }).success;
   const ids = (count: number) =>
     Array.from({ length: count }, (_, index) => String(1000 + index));
@@ -514,14 +545,21 @@ Deno.test("issue 82 contract: policy bounds on labels and delegation", () => {
   assertEquals(withDelegation(ids(25)), true);
   assertEquals(withDelegation(ids(26)), false, "26 actors are too many");
   assertEquals(withDelegation([]), false, "at least one actor");
-  assertEquals(withDelegation(["octocat"]), false, "ids are numeric");
-  assertEquals(withDelegation(["012"]), false, "no leading zero");
+  // Opaque ids: a login, a UUID and a leading-zero key are all valid now, and
+  // only the shape that is never an id is refused.
+  assertEquals(
+    withDelegation(["octocat"]),
+    true,
+    "an opaque id may be a login",
+  );
+  assertEquals(withDelegation(["012"]), true, "a leading zero is a valid id");
+  assertEquals(withDelegation([""]), false, "an empty id is not an id");
   assertEquals(withDelegation([12]), false, "ids are strings");
   assertEquals(withDelegation(["12", "12"]), false, "ids are unique");
   assertEquals(
     TicketSourcePolicySchema.safeParse({
       ...validPolicy(),
-      delegation: { principalId: "not-a-uuid", githubActorIds: ids(1) },
+      delegation: { principalId: "not-a-uuid", externalActorIds: ids(1) },
     }).success,
     false,
   );
@@ -536,7 +574,11 @@ Deno.test("issue 82 contract: snapshot bounds count UTF-16 code units and the re
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: "owner/repo",
+    container: {
+      kind: "repository",
+      externalId: "owner/repo",
+      displayName: "owner/repo",
+    },
     links: null,
   };
   assertEquals(TicketSnapshotSchema.safeParse(snapshot).success, true);
@@ -568,7 +610,11 @@ Deno.test("issue 82 contract: snapshot bounds count UTF-16 code units and the re
     TicketSnapshotSchema.safeParse({
       ...snapshot,
       labels: ["see https://example.test/guide", "`odd` ${label}"],
-      repositoryFullName: "octo_cat/repo.name",
+      container: {
+        kind: "repository",
+        externalId: "octo_cat/repo.name",
+        displayName: "octo_cat/repo.name",
+      },
     }).success,
     true,
     "labels on an issue are evidence: whatever GitHub holds must be storable",
@@ -600,7 +646,11 @@ Deno.test("issue 82 contract: snapshot bounds count UTF-16 code units and the re
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: "owner/repo",
+    container: {
+      kind: "repository",
+      externalId: "owner/repo",
+      displayName: "owner/repo",
+    },
   };
   assertEquals(
     TicketSnapshotInputSchema.safeParse(input).success,
@@ -706,6 +756,7 @@ Deno.test("issue 82 contract: the reader port types accept every documented answ
     connectionId: crypto.randomUUID(),
     resourceId: crypto.randomUUID(),
     repositoryFullName: "owner/repo",
+    provider: "github",
     externalRepositoryId: "1",
   };
   const unavailable = {
@@ -716,17 +767,19 @@ Deno.test("issue 82 contract: the reader port types accept every documented answ
   const reader: TicketSourceReader = {
     readIssue: () => Promise.resolve({ kind: "gone" }),
     readLinks: () => Promise.resolve(unavailable),
+    readStatuses: () => Promise.resolve({ kind: "unsupported" }),
     readPredecessorProof: () =>
       Promise.resolve({ kind: "proof_unavailable", detail: "events" }),
     readLabelProvenance: () => Promise.resolve({ kind: "absent" }),
     readActorRole: () => Promise.resolve({ kind: "absent" }),
     listIssues: () =>
       Promise.resolve({ kind: "present", numbers: [], hasNext: false }),
+    readLabels: () => Promise.resolve({ kind: "unsupported" }),
   };
   const signal = new AbortController().signal;
-  const issue = await reader.readIssue(handle, 1, signal);
+  const issue = await reader.readIssue(handle, ticketRef(1), signal);
   assertEquals(issue.kind, "gone");
-  const links = await reader.readLinks(handle, 1, signal);
+  const links = await reader.readLinks(handle, ticketRef(1), signal);
   assertEquals(links.kind, "unavailable");
   const index: TicketFactIndex = {
     listIssueNumbers: () => Promise.resolve([]),
@@ -807,7 +860,7 @@ Deno.test("issue 82 contract: authority evidence names the principal and, for au
       actorLogin: "labeler",
       appliedAt: "2026-07-01T00:00:00Z",
     },
-    actorRole: { userId: "4242", permission: "write" },
+    actorRole: { userId: "4242", permission: "write", rank: 2 },
   };
   assertEquals(
     TicketAuthorityEvidenceSchema.parse(evidence).labelBasis,
@@ -827,8 +880,11 @@ Deno.test("issue 82 contract: authority evidence names the principal and, for au
       { version: 2 },
       { labelBasis: "implicit" },
       { actingPrincipalId: "admin" },
-      { provenance: { ...evidence.provenance, actorId: "0042" } },
-      { actorRole: { userId: "4242", permission: "owner" } },
+      // An actor id is opaque now, so a leading zero is a legitimate id and no
+      // longer evidence of a malformed one; what is still refused is a role
+      // name outside the provider's vocabulary and a rank that is not a number.
+      { actorRole: { userId: "4242", permission: "owner", rank: 2 } },
+      { actorRole: { userId: "4242", permission: "write" } },
       { extra: 1 },
     ]
   ) {
@@ -837,4 +893,40 @@ Deno.test("issue 82 contract: authority evidence names the principal and, for au
       JSON.stringify(bad),
     );
   }
+});
+
+/**
+ * The key parse, on its own, with the cases a reader-level test cannot name.
+ *
+ * `readIssue` refuses an unaddressable key by answering `unavailable`, which is
+ * what a caller sees — but the parse has three independent guards, and a mutant
+ * that drops one of them still fails closed when the *lookup* finds nothing. So
+ * each guard gets a key that only it rejects:
+ *
+ * - `"0"` and `"-1"` are integers `Number.isSafeInteger` accepts, and `String()`
+ *   round-trips them exactly; only `parsed > 0` rejects them.
+ * - `"2.5"` and `""` fail the integer guard; `" 1"` and `"1.0"` fail the exact
+ *   round-trip. Those are covered through the reader, and again here so the parse
+ *   is pinned as a unit rather than only through a lookup that also fails closed.
+ */
+Deno.test("issue 82 key parse: a non-positive ordinal is refused, not turned into a ticket", () => {
+  for (const key of ["0", "-1", "-5", "-0"]) {
+    assertEquals(
+      issueNumberFromRef(ticketRef(key)),
+      null,
+      `${JSON.stringify(key)} is not an ordinal any repository addresses`,
+    );
+  }
+  // The same function still reads a real ordinal, so the guard is about the value
+  // rather than about parsing at all.
+  assertEquals(issueNumberFromRef(ticketRef("1")), 1);
+  assertEquals(issueNumberFromRef(ticketRef("42")), 42);
+});
+
+Deno.test("issue 82 key parse: the id the caller supplied does not change the parse", () => {
+  // The parse answers "which ordinal does this key name"; whether that ordinal is
+  // the ticket the caller meant is `readIssue`'s check, against the id. Keeping
+  // the two apart is what lets the parse stay a pure function of the key.
+  assertEquals(issueNumberFromRef(ticketRef("7", "999")), 7);
+  assertEquals(issueNumberFromRef(ticketRef("0", "999")), null);
 });

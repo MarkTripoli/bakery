@@ -32,7 +32,7 @@ export type AuthEntryProps = {
   status?: ReactNode;
   /**
    * `<UI.ThemeToggle label={…} />`: rendered in the brand variant's
-   * form-bottom row, or in the context variant's footer row below the card
+   * form pane, at its top end corner, or in the context variant's footer row below the card
    * (auth.css:10 `.context-footer`).
    */
   themeToggle?: ReactNode;
@@ -61,7 +61,7 @@ export function AuthEntry(
     AuthEntryProps,
 ) {
   const themeRow = themeToggle
-    ? <div className="ui-auth-entry__form-bottom">{themeToggle}</div>
+    ? <div className="ui-auth-entry__theme">{themeToggle}</div>
     : null;
   return (
     <div
@@ -97,6 +97,7 @@ export function AuthEntry(
                 : null}
             </aside>
             <main className="ui-auth-entry__form-pane">
+              {themeRow}
               <span className="ui-auth-entry__mobile-logo">
                 <LogoMark variant="wordmark" />
               </span>
@@ -106,7 +107,6 @@ export function AuthEntry(
                 </div>
                 {children}
               </div>
-              {themeRow}
             </main>
           </>
         )

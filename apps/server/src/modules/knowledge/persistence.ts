@@ -4,6 +4,11 @@ import {
 } from "../../platform/storage-capacity.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { enqueueProbeSubject } from "./probe-runner.ts";
+import {
+  attemptVersionProvenance,
+  type VersionProvenance,
+} from "./version-provenance.ts";
 import {
   publicationRetention,
   type PublicationSource,
@@ -13,6 +18,10 @@ import type { PgTransactionClient } from "@bakery/persistence";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
+import {
+  gateArtifactPublication,
+  resolveArtifactKindBinding,
+} from "../artifact-kinds/publication-gate.ts";
 import { assertActiveLease, lockAttempt } from "../execution/events.ts";
 import {
   assertAttemptMutationSession,
@@ -26,6 +35,7 @@ import {
   validateArtifactUpload,
 } from "./bytes.ts";
 import { assertParentVersion } from "./authority.ts";
+import { projectArtifactEntry, storageQueryOf } from "./storage-tree.ts";
 import { DRAFT_SOURCE_METADATA_KEYS } from "./draft-source-metadata.ts";
 import { reconcileCoordinationForCommittedOutput } from "../work/coordination-projection.ts";
 
@@ -96,6 +106,11 @@ export async function commitArtifactVersion(
     publicationSource?: PublicationSource;
     traceId?: string;
     /**
+     * The agent step that produced the version (#448 S8a), read from the
+     * attempt that is publishing it; absent or null for a person's version.
+     */
+    provenance?: VersionProvenance | null;
+    /**
      * Where a new version's bytes go. Present, the version names a blob and
      * carries no inline content; absent, it stores its bytes inline exactly as
      * before.
@@ -113,9 +128,9 @@ export async function commitArtifactVersion(
   assertParentVersion(parent.currentVersionId, version.parentVersionId);
   assertArtifactWriteCapacity(await readStorageCapacity());
   const typeRow = await transaction.query<
-    { artifact_type: string; name: string }
+    { artifact_type: string; name: string; kind_version_id: string | null }
   >(
-    "select artifact_type, name from bakery.artifacts where organization_id=$1 and id=$2 for update",
+    "select artifact_type, name, kind_version_id from bakery.artifacts where organization_id=$1 and id=$2 for update",
     [scope.organizationId, parent.id],
   );
   const retentionClass = publicationRetention(
@@ -134,6 +149,32 @@ export async function commitArtifactVersion(
     { size_bytes: version.content.byteLength, sha256: version.sha256 },
     version.content,
   );
+  // A kind's rules run here, on the bytes about to be stored, before anything
+  // is written. This is the door `validateArtifactKindDocument` was missing:
+  // until it existed the rules were a tested function no publication reached.
+  // A version whose key names no kind is not validated, because there is no
+  // standard to hold it to; a bound one keeps the revision it was bound to.
+  const binding = await resolveArtifactKindBinding(transaction, {
+    organizationId: scope.organizationId,
+    artifactType: typeRow.rows[0]?.artifact_type ?? "",
+    boundKindVersionId: typeRow.rows[0]?.kind_version_id ?? null,
+  });
+  if (binding !== null) {
+    gateArtifactPublication(binding, {
+      content: version.content,
+      mediaType: version.mediaType,
+      facts: version.metadata,
+    });
+    if (typeRow.rows[0]?.kind_version_id === null) {
+      // First publication pins the revision this artifact's documents will be
+      // judged by. A later republish resolves the same binding, so a kind's new
+      // revision cannot retroactively change what an existing document must be.
+      await transaction.query(
+        "update bakery.artifacts set kind_version_id=$3 where organization_id=$1 and id=$2",
+        [scope.organizationId, parent.id, binding.kindVersionId],
+      );
+    }
+  }
   // Put, then insert. The order is the invariant, not atomicity: the object
   // store is not part of this transaction, so a rollback after the put leaves
   // an object with no row. That is the safe direction - an object with no row
@@ -167,7 +208,7 @@ export async function commitArtifactVersion(
     id: string;
     created_at: Date | string;
   }>(
-    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, blob_id, sha256, size_bytes, media_type, retention_class, expires_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) returning id, created_at`,
+    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, blob_id, sha256, size_bytes, media_type, retention_class, expires_at, run_id, attempt_id, agent_session_id, acting_for_principal_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) returning id, created_at`,
     [
       scope.organizationId,
       parent.id,
@@ -186,9 +227,28 @@ export async function commitArtifactVersion(
       version.mediaType,
       retentionClass,
       expiresAt,
+      args.provenance?.runId ?? null,
+      args.provenance?.attemptId ?? null,
+      args.provenance?.agentSessionId ?? null,
+      args.provenance?.actingForPrincipalId ?? null,
     ],
   );
   const versionRow = versionResult.rows[0];
+  // Queue the probe here, in the write's own transaction, so a version cannot
+  // exist that nobody has asked about. Nothing is probed on this path: the probe
+  // needs a sandbox, and a write must not wait for one. A blob-backed version is
+  // asked about once however many versions share the bytes; an inline one -- a
+  // server with no object store -- is keyed on its own version id, because those
+  // bytes are its own.
+  await enqueueProbeSubject(
+    transaction,
+    blobId === null
+      ? {
+        organizationId: scope.organizationId,
+        artifactVersionId: versionRow.id,
+      }
+      : { organizationId: scope.organizationId, blobId },
+  );
   const createdAt = iso(versionRow.created_at);
   const response = {
     id: versionRow.id,
@@ -372,6 +432,12 @@ export async function publishArtifact(
     throw new StandardError({ code: "INTERNAL" });
   }
   assertParentVersion(parent.current_version_id, input.parentVersionId);
+  // The artifact appears in the storage tree under its work item in the same
+  // transaction that made it (#444); no artifact or version row changes.
+  await projectArtifactEntry(storageQueryOf(transaction), {
+    organizationId: scope.organization_id,
+    artifactId: parent.id,
+  });
   const response = await commitArtifactVersion(transaction, {
     scope: {
       organizationId: scope.organization_id,
@@ -416,6 +482,11 @@ export async function publishArtifact(
       },
     },
     traceId,
+    provenance: await attemptVersionProvenance(
+      transaction,
+      scope.organization_id,
+      attemptId,
+    ),
   });
   await transaction.query(
     `insert into bakery.artifact_publication_replays (organization_id,attempt_id,worker_host_id,idempotency_key,request_digest,response) values ($1,$2,$3,$4,$5,$6)`,

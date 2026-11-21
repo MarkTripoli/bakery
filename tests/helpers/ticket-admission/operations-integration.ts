@@ -11,12 +11,19 @@ import {
   automaticPolicy,
   BEFORE_SINCE,
   EXECUTE_LABEL,
+  HOLD_LABEL,
   insertBareTask,
+  recordOpenIssues,
   seedLabeler,
   type TicketFixture,
   withTicketFixture,
 } from "./fixtures.ts";
-import { assertNoDeadlock, holdRow, raceInOrder } from "../lock-race.ts";
+import { assertNoDeadlock, holdRow } from "../lock-race.ts";
+import { addMember } from "../durable-questions.ts";
+import {
+  cleanupSeededOrganizations,
+  seedOrganization,
+} from "../coordinator-turns.ts";
 import {
   factsOf,
   idleInTransaction,
@@ -130,7 +137,7 @@ Deno.test("issue 82 ops: a source is created, read, updated and listed, each cha
             ...policy,
             delegation: {
               principalId: crypto.randomUUID(),
-              githubActorIds: ["1"],
+              externalActorIds: ["1"],
             },
           },
         },
@@ -260,35 +267,86 @@ Deno.test("issue 82 ops: a source is created, read, updated and listed, each cha
   });
 });
 
-Deno.test("issue 82 ops: preview records snapshots and reports and never a link, request, task or run", async () => {
+type PreviewResult = {
+  sourceId: string;
+  policyRevision: number;
+  draft: boolean;
+  evaluatedAt: string;
+  counts: {
+    wouldStart: number;
+    planOnly: number;
+    held: number;
+    blocked: number;
+  };
+  issues: {
+    number: number;
+    title: string | null;
+    outcome: string;
+    verdict: string;
+    reasons: string[];
+  }[];
+  skipped: number;
+};
+
+/** Every count a preview must leave alone: it judges and stores nothing. */
+const NOTHING_STORED = {
+  tickets: 0,
+  reports: 0,
+  links: 0,
+  requests: 0,
+  nonterminalRequests: 0,
+  tasks: 0,
+  conversations: 0,
+  runs: 0,
+};
+
+Deno.test("issue 69 preview: the saved policy and a draft are judged with counts, and nothing is stored", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
     seedLabeler(fx);
-    seedIssues(fx, 3);
-    // Issue 1 would be admitted by a poll: labeled inside the window by an allowlisted writer.
+    seedIssues(fx, 4);
+    // Issue 1 would start: labeled inside the window by an allowlisted writer.
     fx.reader.setIssue({ number: 1, labels: [EXECUTE_LABEL] });
     fx.reader.setLabelApplied(1, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
+    // Issue 2 is held, whatever else it carries.
+    fx.reader.setIssue({ number: 2, labels: [EXECUTE_LABEL, HOLD_LABEL] });
+    fx.reader.setLabelApplied(2, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
+    // Issue 3 carries a label only the draft names as its execute label.
+    fx.reader.setIssue({ number: 3, labels: ["go"] });
+    fx.reader.setLabelApplied(3, "go", { appliedAt: AFTER_SINCE });
     const path = `${SOURCES}/${sourceId}/previews`;
 
     const requestId = "not-a-uuid";
     const key = crypto.randomUUID();
-    const receipt = await read<Receipt>(
+    const saved = await read<PreviewResult>(
       await post(fx, path, {}, { key, headers: { "X-Request-Id": requestId } }),
       201,
     );
-    assert(UUID_PATTERN.test(receipt.operationId), receipt.operationId);
-    assertNotEquals(receipt.operationId, requestId);
-    assertEquals(receipt.status, "completed");
-    assertEquals(await fx.counts(sourceId), {
-      tickets: 3,
-      reports: 3,
-      links: 0,
-      requests: 0,
-      nonterminalRequests: 0,
-      tasks: 0,
-      conversations: 0,
-      runs: 0,
+    assertEquals(
+      [saved.sourceId, saved.policyRevision, saved.draft, saved.skipped],
+      [sourceId, 1, false, 0],
+    );
+    assertEquals(
+      saved.issues.map((issue) => [issue.number, issue.outcome]),
+      [
+        [1, "would_start"],
+        [2, "held"],
+        [3, "blocked"],
+        [4, "blocked"],
+      ],
+      JSON.stringify(saved.issues),
+    );
+    assertEquals(saved.counts, {
+      wouldStart: 1,
+      planOnly: 0,
+      held: 1,
+      blocked: 2,
     });
+    assertEquals(saved.issues[0].verdict, "ready");
+    assertEquals(saved.issues[0].reasons, []);
+    assert(saved.issues[2].reasons.length > 0, "a blocked issue says why");
+    assert(!Number.isNaN(Date.parse(saved.evaluatedAt)));
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
     assertEquals(await sourceFacts(fx, sourceId), {
       audit: ["ticketSources.preview"],
       events: ["ticket.preview_requested"],
@@ -297,28 +355,620 @@ Deno.test("issue 82 ops: preview records snapshots and reports and never a link,
 
     // The same key answers from the stored response without asking GitHub again.
     const calls = fx.reader.calls.length;
-    const replay = await read<Receipt>(await post(fx, path, {}, { key }), 201);
-    assertEquals(replay, receipt);
+    const replay = await read<PreviewResult>(
+      await post(fx, path, {}, { key }),
+      201,
+    );
+    assertEquals(replay, saved);
     assertEquals(fx.reader.calls.length, calls);
 
-    // `filters` is accepted only when absent or empty, and a refusal reads nothing.
-    assertEquals((await post(fx, path, { filters: {} })).status, 201);
-    const filtered = await post(fx, path, { filters: { labels: ["x"] } });
-    assertEquals(filtered.status, 422);
-    assertEquals(
-      (await filtered.json() as Problem).issues?.[0].code,
-      "filters_unsupported",
+    // A draft that renames the execute label and adds a plan-only label is
+    // judged under its own labels; the saved policy and revision do not move.
+    const draft = automaticPolicy(fx, {});
+    const draftBody = {
+      policy: {
+        ...draft,
+        labels: { execute: "go", planOnly: EXECUTE_LABEL, hold: HOLD_LABEL },
+      },
+    };
+    const judged = await read<PreviewResult>(
+      await post(fx, path, draftBody),
+      201,
     );
-    const afterFilters = fx.reader.calls.length;
-    assertEquals((await sourceFacts(fx, sourceId)).audit.length, 2);
+    assertEquals(judged.draft, true);
+    assertEquals(judged.policyRevision, 1);
+    assertEquals(judged.issues.map((issue) => [issue.number, issue.outcome]), [
+      [1, "plan_only"],
+      [2, "held"],
+      [3, "would_start"],
+      [4, "blocked"],
+    ]);
+    assertEquals(judged.counts, {
+      wouldStart: 1,
+      planOnly: 1,
+      held: 1,
+      blocked: 1,
+    });
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
+    const stored = await read<SourceView>(
+      await ticketCall(fx, "GET", `${SOURCES}/${sourceId}`),
+      200,
+    );
+    assertEquals(
+      [
+        stored.policyRevision,
+        stored.version,
+        (stored.policy as unknown as { labels: { execute: string } }).labels
+          .execute,
+      ],
+      [1, 1, EXECUTE_LABEL],
+    );
+
+    // A draft with automatic admission off starts nothing by itself.
+    const off = await read<PreviewResult>(
+      await post(fx, path, {
+        policy: { ...draft, automatic: { enabled: false } },
+      }),
+      201,
+    );
+    assertEquals(off.counts.wouldStart, 0);
+
+    // Filters narrow the issues judged: by number, then by label.
+    const byNumber = await read<PreviewResult>(
+      await post(fx, path, { filters: { numbers: [3, 1, 3] } }),
+      201,
+    );
+    assertEquals(byNumber.issues.map((issue) => issue.number), [3, 1]);
+    const byLabel = await read<PreviewResult>(
+      await post(fx, path, { filters: { labels: [HOLD_LABEL] } }),
+      201,
+    );
+    assertEquals(byLabel.issues.map((issue) => issue.number), [2]);
+    assertEquals((await post(fx, path, { filters: {} })).status, 201);
+
+    // A refused filter or draft reads nothing and writes no audit row.
+    const audits = (await sourceFacts(fx, sourceId)).audit.length;
+    const before = fx.reader.calls.length;
+    const refusals: [unknown, string][] = [
+      [{ filters: { repositories: ["x"] } }, "filters_invalid"],
+      [{ filters: { numbers: [] } }, "filters_invalid"],
+      [
+        { policy: { ...draft, labels: { execute: "" } } },
+        "ticket_source_policy_invalid",
+      ],
+    ];
+    for (const [body, code] of refusals) {
+      const refused = await post(fx, path, body);
+      assertEquals(refused.status, 422, code);
+      assertEquals((await refused.json() as Problem).issues?.[0].code, code);
+    }
+    assertEquals(fx.reader.calls.length, before);
+    // A draft delegating to a principal outside the organization is refused.
+    const stranger = await post(fx, path, {
+      policy: {
+        ...draft,
+        delegation: {
+          principalId: crypto.randomUUID(),
+          externalActorIds: ["1"],
+        },
+      },
+    });
+    assertEquals(stranger.status, 422);
+    assertEquals(
+      (await stranger.json() as Problem).issues?.[0].code,
+      "delegation_principal_unknown",
+    );
+    assertEquals((await sourceFacts(fx, sourceId)).audit.length, audits);
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
 
     // A page the provider cannot list is DEPENDENCY_UNAVAILABLE and writes nothing.
     fx.reader.failNext("listIssues");
     const down = await post(fx, path);
     assertEquals(down.status, 503, await down.clone().text());
     assertEquals((await down.json() as Problem).code, "DEPENDENCY_UNAVAILABLE");
-    assertEquals((await sourceFacts(fx, sourceId)).audit.length, 2);
-    assert(fx.reader.calls.length > afterFilters);
+    assertEquals((await sourceFacts(fx, sourceId)).audit.length, audits);
+
+    // A developer may not preview, and is refused before any read.
+    const reads = fx.reader.calls.length;
+    const developer = await post(fx, path, {}, {
+      cookie: fx.f.developerCookie,
+    });
+    assertEquals(developer.status, 403);
+    assertEquals(fx.reader.calls.length, reads);
+  }, { budget: true });
+});
+
+Deno.test("issue 69 preview: an issue a poll already recorded keeps its stored report and row", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 2);
+    await previewAll(fx, sourceId);
+    const before = await fx.counts(sourceId);
+    assertEquals([before.tickets, before.reports], [2, 2]);
+    // An edit the provider shows would change the snapshot and the report.
+    fx.reader.setIssue({ number: 1, labels: [EXECUTE_LABEL], body: "Edited." });
+    const judged = await read<PreviewResult>(
+      await post(fx, `${SOURCES}/${sourceId}/previews`),
+      201,
+    );
+    assertEquals(judged.issues.length, 2);
+    assertEquals(await fx.counts(sourceId), before);
+    const ticket = await ticketOf(fx, sourceId, 1) as unknown as {
+      snapshot: { labels: string[] };
+    };
+    assertEquals(ticket.snapshot.labels, []);
+  });
+});
+
+type LinkView = {
+  id: string;
+  externalTicketId: string;
+  taskId: string;
+  role: string;
+  syncHealth: string;
+  statusCommentExternalId: string | null;
+  lastProblemCode: string | null;
+};
+
+Deno.test("issue 69 reads: links list from either side, keyset paged, and PRs filter by ticket", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 2);
+    await previewAll(fx, sourceId);
+    const first = await ticketOf(fx, sourceId, 1);
+    const second = await ticketOf(fx, sourceId, 2);
+    const tasks = [
+      await fx.createPlainTask(),
+      await fx.createPlainTask(),
+      await fx.createPlainTask(),
+    ];
+    for (const taskId of tasks) {
+      await read(
+        await post(fx, `${TICKETS}/${first.id}/links`, {
+          taskId,
+          role: "reference",
+        }),
+        201,
+      );
+    }
+    await read(
+      await post(fx, `${TICKETS}/${second.id}/links`, {
+        taskId: tasks[0],
+        role: "reference",
+      }),
+      201,
+    );
+    const LINKS = "/v1/ticket-task-links";
+    const list = (query: string, cookie?: string) =>
+      ticketCall(
+        fx,
+        "GET",
+        `${LINKS}?${query}`,
+        cookie === undefined ? {} : { cookie },
+      );
+
+    // By ticket: newest first, two pages of two then one.
+    const page1 = await read<Page<LinkView>>(
+      await list(`externalTicketId=${first.id}&limit=2`),
+      200,
+    );
+    assertEquals(page1.items.length, 2);
+    assert(page1.nextCursor !== null);
+    const page2 = await read<Page<LinkView>>(
+      await list(
+        `externalTicketId=${first.id}&limit=2&cursor=${
+          encodeURIComponent(page1.nextCursor!)
+        }`,
+      ),
+      200,
+    );
+    assertEquals(page2.nextCursor, null);
+    const byTicket = [...page1.items, ...page2.items];
+    assertEquals(
+      byTicket.map((link) => link.taskId).sort(),
+      [...tasks].sort(),
+    );
+    assert(byTicket.every((link) => link.externalTicketId === first.id));
+    assert(
+      byTicket.every((link) =>
+        link.role === "reference" && link.syncHealth === "unknown" &&
+        link.statusCommentExternalId === null
+      ),
+    );
+    // A cursor is bound to its filters.
+    const rebound = await list(
+      `externalTicketId=${second.id}&cursor=${
+        encodeURIComponent(page1.nextCursor!)
+      }`,
+    );
+    assertEquals(rebound.status, 400);
+    assertEquals((await rebound.json() as Problem).code, "INVALID_CURSOR");
+
+    // By task: the task's tickets; the role filter narrows.
+    const byTask = await read<Page<LinkView>>(
+      await list(`taskId=${tasks[0]}`),
+      200,
+    );
+    assertEquals(
+      byTask.items.map((link) => link.externalTicketId).sort(),
+      [first.id, second.id].sort(),
+    );
+    assertEquals(
+      (await read<Page<LinkView>>(
+        await list(`taskId=${tasks[0]}&role=primary`),
+        200,
+      )).items,
+      [],
+    );
+
+    // Exactly one side; a developer may read.
+    for (
+      const query of ["", `externalTicketId=${first.id}&taskId=${tasks[0]}`]
+    ) {
+      const refused = await list(query);
+      assertEquals(refused.status, 422, query);
+      assertEquals(
+        (await refused.json() as Problem).issues?.[0].code,
+        "ticket_task_link_scope_required",
+      );
+    }
+    assertEquals(
+      (await list(`taskId=${tasks[0]}`, fx.f.developerCookie)).status,
+      200,
+    );
+
+    // Another organization's task, and an unknown ticket, are 404.
+    const foreignOrganization = crypto.randomUUID();
+    await fx.owner.query(
+      `insert into bakery.organizations (id, name, slug, created_at, updated_at)
+       values ($1, 'Foreign', $2, now(), now())`,
+      [foreignOrganization, `foreign-${foreignOrganization}`],
+    );
+    const foreignApplication = crypto.randomUUID();
+    await fx.owner.query(
+      `insert into bakery.applications (id, organization_id, slug, name, description)
+       values ($1, $2, $3, 'foreign', '')`,
+      [foreignApplication, foreignOrganization, `app-${foreignApplication}`],
+    );
+    const foreignTask = await insertBareTask({
+      owner: fx.owner,
+      organizationId: foreignOrganization,
+      applicationId: foreignApplication,
+      adminId: fx.adminId,
+    });
+    try {
+      assertEquals((await list(`taskId=${foreignTask}`)).status, 404);
+    } finally {
+      // The foreign rows name the fixture's admin; the fixture's teardown
+      // removes that principal, so they go first.
+      await fx.owner.query(
+        `delete from bakery.tasks where organization_id = $1`,
+        [foreignOrganization],
+      );
+      await fx.owner.query(
+        `delete from bakery.conversations where organization_id = $1`,
+        [foreignOrganization],
+      );
+      await fx.owner.query(
+        `delete from bakery.applications where organization_id = $1`,
+        [foreignOrganization],
+      );
+      await fx.owner.query(
+        `delete from bakery.organizations where id = $1`,
+        [foreignOrganization],
+      );
+    }
+    assertEquals(
+      (await list(`externalTicketId=${crypto.randomUUID()}`)).status,
+      404,
+    );
+
+    // Pull requests filter by ticket through the links.
+    const pull = async (taskId: string, number: number) => {
+      await fx.owner.query(
+        `insert into bakery.pull_requests (
+           id, organization_id, task_id, repository_id, provider_number, url,
+           head_sha, base_sha, status, version
+         ) values ($1, $2, $3, $4, $5, $6, $7, $7, 'open', 1)`,
+        [
+          crypto.randomUUID(),
+          fx.organizationId,
+          taskId,
+          fx.repositoryId,
+          number,
+          `https://example.test/pull/${number}`,
+          "a".repeat(40),
+        ],
+      );
+    };
+    await pull(tasks[1], 11);
+    await pull(tasks[2], 12);
+    const unlinked = await fx.createPlainTask();
+    await pull(unlinked, 13);
+    const pulls = (ticketId: string) =>
+      ticketCall(fx, "GET", `/v1/pull-requests?externalTicketId=${ticketId}`)
+        .then((response) =>
+          read<Page<{ providerNumber: number }>>(response, 200)
+        );
+    assertEquals(
+      (await pulls(first.id)).items.map((item) => item.providerNumber),
+      [11, 12],
+    );
+    assertEquals((await pulls(second.id)).items, []);
+    assertEquals((await pulls(crypto.randomUUID())).items, []);
+  });
+});
+
+/** Inserts a primary link for a fresh task of the source, as an admission would; returns its id. */
+async function insertPrimaryLink(fx: TicketFixture, ticketId: string) {
+  const taskId = await fx.createPlainTask();
+  const id = crypto.randomUUID();
+  await fx.owner.query(
+    `insert into bakery.ticket_task_links (
+       id, organization_id, external_ticket_id, task_id, role
+     ) values ($1, $2, $3, $4, 'primary')`,
+    [id, fx.organizationId, ticketId, taskId],
+  );
+  return { id, taskId };
+}
+
+type NoteLink = LinkView & { version: number };
+
+Deno.test("issue 69 note: a resync posts Bakery's note, rewrites it in place, re-creates a deleted one and records failures", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 1);
+    await previewAll(fx, sourceId);
+    const ticket = await ticketOf(fx, sourceId, 1);
+    const { id, taskId } = await insertPrimaryLink(fx, ticket.id);
+    const path = `/v1/ticket-task-links/${id}/note-syncs`;
+
+    // The writer refuses: the link records failed with the code, version moves twice.
+    fx.notes.next.push({ kind: "failed", problemCode: "auth_forbidden" });
+    const failed = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 1 }),
+      201,
+    );
+    assertEquals(
+      [
+        failed.syncHealth,
+        failed.lastProblemCode,
+        failed.statusCommentExternalId,
+        failed.version,
+      ],
+      ["failed", "auth_forbidden", null, 3],
+    );
+    assertEquals(fx.notes.posts.length, 1);
+    const asked = fx.notes.posts[0];
+    assertEquals(
+      [asked.provider, asked.connectionId, asked.resourceId, asked.issueNumber],
+      ["github", fx.connectionId, fx.resource.id, 1],
+    );
+    assertEquals(asked.actorPrincipalId, fx.adminId);
+    assert(asked.body.startsWith("Bakery is working on this issue."));
+
+    // A stale If-Match is refused before any write; none at all is required.
+    assertEquals((await post(fx, path, {}, { ifMatch: 1 })).status, 412);
+    assertEquals((await post(fx, path, {})).status, 428);
+    assertEquals(fx.notes.posts.length, 1);
+
+    // The retry posts: healthy with the provider's comment id.
+    const key = crypto.randomUUID();
+    const healthy = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 3, key }),
+      201,
+    );
+    assertEquals(
+      [
+        healthy.syncHealth,
+        healthy.lastProblemCode,
+        healthy.statusCommentExternalId,
+        healthy.version,
+      ],
+      ["healthy", null, "1001", 5],
+    );
+    assertEquals(fx.notes.posts.length, 2);
+    // The same key answers from the stored response without writing again.
+    assertEquals(
+      await read(await post(fx, path, {}, { ifMatch: 3, key }), 201),
+      healthy,
+    );
+    assertEquals(fx.notes.posts.length, 2);
+    // A later resync rewrites the same comment in place with the new text.
+    await fx.owner.query(
+      `update bakery.tasks set title = 'renamed task' where id = $1`,
+      [taskId],
+    );
+    const rewritten = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 5 }),
+      201,
+    );
+    assertEquals(
+      [
+        rewritten.syncHealth,
+        rewritten.statusCommentExternalId,
+        rewritten.lastProblemCode,
+        rewritten.version,
+      ],
+      ["healthy", "1001", null, 7],
+    );
+    assertEquals(fx.notes.posts.at(-1)?.existingExternalId, "1001");
+    assert(fx.notes.comments.get("1001")!.includes("Task: `renamed task`"));
+    assertEquals(fx.notes.comments.size, 1);
+
+    // A note deleted on the provider is posted again under a new id, and the
+    // link says so.
+    fx.notes.comments.delete("1001");
+    const recreated = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 7 }),
+      201,
+    );
+    assertEquals(
+      [
+        recreated.syncHealth,
+        recreated.statusCommentExternalId,
+        recreated.lastProblemCode,
+        recreated.version,
+      ],
+      ["healthy", "1002", "note_recreated", 9],
+    );
+    assert(fx.notes.comments.has("1002"));
+
+    // A provider failure on a rewrite is recorded as failed, the id kept.
+    fx.notes.next.push({ kind: "failed", problemCode: "note_failed" });
+    const refusedWrite = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 9 }),
+      201,
+    );
+    assertEquals(
+      [
+        refusedWrite.syncHealth,
+        refusedWrite.statusCommentExternalId,
+        refusedWrite.lastProblemCode,
+      ],
+      ["failed", "1002", "note_failed"],
+    );
+    const notesWritten = fx.notes.posts.length;
+
+    // The link list shows the note's state.
+    const listed = await read<Page<LinkView>>(
+      await ticketCall(fx, "GET", `/v1/ticket-task-links?taskId=${taskId}`),
+      200,
+    );
+    assertEquals(listed.items.map((link) => link.syncHealth), ["failed"]);
+    assertEquals(
+      (await factsOf(fx, "ticket_task_link", id)).audit,
+      Array(5).fill("ticketTaskLinks.resyncNote"),
+    );
+
+    // A reference link carries no note.
+    const reference = await read<NoteLink>(
+      await post(fx, `${TICKETS}/${ticket.id}/links`, {
+        taskId: await fx.createPlainTask(),
+        role: "reference",
+      }),
+      201,
+    );
+    const refused = await post(
+      fx,
+      `/v1/ticket-task-links/${reference.id}/note-syncs`,
+      {},
+      { ifMatch: reference.version },
+    );
+    assertEquals(refused.status, 422);
+    assertEquals(
+      (await refused.json() as Problem).issues?.[0].code,
+      "note_requires_primary_link",
+    );
+    // Another organization's link (here: none by that id) is 404.
+    assertEquals(
+      (await post(
+        fx,
+        `/v1/ticket-task-links/${crypto.randomUUID()}/note-syncs`,
+        {},
+        { ifMatch: 1 },
+      )).status,
+      404,
+    );
+    assertEquals(fx.notes.posts.length, notesWritten);
+  });
+});
+
+Deno.test("issue 69 note: a resync is refused while a write of the same link is in flight", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 1);
+    await previewAll(fx, sourceId);
+    const ticket = await ticketOf(fx, sourceId, 1);
+    const { id } = await insertPrimaryLink(fx, ticket.id);
+    const path = `/v1/ticket-task-links/${id}/note-syncs`;
+    let release!: () => void;
+    fx.notes.hold = new Promise((resolve) => (release = resolve));
+    const first = post(fx, path, {}, { ifMatch: 1 });
+    // Wait until the claim committed and the write started.
+    for (let tries = 0; fx.notes.posts.length === 0 && tries < 200; tries++) {
+      await sleep(25);
+    }
+    assertEquals(fx.notes.posts.length, 1);
+    const claimed = await fx.owner.query<
+      { sync_health: string; version: number }
+    >(
+      `select sync_health, version from bakery.ticket_task_links where id = $1`,
+      [id],
+    );
+    assertEquals(claimed.rows[0], { sync_health: "pending", version: 2 });
+    // The second ask, at the claimed version, is refused and writes nothing.
+    const second = await post(fx, path, {}, { ifMatch: 2 });
+    assertEquals(second.status, 409);
+    assertEquals(
+      (await second.json() as Problem).reason,
+      "note_sync_in_flight",
+    );
+    assertEquals(fx.notes.posts.length, 1);
+    release();
+    const done = await read<NoteLink>(await first, 201);
+    assertEquals([done.syncHealth, done.version], ["healthy", 3]);
+    // A claim older than the in-flight window no longer holds the link.
+    await fx.owner.query(
+      `update bakery.ticket_task_links
+          set sync_health = 'pending', updated_at = now() - interval '1 hour',
+              version = version + 1
+        where id = $1`,
+      [id],
+    );
+    fx.notes.hold = null;
+    const revived = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 4 }),
+      201,
+    );
+    assertEquals(revived.syncHealth, "healthy");
+  });
+});
+
+Deno.test("issue 69 note: only a Developer may resync; a viewer is refused before any write", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 1);
+    await previewAll(fx, sourceId);
+    const ticket = await ticketOf(fx, sourceId, 1);
+    const { id } = await insertPrimaryLink(fx, ticket.id);
+    const path = `/v1/ticket-task-links/${id}/note-syncs`;
+    try {
+      const viewer = await addMember(
+        fx.f,
+        {
+          organizationId: fx.organizationId,
+          principalId: fx.adminId,
+          cookie: fx.f.adminCookie,
+          applicationId: fx.applicationId,
+          repositoryId: fx.repositoryId,
+          conversationId: "",
+          agentVersionId: "",
+        },
+        "note-viewer",
+        "viewer",
+      );
+      const asViewer = await post(fx, path, {}, {
+        ifMatch: 1,
+        cookie: viewer.cookie,
+      });
+      assertEquals(asViewer.status, 403);
+      assertEquals(fx.notes.posts.length, 0);
+      const untouched = await fx.owner.query<{ sync_health: string }>(
+        `select sync_health from bakery.ticket_task_links where id = $1`,
+        [id],
+      );
+      assertEquals(untouched.rows[0].sync_health, "unknown");
+      // The developer may, and the write runs as them.
+      const asDeveloper = await read<NoteLink>(
+        await post(fx, path, {}, { ifMatch: 1, cookie: fx.f.developerCookie }),
+        201,
+      );
+      assertEquals(asDeveloper.syncHealth, "healthy");
+      assertEquals(fx.notes.posts[0].actorPrincipalId, fx.developerId);
+    } finally {
+      await cleanupSeededOrganizations(fx.f);
+    }
   });
 });
 
@@ -378,18 +1028,135 @@ Deno.test("issue 69: an admin looks up a username on the source's repository, a 
   });
 });
 
-Deno.test("issue 82 ops: preview keeps the issues it could read when one read fails", async () => {
+Deno.test("issue 69: a lookup refuses a malformed username before any read, waits out a rate limit, and hides another organization's source", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    fx.reader.setRole("octo-writer", {
+      kind: "present",
+      userId: "583231",
+      permission: "write",
+    });
+    const lookup = (
+      login: string,
+      options: { cookie?: string; organizationId?: string; source?: string } =
+        {},
+    ) =>
+      ticketCall(
+        fx,
+        "GET",
+        `${SOURCES}/${options.source ?? sourceId}/people/${
+          encodeURIComponent(login)
+        }`,
+        {
+          ...(options.cookie === undefined ? {} : { cookie: options.cookie }),
+          ...(options.organizationId === undefined
+            ? {}
+            : { organizationId: options.organizationId }),
+        },
+      );
+
+    // Login rules: letters, digits or single hyphens, no hyphen at either
+    // end. A login breaking them is 422 login_invalid and reads nothing.
+    fx.reader.clearCalls();
+    for (
+      const bad of [
+        "-octo",
+        "octo-",
+        "oc--to",
+        "octo_cat",
+        "octo.cat",
+        "octo cat",
+      ]
+    ) {
+      const refused = await lookup(bad);
+      assertEquals(refused.status, 422, bad);
+      const problem = await refused.json() as Problem;
+      assertEquals(problem.code, "UNPROCESSABLE", bad);
+      assertEquals(problem.issues?.[0].code, "login_invalid", bad);
+    }
+    // Over 39 characters breaks the schema's length bound: refused, unread.
+    const long = await lookup("a".repeat(40));
+    assertEquals(long.status, 400);
+    assertEquals((await long.json() as Problem).code, "MALFORMED_REQUEST");
+    assertEquals(fx.reader.calls.length, 0);
+    // The rules' edges are accepted and read: unknown to the provider, so 404.
+    for (const edge of ["a", "a-b", "A1-b2-C3", "a".repeat(39)]) {
+      assertEquals((await lookup(edge)).status, 404, edge);
+    }
+    assertEquals(fx.reader.callsOf("readActorRole").length, 4);
+
+    // A provider rate limit is DEPENDENCY_UNAVAILABLE with the provider's wait.
+    fx.reader.failNext("readActorRole", {
+      kind: "unavailable",
+      reason: "rate_limited",
+      retryAfterSeconds: 30,
+    });
+    const limited = await lookup("octo-writer");
+    assertEquals(limited.status, 503);
+    const wait = await limited.json() as Problem & {
+      retryAfterSeconds?: number;
+    };
+    assertEquals([wait.code, wait.retryAfterSeconds], [
+      "DEPENDENCY_UNAVAILABLE",
+      30,
+    ]);
+    assertEquals((await lookup("octo-writer")).status, 200);
+
+    // Another organization's admin naming this source gets the answer an
+    // unknown source gets, and nothing is read for it.
+    try {
+      const other = await seedOrganization(fx.f, "ticket-lookup-other", {
+        role: "admin",
+        agent: false,
+      });
+      const asOther = {
+        cookie: other.cookie,
+        organizationId: other.organizationId,
+      };
+      fx.reader.clearCalls();
+      const named = await lookup("octo-writer", asOther);
+      const absent = await lookup("octo-writer", {
+        ...asOther,
+        source: crypto.randomUUID(),
+      });
+      assertEquals(named.status, 404);
+      const strip = (body: Record<string, unknown>) => {
+        for (const key of ["requestId", "traceId", "instance"]) {
+          delete body[key];
+        }
+        return body;
+      };
+      assertEquals(
+        strip(await named.json()),
+        strip(await absent.json()),
+        "no existence leak",
+      );
+      assertEquals(absent.status, 404);
+      assertEquals(fx.reader.calls.length, 0);
+    } finally {
+      await cleanupSeededOrganizations(fx.f);
+    }
+  });
+});
+
+Deno.test("issue 82 ops: preview judges every issue when one read fails", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource();
     seedIssues(fx, 3);
     fx.reader.failNext("readIssue");
-    const receipt = await read<Receipt>(
+    const judged = await read<PreviewResult>(
       await post(fx, `${SOURCES}/${sourceId}/previews`),
       201,
     );
-    assertEquals(receipt.status, "completed");
-    const counts = await fx.counts(sourceId);
-    assertEquals([counts.tickets, counts.reports], [2, 2]);
+    // The failed read is judged as waiting on the provider; the others as read.
+    assertEquals(judged.issues.length, 3);
+    assertEquals(
+      judged.issues.filter((issue) =>
+        issue.reasons.includes("provider_unavailable")
+      ).length,
+      1,
+    );
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
   });
 });
 
@@ -403,17 +1170,13 @@ Deno.test("issue 82 ops: a preview of 25 issues against a slow provider finishes
       await sleep(20);
     };
     const started = performance.now();
-    const receipt = await read<Receipt>(
+    const judged = await read<PreviewResult>(
       await post(fx, `${SOURCES}/${sourceId}/previews`),
       201,
     );
     assert(performance.now() - started < 30_000);
-    assertEquals(receipt.status, "completed");
-    assertEquals(
-      (await fx.counts(sourceId)).tickets,
-      25,
-      "the page is cut at 25",
-    );
+    assertEquals(judged.issues.length, 25, "the page is cut at 25");
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
     // The watch saw the list and each issue read, and none had a transaction open.
     assert(observed.length >= 50, `${observed.length} reads watched`);
     assertEquals(Math.max(...observed), 0);
@@ -435,8 +1198,10 @@ Deno.test("issue 82 ops locks: a preview and a single-ticket operation on a late
     const sourceId = await fx.insertSource();
     seedIssues(fx, 3);
     await previewAll(fx, sourceId);
-    // Ticket 3 is the last of the page: the preview reaches it after it holds
-    // the application row, while the other operation holds it and wants the row.
+    // A preview stores nothing (#69) and takes no row `for update`, so it no
+    // longer queues on the application row the way a writer does. It must
+    // still finish beside a single-ticket operation on the last ticket of its
+    // page, whichever starts first, with neither a deadlock victim.
     const last = await ticketOf(fx, sourceId, 3);
     const preview = () => post(fx, `${SOURCES}/${sourceId}/previews`);
     const single: [string, () => Promise<Response>][] = [
@@ -449,7 +1214,6 @@ Deno.test("issue 82 ops locks: a preview and a single-ticket operation on a late
         () => post(fx, `${TICKETS}/${last.id}/requests`, requestBody(last)),
       ],
     ];
-    // A deadlock victim answers 500 and the app reports the error with its cause.
     const failures: string[] = [];
     const stop = installProblemErrorReporter((error) => {
       const cause = (error as { cause?: unknown })?.cause;
@@ -463,16 +1227,22 @@ Deno.test("issue 82 ops locks: a preview and a single-ticket operation on a late
             fx.organizationId,
             fx.applicationId,
           ]);
-          const [first, second] = previewFirst
-            ? await raceInOrder(fx.owner, hold, preview, operation)
-            : await raceInOrder(fx.owner, hold, operation, preview);
+          const first = previewFirst ? preview() : operation();
+          await sleep(200);
+          const second = previewFirst ? operation() : preview();
+          await sleep(200);
+          hold.release();
+          await hold.done;
+          const outcomes = await Promise.allSettled([first, second]);
           assertEquals(failures, [], label);
-          assertNoDeadlock(first);
-          assertNoDeadlock(second);
-          const answers = [first, second].map((outcome) =>
-            outcome.status === "fulfilled" ? outcome.value.status : "rejected"
+          for (const outcome of outcomes) assertNoDeadlock(outcome);
+          assertEquals(
+            outcomes.map((outcome) =>
+              outcome.status === "fulfilled" ? outcome.value.status : "rejected"
+            ),
+            [201, 201],
+            label,
           );
-          assertEquals(answers, [201, 201], label);
         }
       }
     } finally {
@@ -830,9 +1600,9 @@ async function ticketOf(
   return found;
 }
 
-/** Records every seeded issue through a preview, so each has a ticket row. */
+/** Records every open seeded issue, so each has a ticket row. */
 async function previewAll(fx: TicketFixture, sourceId: string) {
-  await read(await post(fx, `${SOURCES}/${sourceId}/previews`), 201);
+  await recordOpenIssues(fx, sourceId);
 }
 
 /** The body `ticketRequests.create` takes for a ticket as the caller last saw it. */
@@ -1282,6 +2052,7 @@ Deno.test("issue 82 ops: ticketRequests.create answers an unready issue with tic
     const error = unadmittedError(result.report, {
       issue: { kind: "gone" },
       links: null,
+      statuses: null,
       proofs: [],
       provenance: null,
       actorRole: null,
@@ -1401,4 +2172,262 @@ Deno.test("issue 82 ops: readiness and request operations hold no transaction op
     });
     assert(held >= 1, "the observer sees an idle transaction");
   }, { budget: true });
+});
+
+type RequestRead = {
+  id: string;
+  externalTicketId: string;
+  origin: string;
+  requestedByPrincipalId: string | null;
+  triggerLabelName: string | null;
+  disposition: string;
+  dispositionReasonCode: string | null;
+  pausedAt: string | null;
+  pausedReason: string | null;
+  progress: string;
+  targets: {
+    repositoryId: string;
+    role: string;
+    routingRuleId: string | null;
+  }[];
+};
+
+Deno.test("issue 69 reads: a ticket's requests list newest first with progress, pause state and targets, and another organization's ids are 404", async () => {
+  await withTicketFixture(async (fx) => {
+    // Human approval leaves a request waiting with no run.
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ approval: "human_approval" }),
+    });
+    // Issue 1 carries the request label, so a person's request adopts it.
+    seedIssues(fx, 2, 1);
+    await previewAll(fx, sourceId);
+    const plain = await ticketOf(fx, sourceId, 2);
+    const path = `${TICKETS}/${plain.id}/requests`;
+    const first = await read<RequestView>(
+      await post(fx, path, requestBody(plain)),
+      201,
+    );
+    // The first generation ends; a second one is admitted on the same ticket.
+    await withPgTransaction(fx.owner, async (transaction) => {
+      await transaction.query(
+        `update bakery.ticket_requests set disposition = 'canceled',
+           disposition_reason = 'task_canceled' where id = $1`,
+        [first.id],
+      );
+    });
+    const second = await read<RequestView>(
+      await post(fx, path, requestBody(await ticketOf(fx, sourceId, 2))),
+      201,
+    );
+    // The acceptance text changes: the recheck suspends it, and its run pause
+    // is recorded as the pause step would.
+    fx.reader.setIssue({ number: 2, body: EDITED_BODY("second wording") });
+    await fx.recheck(plain.id);
+    await withPgTransaction(fx.owner, async (transaction) => {
+      await transaction.query(
+        `update bakery.ticket_requests set pause_requested_at = now()
+          where id = $1`,
+        [second.id],
+      );
+    });
+
+    const list = (query: string) =>
+      ticketCall(fx, "GET", `/v1/ticket-requests?${query}`);
+    const page1 = await read<Page<RequestRead>>(
+      await list(`externalTicketId=${plain.id}&limit=1`),
+      200,
+    );
+    assertEquals(page1.items.map((item) => item.id), [second.id]);
+    const newest = page1.items[0];
+    assertEquals(
+      [
+        newest.origin,
+        newest.requestedByPrincipalId,
+        newest.triggerLabelName,
+        newest.disposition,
+        newest.dispositionReasonCode,
+        newest.pausedReason,
+        newest.progress,
+      ],
+      [
+        "manual",
+        fx.adminId,
+        null,
+        "suspended",
+        "acceptance_changed",
+        "edited_after_setup",
+        "suspended",
+      ],
+    );
+    assert(newest.pausedAt !== null);
+    // The fallback target: the source's own repository, no rule.
+    assertEquals(newest.targets.length, 1);
+    assertEquals(newest.targets[0].routingRuleId, null);
+    assert(page1.nextCursor !== null);
+    const page2 = await read<Page<RequestRead>>(
+      await list(
+        `externalTicketId=${plain.id}&limit=1&cursor=${
+          encodeURIComponent(page1.nextCursor)
+        }`,
+      ),
+      200,
+    );
+    assertEquals(page2.items.map((item) => item.id), [first.id]);
+    assertEquals(
+      [
+        page2.items[0].progress,
+        page2.items[0].dispositionReasonCode,
+        page2.items[0].pausedAt,
+        page2.items[0].pausedReason,
+      ],
+      ["canceled", "task_canceled", null, null],
+    );
+    assertEquals(page2.nextCursor, null);
+    // A cursor is bound to its ticket.
+    const labeled = await ticketOf(fx, sourceId, 1);
+    assertEquals(
+      (await list(
+        `externalTicketId=${labeled.id}&cursor=${
+          encodeURIComponent(page1.nextCursor)
+        }`,
+      )).status,
+      400,
+    );
+
+    // An adoption names the label it rested on and the person who asked.
+    const adopted = await read<RequestView>(
+      await post(
+        fx,
+        `${TICKETS}/${labeled.id}/requests`,
+        requestBody(labeled, { intent: "plan" }),
+      ),
+      201,
+    );
+    const got = await read<RequestRead>(
+      await ticketCall(fx, "GET", `/v1/ticket-requests/${adopted.id}`),
+      200,
+    );
+    assertEquals(
+      [
+        got.origin,
+        got.triggerLabelName,
+        got.requestedByPrincipalId,
+        got.progress,
+        got.pausedAt,
+      ],
+      ["adoption", EXECUTE_LABEL, fx.adminId, "waiting", null],
+    );
+
+    // Another organization gets what an unknown id gets.
+    try {
+      const other = await seedOrganization(fx.f, "ticket-requests-other", {
+        role: "admin",
+        agent: false,
+      });
+      const asOther = {
+        cookie: other.cookie,
+        organizationId: other.organizationId,
+      };
+      assertEquals(
+        (await ticketCall(
+          fx,
+          "GET",
+          `/v1/ticket-requests/${adopted.id}`,
+          asOther,
+        )).status,
+        404,
+      );
+      assertEquals(
+        (await ticketCall(
+          fx,
+          "GET",
+          `/v1/ticket-requests?externalTicketId=${plain.id}`,
+          asOther,
+        )).status,
+        404,
+      );
+      assertEquals(
+        (await ticketCall(
+          fx,
+          "GET",
+          `/v1/ticket-requests/${crypto.randomUUID()}`,
+        )).status,
+        404,
+      );
+    } finally {
+      await cleanupSeededOrganizations(fx.f);
+    }
+  }, { budget: true });
+});
+
+Deno.test("issue 69 reads: a source's provider labels are read live, paged by the provider, and an outage is 503", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    fx.reader.setLabels([
+      { id: "101", name: "bakery:execute", color: "0e8a16" },
+      { id: "102", name: "bakery:hold", color: null },
+      { id: "103", name: "area:web", color: "1d76db" },
+    ], 2);
+    const labels = (query = "") =>
+      ticketCall(fx, "GET", `${SOURCES}/${sourceId}/labels${query}`);
+    type LabelPage = Page<{ id: string; name: string; color: string | null }>;
+    const page1 = await read<LabelPage>(await labels(), 200);
+    assertEquals(page1.items, [
+      { id: "101", name: "bakery:execute", color: "0e8a16" },
+      { id: "102", name: "bakery:hold", color: null },
+    ]);
+    assert(page1.nextCursor !== null);
+    const page2 = await read<LabelPage>(
+      await labels(`?cursor=${encodeURIComponent(page1.nextCursor)}`),
+      200,
+    );
+    assertEquals(page2.items.map((label) => label.id), ["103"]);
+    assertEquals(page2.nextCursor, null);
+    // A limit below the provider page continues inside that page.
+    const cut = await read<LabelPage>(await labels("?limit=1"), 200);
+    assertEquals(cut.items.map((label) => label.id), ["101"]);
+    const rest = await read<LabelPage>(
+      await labels(`?limit=1&cursor=${encodeURIComponent(cut.nextCursor!)}`),
+      200,
+    );
+    assertEquals(rest.items.map((label) => label.id), ["102"]);
+    assertEquals(
+      fx.reader.callsOf("readLabels").map((call) => call.number),
+      [1, 2, 1, 1],
+    );
+
+    fx.reader.failNext("readLabels", {
+      kind: "unavailable",
+      reason: "rate_limited",
+      retryAfterSeconds: 20,
+    });
+    const down = await labels();
+    assertEquals(down.status, 503);
+    const problem = await down.json() as Problem & {
+      retryAfterSeconds?: number;
+    };
+    assertEquals([problem.code, problem.retryAfterSeconds], [
+      "DEPENDENCY_UNAVAILABLE",
+      20,
+    ]);
+
+    fx.reader.setLabels({ kind: "unsupported" });
+    const unsupported = await labels();
+    assertEquals(unsupported.status, 422);
+    assertEquals(
+      (await unsupported.json() as Problem).issues?.[0].code,
+      "labels_unsupported",
+    );
+    // An unknown source reads nothing.
+    fx.reader.clearCalls();
+    assertEquals(
+      (await ticketCall(
+        fx,
+        "GET",
+        `${SOURCES}/${crypto.randomUUID()}/labels`,
+      )).status,
+      404,
+    );
+    assertEquals(fx.reader.calls.length, 0);
+  });
 });

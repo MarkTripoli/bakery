@@ -39,6 +39,8 @@ import {
   outputFinalizationRoute,
 } from "./output.ts";
 import { events } from "./events.ts";
+import { workerPreviewRoute } from "./previews.ts";
+import { workerHandoffManifestRoute } from "./handoff-manifests.ts";
 import { inputReadRoute } from "./input-read.ts";
 import { heartbeat } from "./heartbeat.ts";
 import { enrollWorker, registerWorker } from "./registration.ts";
@@ -57,6 +59,7 @@ import {
 } from "./shared.ts";
 import { createExecutionRunControlApp } from "./control.ts";
 import { createAttemptReadApp } from "./attempt-read.ts";
+import { createSessionRoutes } from "./session-routes.ts";
 import { createOutputReadApp } from "./output-read.ts";
 import { secretIdentityToolRoute } from "./secret-identity.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
@@ -166,6 +169,18 @@ export function createExecutionRoutes(
   app.route("/", createExecutionRunControlApp(options));
   app.route("/", createOutputReadApp(options));
   app.route("/", createAttemptReadApp(options));
+  // The tool gateway. Mounted only when the caller supplies the operations a
+  // session may reach: an app that cannot execute them must not advertise
+  // routes that would refuse every call.
+  if (options.sessionTools) {
+    app.route(
+      "/",
+      createSessionRoutes({
+        ...options,
+        sessionTools: options.sessionTools,
+      }),
+    );
+  }
   app.onError((error, context) =>
     problemResponse(context, error, { publicBaseUrl: options.publicBaseUrl })
   );
@@ -348,6 +363,20 @@ export function createExecutionRoutes(
   app.post(
     "/v1/worker/attempts/:id/events",
     workerRouteHandler(options, (context) => events(context, options)),
+  );
+  app.post(
+    "/v1/worker/attempts/:id/previews",
+    workerRouteHandler(
+      options,
+      (context) => workerPreviewRoute(context, options),
+    ),
+  );
+  app.post(
+    "/v1/worker/attempts/:id/handoff-manifests",
+    workerRouteHandler(
+      options,
+      (context) => workerHandoffManifestRoute(context, options),
+    ),
   );
   app.post(
     "/v1/worker/attempts/:id/lease-renewals",

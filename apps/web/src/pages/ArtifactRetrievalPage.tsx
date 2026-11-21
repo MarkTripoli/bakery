@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
+import { type LandingSearch, parseLanding } from "../notifications/landing.ts";
+import { useLandingArrival } from "../notifications/useLandingArrival.ts";
 import { ArtifactRevisionDetailsView } from "./ArtifactRevisionDetailsView.tsx";
 import {
   type ArtifactExtractionResponse,
@@ -17,6 +19,7 @@ import {
   artifactsListQueryOptions,
   artifactStorageQueryOptions,
   artifactVersionsQueryOptions,
+  effectiveAccessQueryOptions,
 } from "../api/query.ts";
 import {
   ORGANIZATIONS_PATH,
@@ -43,8 +46,12 @@ import { ArtifactPinControl } from "./ArtifactPinControl.tsx";
 import { ArtifactPreviewHandoff } from "./ArtifactPreviewHandoff.tsx";
 import { ArtifactComments } from "./ArtifactComments.tsx";
 import { ArtifactContentPreview } from "./ArtifactContentPreview.tsx";
+import { useShellViewport } from "../app/responsive.ts";
+import { ArtifactEditor } from "./ArtifactEditor.tsx";
 import { isExtractableMediaType } from "./artifact-media.ts";
 import { invalidateArtifactQueries } from "./artifact-live.ts";
+import { offersDownload } from "./preview-actions.ts";
+import { formatFileSize } from "./file-size.ts";
 
 const MAX_EXTRACTION_BYTES = 65_536;
 /** Session Problems meaning "authenticate again", not "this artifact failed". */
@@ -58,6 +65,10 @@ const SESSION_FAILURE_CODES: Record<string, true> = {
 type ArtifactPageProps = Readonly<{
   taskId: string;
   artifactId: string;
+  /** Where a notification landed here (see notifications/landing.ts). */
+  landing?: LandingSearch;
+  /** Takes the read marker out of the address once the landing is done. */
+  stripLanding?: () => void;
 }>;
 
 type DownloadState = "idle" | "loading" | "success";
@@ -147,8 +158,16 @@ function validExtraction(
     byteLength <= MAX_EXTRACTION_BYTES;
 }
 
+const NO_LANDING: LandingSearch = Object.freeze({});
+const NO_STRIP = () => {};
+
 export function ArtifactRetrievalPage(
-  { artifactId, taskId }: ArtifactPageProps,
+  {
+    artifactId,
+    taskId,
+    landing = NO_LANDING,
+    stripLanding = NO_STRIP,
+  }: ArtifactPageProps,
 ) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const api = useBakeryApi();
@@ -157,7 +176,17 @@ export function ArtifactRetrievalPage(
   const scope = useProtectedScope();
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
+  // `formatFileSize` wants the translator's own shape; the Files panel casts the
+  // same way, because the catalog keys are a closed union.
+  const sizeText = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) =>
+    (translate as (id: string, v?: Record<string, string | number>) => string)(
+      key,
+      values,
+    );
   const [organizationResolutionState, setOrganizationResolutionState] =
     useState<OrganizationResolutionState>("loading");
   const [organizationResolutionError, setOrganizationResolutionError] =
@@ -170,6 +199,9 @@ export function ArtifactRetrievalPage(
   const downloadRequest = useRef(0);
   const downloadAbort = useRef<AbortController | null>(null);
   const [downloadState, setDownloadState] = useState<DownloadState>("idle");
+  // The bytes and the record disagree: the page must not offer to save them
+  // either, so the preview tells this controller and the button goes away.
+  const [digestMismatch, setDigestMismatch] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
   const [startByteInput, setStartByteInput] = useState("0");
   const [extractionInput, setExtractionInput] = useState<
@@ -400,6 +432,35 @@ export function ArtifactRetrievalPage(
   const selectedVersion =
     versionPages.items.find((version) => version.id === selectedVersionId) ??
       null;
+  // A notification about a version opens that version (`at=version:N`); a
+  // version picked in the address (`?version=`) wins over it.
+  const landed = parseLanding(landing.at);
+  const landedRevision = landed?.kind === "version" ? Number(landed.id) : null;
+  const landedVersion = landedRevision === null
+    ? undefined
+    : versionPages.items.find((version) => version.revision === landedRevision);
+  useEffect(() => {
+    if (linkedVersionId || landedRevision === null) return;
+    if (landedVersion) setSelectedVersionId(landedVersion.id);
+    else if (
+      versionPages.hasNext && !versionPages.loadingMore &&
+      !versionPages.moreError
+    ) versionPages.loadMore();
+  }, [landedRevision, landedVersion?.id, linkedVersionId, versionPages]);
+  // A document in plain text may be edited by people who can write drafts.
+  const [editing, setEditing] = useState(false);
+  // Where the draft's suggestions are drawn beside the text; none on a phone.
+  const phone = useShellViewport() === "phone";
+  const [suggestionsHost, setSuggestionsHost] = useState<HTMLElement | null>(
+    null,
+  );
+  const access = useQuery({
+    ...effectiveAccessQueryOptions(api, scope),
+    enabled: scope.organizationId !== null,
+  });
+  const canEdit = (access.data?.role === "admin" ||
+    access.data?.role === "developer") &&
+    selectedVersion !== null && selectedVersion.mediaType.startsWith("text/");
   useEffect(() => {
     if (
       linkedVersionId && selectedVersion === null && versionPages.hasNext &&
@@ -833,6 +894,16 @@ export function ArtifactRetrievalPage(
         )}
     </>
   );
+  // A landing is done once what it names is on screen: the page, and for a
+  // version the version itself.
+  const landingReady = view.kind === "ready" &&
+    (landedRevision === null || linkedVersionId !== null ||
+      (landedVersion !== undefined && selectedVersionId === landedVersion.id));
+  const arrival = useLandingArrival({
+    search: landing,
+    ready: landingReady,
+    strip: stripLanding,
+  });
   if (view.kind === "ready") {
     // The newest revision may have moved since this one was opened. Keep the
     // reader on the immutable revision they chose and offer the newest one.
@@ -902,175 +973,239 @@ export function ArtifactRetrievalPage(
           artifact={view.artifact}
           version={selectedVersion}
           commentId={new URLSearchParams(location.searchStr).get("comment") ??
-            undefined}
+            (landed?.kind === "comment" ? landed.id : undefined)}
+          landed={landed?.kind === "comment"}
         />
       )
       : null;
     return (
-      <ArtifactRetrievalView
-        testId="artifact-retrieval-page"
-        title={title}
-        artifactLabel={translate("artifact.view.eyebrow")}
-        kind={selectedVersion?.mediaType ?? view.artifact.artifactType}
-        revision={selectedVersion
-          ? translate("artifact.version.label", {
-            revision: selectedVersion.revision,
-          })
-          : translate("artifact.retrieval.noCurrentVersion")}
-        description={selectedVersion
-          ? translate("artifact.view.description", {
-            author: selectedVersion.authorId,
-            step: selectedVersion.runStepId ??
-              translate("artifact.retrieval.notAvailable"),
-            size: selectedVersion.sizeBytes,
-          })
-          : translate("artifact.retrieval.emptyNotice")}
-        versionLabel={translate("artifact.retrieval.versionsTitle")}
-        versionId={selectedVersion?.id ?? ""}
-        versions={versionItems.map((version) => ({
-          id: version.id,
-          label: translate("artifact.version.label", {
-            revision: version.revision,
-          }),
-        }))}
-        onVersionChange={(version) => {
-          void navigate({
-            to: "/tasks/$taskId/artifacts/$artifactId",
-            params: { taskId, artifactId },
-            search: { version },
-          });
-        }}
-        download={selectedVersion
-          ? {
-            label: downloadState === "loading"
-              ? translate("artifact.retrieval.downloading")
-              : translate("artifact.retrieval.download"),
-            busy: downloadState === "loading",
-            onClick: () => void download(),
-            testId: "artifact-retrieval-download",
-          }
-          : undefined}
-        pinControl={
-          <ArtifactPinControl
-            key={`pin:${scope.sessionGeneration}:${artifactId}`}
-            artifact={view.artifact}
-            onUpdated={async () => {
-              await Promise.all([
-                artifact.refetch(),
-                queryClient.invalidateQueries({
-                  queryKey: artifactStorageQueryOptions(api, scope).queryKey,
-                }),
-              ]);
-            }}
-          />
-        }
-        previewHandoff={selectedVersion
-          ? (
-            <ArtifactPreviewHandoff
-              key={`handoff:${scope.sessionGeneration}:${selectedVersion.id}`}
-              version={selectedVersion}
-            />
-          )
-          : null}
-        notices={notices}
-        banner={
-          <>
-            <ArtifactStorageStatus
-              key={`storage:${scope.sessionGeneration}:${scope.organizationId}`}
-            />
-            {downloadFeedback}
-          </>
-        }
-        evidence={{
-          title: translate("artifact.view.evidence"),
-          baseLabel: translate("artifact.view.base"),
-          headLabel: translate("artifact.view.head"),
-          context: translate("artifact.view.context", {
-            task: taskId,
-            step: selectedVersion?.runStepId ??
-              translate("artifact.retrieval.notAvailable"),
-          }),
-          base: selectedVersion?.subjectBaseSha ??
-            translate("artifact.retrieval.notAvailable"),
-          head: selectedVersion?.subjectHeadSha ??
-            translate("artifact.retrieval.notAvailable"),
-          digest: selectedVersion?.sha256 ??
-            translate("artifact.retrieval.notAvailable"),
-          taskAction: {
-            label: translate("artifact.view.openTask"),
-            onClick: () => {
-              void navigate({ to: "/tasks/$taskId", params: { taskId } });
-            },
-          },
-          details: {
-            label: translate("artifact.view.details"),
-            open: detailsOpen,
-            onOpenChange: setDetailsOpen,
-            content: (
-              <>
-                {versionPages.hasNext
-                  ? (
-                    <UI.Button
-                      variant="secondary"
-                      data-paged-more="versions"
-                      data-paged-retry={versionPages.moreError
-                        ? "versions"
-                        : undefined}
-                      onClick={() => {
-                        versionPaging.ask();
-                        versionPages.loadMore();
-                      }}
-                      disabled={versionPages.loadingMore}
-                    >
-                      {translate("artifact.version.more")}
-                    </UI.Button>
-                  )
-                  : null}
-                {content}
-              </>
-            ),
-          },
-        }}
-        preview={selectedVersion
-          ? (
-            <ArtifactContentPreview
-              key={`${scope.sessionGeneration}:${selectedVersion.id}`}
-              version={selectedVersion}
-              onDownload={() => void download()}
-              onViewDetails={() => setDetailsOpen(true)}
-            />
-          )
-          : (
-            <ArtifactPreviewView
-              label={translate("artifact.preview.title")}
-              state="unavailable"
-              unavailable={{
-                title: translate(
-                  view.artifact.currentVersionId === null
-                    ? "artifact.retrieval.emptyNotice"
-                    : "artifact.retrieval.missingVersionTitle",
-                ),
-                description: translate(
-                  view.artifact.currentVersionId === null
-                    ? "artifact.retrieval.description"
-                    : "artifact.retrieval.missingVersionDescription",
-                ),
-                action: {
-                  label: translate("artifact.view.openTask"),
-                  onClick: () => {
-                    void navigate({ to: "/tasks/$taskId", params: { taskId } });
-                  },
-                },
+      <>
+        <UI.VisuallyHidden aria-live="polite" as="div" role="status">
+          {arrival}
+        </UI.VisuallyHidden>
+        <ArtifactRetrievalView
+          aside={editing && canEdit && !phone
+            ? (
+              <UI.Stack
+                data-testid="artifact-suggestions-host"
+                gap="standard"
+                ref={setSuggestionsHost}
+              >
+                {null}
+              </UI.Stack>
+            )
+            : undefined}
+          testId="artifact-retrieval-page"
+          title={title}
+          artifactLabel={translate("artifact.view.eyebrow")}
+          kind={selectedVersion?.mediaType ?? view.artifact.artifactType}
+          revision={selectedVersion
+            ? translate("artifact.version.label", {
+              revision: selectedVersion.revision,
+            })
+            : translate("artifact.retrieval.noCurrentVersion")}
+          description={selectedVersion
+            ? translate("artifact.view.description", {
+              author: selectedVersion.authorId,
+              step: selectedVersion.runStepId ??
+                translate("artifact.retrieval.notAvailable"),
+              // One formatter for every size on the page: the sentence must not
+              // say "317705 bytes" above a facts line saying "310.3 KB" (#437).
+              size: formatFileSize(selectedVersion.sizeBytes, locale, sizeText),
+            })
+            : translate("artifact.retrieval.emptyNotice")}
+          versionLabel={translate("artifact.retrieval.versionsTitle")}
+          versionId={selectedVersion?.id ?? ""}
+          versions={versionItems.map((version) => ({
+            id: version.id,
+            label: translate("artifact.version.label", {
+              revision: version.revision,
+            }),
+          }))}
+          onVersionChange={(version) => {
+            void navigate({
+              to: "/tasks/$taskId/artifacts/$artifactId",
+              params: { taskId, artifactId },
+              search: { version },
+            });
+          }}
+          download={selectedVersion && offersDownload({
+              mismatch: digestMismatch,
+              contentRemoved: false,
+            })
+            ? {
+              label: downloadState === "loading"
+                ? translate("artifact.retrieval.downloading")
+                : translate("artifact.retrieval.download"),
+              busy: downloadState === "loading",
+              onClick: () => void download(),
+              testId: "artifact-retrieval-download",
+            }
+            : undefined}
+          editControl={canEdit
+            ? (
+              <UI.Button
+                aria-pressed={editing}
+                data-testid="artifact-edit-toggle"
+                onClick={() => setEditing((on) => !on)}
+                variant={editing ? "outline" : "primary"}
+              >
+                {translate(
+                  editing ? "artifact.edit.stop" : "artifact.edit.action",
+                )}
+              </UI.Button>
+            )
+            : undefined}
+          pinControl={
+            <ArtifactPinControl
+              key={`pin:${scope.sessionGeneration}:${artifactId}`}
+              artifact={view.artifact}
+              onUpdated={async () => {
+                await Promise.all([
+                  artifact.refetch(),
+                  queryClient.invalidateQueries({
+                    queryKey: artifactStorageQueryOptions(api, scope).queryKey,
+                  }),
+                ]);
               }}
             />
-          )}
-        discussion={discussion}
-        comments={{
-          title: translate("artifact.comments.title"),
-          openLabel: translate("artifact.comments.title"),
-          linkedCommentId,
-        }}
-      />
+          }
+          // A damaged file's page must not offer to open a preview of it: the
+          // Banner below says Bakery will not show it, and a handoff beside it
+          // would say the opposite (#437).
+          previewHandoff={selectedVersion && offersDownload({
+              mismatch: digestMismatch,
+              contentRemoved: false,
+            })
+            ? (
+              <ArtifactPreviewHandoff
+                key={`handoff:${scope.sessionGeneration}:${selectedVersion.id}`}
+                version={selectedVersion}
+              />
+            )
+            : null}
+          notices={notices}
+          banner={
+            <>
+              {landing.gone && (
+                <UI.InlineNotice tone="information">
+                  {translate("notifications.landing.partGone")}
+                </UI.InlineNotice>
+              )}
+              <ArtifactStorageStatus
+                key={`storage:${scope.sessionGeneration}:${scope.organizationId}`}
+              />
+              {downloadFeedback}
+            </>
+          }
+          evidence={{
+            title: translate("artifact.view.evidence"),
+            baseLabel: translate("artifact.view.base"),
+            headLabel: translate("artifact.view.head"),
+            context: translate("artifact.view.context", {
+              task: taskId,
+              step: selectedVersion?.runStepId ??
+                translate("artifact.retrieval.notAvailable"),
+            }),
+            base: selectedVersion?.subjectBaseSha ??
+              translate("artifact.retrieval.notAvailable"),
+            head: selectedVersion?.subjectHeadSha ??
+              translate("artifact.retrieval.notAvailable"),
+            digest: selectedVersion?.sha256 ??
+              translate("artifact.retrieval.notAvailable"),
+            taskAction: {
+              label: translate("artifact.view.openTask"),
+              onClick: () => {
+                void navigate({ to: "/tasks/$taskId", params: { taskId } });
+              },
+            },
+            details: {
+              label: translate("artifact.view.details"),
+              open: detailsOpen,
+              onOpenChange: setDetailsOpen,
+              content: (
+                <>
+                  {versionPages.hasNext
+                    ? (
+                      <UI.Button
+                        variant="secondary"
+                        data-paged-more="versions"
+                        data-paged-retry={versionPages.moreError
+                          ? "versions"
+                          : undefined}
+                        onClick={() => {
+                          versionPaging.ask();
+                          versionPages.loadMore();
+                        }}
+                        disabled={versionPages.loadingMore}
+                      >
+                        {translate("artifact.version.more")}
+                      </UI.Button>
+                    )
+                    : null}
+                  {content}
+                </>
+              ),
+            },
+          }}
+          preview={editing && canEdit
+            ? (
+              <ArtifactEditor
+                artifactId={artifactId}
+                key={`edit:${scope.sessionGeneration}:${artifactId}`}
+                onViewVersion={() => setEditing(false)}
+                suggestionsHost={phone ? null : suggestionsHost}
+                taskId={taskId}
+                publishedVersion={versionPages.items.find((candidate) =>
+                  candidate.id === view.artifact.currentVersionId
+                )?.revision ?? null}
+              />
+            )
+            : selectedVersion
+            ? (
+              <ArtifactContentPreview
+                key={`${scope.sessionGeneration}:${selectedVersion.id}`}
+                version={selectedVersion}
+                onDownload={() => void download()}
+                onViewDetails={() => setDetailsOpen(true)}
+                onMismatch={setDigestMismatch}
+              />
+            )
+            : (
+              <ArtifactPreviewView
+                label={translate("artifact.preview.title")}
+                state="unavailable"
+                unavailable={{
+                  title: translate(
+                    view.artifact.currentVersionId === null
+                      ? "artifact.retrieval.emptyNotice"
+                      : "artifact.retrieval.missingVersionTitle",
+                  ),
+                  description: translate(
+                    view.artifact.currentVersionId === null
+                      ? "artifact.retrieval.description"
+                      : "artifact.retrieval.missingVersionDescription",
+                  ),
+                  action: {
+                    label: translate("artifact.view.openTask"),
+                    onClick: () => {
+                      void navigate({
+                        to: "/tasks/$taskId",
+                        params: { taskId },
+                      });
+                    },
+                  },
+                }}
+              />
+            )}
+          discussion={discussion}
+          comments={{
+            title: translate("artifact.comments.title"),
+            openLabel: translate("artifact.comments.title"),
+            linkedCommentId,
+          }}
+        />
+      </>
     );
   }
   if (view.kind === "loading") {

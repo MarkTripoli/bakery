@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   createServerTelemetry,
   createServerTelemetryFromConfig,
@@ -75,70 +75,39 @@ Deno.test("a configured log directory produces a sink that actually exports", as
   }
 });
 
-Deno.test("an OTLP endpoint alone is enough to enable export", async () => {
-  const sent: unknown[] = [];
-  const config = readTelemetrySinkConfig(
-    withEnv({
-      BAKERY_OTLP_ENDPOINT: "https://collector.example.test",
-    }),
-  );
-  assert(config !== undefined);
-
-  const telemetry = createServerTelemetryFromConfig(config, {
-    fetch: ((_url: string, init: { body: string }) => {
-      sent.push(JSON.parse(init.body));
-      return Promise.resolve(new Response("", { status: 200 }));
-    }) as unknown as typeof fetch,
+Deno.test("saved destinations alone are enough to enable export", async () => {
+  const received: string[] = [];
+  const telemetry = createServerTelemetryFromConfig(undefined, {
+    destinations: (batch) => {
+      for (const record of batch) {
+        if (record.kind === "event") received.push(record.name);
+      }
+    },
   });
   assertEquals(telemetry.stats().disabled, false);
 
   telemetry.event("job.completed", { "bakery.outcome": "completed" });
   await telemetry.close(2_000);
-  assert(sent.length > 0, "the OTLP destination received nothing");
+  assertEquals(received, ["job.completed"]);
 });
 
-Deno.test("a collector token reaches the request and never reaches a log", async () => {
-  // The reviewer's other Medium: the sink accepted headers and nothing supplied
-  // them, so a token-protected collector answered 401. The value is a secret, so
-  // the second half of this test matters as much as the first.
-  const token = "canary-otlp-token-8f3a2b";
-  const seen: Record<string, string>[] = [];
-  const directory = await Deno.makeTempDir({ prefix: "bakery-telemetry-" });
-  try {
-    const config = readTelemetrySinkConfig(withEnv({
-      BAKERY_TELEMETRY_LOG_DIR: directory,
-      BAKERY_OTLP_ENDPOINT: "https://collector.example.test",
-      BAKERY_OTLP_HEADERS: `Authorization=Bearer ${token}`,
-    }));
-    assert(config !== undefined);
-    const telemetry = createServerTelemetryFromConfig(config, {
-      fetch: ((_url: string, init: { headers: Record<string, string> }) => {
-        seen.push(init.headers);
-        return Promise.resolve(new Response("", { status: 200 }));
-      }) as unknown as typeof fetch,
-    });
-
-    telemetry.event("job.completed", { "bakery.outcome": "completed" });
-    await telemetry.close(2_000);
-
-    assert(seen.length > 0, "no OTLP request was made");
-    assertEquals(
-      seen[0]!["authorization"] ?? seen[0]!["Authorization"],
-      `Bearer ${token}`,
+Deno.test("the removed OTLP environment variables are refused at boot, not ignored", () => {
+  // An operator who still sets them would otherwise see telemetry silently stop.
+  for (
+    const env of [
+      withEnv({ BAKERY_OTLP_ENDPOINT: "https://collector.example.test" }),
+      withEnv({ BAKERY_OTLP_HEADERS: "Authorization=Bearer t" }),
+      withEnv({
+        BAKERY_TELEMETRY_LOG_DIR: "/var/log/bakery",
+        BAKERY_OTLP_ENDPOINT: "https://collector.example.test",
+      }),
+    ]
+  ) {
+    assertThrows(
+      () => readTelemetrySinkConfig(env),
+      Error,
+      "TELEMETRY_OTLP_ENV_REMOVED",
     );
-
-    // The canary must not appear anywhere in what was written to disk.
-    for await (const entry of Deno.readDir(directory)) {
-      if (!entry.isFile) continue;
-      const text = await Deno.readTextFile(`${directory}/${entry.name}`);
-      assertEquals(
-        text.includes(token),
-        false,
-        `the collector token was written to ${entry.name}`,
-      );
-    }
-  } finally {
-    await Deno.remove(directory, { recursive: true });
   }
 });
 
@@ -146,14 +115,8 @@ Deno.test("a destination that never answers cannot hold the server", async () =>
   // AC1, at the wiring level: the exporter's bounds are what keep a hung
   // destination from becoming a hung server, and they must hold for the sink
   // this slice supplies rather than only for a test double.
-  const config = readTelemetrySinkConfig(
-    withEnv({
-      BAKERY_OTLP_ENDPOINT: "https://collector.example.test",
-    }),
-  );
-  assert(config !== undefined);
-  const telemetry = createServerTelemetryFromConfig(config, {
-    fetch: (() => new Promise<Response>(() => undefined)) as typeof fetch,
+  const telemetry = createServerTelemetryFromConfig(undefined, {
+    destinations: () => new Promise<void>(() => undefined),
   });
 
   for (let index = 0; index < 5_000; index += 1) {
@@ -181,10 +144,6 @@ Deno.test("a configuration with no destination is refused, not accepted as expor
   // defect this work removes.
   for (
     const env of [
-      // Headers with nothing to send them to.
-      withEnv({ BAKERY_OTLP_HEADERS: "Authorization=Bearer t" }),
-      // An empty headers value is still the operator reaching for telemetry.
-      withEnv({ BAKERY_OTLP_HEADERS: "" }),
       // A bound with no destination reads the same way.
       withEnv({ BAKERY_TELEMETRY_LOG_MAX_BYTES: "8192" }),
       withEnv({ BAKERY_TELEMETRY_LOG_MAX_FILES: "3" }),
@@ -210,15 +169,8 @@ Deno.test("a malformed configuration fails at boot instead of silently disabling
   for (
     const env of [
       withEnv({ BAKERY_TELEMETRY_LOG_DIR: "relative/path" }),
-      withEnv({ BAKERY_OTLP_ENDPOINT: "http://collector.example.test" }),
-      withEnv({ BAKERY_OTLP_ENDPOINT: "https://user:pass@collector.test/v1" }),
-      // A signal URL cannot serve both signals, so it is refused.
-      withEnv({ BAKERY_OTLP_ENDPOINT: "https://collector.test/v1/traces" }),
       withEnv({ BAKERY_TELEMETRY_LOG_MAX_BYTES: "1e9" }),
       withEnv({ BAKERY_TELEMETRY_LOG_MAX_FILES: "0" }),
-      // A header with no name or value is refused instead of silently dropped.
-      withEnv({ BAKERY_OTLP_HEADERS: "Authorization" }),
-      withEnv({ BAKERY_OTLP_HEADERS: "=token" }),
     ]
   ) {
     let threw = false;

@@ -24,6 +24,7 @@ import { useAuthBrandProps } from "../screens/auth-brand.tsx";
 export { AUTH_RETURN_TO_KEY, rememberCurrentReturnTo } from "./auth-return.ts";
 export {
   BACKUP_CODES_PATH,
+  FORGOT_PASSWORD_PATH,
   INVITATION_PATH,
   isAuthEntryPath,
   isPublicAuthPath,

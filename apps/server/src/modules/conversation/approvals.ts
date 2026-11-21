@@ -21,7 +21,13 @@ import type { ApprovedPlanForInstructions } from "@bakery/contracts/workflow-pre
 import type { PlanRevisionBody } from "./plan-revisions.ts";
 import { lockConversationScope } from "./postgres.ts";
 import { decideHumanApproval } from "../work/human-approval-store.ts";
+import {
+  AgentPower,
+  assertAgentMayExercise,
+  assertAgentMayTarget,
+} from "../auth/application/agent-power-grants.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { mayActOnQuestion } from "../auth/application/run-grants.ts";
 import {
   approvalPolicyDigest,
   effectiveApprovalPolicy,
@@ -505,6 +511,28 @@ export function createApprovalsListHandler(secret: string) {
   };
 }
 
+/**
+ * An approval private to named principals does not exist for anyone else,
+ * unless they were given the right to decide exactly this one (#456): that
+ * grant replaces the audience check for this row and reaches nothing else.
+ */
+async function assertMayDecide(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: ApprovalRow,
+  principalId: string,
+): Promise<void> {
+  if (
+    !await mayActOnQuestion(
+      transaction,
+      organizationId,
+      principalId,
+      { id: row.id, audience: row.audience },
+      "approve",
+    )
+  ) notFound();
+}
+
 /** An approval private to named principals does not exist for anyone else. */
 function assertAudienceMember(row: ApprovalRow, principalId: string): void {
   if (
@@ -520,7 +548,7 @@ export async function getApproval(context: ActionContext) {
   const id = context.params.id;
   if (!id) notFound();
   const row = await loadApproval(transaction, organizationId, id);
-  assertAudienceMember(row, principalId);
+  await assertMayDecide(transaction, organizationId, row, principalId);
   return toApproval(row);
 }
 
@@ -556,7 +584,38 @@ export async function decideApproval(
   // Same refusal as approvals.get, ahead of the archived refusal below: a
   // non-audience caller cannot confirm the approval exists, whatever its
   // conversation state.
-  assertAudienceMember(peek, principalId);
+  await assertMayDecide(transaction, organizationId, peek, principalId);
+
+  // An agent decides only where a person granted it (O52), only a step approval
+  // (the one path that records who decided), and never the approval of its own
+  // run's output (O51: nothing for oneself). A person passes untouched.
+  const exercised = await assertAgentMayExercise(transaction, context, {
+    organizationId,
+    principalId,
+    power: AgentPower.Decide,
+  });
+  const byAgent = exercised.attribution.actorKind === "agent";
+  if (byAgent) {
+    if (peek.subject_type !== "run_step") {
+      conflict("agent_decision_unsupported");
+    }
+    const subject = await transaction.query<{ run_id: string | null }>(
+      `select run_id from bakery.questions
+        where organization_id = $1 and id = $2`,
+      [organizationId, id],
+    );
+    // An approval with no run has no workflow to match a grant to.
+    if (subject.rows[0]?.run_id == null) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+    // Never its own work (its run, a retry, its task lineage), and the approval's
+    // own workflow must hold the decide power too.
+    await assertAgentMayTarget(transaction, exercised, {
+      organizationId,
+      power: AgentPower.Decide,
+      targetRunId: subject.rows[0].run_id,
+    });
+  }
 
   // A step approval and a stage approval are decided by the same route, so a
   // caller has one place to answer and one vocabulary of refusals. The step path
@@ -579,7 +638,13 @@ export async function decideApproval(
       decision: input.decision,
       ...(comment === "" ? {} : { note: comment }),
       expectedVersion: input.expectedVersion,
-      actorKind: "person",
+      // Labelled as an agent's action, with the session that made the call and
+      // the person it acted for (O50).
+      actorKind: exercised.attribution.actorKind,
+      ...(byAgent && exercised.origin?.agentSessionId
+        ? { sessionId: exercised.origin.agentSessionId }
+        : {}),
+      ...(byAgent ? { onBehalfOf: principalId } : {}),
       traceId: context.requestId,
       applicationId: scope.rows[0]!.application_id,
       repositoryId: scope.rows[0]!.repository_id,
@@ -595,7 +660,7 @@ export async function decideApproval(
     "update",
   );
   const row = await loadApproval(transaction, organizationId, id, true);
-  assertAudienceMember(row, principalId);
+  await assertMayDecide(transaction, organizationId, row, principalId);
   if (
     row.subject_type !== "plan_revision" && row.subject_type !== "run_stage"
   ) {

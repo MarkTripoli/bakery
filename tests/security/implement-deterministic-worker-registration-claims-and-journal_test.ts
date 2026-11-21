@@ -288,9 +288,18 @@ Deno.test("execution grants match the worker SQL operations", () =>
        -- (packages/persistence/src/worker-session.ts re-pair branch, 0124).
        ('bakery.worker_hosts', 'capabilities', 'UPDATE'),
        ('bakery.jobs', 'organization_id', 'UPDATE'),
-       ('bakery.jobs', 'input', 'UPDATE'),
+       -- jobs.input UPDATE is granted for restart-with-a-note (0234, #412 slice 3b):
+       -- the note is appended to input.stepNotes, and admission and claim check
+       -- input against the run snapshot and recorded note deliveries.
        ('bakery.jobs', 'requirements', 'UPDATE'),
-       ('bakery.jobs', 'billing', 'UPDATE'),
+       -- jobs.billing and jobs.agent_config UPDATE are granted for route continuations
+       -- (0265, #26): a continuation re-points a job's pin in place. One database role
+       -- serves the worker routes and the admission, so the grant cannot be split by
+       -- role. The pin is guarded where it is used: the claim refuses a job whose
+       -- billing or configuration left the run's frozen one unless a continuation
+       -- recorded for that job targeted that route (tests/integration/admit-route-continuations_test.ts).
+       -- The exact column grants on jobs and the budget intents are pinned by
+       -- application-role-grants-on-job-billing-are-pinned_test.ts.
        ('bakery.jobs', 'installation_reservation_id', 'UPDATE'),
        ('bakery.job_attempts', 'organization_id', 'UPDATE'),
        ('bakery.job_attempts', 'job_id', 'UPDATE'),

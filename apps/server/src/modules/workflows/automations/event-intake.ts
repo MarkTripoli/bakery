@@ -31,6 +31,7 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "../../../platform/database.ts";
+import { isQuiesced } from "../../../platform/maintenance.ts";
 import {
   authorityVerdict,
   RouteOutcomeCode,
@@ -93,7 +94,8 @@ export type AutomationRouteOutcome =
       | "not_automation"
       | "terminal"
       | "not_due"
-      | "in_progress";
+      | "in_progress"
+      | "quiesced";
   }>
   | Readonly<{
     kind: "settled";
@@ -126,6 +128,12 @@ async function claim(
   routeId: string,
 ): Promise<ClaimResult> {
   return await withPgTransaction(database, async (transaction) => {
+    // A backup holds the installation: leave the route as it is, unclaimed and
+    // with no attempt counted, so a long hold cannot use up its attempts and a
+    // firing is not refused part way. The recovery sweep resends it after.
+    if (await isQuiesced(transaction, "intake")) {
+      return { kind: "skipped", reason: "quiesced" } as const;
+    }
     const found = await transaction.query<{
       id: string;
       organizationId: string;

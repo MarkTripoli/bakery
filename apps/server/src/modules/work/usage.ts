@@ -208,11 +208,17 @@ export async function readUsageSummary(
             )::text as "unverifiedCostUsd",
             count(*) filter (where usage.measurement = 'unknown')::text
               as "unknownCount",
+            /* Records that reported a cost the provider has not confirmed.
+               A record with no cost at all is counted as unknown above and
+               left out here: adding the two populations together made this
+               line say "2 records" for one report beside one silence, which
+               is a count of neither. */
             count(*) filter (
-              where not (
-                usage.provenance = 'provider-authoritative'
-                and receipt.id is not null
-              )
+              where usage.measurement <> 'unknown'
+                and not (
+                  usage.provenance = 'provider-authoritative'
+                  and receipt.id is not null
+                )
             )::text as "unverifiedCount",
             sum(usage.input_tokens)::text as "inputTokens",
             sum(usage.output_tokens)::text as "outputTokens"

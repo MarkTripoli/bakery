@@ -20,7 +20,7 @@ const catalog = JSON.parse(
 ) as { actions: Array<Record<string, unknown>> };
 
 Deno.test("every implemented conversation action is a catalog action with permission and organization context", () => {
-  assertEquals(conversationImplementedActions.length, 13);
+  assertEquals(conversationImplementedActions.length, 17);
   for (const name of Object.values(ConversationImplementedAction)) {
     const entry = catalog.actions.find((action) => action.action === name);
     assert(entry, `${name} missing from the catalog`);

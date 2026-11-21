@@ -29,6 +29,7 @@ import {
   PrincipalType,
 } from "../../packages/contracts/src/contracts.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
+import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
 import {
   hasAnyRole,
   type OrganizationActor,
@@ -889,6 +890,7 @@ Deno.test("organization read projections use canonical rows and preserve null ro
             id: serviceId,
             organizationId: organizationA,
             principalId: serviceId,
+            displayName: "Build agent",
             role: null,
             status: "active",
             joinedAt: createdAt,
@@ -982,6 +984,8 @@ Deno.test("organization read projections use canonical rows and preserve null ro
   assertEquals(organizations.items[0].metadata, { source: "canonical" });
   assertEquals(organization.metadata, { source: "canonical" });
   assertEquals(memberships.items[0].role, null);
+  // A member list names people (#69): the principal's display name is served.
+  assertEquals(memberships.items[0].displayName, "Build agent");
   assertEquals(invitations.items[0].inviterPrincipalId, serviceId);
   assertEquals(recipient.inviterId, serviceId);
   assertEquals(recipient.inviterEmail, null);
@@ -1186,4 +1190,150 @@ Deno.test("recipient acceptance locks canonical state and returns one member", a
     ),
     true,
   );
+});
+
+Deno.test("organizationIdQuery is only for a GET action with required organization context", () => {
+  const base = {
+    name: "storageFiles.content" as const,
+    path: "/v1/storage/files/:id/content",
+    input: contractSchemas.StorageFileContentQuery,
+    output: contractSchemas.BinaryArtifact,
+    handler: () => null as never,
+  };
+  const scoped = {
+    type: ActionKind.Query,
+    access: "Developer",
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+    organizationIdQuery: "organizationId",
+  } as const;
+  new ActionRegistry().register({
+    ...base,
+    method: HttpMethod.Get,
+    policy: scoped,
+  });
+  assertThrows(
+    () =>
+      new ActionRegistry().register({
+        ...base,
+        method: HttpMethod.Post,
+        policy: scoped,
+      }),
+    ActionRegistryError,
+    "organizationIdQuery",
+  );
+  for (
+    const organizationContext of [
+      OrganizationContextPolicy.None,
+      OrganizationContextPolicy.AuthenticatedPrincipalScope,
+    ]
+  ) {
+    assertThrows(
+      () =>
+        new ActionRegistry().register({
+          ...base,
+          method: HttpMethod.Get,
+          policy: { ...scoped, organizationContext },
+        }),
+      ActionRegistryError,
+      "organizationIdQuery",
+    );
+  }
+});
+
+Deno.test("organizationIdQuery must be a plain query parameter name", () => {
+  const definition = (organizationIdQuery: string) => ({
+    name: "storageFiles.content" as const,
+    method: HttpMethod.Get,
+    path: "/v1/storage/files/:id/content",
+    input: contractSchemas.StorageFileContentQuery,
+    output: contractSchemas.BinaryArtifact,
+    handler: () => null as never,
+    policy: {
+      type: ActionKind.Query,
+      access: "Developer",
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+      organizationIdQuery,
+    } as const,
+  });
+  new ActionRegistry().register(definition("organizationId"));
+  for (const bad of ["org id", "", "a/b", "1org", "org-id"]) {
+    assertThrows(
+      () => new ActionRegistry().register(definition(bad)),
+      ActionRegistryError,
+      "organizationIdQuery",
+    );
+  }
+});
+
+Deno.test("the catalog and the runtime agree on the organization query parameter", () => {
+  const action = {
+    name: "storageFiles.content" as const,
+    method: HttpMethod.Get,
+    path: "/v1/storage/files/:id/content",
+    input: contractSchemas.StorageFileContentQuery,
+    output: contractSchemas.BinaryArtifact,
+    handler: () => null as never,
+  };
+  const policy = {
+    type: ActionKind.Query,
+    access: "Developer",
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  } as const;
+  assertRegisteredActions(
+    new ActionRegistry().register({
+      ...action,
+      policy: { ...policy, organizationIdQuery: "organizationId" },
+    }),
+  );
+  assertThrows(
+    () =>
+      assertRegisteredActions(
+        new ActionRegistry().register({ ...action, policy }),
+      ),
+    ActionRegistryError,
+    "organization id query parameter",
+  );
+});
+
+Deno.test("an action that does not declare the query never reads it, so the authority asks for the header", async () => {
+  const organizationId = "00000000-0000-4000-8000-0000000000a1";
+  // The organization must be resolved before any database work, so a database
+  // that is touched at all means the query was read as the organization.
+  const database = {
+    connect: () => Promise.reject(new Error("DATABASE_TOUCHED")),
+  } as unknown as PgDatabase;
+  const run = (organizationIdQuery?: string) =>
+    new ActionRegistry(new PostgresAuthorityRunner(database)).register({
+      name: "organization.scoped" as CatalogActionName,
+      method: HttpMethod.Get,
+      path: "/v1/scoped",
+      input: contractSchemas.Empty,
+      output: contractSchemas.NoContent,
+      policy: {
+        type: "query",
+        access: "Authenticated",
+        organizationContext:
+          OrganizationContextPolicy.RequiredAuthenticatedContext,
+        ...(organizationIdQuery === undefined ? {} : { organizationIdQuery }),
+        authorize: () => {},
+      },
+      handler: () => null,
+    }).execute("organization.scoped", {
+      ...context(),
+      request: new Request(
+        `http://test/v1/scoped?organizationId=${organizationId}`,
+      ),
+      principal: {
+        principalId: asPrincipalId("00000000-0000-4000-8000-000000000001"),
+        principalType: PrincipalType.Human,
+        displayName: "Bakery User",
+      },
+    }, {});
+
+  const undeclared = await assertRejects(() => run(), StandardError);
+  assertEquals(undeclared.code, "SCOPE_REQUIRED");
+  // Control: the same request with the query declared gets past the
+  // organization and reaches the database.
+  await assertRejects(() => run("organizationId"), Error, "DATABASE_TOUCHED");
 });

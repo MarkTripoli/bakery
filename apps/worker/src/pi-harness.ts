@@ -1,4 +1,5 @@
 import { join, relative, resolve } from "node:path";
+import { withStepNotes } from "./step-notes-prompt.ts";
 import {
   boundedNativeDiagnostic,
   enforceWorkerFixedPolicy,
@@ -1521,9 +1522,12 @@ async function executePiHarness(
   ].join(" ");
   const prompt = repair !== undefined
     ? buildRepairPrompt(repair)
-    : instructions === undefined
-    ? basePrompt
-    : `${basePrompt}\n\nTask instructions:\n${instructions}`;
+    : withStepNotes(
+      instructions === undefined
+        ? basePrompt
+        : `${basePrompt}\n\nTask instructions:\n${instructions}`,
+      input,
+    );
   const commitMessage = repair !== undefined
     ? repairCommitMessage(repair.revision)
     : `bakery: plan artifact ${planArtifact}`;

@@ -91,7 +91,7 @@ async function createIdentityJob(
     fixture.principalId,
     {
       action: "secret.identity.read",
-      input: { secretRef: placeholder },
+      input: { identityRef: placeholder },
     },
   );
   const created = await f.request("/v1/secrets", {
@@ -107,7 +107,7 @@ async function createIdentityJob(
   const secret = await created.json() as { id: string };
   await fixture.pgDatabase.query(
     `update bakery.jobs
-        set input = jsonb_set(input, '{secretRef}', to_jsonb($2::text), true)
+        set input = jsonb_set(input, '{identityRef}', to_jsonb($2::text), true)
       where organization_id = $1 and id = $3`,
     [fixture.organizationId, secret.id, job.jobId],
   );
@@ -115,7 +115,7 @@ async function createIdentityJob(
     `update bakery.workflow_runs
         set snapshot = jsonb_set(
           snapshot,
-          '{workflow,normalizedSpec,steps,0,with,secretRef}',
+          '{workflow,normalizedSpec,steps,0,with,identityRef}',
           to_jsonb($2::text),
           true
         )
@@ -1192,7 +1192,7 @@ Deno.test("cloud-only identity work is skipped before attempt, preparation, or p
       fixture.principalId,
       {
         action: "secret.identity.read",
-        input: { secretRef: crypto.randomUUID() },
+        input: { identityRef: crypto.randomUUID() },
         capabilities: ["secret.identity"],
         legacy: true,
       },

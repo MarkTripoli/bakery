@@ -32,6 +32,26 @@ export type SessionOperationClaim = Readonly<{
   attemptId: string;
   /** The principal the agent acts for; the audit's subject (O50). */
   actsForPrincipalId: string;
+  /**
+   * The kind of principal that id names.
+   *
+   * A session call runs the action's own authority guard as this person, and
+   * that guard needs a typed subject: a bare id cannot tell it whether it is
+   * looking at a human or a service.
+   */
+  actsForPrincipalType: string;
+  /**
+   * The acting person's display name, joined at resolve time.
+   *
+   * Dispatched actions run their own authority guard as this person, and that
+   * guard refuses a subject it cannot name. Carrying it means a session call is
+   * judged by the same rule as a person's own request instead of failing inside
+   * the guard for a reason that has nothing to do with authority.
+   *
+   * Optional on the issuer and filled at resolve time: the credential row stores
+   * no name, so minting cannot know it and must not invent one.
+   */
+  actsForPrincipalDisplayName?: string;
   /** The worker session and generation that claimed the attempt. */
   workerSessionId: string;
   workerSessionGeneration: bigint;
@@ -70,7 +90,13 @@ export class SessionOperationError extends Error {
       | "SESSION_CREDENTIAL_INVALID"
       | "SESSION_CREDENTIAL_EXPIRED"
       | "SESSION_CREDENTIAL_FENCE_STALE"
-      | "SESSION_SCOPE_DENIED",
+      | "SESSION_SCOPE_DENIED"
+      /**
+       * A claim that cannot name the person it acts for gets no credential.
+       * O50 requires the audit to name that principal, and an unattributable
+       * audit row is worse than a failed claim because it looks like evidence.
+       */
+      | "SESSION_CREDENTIAL_NO_PRINCIPAL",
   ) {
     super(code);
     this.name = "SessionOperationError";
@@ -96,6 +122,12 @@ export function issueSessionOperationCredential(input: {
   organizationId: string;
   attemptId: string;
   actsForPrincipalId: string;
+  /**
+   * Optional on the issuer only, so a caller that holds no principal row is not
+   * forced to invent a type; the claim path always supplies the real one. The
+   * fallback is the narrowest type, never the widest.
+   */
+  actsForPrincipalType?: string;
   workerSessionId: string;
   workerSessionGeneration: bigint;
   fence: bigint;
@@ -124,6 +156,7 @@ export function issueSessionOperationCredential(input: {
       organizationId: input.organizationId,
       attemptId: input.attemptId,
       actsForPrincipalId: input.actsForPrincipalId,
+      actsForPrincipalType: input.actsForPrincipalType ?? "worker",
       workerSessionId: input.workerSessionId,
       workerSessionGeneration: input.workerSessionGeneration,
       fence: input.fence,

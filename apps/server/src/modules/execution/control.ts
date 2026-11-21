@@ -31,7 +31,16 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "@bakery/persistence";
-import { appendDomainEvent } from "@bakery/persistence/event-audit";
+import {
+  appendAudit,
+  appendDomainEvent,
+} from "@bakery/persistence/event-audit";
+import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
+import {
+  AgentPower,
+  assertAgentMayExercise,
+  assertAgentMayTarget,
+} from "../auth/application/agent-power-grants.ts";
 import {
   PostgresAuthorityRunner,
   resolveOrganizationActor,
@@ -63,6 +72,11 @@ import {
   getAgentSession,
   steerAgentSession,
 } from "./sessions.ts";
+import { createRunStepNote } from "./step-notes.ts";
+import { getHandoffManifest } from "./handoff-manifests.ts";
+import { admitHandoffContinuation } from "./handoff-continuations.ts";
+import { takeOverRunStep } from "./step-takeover.ts";
+import { revertRunStepWrites } from "./step-write-revert.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
 import { openSessionFeedStream } from "./session-feed-stream.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
@@ -308,13 +322,30 @@ async function runControlCapabilitiesAction(
   return await readRunControlCapabilities(transaction, organizationId, runId);
 }
 
-async function runControlAction(
+export async function runControlAction(
   context: ActionContext,
   input: RunControlInput,
 ): Promise<RunOutput> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
   const runId = context.params.id;
   if (!runId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  // An agent controls a run only where a person granted it the power (O52). A
+  // person passes untouched. Checked before anything is read or written, so a
+  // refusal leaves no trace.
+  const exercised = await assertAgentMayExercise(transaction, context, {
+    organizationId,
+    principalId,
+    power: AgentPower.RunControl,
+  });
+  // Never its own run, another run of its task or its lineage, and the target
+  // run's workflow must hold the power too, not only the agent's own.
+  await assertAgentMayTarget(transaction, exercised, {
+    organizationId,
+    power: AgentPower.RunControl,
+    targetRunId: runId,
+  });
   const runResult = await transaction.query<RunControlRow>(
     `select ${RUN_COLUMNS},
             task.application_id,
@@ -449,6 +480,31 @@ async function runControlAction(
     [organizationId, runId],
   );
   const updated = updatedResult.rows[0] ?? run;
+  // An agent's control is recorded as the person's request, labelled as an
+  // agent's action with the attempt it came from and who it acted for (O50).
+  if (exercised.attribution.actorKind === "agent") {
+    await appendAudit(transaction, {
+      organizationId,
+      principalId,
+      operation: "runs.control.agent",
+      agentSessionId: exercised.origin?.agentSessionId ?? null,
+      resourceType: "workflow_run",
+      resourceId: runId,
+      requestId: context.requestId,
+      traceId: context.traceId,
+      details: {
+        action: input.action,
+        actorKind: "agent",
+        onBehalfOf: principalId,
+        ...(exercised.origin === null ? {} : {
+          fromRunId: exercised.origin.runId,
+          ...(exercised.origin.agentSessionId === null
+            ? {}
+            : { sessionId: exercised.origin.agentSessionId }),
+        }),
+      },
+    });
+  }
   await appendDomainEvent(transaction, {
     organizationId,
     applicationId: updated.application_id,
@@ -471,9 +527,15 @@ async function runControlAction(
   );
 }
 
-export function createExecutionRunControlApp(
-  options: ExecutionRouteOptions,
-): Hono<{ Variables: AuthVariables }> {
+/**
+ * The run-control, session-read and transcript operations, built so the routes
+ * and the session tool gateway (#414) can run the same handlers under the same
+ * authority guard. The handlers hold no state, so each caller may build its own.
+ */
+export function createRunControlRegistry(
+  options: Pick<ExecutionRouteOptions, "database" | "secret" | "agentSpawn">,
+): ActionRegistry {
+  const limits = options.agentSpawn ?? DEFAULT_AGENT_SPAWN;
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(options.database),
     createPostgresCommandRunner(),
@@ -574,14 +636,101 @@ export function createExecutionRunControlApp(
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
-    handler: steerAgentSession,
+    handler: (context, input) => steerAgentSession(context, input, limits),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.HandoffManifestsGet,
+    method: HttpMethod.Get,
+    path: "/v1/handoff-manifests/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.HandoffManifestRecord,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context) =>
+      getHandoffManifest(context).then((record) =>
+        contractSchemas.HandoffManifestRecord.parse(record)
+      ),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.HandoffManifestsContinue,
+    method: HttpMethod.Post,
+    path: "/v1/handoff-manifests/:id/continuations",
+    input: contractSchemas.HandoffContinue,
+    output: contractSchemas.HandoffContinuation,
+    policy: {
+      type: ActionKind.Command,
+      // The same access as controlling the run: retiring a live attempt to
+      // continue it elsewhere is a decision about that one run, like cancelling.
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context, input) =>
+      admitHandoffContinuation(context, input).then((record) =>
+        contractSchemas.HandoffContinuation.parse(record)
+      ),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.RunStepsNote,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/steps/:stepKey/notes",
+    input: contractSchemas.RunStepNoteCreate,
+    output: contractSchemas.RunStepNote,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context, input) => createRunStepNote(context, input, limits),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.RunStepsTakeOver,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/steps/:stepKey/takeover",
+    input: contractSchemas.RunStepTakeOver,
+    output: contractSchemas.RunStep,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: takeOverRunStep,
+  });
+  registry.register({
+    name: ExecutionImplementedAction.RunStepsRevertWrites,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/steps/:stepKey/writes/revert",
+    input: contractSchemas.RunStepRevertWrites,
+    output: contractSchemas.RunStepWritesReverted,
+    successStatus: 200,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: revertRunStepWrites,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, executionImplementedActions);
 
+  return registry;
+}
+
+export function createExecutionRunControlApp(
+  options: ExecutionRouteOptions,
+): Hono<{ Variables: AuthVariables }> {
+  const registry = createRunControlRegistry(options);
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/runs/*", options.browserSession);
   app.use("/v1/sessions/*", options.browserSession);
+  app.use("/v1/handoff-manifests/*", options.browserSession);
   app.use("/v1/output-streams/*", options.browserSession);
   app.route(
     "/",

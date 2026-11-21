@@ -35,6 +35,10 @@ function recordingStore(): {
       calls.push({ op: "stat", key, digest: "" });
       return Promise.resolve({ sizeBytes: BYTES.length });
     },
+    delete(key) {
+      calls.push({ op: "delete", key, digest: "" });
+      return Promise.resolve(true);
+    },
     list(): AsyncIterable<SkillObject> {
       throw new Error("a request path must never enumerate across tenants");
     },

@@ -1,4 +1,14 @@
 import { z } from "zod";
+import type { PgTransactionClient } from "@bakery/persistence";
+import { sha256Hex } from "../../platform/canonical-json.ts";
+import {
+  issueCredentialForAttempt,
+  type MintedSessionCredential,
+} from "./session-claim-credential.ts";
+import {
+  attemptCredentialPrincipal,
+  revokeAttemptCredentials,
+} from "./session-credential-store.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import { DEFAULT_LEASE_SECONDS } from "@bakery/persistence";
@@ -47,6 +57,12 @@ export type ClaimResult =
 export type ClaimUnitOfWorkContext = {
   readonly identity: ClaimIdentity;
   readonly persistence: ClaimsRepository;
+  /**
+   * The claim's own transaction, so work that must commit with the lease can.
+   * The session credential is minted here: a credential written outside this
+   * transaction could name an attempt that was never leased.
+   */
+  readonly transaction: PgTransactionClient;
 };
 
 export type ClaimUnitOfWork = {
@@ -100,7 +116,8 @@ export function assignmentTraceparent(
 /**
  * Builds the envelope a worker receives. Exported so a test can assert the
  * context actually reaches the wire, rather than only that a helper computes
- * one: QA found that deleting the field here passed every test.
+ * one: QA found that deleting the field here passed every test. The same holds
+ * for the session credential added alongside it - the envelope carries both.
  */
 export function assignmentFromJob(
   job: ClaimableJob,
@@ -114,6 +131,7 @@ export function assignmentFromJob(
   leaseDurationSeconds: number,
   serverTime: Date | string,
   sealedCredentialOperation: SealedCredentialOperation | null,
+  sessionCredential: MintedSessionCredential | null,
   traceparent: string,
 ): Assignment {
   const assignment = {
@@ -141,6 +159,13 @@ export function assignmentFromJob(
     serverTime: iso(serverTime),
     sealedCredentialOperation,
     traceparent,
+    // Handed back once, here, and never stored in the clear. Omitted rather
+    // than null when there is none: the contract types this field as a string,
+    // so a null is a shape the schema rejects - and a claim that fails to parse
+    // is a worse outcome than a claim without a credential.
+    ...(sessionCredential === null
+      ? {}
+      : { sessionCredential: sessionCredential.token }),
     // Only actions whose result names a session receive the server-created one.
     ...(job.agentSessionId === null ||
         !workerActionOutputCarriesSession(job.action)
@@ -176,7 +201,8 @@ export async function executeClaim(
   return await options.unitOfWork.run(
     options.headers,
     input.workerHostId,
-    async ({ identity, persistence }) => {
+    async (context) => {
+      const { identity, persistence } = context;
       await persistence.acquireClaimLock(
         identity.host.id,
         input.claimKey,
@@ -227,9 +253,50 @@ export async function executeClaim(
           }
           await persistence.rebindLiveAttempt(replay.attemptId);
           await persistence.rebindPreparedIdentityOperation(replay.attemptId);
-          const response = contractSchemas.JobAssignment.parse(
+          const replayed = contractSchemas.JobAssignment.parse(
             await unprotect(options.secret, replay.responseCiphertext),
           ) as Assignment;
+          // The stored ciphertext carries the token the first claim minted, so
+          // re-serving it would make "returned once" false. The old credential
+          // is revoked and a fresh one minted for the response alone: a worker
+          // whose first response was lost keeps working tools, and the new
+          // token is never written to the replay store (only its digest is
+          // stored, in the credential row).
+          const {
+            sessionCredential: _withheld,
+            ...withoutCredential
+          } = replayed;
+          let response = withoutCredential as Assignment;
+          await revokeAttemptCredentials(context.transaction, {
+            organizationId: identity.host.organizationId,
+            attemptId: replay.attemptId,
+          });
+          const priorPrincipal = await attemptCredentialPrincipal(
+            context.transaction,
+            {
+              organizationId: identity.host.organizationId,
+              attemptId: replay.attemptId,
+            },
+          );
+          if (
+            priorPrincipal !== null && replayed.workerSessionId != null &&
+            replayed.sessionCredential !== undefined
+          ) {
+            const fresh = await issueCredentialForAttempt(context.transaction, {
+              organizationId: identity.host.organizationId,
+              attemptId: replay.attemptId,
+              actsForPrincipalId: priorPrincipal.principalId,
+              actsForPrincipalType: priorPrincipal.principalType,
+              workerSessionId: replayed.workerSessionId,
+              workerSessionGeneration: BigInt(
+                replayed.workerSessionGeneration ?? "1",
+              ),
+              fence: BigInt(replayed.fence),
+              leaseTokenHash: await sha256Hex(replayed.leaseToken),
+              leaseExpiresAt: new Date(replayed.leaseExpiresAt),
+            });
+            response = { ...response, sessionCredential: fresh.token };
+          }
           return { status: 200 as const, response, replayed: true };
         }
         throw new Error("WORKER_CLAIM_REPLAY_INVALID");
@@ -321,6 +388,36 @@ export async function executeClaim(
         }
         throw new Error("JOB_ATTEMPT_INSERT_FAILED");
       }
+      // The session operation credential is minted in this transaction, so the
+      // attempt and the credential it authorises appear together or not at all.
+      // A credential issued outside the claim could name an attempt that was
+      // never leased, which is authority for work that does not exist.
+      // No run, no person, no credential. A job with no run - a coordinator
+      // turn, an onboarding job - has no requester, and falling back to the
+      // worker host's principal would mint a credential that acts for the
+      // machine's owner. That is the one thing this must never do: the audit
+      // would name someone who did not ask for the work, and a host principal
+      // is usually the widest one in the organisation. Refusing to mint costs
+      // the session its tools; minting for the wrong person costs the audit its
+      // meaning.
+      const sessionCredential = identity.host.workerSessionId === null ||
+          job.actsForPrincipalId === null
+        ? null
+        : await issueCredentialForAttempt(context.transaction, {
+          organizationId: identity.host.organizationId,
+          attemptId: lease.attemptId,
+          // The person the agent acts for is the run's requester, never the
+          // host that picked the job up: O50 audits the principal.
+          actsForPrincipalType: job.actsForPrincipalType ?? "worker",
+          actsForPrincipalId: job.actsForPrincipalId,
+          workerSessionId: identity.host.workerSessionId,
+          workerSessionGeneration: BigInt(
+            identity.host.workerSessionGeneration ?? "1",
+          ),
+          fence,
+          leaseTokenHash: await sha256Hex(leaseToken),
+          leaseExpiresAt: lease.expiresAt,
+        });
       let sealedCredentialOperation: SealedCredentialOperation | null = null;
       if (job.action === "secret.identity.read") {
         if (identity.host.workerSessionId === null) {
@@ -339,6 +436,10 @@ export async function executeClaim(
           inputDigest: await canonicalExecutionInputDigest(job.input),
         });
       }
+      const claimTraceparent = assignmentTraceparent(
+        options.headers,
+        job.originalTraceparent,
+      );
       const response = assignmentFromJob(
         job,
         lease.attemptId,
@@ -351,7 +452,8 @@ export async function executeClaim(
         DEFAULT_LEASE_SECONDS,
         lease.serverTime,
         sealedCredentialOperation,
-        assignmentTraceparent(options.headers, job.originalTraceparent),
+        sessionCredential,
+        claimTraceparent,
       );
       await persistence.recordAssignment({
         organizationId: identity.host.organizationId,
@@ -364,6 +466,7 @@ export async function executeClaim(
         principalId: identity.host.principalId,
         requestId: metadata.requestId,
         traceId: metadata.traceId,
+        traceparent: claimTraceparent,
         fence,
         encryptReplay: () => protect(options.secret, response),
       });

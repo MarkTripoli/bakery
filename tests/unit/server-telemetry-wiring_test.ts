@@ -391,6 +391,7 @@ Deno.test("emitExecutionEvent never calls a foreign then, so no hostile promise 
 
 Deno.test("the event names and outcome words are part of what sinks key on, so they are pinned as literals", () => {
   assertEquals({ ...EXECUTION_TELEMETRY_EVENTS }, {
+    attemptStarted: "attempt.started",
     leaseRenewed: "lease.renewed",
     jobCompleted: "job.completed",
     usageSettled: "usage.settled",

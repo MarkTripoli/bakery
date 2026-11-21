@@ -11,6 +11,7 @@ import {
   mergePullRequest,
   reconcileMergeAttempts,
 } from "../../apps/server/src/modules/delivery/merge-dispatch.ts";
+import { listMergeAttempts } from "../../apps/server/src/modules/delivery/merge-attempts.ts";
 import {
   enabledConnection,
   type GitHubAppFixture,
@@ -154,6 +155,12 @@ function openPullRequest(overrides: Partial<GitHubPullRequest> = {}) {
     mergedSha: null,
     updatedAt: "2026-10-01T00:00:00Z",
     url: "https://github.com/acme/widgets/pull/12",
+    openedAt: null,
+    closedAt: null,
+    mergedAt: null,
+    additions: null,
+    deletions: null,
+    changedFiles: null,
     ...overrides,
   };
 }
@@ -312,5 +319,79 @@ Deno.test("an unknown answer is recorded and settled by a read, never resent", a
     );
     assertEquals(result, { reconciled: 1, merged: 1, refused: 0 });
     assertEquals(settled.merges.length, 0);
+  });
+});
+
+Deno.test("a pull request's attempts list newest first, keep their stored state and page by keyset", async () => {
+  await withMergeFixture(async (f, seed) => {
+    const insert = (state: string, minutesAgo: number, pullRequestId: string) =>
+      f.pgDatabase.query(
+        `insert into bakery.pull_request_merge_attempts (
+           organization_id, pull_request_id, repository_id, provider_number,
+           base_branch, expected_head_sha, merge_method, state,
+           requested_by_id, request_id, trace_id, created_at)
+         select $1, $2, $3, 7, 'main', $4, 'squash', $5, $6, 'r', 't',
+                now() - make_interval(mins => $7)`,
+        [
+          seed.organizationId,
+          pullRequestId,
+          seed.repositoryId,
+          HEAD,
+          state,
+          seed.principalId,
+          minutesAgo,
+        ],
+      );
+    await insert("refused", 30, seed.pullRequestId);
+    await insert("unknown", 20, seed.pullRequestId);
+    await insert("merged", 10, seed.pullRequestId);
+    // Another pull request's attempt must never appear in this list.
+    const other = crypto.randomUUID();
+    await f.pgDatabase.query(
+      `insert into bakery.pull_requests (
+         id, organization_id, task_id, repository_id, provider_number, url,
+         head_sha, base_sha, status)
+       select $1, organization_id, task_id, repository_id, 99,
+              'https://example.test/pull/99', head_sha, base_sha, 'open'
+         from bakery.pull_requests where id = $2`,
+      [other, seed.pullRequestId],
+    );
+    await insert("merged", 5, other);
+
+    const list = (
+      pullRequestId: string,
+      query: { cursor?: string; limit?: number } = {},
+    ) =>
+      withPgTransaction(
+        f.pgDatabase,
+        (transaction) =>
+          listMergeAttempts(
+            transaction,
+            seed.organizationId,
+            seed.principalId,
+            "test-cursor-secret",
+            { pullRequestId, ...query },
+          ),
+      );
+    const first = await list(seed.pullRequestId, { limit: 2 });
+    assertEquals(first.items.map((item) => item.state), ["merged", "unknown"]);
+    assert(first.nextCursor !== null);
+    const second = await list(seed.pullRequestId, {
+      limit: 2,
+      cursor: first.nextCursor!,
+    });
+    assertEquals(second.items.map((item) => item.state), ["refused"]);
+    assertEquals(second.nextCursor, null);
+    // An unknown attempt reads as unknown and unsettled.
+    const unknown = first.items.find((item) => item.state === "unknown")!;
+    assertEquals(unknown.settledAt, null);
+    // Nothing leaks across pull requests, and a foreign id is an empty page.
+    assertEquals((await list(other)).items.length, 1);
+    assertEquals((await list(crypto.randomUUID())).items.length, 0);
+    // A cursor made for one pull request is refused for another.
+    await assertRejects(
+      () => list(other, { cursor: first.nextCursor! }),
+      StandardError,
+    );
   });
 });

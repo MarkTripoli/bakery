@@ -22,6 +22,7 @@ export type CheckResult =
   | "canceled";
 
 export type DeliveryCheck = Readonly<{
+  /** The check run's id, named when a merge is queued on its result. */
   id: string;
   checkId: string;
   checkName: string;
@@ -39,9 +40,12 @@ export type ReviewStatus =
   | "failed";
 
 export type DeliveryReview = Readonly<{
+  /** The review cycle's id, named when a merge is queued on its approval. */
   id: string;
   ordinal: number;
   headSha: string;
+  /** The repository rules the review judged the candidate under. */
+  policyDigest: string;
   status: ReviewStatus;
   findingCount: number;
   blockingCount: number;
@@ -102,6 +106,140 @@ export type DeliveryPullRequest = Readonly<{
   status: PullRequestStatus;
   mergedSha: string | null;
   createdAt: string;
+  /** The repository the pull request belongs to. */
+  repositoryId: string;
+  /** The pull request's current head on GitHub, as Bakery last read it. */
+  headSha: string;
+  /** The branch it merges into, as Bakery last read it. */
+  baseSha: string;
+  /** The branch this pull request merges into, named in the page's copy. */
+  targetBranch: string;
+  /** Whether the caller holds the permission to merge it (the server says). */
+  mayMerge: boolean;
+  /** The merge method Bakery uses; the page sends it and never chooses one. */
+  mergeMethod: MergeMethod;
+}>;
+
+/** How GitHub combines the commits; the server serves the one to use. */
+export type MergeMethod = "merge" | "squash" | "rebase";
+
+/** One merge attempt as the delivery section reads it, newest first. */
+export type DeliveryMergeAttempt = Readonly<{
+  id: string;
+  state: "merged" | "refused" | "unknown";
+  /** The head the attempt asked GitHub to merge. */
+  expectedHeadSha: string;
+  createdAt: string;
+  settledAt: string | null;
+}>;
+
+/** Where a queued merge stands. Only `blocked` carries a reason. */
+export type MergeEntryStatus =
+  | "queued"
+  | "validating"
+  | "merging"
+  | "merged"
+  | "blocked"
+  | "canceled";
+
+/**
+ * One queued merge as the delivery section reads it. `blockedReason` is the
+ * server's word and may be a reason this page does not know, or null.
+ */
+export type DeliveryMergeEntry = Readonly<{
+  id: string;
+  status: MergeEntryStatus;
+  blockedReason: string | null;
+  /** The head the entry was queued to merge. */
+  expectedHeadSha: string;
+  createdAt: string;
+  /** When the entry last changed: for a stopped merge, when it stopped. */
+  updatedAt: string;
+}>;
+
+/**
+ * Why Bakery stopped a merge that this page has words for. `already_merged`
+ * and any reason the page does not know read as no reason at all.
+ */
+export type MergeBlockedReason =
+  | "not_open"
+  | "head_moved"
+  | "base_moved"
+  | "checks_not_passed"
+  | "not_permitted"
+  | "evidence_changed"
+  | "github_refused"
+  | "not_merged"
+  | "unavailable";
+
+const BLOCKED_REASONS: ReadonlySet<string> = new Set<MergeBlockedReason>([
+  "not_open",
+  "head_moved",
+  "base_moved",
+  "checks_not_passed",
+  "not_permitted",
+  "evidence_changed",
+  "github_refused",
+  "not_merged",
+  "unavailable",
+]);
+
+/**
+ * What a queued merge names about the candidate: the repository, the base it
+ * was checked on, and the run, rules, review and checks that vouch for it. The
+ * head and method come from the pull request.
+ */
+export type MergeRequest = Readonly<{
+  repositoryId: string;
+  targetBranch: string;
+  expectedBaseSha: string;
+  runId: string;
+  policyDigest: string;
+  reviewCycleId: string;
+  checkRunIds: readonly string[];
+}>;
+
+/**
+ * What the person may do about merging, derived only from what the server
+ * reported: the pull request, the approval and the newest merge attempt.
+ * `unknown` outranks everything: while an attempt's outcome is not known, no
+ * merge is offered.
+ */
+export type MergeView = Readonly<{
+  state:
+    | "ready"
+    | "noPermission"
+    | "unknown"
+    | "refused"
+    | "moved"
+    | "working"
+    | "blocked"
+    | "noChecks";
+  pullRequestId: string;
+  providerNumber: number;
+  url: string;
+  /** The branch the pull request merges into. */
+  targetBranch: string;
+  /** For `working`: where the queued merge stands. */
+  stage: "queued" | "validating" | "merging" | null;
+  /** For `blocked`: why, when the page knows, else null. */
+  blockedReason: MergeBlockedReason | null;
+  /** GitHub did not merge it and the merge can be asked for again. */
+  afterNotMerged: boolean;
+  /** The queued merge was canceled, so the merge can be asked for again. */
+  canceled: boolean;
+  /** What a new merge names; null when the evidence behind it is missing. */
+  request: MergeRequest | null;
+  /** A new merge may be started from here, by this person. */
+  startable: boolean;
+  /** The pull request's head now. */
+  headSha: string;
+  /** For `moved`: the commit the checks, review and approval were for. */
+  approvedSha: string | null;
+  /** For `unknown` and `refused`: the head the attempt asked to merge. */
+  attemptedSha: string | null;
+  method: MergeMethod;
+  mayMerge: boolean;
 }>;
 
 /** The three statuses `PullRequest.status` carries; there are no others. */
@@ -136,7 +274,12 @@ export type AfterApproval = Readonly<{
  * commit is recorded, `notMerged` when it was closed, else `approved`.
  */
 export type AfterApprovalBadge =
+  | "readyToMerge"
+  | "mergeUnknown"
   | "waitingForMerge"
+  | "merging"
+  | "mergeBlocked"
+  | "changedAfterApproval"
   | "merged"
   | "notMerged"
   | "approved";
@@ -220,6 +363,16 @@ export type DeliveryInput = Readonly<{
    * first). Choosing this run's one is the model's job, not the read's.
    */
   pullRequests: readonly DeliveryPullRequest[];
+  /** The chosen pull request's merge attempts, newest first. */
+  mergeAttempts: readonly DeliveryMergeAttempt[];
+  /** The chosen pull request's queued merges, in any order. */
+  mergeEntries: readonly DeliveryMergeEntry[];
+  /**
+   * The chosen pull request is open but its merge attempts or queued merges
+   * could not be read. An unknown outcome or a merge under way might be hidden
+   * there, so no merge is offered.
+   */
+  mergeUnavailable: boolean;
   paused: boolean;
 }>;
 
@@ -250,6 +403,30 @@ export type NowCard =
   | Readonly<{ kind: "approval" }>
   | Readonly<{ kind: "approvalUnknown" }>
   | Readonly<{ kind: "approved" }>
+  | Readonly<
+    { kind: "mergeReady"; head: string; number: number; branch: string }
+  >
+  | Readonly<{ kind: "mergeNoPermission" }>
+  | Readonly<{ kind: "mergeUnknown"; head: string }>
+  | Readonly<{ kind: "mergeWorking" }>
+  /** Approved, but the reviewed commit has no check results to merge on. */
+  | Readonly<{ kind: "mergeNoChecks"; head: string }>
+  | Readonly<
+    {
+      kind: "mergeBlocked";
+      /** Null when Bakery was not told why, or the page does not know. */
+      reason:
+        | Exclude<MergeBlockedReason, "github_refused" | "not_merged">
+        | null;
+      head: string;
+      branch: string;
+      mayMerge: boolean;
+    }
+  >
+  | Readonly<{ kind: "mergeRefused"; head: string; mayMerge: boolean }>
+  | Readonly<
+    { kind: "mergeMoved"; approved: string; current: string; tried: boolean }
+  >
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
   | Readonly<{ kind: "checksFailed"; failed: number }>
@@ -287,6 +464,8 @@ export type DeliveryModel = Readonly<{
   headSha: string | null;
   baseSha: string | null;
   outOfDate: boolean;
+  /** The results are older only because the pull request now ends elsewhere: nothing is re-running. */
+  pullRequestMoved: boolean;
   checks: Readonly<{
     rows: readonly CheckRow[];
     total: number;
@@ -320,6 +499,8 @@ export type DeliveryModel = Readonly<{
   approval: ApprovalView | null;
   /** The pull request and merge the trace ends at (the design's group). */
   afterApproval: AfterApproval;
+  /** What the person may do about merging, else null. */
+  merge: MergeView | null;
   now: NowCard;
 }>;
 
@@ -364,13 +545,21 @@ export function findingTitle(body: string): string {
  * pull requests of the task are counted, never listed, and nothing is derived
  * that the read did not report.
  */
+export function choosePullRequest(
+  pullRequests: readonly DeliveryPullRequest[],
+  runId: string,
+): DeliveryPullRequest | undefined {
+  const ordered = [...pullRequests].sort(byCreatedAt);
+  return ordered.filter((entry) => entry.runId === runId).at(-1) ??
+    ordered.at(-1);
+}
+
 export function afterApproval(
   pullRequests: readonly DeliveryPullRequest[],
   runId: string,
 ): AfterApproval {
   const ordered = [...pullRequests].sort(byCreatedAt);
-  const chosen = ordered.filter((entry) => entry.runId === runId).at(-1) ??
-    ordered.at(-1);
+  const chosen = choosePullRequest(pullRequests, runId);
   if (chosen === undefined) {
     return { pullRequest: null, others: [], badge: "approved" };
   }
@@ -403,6 +592,171 @@ export function afterApproval(
   };
 }
 
+/**
+ * What the person may do about merging the chosen pull request. Nothing is
+ * worked out that the server did not report.
+ *
+ * - An attempt whose outcome is unknown outranks everything, except a merge
+ *   still being queued or checked: no merge is offered until it is settled, so
+ *   the page can never merge twice or say "merged" for a merge Bakery does not
+ *   know.
+ * - A merge Bakery is working on (queued, checking, merging) is shown as that,
+ *   and nothing is offered.
+ * - Otherwise a merge needs an explicit approval, results that are current, a
+ *   pull request that still ends at the commit that was reviewed, and the
+ *   evidence a queued merge names.
+ * - The newest stopped or canceled merge shows only while the pull request
+ *   still ends at the head it was for and no attempt is newer than it.
+ */
+export function mergeView(
+  {
+    pullRequest,
+    attempts,
+    entries,
+    approval,
+    outOfDate,
+    headSha,
+    request,
+    unavailable,
+  }: Readonly<{
+    unavailable: boolean;
+    pullRequest: DeliveryPullRequest | undefined;
+    attempts: readonly DeliveryMergeAttempt[];
+    entries: readonly DeliveryMergeEntry[];
+    approval: ApprovalView | null;
+    outOfDate: boolean;
+    headSha: string | null;
+    request: MergeRequest | null;
+  }>,
+): MergeView | null {
+  if (pullRequest === undefined || pullRequest.status !== "open") return null;
+  if (unavailable) return null;
+  const newest = attempts[0];
+  const entry =
+    [...entries].sort((a, b) =>
+      a.createdAt === b.createdAt
+        ? (a.id < b.id ? 1 : -1)
+        : a.createdAt < b.createdAt
+        ? 1
+        : -1
+    )[0];
+  const base = {
+    pullRequestId: pullRequest.id,
+    providerNumber: pullRequest.providerNumber,
+    url: pullRequest.url,
+    targetBranch: pullRequest.targetBranch,
+    headSha: pullRequest.headSha,
+    method: pullRequest.mergeMethod,
+    mayMerge: pullRequest.mayMerge,
+    stage: null,
+    blockedReason: null,
+    afterNotMerged: false,
+    canceled: false,
+    request,
+    startable: false,
+  } as const;
+  const queuedOrChecking = entry?.status === "queued" ||
+    entry?.status === "validating";
+  if (newest?.state === "unknown" && !queuedOrChecking) {
+    return {
+      ...base,
+      state: "unknown",
+      approvedSha: null,
+      attemptedSha: newest.expectedHeadSha,
+    };
+  }
+  if (
+    queuedOrChecking || entry?.status === "merging" ||
+    // The queue merged it and the pull request read has not caught up yet.
+    entry?.status === "merged"
+  ) {
+    return {
+      ...base,
+      state: "working",
+      stage: entry.status === "queued" || entry.status === "validating"
+        ? entry.status
+        : "merging",
+      approvedSha: null,
+      attemptedSha: entry.expectedHeadSha,
+    };
+  }
+  if (approval?.state !== "approved" || outOfDate || headSha === null) {
+    return null;
+  }
+  if (pullRequest.headSha !== headSha) {
+    return {
+      ...base,
+      state: "moved",
+      approvedSha: headSha,
+      attemptedSha: newest?.expectedHeadSha ?? entry?.expectedHeadSha ?? null,
+    };
+  }
+  // A merge cannot be queued without the evidence it names (the review and the
+  // check results of this commit): say so instead of offering nothing.
+  if (request === null) {
+    return {
+      ...base,
+      state: "noChecks",
+      approvedSha: null,
+      attemptedSha: null,
+    };
+  }
+  const mayStart = pullRequest.mayMerge;
+  const ready = {
+    ...base,
+    state: mayStart ? "ready" : "noPermission",
+    approvedSha: null,
+    attemptedSha: null,
+    startable: mayStart,
+  } as const;
+  const stopped = entry !== undefined &&
+      (entry.status === "blocked" || entry.status === "canceled") &&
+      entry.expectedHeadSha === pullRequest.headSha &&
+      (newest === undefined || newest.createdAt <= entry.updatedAt)
+    ? entry
+    : undefined;
+  if (stopped?.status === "canceled") return { ...ready, canceled: true };
+  if (stopped !== undefined) {
+    const reason: MergeBlockedReason | null = stopped.blockedReason !== null &&
+        BLOCKED_REASONS.has(stopped.blockedReason)
+      ? stopped.blockedReason as MergeBlockedReason
+      : null;
+    if (reason === "not_merged") return { ...ready, afterNotMerged: true };
+    if (reason === "github_refused") {
+      return {
+        ...base,
+        state: "refused",
+        approvedSha: null,
+        attemptedSha: stopped.expectedHeadSha,
+        blockedReason: reason,
+        startable: mayStart,
+      };
+    }
+    return {
+      ...base,
+      state: "blocked",
+      approvedSha: null,
+      attemptedSha: stopped.expectedHeadSha,
+      blockedReason: reason,
+      startable: mayStart &&
+        (reason === "not_permitted" || reason === "unavailable"),
+    };
+  }
+  if (
+    newest?.state === "refused" &&
+    (entry === undefined || newest.createdAt >= entry.createdAt)
+  ) {
+    return {
+      ...base,
+      state: "refused",
+      approvedSha: null,
+      attemptedSha: newest.expectedHeadSha,
+      startable: mayStart,
+    };
+  }
+  return ready;
+}
+
 function approvalState(approval: DeliveryApproval): ApprovalState {
   if (approval.status === "open") return "waiting";
   if (approval.status === "answered" || approval.status === "consumed") {
@@ -421,7 +775,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
   const newestCheck = [...input.checks].sort(byCreatedAt).at(-1);
   const newestReview = [...input.reviews].sort((a, b) => a.ordinal - b.ordinal)
     .at(-1);
-  const headSha = input.revisionHeadSha ??
+  const evidenceHeadSha = input.revisionHeadSha ??
     [newestCheck, newestReview].filter((row) => row !== undefined)
       .sort(byCreatedAt).at(-1)?.headSha ??
     null;
@@ -442,6 +796,22 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
   };
   const maxRepairs = latestDecision?.limits.maxRepairCycles ??
     DEFAULT_MAX_REPAIRS;
+  // The results were current for the commit that was approved. When the pull
+  // request now ends somewhere else, that commit is the older one: the
+  // results, review and approval are marked as being for an older commit.
+  const evidenceOutOfDate = evidenceHeadSha !== null && (
+    input.checks.some((check) => check.headSha !== evidenceHeadSha) ||
+    input.reviews.some((entry) => entry.headSha !== evidenceHeadSha) ||
+    latestDecision?.reason === "stale_evidence"
+  );
+  const chosenPullRequest = choosePullRequest(input.pullRequests, input.runId);
+  const pullRequestMoved = approval?.state === "approved" &&
+    !evidenceOutOfDate && evidenceHeadSha !== null &&
+    chosenPullRequest?.status === "open" &&
+    chosenPullRequest.headSha !== evidenceHeadSha;
+  const headSha = pullRequestMoved && chosenPullRequest !== undefined
+    ? chosenPullRequest.headSha
+    : evidenceHeadSha;
   const repairs = input.decisions.filter((entry) => entry.decision === "repair")
     .length;
 
@@ -517,29 +887,152 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
       : openBlocking,
   };
 
+  const mergePullRequest = choosePullRequest(input.pullRequests, input.runId);
+  // What a queued merge names: the newest review that judged this exact commit
+  // and the newest result of every check on it.
+  const mergeReview = newestReview !== undefined &&
+      newestReview.headSha === evidenceHeadSha
+    ? newestReview
+    : undefined;
+  const mergeChecks = [...newestByCheck.values()].filter((entry) =>
+    entry.headSha === evidenceHeadSha
+  );
+  const request: MergeRequest | null = mergePullRequest === undefined ||
+      mergeReview === undefined || mergeChecks.length === 0
+    ? null
+    : {
+      repositoryId: mergePullRequest.repositoryId,
+      targetBranch: mergePullRequest.targetBranch,
+      expectedBaseSha: mergePullRequest.baseSha,
+      runId: input.runId,
+      policyDigest: mergeReview.policyDigest,
+      reviewCycleId: mergeReview.id,
+      checkRunIds: mergeChecks.map((entry) => entry.id),
+    };
+  const merge = mergeView({
+    pullRequest: mergePullRequest,
+    attempts: input.mergeAttempts,
+    entries: input.mergeEntries,
+    request,
+    approval,
+    outOfDate: evidenceOutOfDate,
+    headSha: evidenceHeadSha,
+    unavailable: input.mergeUnavailable,
+  });
+  const after = afterApproval(input.pullRequests, input.runId);
   return {
     visible: headSha !== null || input.checks.length > 0 ||
       input.reviews.length > 0,
     headSha,
     baseSha: input.baseSha,
     outOfDate,
+    pullRequestMoved,
     checks,
     review,
     fixing,
     approval,
-    afterApproval: afterApproval(input.pullRequests, input.runId),
-    now: nowCard({
-      input,
-      latestDecision,
-      repairs,
-      maxRepairs,
-      checks,
-      review,
-      open,
-      approval,
-      outOfDate,
-    }),
+    afterApproval: mergeBadge(after, merge),
+    merge,
+    now: mergeNow(
+      nowCard({
+        input,
+        latestDecision,
+        repairs,
+        maxRepairs,
+        checks,
+        review,
+        open,
+        approval,
+        outOfDate,
+      }),
+      merge,
+      input.paused,
+    ),
   };
+}
+
+/** The section badge follows the merge state when there is one to act on. */
+function mergeBadge(
+  after: AfterApproval,
+  merge: MergeView | null,
+): AfterApproval {
+  if (merge === null) return after;
+  if (merge.state === "unknown") return { ...after, badge: "mergeUnknown" };
+  if (merge.state === "working") return { ...after, badge: "merging" };
+  if (merge.state === "noChecks") return { ...after, badge: "approved" };
+  // A refused merge is a merge that did not happen, whether it was reached
+  // through a stopped queue entry or only through its attempt (an attempt newer
+  // than the entry that made it reads the same): both say "Not merged".
+  if (merge.state === "blocked" || merge.state === "refused") {
+    return { ...after, badge: "mergeBlocked" };
+  }
+  if (merge.state === "moved") {
+    return { ...after, badge: "changedAfterApproval" };
+  }
+  if (merge.state === "ready" || merge.state === "noPermission") {
+    return { ...after, badge: "readyToMerge" };
+  }
+  return after;
+}
+
+/**
+ * The Now card, once merging has something to say. An unknown outcome always
+ * wins (unless the run is paused, which the card already says). Every other
+ * merge state only replaces the plain "approved" card: it never hides a stop,
+ * a repair, a failed check or a waiting approval.
+ */
+function mergeNow(
+  base: NowCard,
+  merge: MergeView | null,
+  paused: boolean,
+): NowCard {
+  if (merge === null || paused) return base;
+  if (merge.state === "unknown") {
+    return {
+      kind: "mergeUnknown",
+      head: shortSha(merge.attemptedSha ?? merge.headSha),
+    };
+  }
+  // Bakery is merging: that is the card, whatever else the run says.
+  if (merge.state === "working") return { kind: "mergeWorking" };
+  if (base.kind !== "approved") return base;
+  switch (merge.state) {
+    case "ready":
+      return {
+        kind: "mergeReady",
+        head: shortSha(merge.headSha),
+        number: merge.providerNumber,
+        branch: merge.targetBranch,
+      };
+    case "noPermission":
+      return { kind: "mergeNoPermission" };
+    case "noChecks":
+      return { kind: "mergeNoChecks", head: shortSha(merge.headSha) };
+    case "refused":
+      return {
+        kind: "mergeRefused",
+        head: shortSha(merge.attemptedSha ?? merge.headSha),
+        mayMerge: merge.mayMerge,
+      };
+    case "moved":
+      return {
+        kind: "mergeMoved",
+        approved: shortSha(merge.approvedSha ?? merge.headSha),
+        current: shortSha(merge.headSha),
+        tried: merge.attemptedSha !== null,
+      };
+    case "blocked":
+      return {
+        kind: "mergeBlocked",
+        reason: merge.blockedReason === "github_refused" ||
+            merge.blockedReason === "not_merged"
+          ? null
+          : merge.blockedReason,
+        head: shortSha(merge.attemptedSha ?? merge.headSha),
+        branch: merge.targetBranch,
+        mayMerge: merge.startable,
+      };
+  }
 }
 
 function nowCard(

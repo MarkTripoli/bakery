@@ -137,6 +137,7 @@ export async function openAuthFixture(options: {
   /** Ticket reads and fact index of the ticket routes; tests pass in-memory ones. */
   ticketReader?: Parameters<typeof createApp>[0]["ticketReader"];
   ticketFactIndex?: Parameters<typeof createApp>[0]["ticketFactIndex"];
+  ticketNoteWriter?: Parameters<typeof createApp>[0]["ticketNoteWriter"];
   publicOrigin?: string;
   secret?: string;
   installationPolicy?: InstallationSettingsUpdate;
@@ -146,8 +147,25 @@ export async function openAuthFixture(options: {
   draftIsolation?: Parameters<typeof createApp>[0]["draftIsolation"];
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
+  /** Where a skill source is read again for an update; tests inject a fake so none reaches the network. */
+  skillSourceAdapter?: Parameters<typeof createApp>[0]["skillSourceAdapter"];
   /** Skill storage verification probe; tests inject one so none reaches R2. */
   skillStorageProbe?: Parameters<typeof createApp>[0]["skillStorageProbe"];
+  emailSend?: Parameters<typeof createApp>[0]["emailSend"];
+  /** Backup destination test; tests inject one so none reaches a real bucket. */
+  backupDestinationProbe?: Parameters<
+    typeof createApp
+  >[0]["backupDestinationProbe"];
+  /** Destination host resolver; tests inject one so none touches real DNS. */
+  backupDestinationResolver?: Parameters<
+    typeof createApp
+  >[0]["backupDestinationResolver"];
+  /** Telemetry destinations the Monitoring routes manage; tests share a fan-out. */
+  telemetryDestinations?: Parameters<
+    typeof createApp
+  >[0]["telemetryDestinations"];
+  /** Alert channel dependencies; tests share a fetch and an address policy. */
+  alertChannels?: Parameters<typeof createApp>[0]["alertChannels"];
   /** Extra runtime environment, such as the server budget policy. */
   env?: Record<string, string>;
 } = {}) {
@@ -256,9 +274,16 @@ export async function openAuthFixture(options: {
       installationTokenBroker: options.installationTokenBroker,
       ticketReader: options.ticketReader,
       ticketFactIndex: options.ticketFactIndex,
+      ticketNoteWriter: options.ticketNoteWriter,
       draftIsolation: options.draftIsolation,
       skillFileStore: options.skillFileStore,
+      skillSourceAdapter: options.skillSourceAdapter,
       skillStorageProbe: options.skillStorageProbe,
+      backupDestinationProbe: options.backupDestinationProbe,
+      backupDestinationResolver: options.backupDestinationResolver,
+      emailSend: options.emailSend,
+      telemetryDestinations: options.telemetryDestinations,
+      alertChannels: options.alertChannels,
     });
     const originalFetch = app.fetch.bind(app);
     app.fetch = (
@@ -411,6 +436,18 @@ export async function cleanupAuthFixture(
     [userIds],
   );
   await pgDatabase.query(
+    `delete from bakery.password_reset_links
+     where principal_id = any(
+       select id from bakery.principals
+       where provider_user_id = any($1::uuid[])
+     )
+        or issued_by_principal_id = any(
+          select id from bakery.principals
+          where provider_user_id = any($1::uuid[])
+        )`,
+    [userIds],
+  );
+  await pgDatabase.query(
     `delete from bakery.permission_grants
      where principal_id = any(
        select id from bakery.principals
@@ -472,6 +509,16 @@ export async function cleanupAuthFixture(
     [userIds],
   );
   await deleteSkillStorageRows(
+    pgDatabase,
+    `select id from bakery.principals where provider_user_id = any($1::uuid[])`,
+    [userIds],
+  );
+  await deleteBackupSettingsRows(
+    pgDatabase,
+    `select id from bakery.principals where provider_user_id = any($1::uuid[])`,
+    [userIds],
+  );
+  await deleteAlertChannelRows(
     pgDatabase,
     `select id from bakery.principals where provider_user_id = any($1::uuid[])`,
     [userIds],
@@ -634,6 +681,101 @@ export async function deleteSkillStorageRows(
     ...deleted.rows.flatMap((row) => row.secretId ? [row.secretId] : []),
     ...stray.rows.map((row) => row.id),
   ];
+  if (secretIds.length === 0) return;
+  await pgDatabase.query(
+    "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secret_versions where secret_id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secrets where id = any($1::uuid[])",
+    [secretIds],
+  );
+}
+
+/**
+ * Removes the installation backup settings and the sealed off-site credential
+ * secrets that principals the subquery selects wrote, so those principals can
+ * be deleted (#80 S1b; `bakery.secret_versions.created_by` references them).
+ */
+export async function deleteBackupSettingsRows(
+  pgDatabase: Awaited<ReturnType<typeof openAuthFixture>>["pgDatabase"],
+  principals: string,
+  values: unknown[],
+): Promise<void> {
+  await pgDatabase.query(
+    `delete from bakery.backup_schedule_settings
+      where updated_by in (${principals})`,
+    values,
+  );
+  const deleted = await pgDatabase.query<{ secretId: string | null }>(
+    `delete from bakery.backup_offsite_settings
+      where updated_by in (${principals})
+         or secret_id in (
+           select secret_id from bakery.secret_versions
+            where created_by in (${principals}))
+      returning secret_id as "secretId"`,
+    values,
+  );
+  const stray = await pgDatabase.query<{ id: string }>(
+    `select distinct secret_id as id from bakery.secret_versions
+      where created_by in (${principals})
+        and secret_id in (select id from bakery.secrets
+          where organization_id is null and provider = 's3-backup')`,
+    values,
+  );
+  const secretIds = [
+    ...deleted.rows.flatMap((row) => row.secretId ? [row.secretId] : []),
+    ...stray.rows.map((row) => row.id),
+  ];
+  if (secretIds.length === 0) return;
+  await pgDatabase.query(
+    "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secret_versions where secret_id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secrets where id = any($1::uuid[])",
+    [secretIds],
+  );
+}
+
+/**
+ * Removes alert channels and their installation-owned signing secrets that
+ * reference a principal the subquery selects, so those principals can be
+ * deleted. Deleting a channel leaves its sealed secret behind (the application
+ * role cannot delete it), so the secrets go by provider and author.
+ */
+export async function deleteAlertChannelRows(
+  pgDatabase: Awaited<ReturnType<typeof openAuthFixture>>["pgDatabase"],
+  principals: string,
+  values: unknown[],
+): Promise<void> {
+  await pgDatabase.query(
+    `delete from bakery.alert_channels
+      where created_by in (${principals}) or updated_by in (${principals})`,
+    values,
+  );
+  // A rule an administrator changed names that principal; the rule stays.
+  await pgDatabase.query(
+    `update bakery.alert_rules set updated_by = null
+      where updated_by in (${principals})`,
+    values,
+  );
+  const stray = await pgDatabase.query<{ id: string }>(
+    `select distinct secret_id as id from bakery.secret_versions
+      where created_by in (${principals})
+        and secret_id in (select id from bakery.secrets
+          where organization_id is null and provider = 'alerts')`,
+    values,
+  );
+  const secretIds = stray.rows.map((row) => row.id);
   if (secretIds.length === 0) return;
   await pgDatabase.query(
     "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",

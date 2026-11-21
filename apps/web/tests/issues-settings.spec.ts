@@ -2,8 +2,21 @@ import { expect, type Page, test } from "@playwright/test";
 import { issuesFixture, uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
+
+/**
+ * An evidence still of the settings page. The save bar sticks to the window, so
+ * a full-page still would lay it over the options; it is left in the flow here.
+ */
+const evidence = async (page: Page, name: string) => {
+  if (!process.env.BAKERY_EVIDENCE_DIR) return;
+  await page.addStyleTag({
+    content: ".ui-draft-bar { position: static !important; }",
+  });
+  await still(page, name);
+};
 
 /**
  * Issue settings (#69, slice 1): the list of connected repositories and one
@@ -102,6 +115,16 @@ type SettingsOptions = {
   /** The issues the counts read, as their last verdicts. */
   verdicts?: ("ready" | "waiting" | "rejected" | null)[];
   role?: "admin" | "developer";
+  /** The saved routing rules: a label (by id and name) sent to a repository. */
+  rules?: { labelId: string; labelName: string; repositoryId: string }[];
+  /** What the labels read answers: ok (default), or GitHub not answering. */
+  labels?: "ok" | "error";
+  /** What replacing the rules answers: ok (default), refused, or stale. */
+  replace?: "ok" | "refused" | "stale";
+  /** The api repository is archived. */
+  archivedApi?: boolean;
+  /** The api repository has no role in the application. */
+  noRoleApi?: boolean;
 };
 
 /** The Issues fixture plus the settings routes; returns what the page asked for. */
@@ -115,6 +138,7 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
     // A counter lives in an object: the fixture's return copies numbers.
     counts: { previews: 0 },
     lookups: [] as string[],
+    replaces: [] as { rules: Record<string, string>[] }[],
   };
   let saved = options.saved === null ? null : source(options.saved ?? {});
 
@@ -124,8 +148,115 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
       route.fulfill(json({
         items: [
           repository(WEB_REPOSITORY, "web", "7001"),
-          repository(API_REPOSITORY, "api", "7002"),
+          options.archivedApi
+            ? {
+              ...repository(API_REPOSITORY, "api", "7002"),
+              archivedAt: STAMP,
+            }
+            : repository(API_REPOSITORY, "api", "7002"),
         ],
+        nextCursor: null,
+      })),
+  );
+  const ruleRow = (
+    n: number,
+    rule: {
+      labelId: string;
+      labelName: string;
+      repositoryId: string;
+      role?: string;
+    },
+  ) => ({
+    id: uuid(9300 + n),
+    organizationId: uuid(1),
+    ticketSourceId: WEB_SOURCE,
+    labelId: rule.labelId,
+    repositoryId: rule.repositoryId,
+    role: rule.role ?? (rule.repositoryId === API_REPOSITORY ? "api" : "web"),
+    presetId: "fixed-coding",
+    version: 1,
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    labelName: rule.labelName,
+  });
+  let ruleSet = {
+    ticketSourceId: WEB_SOURCE,
+    policyRevision: 3,
+    version: 5,
+    rules: (options.rules ?? []).map((rule, index) => ruleRow(index, rule)),
+  };
+  await page.route(
+    (url) => url.pathname === `/v1/ticket-sources/${WEB_SOURCE}/routing-rules`,
+    (route) => {
+      if (route.request().method() !== "PUT") {
+        return route.fulfill(json(ruleSet));
+      }
+      const body = route.request().postDataJSON() as {
+        rules: Record<string, string>[];
+      };
+      settings.replaces.push(body);
+      if (options.replace === "stale") {
+        return route.fulfill(problem(412, "PRECONDITION_FAILED"));
+      }
+      if (options.replace === "refused") {
+        return route.fulfill({
+          ...problem(422, "UNPROCESSABLE"),
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/test",
+            title: "Request refused",
+            detail: "Request refused.",
+            status: 422,
+            code: "UNPROCESSABLE",
+            retryable: false,
+            issues: [{
+              path: ["rules", 0, "repositoryId"],
+              code: "routing_repository_unavailable",
+              message: "routing repository unavailable",
+            }],
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
+      ruleSet = {
+        ...ruleSet,
+        version: ruleSet.version + 1,
+        rules: body.rules.map((rule, index) => ruleRow(index, rule as never)),
+      };
+      return route.fulfill(json(ruleSet));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/ticket-sources/${WEB_SOURCE}/labels`,
+    (route) =>
+      options.labels === "error"
+        ? route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"))
+        : route.fulfill(json({
+          items: [
+            { id: "1001", name: "api-work", color: "0e8a16" },
+            { id: "1002", name: "docs", color: null },
+            { id: "1003", name: "bakery", color: null },
+          ],
+          nextCursor: null,
+        })),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/applications/${uuid(904)}/repository-roles`,
+    (route) =>
+      route.fulfill(json({
+        items: [
+          [WEB_REPOSITORY, "web", "web"],
+          ...(options.noRoleApi ? [] : [[API_REPOSITORY, "api", "api"]]),
+        ].map(([repositoryId, alias, role], index) => ({
+          id: uuid(9400 + index),
+          applicationId: uuid(904),
+          alias,
+          role,
+          repositoryId,
+          createdAt: STAMP,
+          updatedAt: STAMP,
+          version: 1,
+        })),
         nextCursor: null,
       })),
   );
@@ -240,7 +371,37 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
       return options.preview === "unavailable"
         ? route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"))
         : route.fulfill(
-          json({ operationId: uuid(950), status: "queued" }, 202),
+          json({
+            sourceId: WEB_SOURCE,
+            policyRevision: 1,
+            draft: false,
+            evaluatedAt: "2026-11-10T12:00:00.000Z",
+            counts: { wouldStart: 1, planOnly: 0, held: 0, blocked: 2 },
+            issues: [
+              {
+                number: 1,
+                title: "Ready",
+                outcome: "would_start",
+                verdict: "ready",
+                reasons: [],
+              },
+              {
+                number: 2,
+                title: "Waiting",
+                outcome: "blocked",
+                verdict: "waiting",
+                reasons: ["predecessor_open"],
+              },
+              {
+                number: 3,
+                title: "Refused",
+                outcome: "blocked",
+                verdict: "rejected",
+                reasons: ["has_sub_issues"],
+              },
+            ],
+            skipped: 0,
+          }, 201),
         );
     },
   );
@@ -381,7 +542,7 @@ for (
       expect(sent.automatic).toEqual({ enabled: true });
       expect(sent.delegation).toEqual({
         principalId: uuid(910),
-        githubActorIds: ["4242"],
+        externalActorIds: ["4242"],
       });
       await expect(page.getByText(/Only for labels added after/)).toBeVisible();
       await shot(page, "issue-settings-automatic", [], { windowOnly: true });
@@ -403,17 +564,219 @@ for (
     test("the workflow is read-only", async ({ page }) => {
       await settingsFixture(page);
       await openSettings(page);
-      await expect(page.getByText("Uses the standard coding workflow."))
-        .toBeVisible();
       await expect(page.getByText(
-        "Choosing a different workflow per label or repository is not available yet.",
+        "Every repository runs the standard coding workflow.",
       )).toBeVisible();
       await expect(
         page.getByTestId("issue-settings-workflow").getByRole("combobox"),
       ).toHaveCount(0);
     });
 
-    test("the preview reads the saved settings only, and counts from one read of the issues", async ({ page }) => {
+    const rules = (page: Page) => page.getByTestId("issue-settings-routing");
+    const rule = (page: Page) => page.getByTestId("routing-rule");
+
+    test("where the work goes: the default, then a rule added, saved by the one Save", async ({ page }) => {
+      const seen = await settingsFixture(page);
+      await openSettings(page);
+      await expect(rules(page).getByText("Work happens in acme/web."))
+        .toBeVisible();
+      await expect(rules(page).getByText("No rules.", { exact: false }))
+        .toBeVisible();
+      await rules(page).getByRole("button", { name: "Add rule" }).click();
+      const row = rule(page).first();
+      await row.getByLabel("Label").selectOption({ label: "api-work" });
+      await row.getByLabel("Repository").selectOption({ label: "acme/api" });
+      await expect(row.getByText("Role: api")).toBeVisible();
+      await expect(page.getByText(
+        "Applies to issues started from now on. Work already started keeps the settings and routing it started with.",
+      )).toBeVisible();
+      await page.mouse.move(700, 700);
+      await evidence(page, "issue-settings-routing");
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText("Settings saved.")).toBeVisible();
+      // Only the rules changed: no settings write.
+      expect(seen.patches).toHaveLength(0);
+      expect(seen.replaces).toHaveLength(1);
+      expect(seen.replaces[0].rules).toEqual([{
+        labelId: "1001",
+        labelName: "api-work",
+        repositoryId: API_REPOSITORY,
+        role: "api",
+      }]);
+    });
+
+    test("two saved rules are listed, each with its label, repository and role", async ({ page }) => {
+      await settingsFixture(page, {
+        rules: [
+          {
+            labelId: "1001",
+            labelName: "api-work",
+            repositoryId: API_REPOSITORY,
+          },
+          { labelId: "1002", labelName: "docs", repositoryId: WEB_REPOSITORY },
+        ],
+      });
+      await openSettings(page);
+      await expect(rule(page)).toHaveCount(2);
+      await expect(rule(page).nth(1).getByLabel("Repository")).toHaveValue(
+        WEB_REPOSITORY,
+      );
+      await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+      await evidence(page, "issue-settings-routing-two-rules");
+    });
+
+    test("a saved rule is listed, and Remove takes it out on Save", async ({ page }) => {
+      const seen = await settingsFixture(page, {
+        rules: [{
+          labelId: "1001",
+          labelName: "api-work",
+          repositoryId: API_REPOSITORY,
+        }],
+      });
+      await openSettings(page);
+      await expect(rule(page)).toHaveCount(1);
+      await expect(rule(page).first().getByLabel("Repository")).toHaveValue(
+        API_REPOSITORY,
+      );
+      await rule(page).first().getByRole("button", { name: "Remove rule 1" })
+        .click();
+      await expect(rule(page)).toHaveCount(0);
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText("Settings saved.")).toBeVisible();
+      expect(seen.replaces[0].rules).toEqual([]);
+    });
+
+    test("the same label to the same repository twice is one problem, and Save waits", async ({ page }) => {
+      await settingsFixture(page, {
+        rules: [{
+          labelId: "1001",
+          labelName: "api-work",
+          repositoryId: API_REPOSITORY,
+        }],
+      });
+      await openSettings(page);
+      await rules(page).getByRole("button", { name: "Add rule" }).click();
+      const second = rule(page).nth(1);
+      await second.getByLabel("Label").selectOption({ label: "api-work" });
+      await second.getByLabel("Repository").selectOption({ label: "acme/api" });
+      await expect(
+        second.getByText("This label already goes to that repository."),
+      )
+        .toBeVisible();
+      await evidence(page, "issue-settings-routing-error");
+      await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+
+    test("a rule whose repository lost its role says so, and Save waits", async ({ page }) => {
+      await settingsFixture(page, {
+        noRoleApi: true,
+        rules: [{
+          labelId: "1001",
+          labelName: "api-work",
+          repositoryId: API_REPOSITORY,
+        }],
+      });
+      await openSettings(page);
+      await expect(
+        rule(page).first().getByText(
+          "That repository has no role in its project yet. Give it one in the project's settings.",
+        ),
+      ).toBeVisible();
+      // Nothing was edited, so there is nothing to save.
+      await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+    });
+
+    test("an archived repository is named as a problem on its rule", async ({ page }) => {
+      await settingsFixture(page, {
+        archivedApi: true,
+        rules: [{
+          labelId: "1001",
+          labelName: "api-work",
+          repositoryId: API_REPOSITORY,
+        }],
+      });
+      await openSettings(page);
+      await expect(rule(page).first().getByText("That repository is archived."))
+        .toBeVisible();
+    });
+
+    test("settings save, the rules are refused: the person is told and the rules stay", async ({ page }) => {
+      const seen = await settingsFixture(page, { replace: "refused" });
+      await openSettings(page);
+      await page.getByLabel("Start work").fill("ready");
+      await rules(page).getByRole("button", { name: "Add rule" }).click();
+      const row = rule(page).first();
+      await row.getByLabel("Label").selectOption({ label: "docs" });
+      await row.getByLabel("Repository").selectOption({ label: "acme/api" });
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText(
+        "Settings saved. The routing rules were not saved: a repository is archived or not in this project.",
+      )).toBeVisible();
+      await evidence(page, "issue-settings-routing-partial-save");
+      expect(seen.patches).toHaveLength(1);
+      expect(seen.replaces).toHaveLength(1);
+      // The rule is still in the form to fix.
+      await expect(rule(page)).toHaveCount(1);
+    });
+
+    test("a rules save against an older version is a conflict, not a refusal", async ({ page }) => {
+      await settingsFixture(page, { replace: "stale" });
+      await openSettings(page);
+      await rules(page).getByRole("button", { name: "Add rule" }).click();
+      const row = rule(page).first();
+      await row.getByLabel("Label").selectOption({ label: "docs" });
+      await row.getByLabel("Repository").selectOption({ label: "acme/api" });
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText(/Someone else changed these settings/))
+        .toBeVisible();
+    });
+
+    test("labels GitHub cannot list say so and offer Try again", async ({ page }) => {
+      await settingsFixture(page, { labels: "error" });
+      await openSettings(page);
+      await expect(
+        rules(page).getByText("Labels could not be read from GitHub."),
+      )
+        .toBeVisible();
+      await expect(rules(page).getByRole("button", { name: "Try again" }))
+        .toBeVisible();
+    });
+
+    test("50 rules is the most", async ({ page }) => {
+      await settingsFixture(page, {
+        rules: Array.from({ length: 50 }, (_, index) => ({
+          labelId: String(2000 + index),
+          labelName: `label-${index}`,
+          repositoryId: API_REPOSITORY,
+        })),
+      });
+      await openSettings(page);
+      await expect(rule(page)).toHaveCount(50);
+      await expect(rules(page).getByRole("button", { name: "Add rule" }))
+        .toBeDisabled();
+      await expect(rules(page).getByText("50 rules is the most."))
+        .toBeVisible();
+    });
+
+    test("someone who is not an administrator cannot add or remove rules", async ({ page }) => {
+      await settingsFixture(page, {
+        role: "developer",
+        rules: [{
+          labelId: "1001",
+          labelName: "api-work",
+          repositoryId: API_REPOSITORY,
+        }],
+      });
+      await openSettings(page);
+      await expect(rules(page).getByRole("button", { name: "Add rule" }))
+        .toBeDisabled();
+      await expect(
+        rule(page).first().getByRole("button", { name: "Remove rule 1" }),
+      )
+        .toBeDisabled();
+    });
+
+    test("the preview reads the saved settings only, and counts from its own answer", async ({ page }) => {
       const seen = await settingsFixture(page);
       await openSettings(page);
       const preview = page.getByRole("button", { name: "Preview" });
@@ -433,8 +796,8 @@ for (
       await expect(page.getByText("cannot start")).toBeVisible();
       await expect(page.getByText(/From checks read/)).toBeVisible();
       expect(seen.counts.previews).toBe(1);
-      // One read for the counts, not one per issue.
-      expect(seen.lists).toHaveLength(1);
+      // The counts are the preview's answer: no read of the issues behind it.
+      expect(seen.lists).toHaveLength(0);
       await shot(page, "issue-settings-preview", [], { windowOnly: true });
     });
 

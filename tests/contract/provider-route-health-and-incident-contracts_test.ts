@@ -265,11 +265,29 @@ Deno.test("the health states and reason codes cannot drift apart", () => {
     enumOf(route.health!, "ProviderRoute.health"),
     enumOf(health.health!, "RouteHealth.health"),
   );
+  // One deliberate exception, stated rather than hidden: a redirect is a reason a
+  // route *reads* (unverified, until it is reachable again) and never a reason an
+  // incident *opens* with. The probe records a redirect as proving nothing, keeps
+  // it out of failure counts, and opens no incident for it, so the incident
+  // vocabulary is the health vocabulary minus exactly these.
+  const healthOnlyReasons = ["redirected"];
+  const healthReasons = enumOf(health.reason!, "RouteHealth.reason");
+  const incidentReasons = enumOf(incident.reason!, "ProviderIncident.reason");
   assertEquals(
-    enumOf(incident.reason!, "ProviderIncident.reason"),
-    enumOf(health.reason!, "RouteHealth.reason"),
-    "the incident reason vocabulary must match the route health vocabulary",
+    healthReasons.filter((reason) => !healthOnlyReasons.includes(reason)),
+    incidentReasons,
+    "the incident reason vocabulary must match the route health vocabulary, " +
+      "less the health-only reasons",
   );
+  // And the exception is exact: every health-only reason is published on health
+  // and none leaks into the incident vocabulary.
+  for (const reason of healthOnlyReasons) {
+    assert(healthReasons.includes(reason), `${reason} is not a health reason`);
+    assert(
+      !incidentReasons.includes(reason),
+      `${reason} is health-only and must not be an incident reason`,
+    );
+  }
 
   // Machine codes, not prose: these are matched on, so a space or capital in
   // one of them is a bug rather than a wording choice.

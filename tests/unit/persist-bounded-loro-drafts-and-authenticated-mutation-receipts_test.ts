@@ -200,6 +200,10 @@ Deno.test("body, replacement, update, state, and metadata budgets remain fixed",
     workerStartupMs: 5_000,
     workerKillMs: 100,
     staleAttempts: 3,
+    receiptRetrySeconds: 86_400,
+    keptCheckpoints: 4,
+    compactionBatchRows: 500,
+    compactionThresholdBytes: 8_388_608,
   });
   await assertRejects(
     () => createInitialDraftCandidate("x".repeat(DRAFT_LIMITS.bodyBytes + 1)),

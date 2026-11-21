@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="mutant-must-be-proven-applied" project="bakery">
+  <title>A surviving mutant and an unapplied mutant look identical; grep the file before believing either</title>
+  <trigger>Running any mutation check to justify a test — removing a predicate, a lock, a guard or an argument and asserting the test goes red — especially when the result is a pass and you are about to explain why the mutant survived.</trigger>
+  <mistake>On #654 I removed two predicates from an upgrade-path select to prove a new test covered them, ran the test, saw it pass, and concluded the mutant "survived" — i.e. that my test was worthless. The edit had never applied: the source line ended `'withdrawn'`,` and my replacement string was missing that comma, so Python's replace found nothing and wrote the file unchanged. A surviving mutant and an unapplied mutant produce byte-identical output: the test passes, and there is no warning anywhere. Applied properly, the same test failed immediately. The near-miss was reporting "my test does not kill this mutant" to a QA seat that had asked for the mutant kill as the acceptance condition.</mistake>
+  <rule>After writing a mutant, read the file back and assert the mutation is present (a grep for the removed text returning zero, or the new text returning one) BEFORE running any test. Treat the absence of that check as making the run meaningless rather than merely unverified.</rule>
+  <rule>Assert in both directions: the mutated file must make the test fail, and the restored file must make it pass. A test that fails for both is measuring the environment (a missing database, a missing stack), not the mutation — on this same PR an integration run reported two FAILED for a test that only needed a stack that was down.</rule>
+  <rule>The same trap applies to a test whose fixture never reaches the code under test. My first upgrade-site test patched the version the install already held, so the upgrade branch never ran: the predicates were never evaluated, and the test passed while proving nothing. A test that passes is not evidence that a branch executed; the lock probe needed a positive control for exactly this reason, and a mutation is the positive control for a coverage claim.</rule>
+  <verification>
+    <requirement>Every mutant run is preceded by a read-back proving the mutation is in the file.</requirement>
+    <requirement>A report of "mutant survived" states how the mutation was verified applied, not just that a test was run.</requirement>
+    <requirement>A claim that a path is covered is backed by a mutation of that path, or by a positive control that shows the path executed — never by a passing test alone.</requirement>
+  </verification>
+  <boundary>A mutant is not always worth running: the owner rule limits mutation runs to auth, tenancy, secrets and security work, or when an issue's acceptance criteria ask for one. This entry is about how to run one honestly, not a licence to run more of them.</boundary>
+</learning>

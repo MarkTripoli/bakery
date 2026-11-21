@@ -13,9 +13,14 @@ import {
 } from "../../middleware.ts";
 import type { InstallationSettingsReader } from "../../application/installation-settings.ts";
 import { createAuthV1Routes } from "./v1/routes.ts";
+import { createDesktopSignInPages } from "./desktop-sign-in-pages.ts";
+import { createDesktopHandoffPage } from "./desktop-handoff-page.ts";
+import type { PasswordHasher } from "../../adapters/password-reset-links-postgres.ts";
 
 export type AuthHttpProvider = BrowserSessionAuth & {
   handler(request: Request): Promise<Response>;
+  /** The provider's initialized context; password reset redemption hashes through its `password`. */
+  $context?: Promise<{ password: PasswordHasher }>;
 };
 
 const invitationLookupPaths = new Set([
@@ -214,6 +219,8 @@ export function createAuthRoutes(options: {
     }),
   );
   app.route("/", createAuthV1Routes(options));
+  app.route("/", createDesktopSignInPages(options));
+  app.route("/", createDesktopHandoffPage(options));
   app.all("/api/auth/*", async (context) => {
     if (
       deniedProviderPaths.has(

@@ -1,3 +1,4 @@
+import type { MessageKey } from "@bakery/i18n";
 import type { ProviderManifest } from "./provider-manifest.ts";
 
 /**
@@ -74,6 +75,17 @@ export type ConnectionSectionProps = {
   onDisconnect(): void;
 };
 
+/**
+ * A sentence for the host to translate.
+ *
+ * `arguments` fills the message's placeholders; the values are primitives because
+ * a message is text, and anything richer belongs in the component that renders it.
+ */
+export type ProviderMessage = {
+  key: MessageKey;
+  arguments?: Readonly<Record<string, string | number>>;
+};
+
 /** A component the host can render without knowing which provider supplied it. */
 export type ProviderComponent = (props: never) => unknown;
 
@@ -95,12 +107,32 @@ export type ProviderWebModule<M extends ProviderManifest> = {
   AppRegistrationPanel?: (props: AppRegistrationPanelProps) => unknown;
   ConnectionSection?: (props: ConnectionSectionProps) => unknown;
   /**
-   * How a resource is labelled in a picker. Returning a string keeps the host's
-   * rendering uniform and makes the hook trivially testable.
+   * How a resource is labelled in a picker.
+   *
+   * A message key rather than a sentence: the host renders it through the
+   * translator, so a provider cannot ship English into a translated page, and a
+   * missing key is a compile error here rather than a raw key on screen.
    */
-  describeResource?: (resource: IntegrationResource) => string;
-  /** How one provider permission and level read to a person. */
-  describePermission?: (permission: string, level: string) => string;
+  describeResource?: (resource: IntegrationResource) => ProviderMessage;
+  /**
+   * Whether a person can start a connection to this provider yet.
+   *
+   * Absent means yes. A provider whose connect flow is not built says `false`, and
+   * the host shows its row with Connect disabled instead of letting the button fail.
+   * It is a statement about this build, so it goes away when the flow ships.
+   */
+  connectAvailable?: boolean;
+  /**
+   * Where an installation administrator creates the OAuth application whose client
+   * ID and secret they enter. Opened in a new tab; only for providers that register
+   * client credentials.
+   */
+  registrationGuideUrl?: string;
+  /** How one provider permission and level read to a person, as a message. */
+  describePermission?: (
+    permission: string,
+    level: string,
+  ) => ProviderMessage;
 };
 
 /**

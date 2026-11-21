@@ -99,9 +99,14 @@ Deno.test("process-launched workers that hang, exhaust memory, trap or flood are
         DraftIsolationError,
       );
       assertEquals(error.kind, kind, `${name}: ${error.message}`);
-      // The work budget from READY, plus start-up and the kill and reap.
+      // The clock started before initialize(), so it covers start-up as well as
+      // the work budget from READY and the kill and reap. The isolation itself
+      // allows start-up plus the work budget, so that is the deadline it
+      // promises; 2 s more is the kill and reap. Bounding by the work budget
+      // alone left a 2 s margin for start-up and failed under a loaded lane.
       assert(
-        performance.now() - started < DRAFT_LIMITS.workerRuntimeMs + 2_000,
+        performance.now() - started <
+          DRAFT_LIMITS.workerStartupMs + DRAFT_LIMITS.workerRuntimeMs + 2_000,
         `${name} was not stopped within the deadline`,
       );
     });

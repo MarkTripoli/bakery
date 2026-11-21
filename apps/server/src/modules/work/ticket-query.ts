@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
-import { StandardError } from "@bakery/contracts/http";
+import { StandardError, unprocessable } from "@bakery/contracts/http";
 import {
   type CursorBinding,
   decodeCursor,
@@ -27,6 +27,8 @@ type TicketSourceOutput = z.output<typeof contractSchemas.TicketSource>;
 type ExternalTicketOutput = z.output<typeof contractSchemas.ExternalTicket>;
 type SourceQuery = z.output<typeof contractSchemas.TicketSourceQuery>;
 type TicketQuery = z.output<typeof contractSchemas.ExternalTicketQuery>;
+type LinkQuery = z.output<typeof contractSchemas.TicketTaskLinkQuery>;
+type LinkOutput = z.output<typeof contractSchemas.TicketTaskLink>;
 
 const ORDERING = "createdAt:desc,id:desc";
 const CURSOR_TIME = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -41,7 +43,7 @@ type SourceRow = {
   organization_id: string;
   integration_connection_id: string;
   integration_resource_id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   external_container_id: string;
   enabled: boolean;
@@ -373,4 +375,120 @@ export async function getExternalTicket(
   );
   if (!result.rows[0]) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   return (await projectTickets(transaction, organizationId, result.rows))[0];
+}
+
+/** One `ticket_task_links` row as `LINK_COLUMNS` reads it. */
+export type LinkRow = {
+  id: string;
+  external_ticket_id: string;
+  task_id: string;
+  role: LinkOutput["role"];
+  status_comment_external_id: string | null;
+  last_synced_run_revision: number | null;
+  sync_health: LinkOutput["syncHealth"];
+  last_problem_code: string | null;
+  created_at: Date;
+  updated_at: Date;
+  version: number;
+  cursor_created_at?: string;
+};
+
+/** One link as the API shows it. */
+export function toLinkOutput(
+  organizationId: string,
+  row: LinkRow,
+): LinkOutput {
+  return {
+    id: row.id,
+    organizationId,
+    externalTicketId: row.external_ticket_id,
+    taskId: row.task_id,
+    role: row.role,
+    statusCommentExternalId: row.status_comment_external_id,
+    lastSyncedRunRevision: row.last_synced_run_revision,
+    syncHealth: row.sync_health,
+    lastProblemCode: row.last_problem_code,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    version: row.version,
+  } as LinkOutput;
+}
+
+/** The columns `toLinkOutput` reads. */
+export const LINK_COLUMNS = `id, external_ticket_id, task_id, role,
+  status_comment_external_id, last_synced_run_revision, sync_health,
+  last_problem_code, created_at, updated_at, version`;
+
+/**
+ * `ticketTaskLinks.list` (#69): the links of one ticket or of one task,
+ * newest first, keyset paged. Exactly one side is named; a ticket or task the
+ * organization does not hold answers `RESOURCE_NOT_FOUND`, as a missing one
+ * would. Each link carries the sync health of Bakery's status note.
+ */
+export function createTicketTaskLinksListHandler(secret: string) {
+  return async (context: ActionContext, input: LinkQuery) => {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const ticketId = input.externalTicketId ?? null;
+    const taskId = input.taskId ?? null;
+    if ((ticketId === null) === (taskId === null)) {
+      throw unprocessable(
+        ["externalTicketId"],
+        "ticket_task_link_scope_required",
+      );
+    }
+    const owner = ticketId === null
+      ? await transaction.query(
+        `select 1 from bakery.tasks where organization_id = $1 and id = $2`,
+        [organizationId, taskId],
+      )
+      : await transaction.query(
+        `select 1 from bakery.external_tickets
+          where organization_id = $1 and id = $2`,
+        [organizationId, ticketId],
+      );
+    if (owner.rows.length === 0) {
+      throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    }
+    const binding: CursorBinding = {
+      action: "ticketTaskLinks.list",
+      principalId,
+      organizationId,
+      ordering: ORDERING,
+      filters: JSON.stringify({ ticketId, taskId, role: input.role ?? null }),
+      schemaVersion: 1,
+    };
+    const position = await decodeCursor(secret, input.cursor, binding);
+    const limit = input.limit ?? 25;
+    const result = await transaction.query<LinkRow>(
+      `select ${LINK_COLUMNS},
+              to_char(created_at at time zone 'UTC', ${CURSOR_TIME})
+                as cursor_created_at
+         from bakery.ticket_task_links
+        where organization_id = $1
+          and ($2::uuid is null or external_ticket_id = $2::uuid)
+          and ($3::uuid is null or task_id = $3::uuid)
+          and ($4::text is null or role = $4::text)
+          and ($5::timestamptz is null
+               or (created_at, id) < ($5::timestamptz, $6::uuid))
+        order by created_at desc, id desc
+        limit $7`,
+      [
+        organizationId,
+        ticketId,
+        taskId,
+        input.role ?? null,
+        position?.createdAt ?? null,
+        position?.id ?? null,
+        limit + 1,
+      ],
+    );
+    return {
+      items: result.rows.slice(0, limit).map((row) =>
+        toLinkOutput(organizationId, row)
+      ),
+      nextCursor: await nextCursor(secret, binding, result.rows, limit),
+    };
+  };
 }

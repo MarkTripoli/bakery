@@ -8,6 +8,7 @@ import {
 } from "../workflow-adapter/bakery-postgres-store.ts";
 import { readPlanHost } from "../delivery/plan-host.ts";
 import { createBakeryBudgetRecovery } from "../work/budget-recovery.ts";
+import { createMergeQueueWorkflow } from "../delivery/merge-queue.ts";
 import { createDependencyReleaseWorkflow } from "../work/dependency-release-workflow.ts";
 import {
   createSkillImportRecovery,
@@ -24,6 +25,8 @@ import {
 } from "../integrations/discovery-workflow.ts";
 import { createIntegrationIntakeRetention } from "../integrations/intake-retention.ts";
 import { createBlobUploadReaper } from "../knowledge/blob-upload-reaper.ts";
+import { createStorageRetentionReaper } from "../knowledge/storage-retention-reaper.ts";
+import { createProviderProbeWorkflow } from "./provider-probe.ts";
 import {
   createIntegrationIntakeRecovery,
   createIntegrationIntakeWorkflow,
@@ -37,6 +40,11 @@ import {
   createTicketIntakeWorkflow,
   createTicketPollWorkflow,
 } from "../work/ticket-workflows.ts";
+import { createBatchSupervisorWorkflow } from "../work/batch-tick.ts";
+import { createBatchCancelPort } from "../work/batch-cancel-port.ts";
+import { createBatchStartPort } from "../work/batch-start-port.ts";
+import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
+import { GITHUB_PROVIDER } from "../integrations/registry.ts";
 import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
 import { createAutomationIntakeFunction } from "../workflows/automations/event-intake.ts";
 import { createAutomationPromoteFunction } from "../workflows/automations/promote.ts";
@@ -84,10 +92,19 @@ function createTicketAutomation(options: {
   const deps = {
     client: options.client,
     database: options.database,
-    reader: createTicketSourceReader({
-      database: options.database,
-      ...options.integrations,
-    }),
+    // The same per-provider choice the HTTP app makes: one reader per provider
+    // this build deploys, and a source whose provider has none fails closed.
+    reader: selectTicketSourceReader(
+      new Map([
+        [
+          GITHUB_PROVIDER,
+          createTicketSourceReader({
+            database: options.database,
+            ...options.integrations,
+          }),
+        ],
+      ]),
+    ),
     factIndex: createTicketFactIndex(),
     budget: options.budget,
   };
@@ -192,10 +209,20 @@ export function createDefaultInngestFunctions(options: {
           client: options.client,
           database: options.database,
         }),
+        createStorageRetentionReaper({
+          client: options.client,
+          database: options.database,
+        }),
         createIntegrationFactSweep({
           client: options.client,
           database: options.database,
           ...options.integrations,
+        }),
+        createMergeQueueWorkflow({
+          client: options.client,
+          database: options.database,
+          github: options.integrations.github,
+          broker: options.integrations.broker,
         }),
         ...createTicketAutomation({
           client: options.client,
@@ -206,6 +233,10 @@ export function createDefaultInngestFunctions(options: {
       ]
       : []),
     createAuditRetentionFunction({
+      client: options.client,
+      database: options.database,
+    }),
+    createProviderProbeWorkflow({
       client: options.client,
       database: options.database,
     }),
@@ -224,6 +255,37 @@ export function createDefaultInngestFunctions(options: {
     createDependencyReleaseWorkflow({
       client: options.client,
       database: options.database,
+    }),
+    // The batch supervisor: a supervisor over ordinary requests, not an engine. It
+    // starts an issue only through the existing admission, with the same live reader
+    // and budget policy as the ticket functions, so it is wired where they are; with no
+    // integrations a batch that must start an issue pauses with a named reason.
+    createBatchSupervisorWorkflow({
+      client: options.client,
+      database: options.database,
+      ports: {
+        // A cancel needs no provider, so it is always wired.
+        cancelRun: createBatchCancelPort({ database: options.database }),
+        ...(options.integrations
+          ? {
+            startNext: createBatchStartPort({
+              database: options.database,
+              reader: selectTicketSourceReader(
+                new Map([
+                  [
+                    GITHUB_PROVIDER,
+                    createTicketSourceReader({
+                      database: options.database,
+                      ...options.integrations,
+                    }),
+                  ],
+                ]),
+              ),
+              budget: options.budget,
+            }),
+          }
+          : {}),
+      },
     }),
   ];
 }

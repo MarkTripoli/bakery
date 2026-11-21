@@ -18,6 +18,7 @@ import { type PanelTarget, StepPanel } from "./StepPanel.tsx";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import {
+  definitionOf,
   editorReducer,
   editorStateOf,
   type EditorStep,
@@ -198,15 +199,10 @@ export function WorkflowEditorPage(
         versionId: draft.id,
         version: draft.version,
         input: {
-          definition: {
-            steps: steps.map((step) => ({
-              id: step.id,
-              uses: step.uses,
-              ...(step.agentVersionId === null
-                ? {}
-                : { agentVersionId: step.agentVersionId }),
-            })),
-          } as never,
+          definition: definitionOf(
+            record(draft.normalizedSpec),
+            steps,
+          ) as never,
         },
         idempotencyKey: crypto.randomUUID(),
       });
@@ -322,15 +318,10 @@ export function WorkflowEditorPage(
       const result = await api.validateWorkflow({
         organizationId: scope.organizationId as string,
         input: {
-          definition: {
-            steps: held.map((step) => ({
-              id: step.id,
-              uses: step.uses,
-              ...(step.agentVersionId === null
-                ? {}
-                : { agentVersionId: step.agentVersionId }),
-            })),
-          } as never,
+          definition: definitionOf(
+            draft === null ? null : record(draft.normalizedSpec),
+            held,
+          ) as never,
         },
       });
       if (!result.ok) throw result.error;

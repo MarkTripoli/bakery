@@ -284,22 +284,6 @@ async function waitForWorkerMarker(
   }
   throw new Error(`DURABLE_CORE_WORKER_MARKER_TIMEOUT:${path}`);
 }
-async function waitForReplacementMarker(
-  path: string,
-  previousAttemptId: string,
-): Promise<WorkerActionMarker> {
-  const deadline = Date.now() + 60_000;
-  while (Date.now() < deadline) {
-    const marker = await readWorkerActionMarker(path);
-    if (
-      marker?.phase === "checkpoint-acked" &&
-      marker.latest.attemptId !== previousAttemptId
-    ) return marker;
-    await new Promise<void>((resolve) => setTimeout(resolve, 50));
-  }
-  throw new Error(`DURABLE_CORE_WORKER_REPLACEMENT_MARKER_TIMEOUT:${path}`);
-}
-
 async function writeWorkerRelease(path: string): Promise<void> {
   await Deno.writeTextFile(path, "release\n", { createNew: true, mode: 0o600 });
 }
@@ -502,45 +486,61 @@ async function readAttemptObservations(
   );
 }
 
-async function waitForReplacementAttempt(
+type LossObservation = {
+  readonly taskId: string;
+  readonly jobId: string;
+  readonly jobStatus: string;
+  readonly runId: string;
+  readonly runStatus: string;
+  readonly runStepId: string;
+  readonly runStepStatus: string;
+  readonly stepErrorCode: string | null;
+  readonly attemptStatuses: readonly string[];
+};
+
+/**
+ * Waits for a plan run whose only attempt was lost to fail, and returns what
+ * the database holds then. The attempt statuses come back in attempt order, so a
+ * redelivered step would show as a second entry.
+ */
+async function waitForLossWithoutReplacement(
   stack: DurableCoreStack,
-  jobId: string,
-  firstAttemptId: string,
-): Promise<{
-  readonly attempts: AttemptObservation[];
-  readonly oldAttemptStatuses: readonly string[];
-}> {
-  const deadline = Date.now() + 60_000;
-  const oldAttemptStatuses = new Set<string>();
-  let attempts: AttemptObservation[] = [];
+  scenario: RealWorkerScenario,
+): Promise<LossObservation> {
+  const deadline = Date.now() + 180_000;
+  let last: unknown;
   while (Date.now() < deadline) {
-    attempts = await readAttemptObservations(stack, jobId);
-    const old = attempts.find((candidate) => candidate.id === firstAttemptId);
-    if (old) oldAttemptStatuses.add(old.status);
-    const replacement = attempts.find((candidate) =>
-      candidate.id !== firstAttemptId
+    const rows = await stack.psql<
+      Omit<LossObservation, "attemptStatuses"> & { attempts: string | null }
+    >(
+      `select task.id as "taskId", job.id as "jobId", job.status as "jobStatus",
+              run.id as "runId", run.status as "runStatus",
+              step.id as "runStepId", step.status as "runStepStatus",
+              step.error->>'code' as "stepErrorCode",
+              (select string_agg(attempt.status, ',' order by attempt.attempt_no)
+                 from bakery.job_attempts attempt
+                where attempt.job_id = job.id) as attempts
+         from bakery.jobs job
+         join bakery.run_steps step
+           on step.organization_id = job.organization_id
+          and step.id = job.run_step_id
+         join bakery.workflow_runs run
+           on run.organization_id = step.organization_id
+          and run.id = step.run_id
+         join bakery.tasks task
+           on task.organization_id = run.organization_id
+          and task.id = run.task_id
+        where job.organization_id = $1 and job.id = $2`,
+      [scenario.clients.identity.organizationId, scenario.job.jobId],
     );
-    if (
-      replacement &&
-      old &&
-      (old.status === "quarantined" || old.status === "lost") &&
-      BigInt(replacement.fence) > BigInt(old.fence)
-    ) {
-      return {
-        attempts,
-        oldAttemptStatuses: [...oldAttemptStatuses],
-      };
+    last = rows[0];
+    if (rows[0]?.runStatus === "failed") {
+      const { attempts, ...rest } = rows[0];
+      return { ...rest, attemptStatuses: attempts ? attempts.split(",") : [] };
     }
-    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(
-    `DURABLE_CORE_WORKER_REPLACEMENT_TIMEOUT:${
-      JSON.stringify({
-        attempts,
-        oldAttemptStatuses: [...oldAttemptStatuses],
-      })
-    }`,
-  );
+  throw new Error(`DURABLE_CORE_WORKER_LOSS_TIMEOUT:${JSON.stringify(last)}`);
 }
 
 async function observeTerminal(
@@ -774,7 +774,27 @@ async function waitForTerminalRows(
           and event.event_type = 'job.succeeded'`,
       [jobId],
     );
-    if (rows[0]?.count === 1) return;
+    if (rows[0]?.count === 1) {
+      // A plan run is closed by the engine after the worker's result lands, so
+      // the task, run and step reach completed a moment after the job event.
+      const closed = await stack.psql<{ closed: boolean }>(
+        `select (task.status = 'completed' and run.status = 'completed'
+                  and step.status = 'completed') as closed
+           from bakery.jobs job
+           join bakery.run_steps step
+             on step.organization_id = job.organization_id
+            and step.id = job.run_step_id
+           join bakery.workflow_runs run
+             on run.organization_id = step.organization_id
+            and run.id = step.run_id
+           join bakery.tasks task
+             on task.organization_id = run.organization_id
+            and task.id = run.task_id
+          where job.id = $1`,
+        [jobId],
+      );
+      if (closed[0]?.closed === true) return;
+    }
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
   }
   const [attempts, ...logs] = await Promise.all([
@@ -871,7 +891,7 @@ async function readOnlyLifecycleSnapshot(
   return snapshot;
 }
 Deno.test(
-  "durable core recovers a worker-produced checkpoint across a real worker process kill",
+  "durable core keeps a worker-produced checkpoint and fails the run across a real worker process kill",
   { sanitizeResources: false, sanitizeOps: false },
   async () => {
     const stack = await upDurableCoreStack("durable-core-worker-boundary");
@@ -908,61 +928,48 @@ Deno.test(
       await stopRealWorker(firstChild, "SIGKILL");
       firstStopped = true;
       await writeWorkerRelease(scenario.releasePath);
+      // The same worker comes back. A plan run gives the effectful step one
+      // attempt, so the restarted worker is not handed the step again: the lost
+      // attempt fails the run, and what it checkpointed stays durable.
       secondChild = spawnRealWorker(scenario);
-      const replacement = await waitForReplacementAttempt(
-        stack,
-        scenario.job.jobId,
-        firstMarker.first.attemptId,
-      );
+      const loss = await waitForLossWithoutReplacement(stack, scenario);
+      assertEquals(loss.attemptStatuses.length, 1, "no replacement attempt");
+      const lostStatus = loss.attemptStatuses[0];
       assert(
-        replacement.oldAttemptStatuses.some((status) =>
-          status === "quarantined" || status === "lost"
-        ),
-        `old attempt was not quarantined or reclaimed: ${
-          replacement.oldAttemptStatuses.join(",")
-        }`,
+        lostStatus === "lost" || lostStatus === "quarantined",
+        `the killed attempt was not closed: ${lostStatus}`,
       );
-      const secondMarker = await waitForReplacementMarker(
-        scenario.markerPath,
+      assertEquals(loss.jobStatus, "failed");
+      assertEquals(loss.runStatus, "failed");
+      assertEquals(loss.runStepStatus, "failed");
+      assertEquals(loss.stepErrorCode, "ATTEMPT_BUDGET_EXHAUSTED");
+      const markerAfter = await waitForWorkerMarker(scenario.markerPath);
+      assertEquals(
+        markerAfter.latest.attemptId,
         firstMarker.first.attemptId,
+        "the restarted worker must not hold the step again",
       );
-      assertEquals(secondMarker.artifact, firstMarker.artifact);
-      const secondCheckpoint = await waitForPersistedCheckpoint({
+      const checkpointAfter = await waitForPersistedCheckpoint({
         stack,
-        attemptId: secondMarker.latest.attemptId,
+        attemptId: firstMarker.first.attemptId,
         effectKey: scenario.effectKey,
-        artifact: secondMarker.artifact,
+        artifact: firstMarker.artifact,
         expectedLocalSeq: "3",
       });
-      assertEquals(secondCheckpoint.localSeq, "3");
-      assertEquals(secondCheckpoint.ackedLocalSeq, "3");
-      assertEquals(secondMarker.first.attemptId, firstMarker.first.attemptId);
-      assert(secondMarker.latest.attemptId !== firstMarker.first.attemptId);
-      assertEquals(secondCheckpoint.jobId, scenario.job.jobId);
-      assertEquals(secondCheckpoint.runId, scenario.job.runId);
-      assertEquals(secondCheckpoint.runStepId, scenario.job.runStepId);
-      await writeWorkerRelease(scenario.replacementReleasePath);
-      const terminal = await (async () => {
-        await waitForTerminalRows(stack, scenario!.job.jobId);
-        return await observeTerminal(stack, scenario!, secondMarker);
-      })();
-      const spoolAfter = await waitForSpoolAbsent(
-        `${scenario.stateDir}/spool.json`,
-        {
-          attemptId: secondCheckpoint.attemptId,
-          eventId: secondCheckpoint.eventId,
-        },
+      assertEquals(checkpointAfter.eventId, firstCheckpoint.eventId);
+      const artifactResponse = await fetchArtifact(
+        scenario.clients.consumer,
+        firstMarker.artifact,
       );
-      assertEquals(terminal.acceptedCount, 1);
-      assertEquals(terminal.effectCount, 1);
-      assertEquals(terminal.artifactCount, 1);
-      assertEquals(terminal.versionCount, 1);
-      assertEquals(terminal.terminalAttemptCount, 1);
-      assertEquals(spoolAfter.spoolState, "absent");
-      assertEquals(spoolAfter.checkpointAckedLocalSeq, null);
-      assertEquals(spoolAfter.nextLocalSeq, null);
-      assert(terminal.attemptId !== firstCheckpoint.attemptId);
-      assertEquals(terminal.attemptId, secondMarker.latest.attemptId);
+      assertEquals(
+        artifactResponse.status,
+        200,
+        await artifactResponse.clone().text(),
+      );
+      const verifiedSha256 = await sha256Hex(
+        new Uint8Array(await artifactResponse.arrayBuffer()),
+      );
+      assertEquals(verifiedSha256, firstMarker.bytesSha256);
       const proof = {
         kind: "worker",
         revision: await checkoutRevision(),
@@ -982,47 +989,28 @@ Deno.test(
           ackedLocalSeq: firstCheckpoint.ackedLocalSeq as "3",
           artifactRef: firstMarker.artifact,
         },
-        replacementAttempt: {
-          attemptId: secondMarker.latest.attemptId,
-          fence: secondMarker.latest.fence,
-          workerSessionId: secondMarker.latest.workerSessionId,
-          workerSessionGeneration: secondMarker.latest.workerSessionGeneration,
-          checkpointEventId: secondCheckpoint.eventId,
-          checkpointLocalSeq: secondCheckpoint.localSeq as "3",
-        },
-        secondCheckpoint: {
-          attemptId: secondCheckpoint.attemptId,
-          eventId: secondCheckpoint.eventId,
-          localSeq: "3",
-          ackedLocalSeq: secondCheckpoint.ackedLocalSeq as "3",
-          artifactRef: secondMarker.artifact,
-        },
         restart: {
           service: "worker",
           beforeProcessId: String(beforeProcessId),
           afterProcessId: String(secondChild.pid),
         },
-        terminal: {
-          jobId: terminal.jobId,
-          attemptId: terminal.attemptId,
-          eventId: terminal.eventId,
-          taskId: terminal.taskId,
-          taskStatus: terminal.taskStatus,
-          runId: terminal.runId,
-          runStatus: terminal.runStatus,
-          runStepId: terminal.runStepId,
-          runStepStatus: terminal.runStepStatus,
-          terminalTaskCount: terminal.terminalTaskCount,
-          terminalRunCount: terminal.terminalRunCount,
-          terminalStepCount: terminal.terminalStepCount,
-          acceptedCount: 1,
-          effectCount: 1,
-          artifactCount: 1,
+        lost: {
+          attemptId: firstMarker.first.attemptId,
+          attemptStatus: lostStatus,
+          attemptCount: 1,
+          taskId: loss.taskId,
+          jobId: loss.jobId,
+          jobStatus: "failed",
+          runId: loss.runId,
+          runStatus: "failed",
+          runStepId: loss.runStepId,
+          runStepStatus: "failed",
+          stepErrorCode: "ATTEMPT_BUDGET_EXHAUSTED",
         },
         artifact: {
           ref: firstMarker.artifact,
           sha256: firstMarker.bytesSha256,
-          verifiedSha256: terminal.verifiedSha256,
+          verifiedSha256,
         },
         observations: {
           journalBefore: journalObservation(
@@ -1030,13 +1018,7 @@ Deno.test(
             firstCheckpoint.eventId,
             firstMarker.first.journalBefore,
           ),
-          journalAfter: journalObservation(
-            secondMarker.latest.attemptId,
-            secondCheckpoint.eventId,
-            secondMarker.latest.journalAfter,
-          ),
           spoolBefore,
-          spoolAfter,
         },
       } as const;
       await writeDurableCoreBoundaryProof(proof);

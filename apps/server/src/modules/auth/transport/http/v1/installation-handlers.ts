@@ -23,6 +23,12 @@ import { readAuditRetention } from "../../../adapters/audit-retention-postgres.t
 import { AuthImplementedAction as Action } from "@bakery/contracts/implemented-actions";
 import { recordAuthAudit } from "../../../application/audit.ts";
 import {
+  issuePasswordResetLink,
+  type PasswordHasher,
+  redeemPasswordResetLink,
+} from "../../../adapters/password-reset-links-postgres.ts";
+import type { PgDatabase } from "../../../../../platform/database.ts";
+import {
   exportAuditEvents,
   streamAuditEvents,
   updateAuditRetention,
@@ -184,6 +190,59 @@ export async function installationAdministratorsRevoke(
     resourceId: revoked.principalId,
   });
   return revoked;
+}
+
+/**
+ * Issues a one-hour password reset link for any person on the installation.
+ * Installation administrators only: an organization admin cannot, because a
+ * person may belong to several organizations and a reset hands over all of
+ * them. The URL is returned once; the audit row never carries the token.
+ */
+export async function passwordResetLinksCreate(
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.PasswordResetLinkCreate>,
+  publicBaseUrl: string | undefined,
+) {
+  const value = authorized(context);
+  const actor = installationActor(value);
+  if (!publicBaseUrl) throw new StandardError({ code: "INTERNAL" });
+  const issued = await issuePasswordResetLink(
+    value.transaction,
+    actor,
+    input.principalId,
+    publicBaseUrl,
+  );
+  await audit(value, actor, {
+    operation: Action.PasswordResetLinksCreate,
+    resourceType: "password_reset_link",
+    resourceId: issued.id,
+    details: {
+      targetPrincipalId: input.principalId,
+      expiresAt: issued.expiresAt,
+      revokedLinkCount: issued.revokedLinkCount,
+    },
+  });
+  return { id: issued.id, url: issued.url, expiresAt: issued.expiresAt };
+}
+
+/** Unauthenticated redemption; every unusable link gets the same refusal. */
+export async function passwordResetsRedeem(
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.PasswordResetRedemption>,
+  dependencies: {
+    database: PgDatabase;
+    passwordHasher: (() => Promise<PasswordHasher>) | undefined;
+  },
+) {
+  if (!dependencies.passwordHasher) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  await redeemPasswordResetLink(dependencies.database, input, {
+    hasher: await dependencies.passwordHasher(),
+    clientAddress: context.clientAddress,
+    correlation: context,
+  });
+  return null;
 }
 
 export function installationAuditEventsList(

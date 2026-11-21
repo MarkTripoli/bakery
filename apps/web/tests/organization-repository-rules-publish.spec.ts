@@ -236,7 +236,7 @@ test.describe("organization repository rules: review and publish", () => {
     const state = await publishFixture(page);
     await makeDraft(page);
     const dialog = await review(page);
-    await expect(dialog).toContainText("Publish revision 4?");
+    await expect(dialog).toContainText("Publish version 4?");
     await expect(dialog).toContainText("Applies to 5 repositories now");
     for (
       const [label, value] of [
@@ -403,7 +403,7 @@ test.describe("organization repository rules: review and publish", () => {
     await dialog.getByRole("button", { name: "Publish rules" }).click();
 
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(page.getByText("Revision 4 published.")).toBeVisible();
+    await expect(page.getByText("Version 4 published.")).toBeVisible();
     await expect(draftBar(page)).toHaveCount(0);
     await shot(page, "rules-published");
     await expect(
@@ -411,7 +411,7 @@ test.describe("organization repository rules: review and publish", () => {
     ).toBeFocused();
     // The page now shows what was published, not an edit.
     await expect(page.getByTestId("org-rules-current")).toContainText(
-      "Published revision 4",
+      "Version 4 · published",
     );
     await expect(ruleRow(page, "Semantic commits")).not.toContainText("Edited");
     await expect(ruleRow(page, "Semantic commits")).toContainText("Warn");
@@ -439,7 +439,7 @@ test.describe("organization repository rules: review and publish", () => {
         "The rules could not be published. Your changes are kept.",
       ),
     ).toBeVisible();
-    await expect(page.getByText("Revision 4 published.")).toHaveCount(0);
+    await expect(page.getByText("Version 4 published.")).toHaveCount(0);
     await shot(page, "rules-publish-failed");
     await dialog.getByRole("button", { name: "Back to editing" }).click();
     await expect(draftBar(page)).toContainText("1 unpublished change");
@@ -450,7 +450,7 @@ test.describe("organization repository rules: review and publish", () => {
     await page.getByRole("dialog").getByRole("button", {
       name: "Publish rules",
     }).click();
-    await expect(page.getByText("Revision 4 published.")).toBeVisible();
+    await expect(page.getByText("Version 4 published.")).toBeVisible();
     expect(state.publishKeys).toHaveLength(2);
     expect(state.publishKeys[0]).not.toEqual(state.publishKeys[1]);
   });
@@ -502,7 +502,7 @@ test.describe("organization repository rules: a newer revision was published", (
 
     const notice = page.getByTestId("org-rules-stale");
     await expect(notice).toContainText(
-      "Revision 4 was published while you were editing.",
+      "Version 4 was published while you were editing.",
     );
     await expect(notice).toContainText("Your changes are kept.");
     await expect(notice).toBeFocused();
@@ -510,14 +510,14 @@ test.describe("organization repository rules: a newer revision was published", (
     // Both edits are still there, on top of revision 4.
     await expect(draftBar(page)).toContainText("2 unpublished changes");
     // While a question is open the bar says what to do, not where the draft started.
-    await expect(draftBar(page)).not.toContainText("based on revision 4");
+    await expect(draftBar(page)).not.toContainText("based on version 4");
     // Only the rule changed in both is a question; the other edit carried over.
     const conflicts = page.getByTestId("org-rules-conflicts");
     await expect(conflicts).toContainText("Semantic commits");
-    await expect(conflicts).toContainText("Changed in revision 4");
+    await expect(conflicts).toContainText("Changed in version 4");
     // Two labelled lines, one per side, each with the whole summary.
     await expect(conflicts.locator("[class*='description-item__title']"))
-      .toHaveText(["Yours", "Revision 4"]);
+      .toHaveText(["Yours", "Version 4"]);
     const sides = conflicts.locator("[class*='description-item__description']");
     await expect(sides.nth(0)).toContainText("Warn");
     await expect(sides.nth(1)).toContainText("Guide");
@@ -562,7 +562,7 @@ test.describe("organization repository rules: a newer revision was published", (
     expect(state.publishBodies).toHaveLength(1);
     // They press Publish again: the server answers 412 because it is already revision 4.
     await dialog.getByRole("button", { name: "Publish rules" }).click();
-    await expect(page.getByText("Revision 4 published.")).toBeVisible();
+    await expect(page.getByText("Version 4 published.")).toBeVisible();
     await shot(page, "rules-published-after-retry");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(draftBar(page)).toHaveCount(0);
@@ -591,11 +591,11 @@ test.describe("organization repository rules: a newer revision was published", (
       .click();
     await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
     // Decided: the bar is back to saying where the draft starts.
-    await expect(draftBar(page)).toContainText("based on revision 4");
+    await expect(draftBar(page)).toContainText("based on version 4");
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeEnabled();
     await page.getByRole("button", { name: "Review and publish" }).click();
-    await expect(page.getByRole("dialog")).toContainText("Publish revision 5?");
+    await expect(page.getByRole("dialog")).toContainText("Publish version 5?");
 
     const asked = state.previewBodies.at(-1) as {
       expectedRevision: number;
@@ -614,7 +614,7 @@ test.describe("organization repository rules: a newer revision was published", (
     await page.getByRole("dialog").getByRole("button", {
       name: "Publish rules",
     }).click();
-    await expect(page.getByText("Revision 5 published.")).toBeVisible();
+    await expect(page.getByText("Version 5 published.")).toBeVisible();
     expect(
       (state.publishBodies[0] as { expectedRevision: number })
         .expectedRevision,
@@ -629,7 +629,7 @@ test.describe("organization repository rules: a newer revision was published", (
     await expect(page.getByTestId("org-rules-conflicts")).toBeVisible();
 
     await page.getByRole("button", {
-      name: "Use revision 4 for Semantic commits",
+      name: "Use version 4 for Semantic commits",
     }).click();
     await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
     // The rule is revision 4's again, and only the other edit is left.
@@ -649,10 +649,10 @@ test.describe("organization repository rules: a newer revision was published", (
     const dialog = await review(page);
     await dialog.getByRole("button", { name: "Publish rules" }).click();
     await expect(page.getByTestId("org-rules-stale")).toContainText(
-      "Revision 4 was published while you were editing.",
+      "Version 4 was published while you were editing.",
     );
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(page.getByText("Revision 4 published.")).toHaveCount(0);
+    await expect(page.getByText("Version 4 published.")).toHaveCount(0);
     await expect(page.getByTestId("org-rules-conflicts")).toContainText(
       "Semantic commits",
     );
@@ -669,7 +669,7 @@ test.describe("organization repository rules: a newer revision was published", (
     await makeDraft(page);
     await page.getByRole("button", { name: "Review and publish" }).click();
     await expect(page.getByTestId("org-rules-stale")).toContainText(
-      "Revision 4 was published while you were editing.",
+      "Version 4 was published while you were editing.",
     );
     await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
     await expect(draftBar(page)).toContainText("1 unpublished change");
@@ -764,10 +764,10 @@ test.describe("organization repository rules: focus follows an action that repla
         .click();
       // The next conflict's control, not the one just decided.
       await expect(
-        page.getByRole("button", { name: "Use revision 4 for Magic strings" }),
+        page.getByRole("button", { name: "Use version 4 for Magic strings" }),
       ).toBeFocused({ timeout: 15_000 });
       await page.getByRole("button", {
-        name: "Use revision 4 for Magic strings",
+        name: "Use version 4 for Magic strings",
       })
         .click();
       // Dropping the rule leaves one edit: on to Review and publish, once it is enabled.
@@ -807,10 +807,10 @@ test.describe("organization repository rules: focus follows an action that repla
     await page.getByRole("button", { name: "Keep mine for Semantic commits" })
       .click();
     await expect(
-      page.getByRole("button", { name: "Use revision 4 for Magic strings" }),
+      page.getByRole("button", { name: "Use version 4 for Magic strings" }),
     ).toBeFocused();
     // Dropping the rule leaves one edit: focus goes on to Review and publish.
-    await page.getByRole("button", { name: "Use revision 4 for Magic strings" })
+    await page.getByRole("button", { name: "Use version 4 for Magic strings" })
       .click();
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeFocused();

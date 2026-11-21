@@ -78,7 +78,7 @@ export function formOf(source: TicketSourceResponse | null): SettingsForm {
     ? null
     : record(policy.delegation);
   const planOnly = typeof labels.planOnly === "string" ? labels.planOnly : null;
-  const actors = delegation === null ? [] : delegation.githubActorIds;
+  const actors = delegation === null ? [] : delegation.externalActorIds;
   return {
     enabled: source?.enabled ?? false,
     start: text(labels.execute) || DEFAULT_START_LABEL,
@@ -190,7 +190,7 @@ export function policyOfForm(form: SettingsForm): {
   };
   readonly delegation: {
     readonly principalId: string;
-    readonly githubActorIds: string[];
+    readonly externalActorIds: string[];
   } | null;
   readonly automatic: { readonly enabled: boolean };
   readonly readiness: { readonly requireAcceptanceCriteria: boolean };
@@ -201,7 +201,7 @@ export function policyOfForm(form: SettingsForm): {
       form.people.length > 0
     ? {
       principalId: form.principalId,
-      githubActorIds: form.people.map((person) => person.id),
+      externalActorIds: form.people.map((person) => person.id),
     }
     : null;
   return {

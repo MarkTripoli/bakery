@@ -531,6 +531,8 @@ Deno.test("WorkflowStepBinding publishes four sources and a bare sha256 digest",
 
 const runtimeSet = [
   "agent.freeform",
+  "evaluation.check",
+  "evaluation.score",
   "harness.implement",
   "harness.repair",
   "human.approval",
@@ -538,6 +540,7 @@ const runtimeSet = [
   "review.independent",
   "rpi.design",
   "rpi.plan",
+  "secret.identity.read",
   "task.brief",
   "workflow.noop",
   "workflow.stop",

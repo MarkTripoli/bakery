@@ -14,7 +14,7 @@ export type TextProps =
      * cannot be opened by keyboard or touch, so the whole text must also be
      * reachable another way (open the item, a disclosure).
      */
-    lines?: 2;
+    lines?: 2 | 3;
     variant?:
       | "body"
       | "caption"

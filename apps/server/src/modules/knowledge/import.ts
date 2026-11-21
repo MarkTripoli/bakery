@@ -12,6 +12,7 @@ import { classifyArtifactMedia, inferArtifactMediaType } from "./media.ts";
 import { commitArtifactVersion } from "./persistence.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { requireOrganizationRole } from "../auth/application/authority.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 
 const TRUSTED_REPOSITORIES_ENV = "BAKERY_TRUSTED_REPOSITORIES_JSON";
 const MAX_CONFIG_BYTES = 64 * 1024;
@@ -1241,6 +1242,8 @@ export async function importArtifactVersion(
   input: ArtifactVersionImportInput,
   proof: ArtifactVersionImportProof,
 ): Promise<ArtifactVersionImportOutput> {
+  // A backup holds the installation: no import is committed until it lets go.
+  await assertNotQuiesced(transaction, "intake");
   validateImportContext(context);
   const organizationId = context.organizationId.toLowerCase();
   const principalId = context.principalId.toLowerCase();

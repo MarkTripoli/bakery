@@ -18,6 +18,7 @@ import {
   insertPrimaryLink,
   insertRequest,
   latestReport,
+  lockTicketByNumber,
   nextGeneration,
   reportById,
   requestById,
@@ -52,7 +53,11 @@ function snapshot(
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: fx.repositoryFullName,
+    container: {
+      kind: "repository",
+      externalId: fx.repositoryFullName,
+      displayName: fx.repositoryFullName,
+    },
     links: { parent: null, subIssuesTotal: 0, blockedBy: [], blockingTotal: 0 },
     ...overrides,
   };
@@ -424,4 +429,64 @@ Deno.test("issue 82 store: an unconsumed plan approval on a task is seen until i
         approvalId,
       ]);
     }
+  }));
+
+Deno.test("issue 82 store: a snapshot written before the container generalisation still reads a container", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+
+    // The row is written exactly as the previous release wrote it: a
+    // repositoryFullName and no container. Existing databases hold rows like
+    // this, and they are only rewritten when the ticket is next observed, so a
+    // plain read has to understand both shapes.
+    const legacy = {
+      title: "Legacy ticket",
+      body: "written before containers",
+      bodyTruncated: false,
+      labels: ["ready for agent"],
+      state: "open",
+      stateReason: null,
+      locked: false,
+      repositoryFullName: "acme/web",
+      links: null,
+    };
+
+    const read = await fx.inTransaction(async (tx) => {
+      await tx.query(
+        `insert into bakery.external_tickets
+           (id, organization_id, ticket_source_id, external_ticket_id, key,
+            number, safe_url, snapshot, requirements_digest,
+            provider_update_marker, visibility, state, last_observed_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10,
+           'private', 'open', now())`,
+        [
+          crypto.randomUUID(),
+          fx.organizationId,
+          sourceId,
+          "9001",
+          "acme/web#1",
+          "1",
+          "https://github.com/acme/web/issues/1",
+          JSON.stringify(legacy),
+          DIGEST_A,
+          "2026-07-01T00:00:00.000Z",
+        ],
+      );
+      return await lockTicketByNumber(tx, fx.organizationId, sourceId, 1);
+    });
+
+    assert(read !== null, "the legacy row is readable");
+    assertEquals(read.snapshot.container, {
+      kind: "repository",
+      externalId: "acme/web",
+      displayName: "acme/web",
+    });
+    // Nothing else about the stored snapshot is invented or dropped.
+    assertEquals(read.snapshot.title, "Legacy ticket");
+    assertEquals(read.snapshot.labels, ["ready for agent"]);
+    assertEquals(
+      (read.snapshot as { repositoryFullName?: unknown }).repositoryFullName,
+      "acme/web",
+      "the legacy field is left alone, not rewritten under the reader",
+    );
   }));

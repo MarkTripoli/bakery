@@ -5,7 +5,7 @@ import {
   type IndependenceInput,
   REVIEW_INDEPENDENCE_VIOLATIONS,
   REVIEW_NOT_INDEPENDENT_REASON,
-} from "../../../apps/server/src/modules/delivery/independence.ts";
+} from "../../../apps/server/src/modules/review-loop/independence.ts";
 
 /**
  * Cases for the independence rule: a reviewer is the review step's own fresh
@@ -32,6 +32,7 @@ function input(patch: Partial<IndependenceInput> = {}): IndependenceInput {
     implementingSessions: [IMPLEMENT_SESSION, REPAIR_SESSION],
     reviewStepId: REVIEW_STEP,
     jobCheckpoints: 0,
+    steered: false,
     ...patch,
   };
 }
@@ -67,6 +68,21 @@ const outcome = (value: IndependenceInput) =>
 type Case = { name: string; value: IndependenceInput; expected: string | null };
 
 const cases: Case[] = [
+  {
+    name: "a steered review is refused: it does not count as independent",
+    value: input({ steered: true }),
+    expected: "review_steered",
+  },
+  {
+    name: "a steered flag that is not a boolean fails closed",
+    value: input({ steered: undefined as unknown as boolean }),
+    expected: "review_steered",
+  },
+  {
+    name: "the control: the same reviewer, never steered, is independent",
+    value: input({ steered: false }),
+    expected: null,
+  },
   {
     name: "a fresh session of the review step",
     value: input(),
@@ -341,6 +357,11 @@ const orderCases: Case[] = [
       jobCheckpoints: 3,
     }),
     expected: "session_has_parent",
+  },
+  {
+    name: "a checkpoint outranks being steered",
+    value: input({ jobCheckpoints: 3, steered: true }),
+    expected: "job_checkpoints",
   },
   {
     name: "a resume outranks a checkpoint",

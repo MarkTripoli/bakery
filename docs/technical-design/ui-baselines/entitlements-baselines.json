@@ -97,6 +97,8 @@
       "docs/technical-design/entitlements-mocks/site/fragments/scim--token-shown-once--dark--phone.html",
       "docs/technical-design/entitlements-mocks/site/fragments/scim--token-shown-once--light--phone.html",
       "docs/technical-design/entitlements-mocks/source/assets/31Q0XHM9CWZXZBJC5KE8YZ9DZP.png",
+      "docs/technical-design/entitlements-mocks/source/assets/bakery-mark-color-light.svg",
+      "docs/technical-design/entitlements-mocks/source/assets/bakery-mark-color-dark.svg",
       "docs/technical-design/entitlements-mocks/source-manifest.json",
       "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf",
       "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf",
@@ -109,8 +111,10 @@
       "packages/ui/scripts/render-entitlements-references.mjs",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:db93a186; mock:73eb7570; rendered:2026-11-14",
-    "digest": "73eb757052872d6101e346f932c42df7c6e7213c8385bd7f25435d0529f71336"
+    "revision": "ux-ruling:248#7034723312; app:dd57ce20531ff7f2ffa471548810d1eba312da3e",
+    "digest": "6e616d9387fd280ef43e19a547144709743f0d54d18536c61e921b49d4d372e8",
+    "rulingBodyPath": "docs/technical-design/ui-baselines/paper/rulings/248-7034723312.md",
+    "rulingBodySha256": "74e581c043ff9dfa4db521586c4d6988fe748e5e3e51d24132b4da8c9a51f1b9"
   },
   "reference": {
     "hidden": [],
@@ -128,8 +132,8 @@
         "theme": "dark",
         "device": "desktop"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--default--dark--desktop.png",
-      "imageSha256": "183453e76ac0de624b5a99511530332c3ead35f9669ddb54e82ecf4e55828fb8",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--default--dark--desktop.png",
+      "imageSha256": "41e8b2e40bdc7f82708e477bbee698fcd841f650caac798c8ed6f28870ff2523",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -160,7 +164,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-settings.default.dark.phone",
@@ -173,19 +178,19 @@
         "theme": "dark",
         "device": "phone"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--default--dark--phone.png",
-      "imageSha256": "78f94315d4c2aac00cae68455e35b7e7da8506036ead022c1fb6290fdaf25a7c",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--default--dark--phone.png",
+      "imageSha256": "10663e6fc2f4f721fd16439eb1bc1fd9878da2d5aab794c330fc4583a95c171d",
       "viewport": {
         "width": 390,
-        "height": 844
+        "height": 851
       },
       "artboard": {
         "width": 390,
-        "height": 844
+        "height": 851
       },
       "image": {
         "width": 390,
-        "height": 844
+        "height": 851
       },
       "dpr": 1,
       "theme": "dark",
@@ -205,7 +210,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-settings.default.light.desktop",
@@ -218,8 +224,8 @@
         "theme": "light",
         "device": "desktop"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--default--light--desktop.png",
-      "imageSha256": "7965a26731ee0a95cfb5736d30004d9e618a3401093fba125066fb5ac1ff6028",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--default--light--desktop.png",
+      "imageSha256": "504bbb971f1ed873268fe60d165a6d4d77236be8583330ace4f8ba376e869e9a",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -250,7 +256,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-settings.default.light.phone",
@@ -263,19 +270,19 @@
         "theme": "light",
         "device": "phone"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--default--light--phone.png",
-      "imageSha256": "baea3b90958d2fe410a068fa8b725483c16f320ab67e488b40edfdbf03764cca",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--default--light--phone.png",
+      "imageSha256": "65821dd11cdeff2fa38b8246940b820122ac9bc837eb62da58b7e117a01defd5",
       "viewport": {
         "width": 390,
-        "height": 844
+        "height": 851
       },
       "artboard": {
         "width": 390,
-        "height": 844
+        "height": 851
       },
       "image": {
         "width": 390,
-        "height": 844
+        "height": 851
       },
       "dpr": 1,
       "theme": "light",
@@ -295,7 +302,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-settings.save-conflict.light.desktop",
@@ -308,8 +316,8 @@
         "theme": "light",
         "device": "desktop"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--save-conflict--light--desktop.png",
-      "imageSha256": "d6af5c554d3f372756a3f2da1befd0d63121cba4a39a9526c6e7104746454728",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--save-conflict--light--desktop.png",
+      "imageSha256": "bd46ed10076c2e58ef1152cbaec82d87667d54e5f63fb91efe38ffc622427b47",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -340,7 +348,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-settings.save-conflict.light.phone",
@@ -353,8 +362,8 @@
         "theme": "light",
         "device": "phone"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--save-conflict--light--phone.png",
-      "imageSha256": "5e57584a5d99ace7a6ea0b5989c5c9ca3927a3657bf2c8d354d53feba279f3f2",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--save-conflict--light--phone.png",
+      "imageSha256": "a2b0f5cb65d35fcc43d47cd161b82e33e113febae5b912ba8f9fb4b7748a6cea",
       "viewport": {
         "width": 390,
         "height": 844
@@ -385,7 +394,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-settings.save-error.light.desktop",
@@ -398,8 +408,8 @@
         "theme": "light",
         "device": "desktop"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--save-error--light--desktop.png",
-      "imageSha256": "fe494e4c0c3689aace04710d0bba61e90e1ccaab02f9fd7b569bc87907ce1351",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--save-error--light--desktop.png",
+      "imageSha256": "0976a93c3c626b90ec492351ea086fe21e7a10ae9a01b2710e52ab66f33d9f30",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -430,7 +440,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-settings.save-error.light.phone",
@@ -443,8 +454,8 @@
         "theme": "light",
         "device": "phone"
       },
-      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--save-error--light--phone.png",
-      "imageSha256": "d96c3e956820629c696866416d9db8ff20f9c0463558a4373d7a1c45c37dd3a7",
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v4/installation-settings--save-error--light--phone.png",
+      "imageSha256": "bbb12f35afed50472e3a0dd6122f0847d93c779e2203d0904257a9c35a95649f",
       "viewport": {
         "width": 390,
         "height": 844
@@ -475,7 +486,8 @@
       "candidate": {
         "route": "/__fixtures__/installation/settings",
         "session": "authenticated"
-      }
+      },
+      "designRuling": "248#7034723312"
     },
     {
       "id": "installation-administrators.denied-non-admin.light.desktop",

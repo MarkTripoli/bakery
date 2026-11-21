@@ -140,6 +140,14 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
     assert((assignment.leaseToken as string).length > 0);
     assertMatch(String(assignment.leaseExpiresAt), /^\d{4}-\d{2}-\d{2}T/);
     assertMatch(String(assignment.serverTime), /^\d{4}-\d{2}-\d{2}T/);
+    // Per-claim values the claim has carried since the session credential and the trace
+    // context were added: present and well-formed, never fixed.
+    assert(typeof assignment.sessionCredential === "string");
+    assert((assignment.sessionCredential as string).length > 0);
+    assertMatch(
+      String(assignment.traceparent),
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/,
+    );
     assertEquals(assignment, {
       jobId: job.jobId,
       attemptId: assignment.attemptId,
@@ -147,6 +155,8 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
       leaseToken: assignment.leaseToken,
       fence: "1",
       leaseExpiresAt: assignment.leaseExpiresAt,
+      sessionCredential: assignment.sessionCredential,
+      traceparent: assignment.traceparent,
       action: "quality.check",
       requirements: stored.requirements,
       input: stored.input,

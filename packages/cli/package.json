@@ -1,0 +1,14 @@
+{
+  "name": "@bakery/cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The bakery command line: read the storage tree (list, stat, history, uses, search, cat, get, open by version id) with an access token.",
+  "exports": {
+    ".": "./src/mod.ts"
+  },
+  "scripts": {
+    "typecheck": "deno check src/mod.ts src/main.ts",
+    "build": "deno check src/mod.ts src/main.ts"
+  }
+}

@@ -12,6 +12,7 @@ import {
   type TicketReadinessReport,
   type TicketRequestIntent,
   type TicketRequestOrigin,
+  type TicketSourcePolicy,
   type TicketStoredReport,
 } from "@bakery/contracts/ticket-admission";
 import { FIXED_CODING_PRESET } from "@bakery/contracts/workflow-presets";
@@ -62,8 +63,13 @@ import {
   type ReadinessSourceFacts,
 } from "./ticket-readiness.ts";
 import {
+  readRequestDeliveryFacts,
+  requestDeliveryVerdict,
+} from "./ticket-delivery-store.ts";
+import {
   decideRecheck,
   type RecheckDecision,
+  requestWorkFinished,
   resumeTarget,
   suspensionReason,
 } from "./ticket-request-state.ts";
@@ -78,6 +84,7 @@ import {
   appendReportIfChanged,
   findAvailableApproval,
   findNonterminalRequest,
+  findTicketForNumber,
   insertPrimaryLink,
   insertRequest,
   insertRequestTargets,
@@ -101,6 +108,7 @@ import {
   updateRequest,
   upsertExternalTicket,
 } from "./ticket-store.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import type { TicketSourceReader } from "./ticket-source-reader.ts";
 import {
   readRouteRules,
@@ -217,6 +225,29 @@ const PRESET_PIN: TicketPresetPin = Object.freeze({
   revision: FIXED_CODING_PRESET.revision,
   digest: FIXED_CODING_PRESET.digest,
 });
+
+/**
+ * The source's application, or a stated refusal.
+ *
+ * A task names an application and cannot omit one (tasks.application_id is NOT
+ * NULL), so a source with no application cannot admit. 0206 made the source's
+ * application optional for providers that verify a webhook with a shared
+ * secret; that is enough to read readiness and report it, and not enough to
+ * create a task. Refusing here keeps the answer a reason a caller can act on
+ * rather than a contract error from deep inside task creation, and it runs
+ * before any write so two concurrent attempts store nothing.
+ */
+function requireApplication(
+  source: Readonly<{ applicationId: string | null }>,
+): string {
+  if (source.applicationId === null) {
+    throw new StandardError({
+      code: "PRECONDITION_FAILED",
+      params: { reason: "source_application_required" },
+    });
+  }
+  return source.applicationId;
+}
 
 /**
  * Id of the one preset ticket admission runs, from the pin above, for the
@@ -440,6 +471,7 @@ async function evaluate(
     preset: PRESET_PIN,
     issue: prefetch.issue,
     links: prefetch.links,
+    statuses: prefetch.statuses,
     proofs: prefetch.proofs,
     authority: {
       principalActive: context.principalActive,
@@ -616,7 +648,11 @@ async function prefetchForCall(
   return await prefetchTicketReads(
     deps.reader,
     handle,
-    { number: call.number, policy: source.policy, origin: call.origin },
+    {
+      ref: ticketRef(call.number),
+      policy: source.policy,
+      origin: call.origin,
+    },
     call.signal,
   );
 }
@@ -685,7 +721,11 @@ async function recordWithin(
     const { report } = await unstored(frame, callerActor);
     return { ticketId: null, report, storedReport: null };
   }
-  await lockApplication(transaction, organizationId, source.applicationId);
+  await lockApplication(
+    transaction,
+    organizationId,
+    requireApplication(source),
+  );
   const existing = await findNonterminalRequest(
     transaction,
     organizationId,
@@ -711,6 +751,74 @@ async function recordWithin(
   return { ticketId: ticket.id, report, storedReport: stored };
 }
 
+/** What `previewReadiness` computed: the report, and the policy it was judged under. */
+export type ReadinessPreview = {
+  report: TicketReadinessReport;
+  policy: TicketSourcePolicy;
+};
+
+/**
+ * Judges one ticket as `recordReadiness` would, under `policy` (a draft) or
+ * the saved policy when it is null, and stores nothing (#69): no snapshot
+ * upsert, no report, no lock taken `for update`. The source and the
+ * authority rows are read `for share`, as every reader of them does; the
+ * ticket row and its nonterminal request are read without a lock, so a
+ * concurrent admission may finish between this read and the caller's answer.
+ * The report's `sourcePolicyRevision` stays the saved revision. Operation
+ * mode only: the runner prefetched the answers with the same policy.
+ */
+export async function previewReadiness(
+  deps: AdmissionDeps,
+  call: AdmissionCall,
+  policy: TicketSourcePolicy | null,
+): Promise<ReadinessPreview> {
+  assertDeps(deps, call.prefetch);
+  const transaction = deps.transaction;
+  if (transaction === undefined || call.prefetch === null) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  const prefetch = call.prefetch;
+  const { organizationId } = call;
+  const saved = await lockSource(transaction, organizationId, call.sourceId);
+  const source: TicketSource = policy === null ? saved : { ...saved, policy };
+  const frame: Frame = {
+    deps,
+    transaction,
+    call,
+    prefetch,
+    source,
+    trace: call.trace ?? {
+      requestId: `ticket-preview:${crypto.randomUUID()}`,
+      traceId: crypto.randomUUID(),
+    },
+    authority: await sourceAuthority(transaction, source),
+  };
+  assertPrefetchCurrent(source, call, prefetch);
+  const found = await findTicketForNumber(
+    transaction,
+    organizationId,
+    source.id,
+    call.number,
+  );
+  const existing = found?.requestId
+    ? await requestById(transaction, organizationId, found.requestId)
+    : null;
+  const pinning = prefetch.issue.kind === "present"
+    ? await requirementsDigest(
+      normalizeSnapshot(prefetch.issue.snapshot, {
+        links: prefetch.links?.kind === "present"
+          ? normalizeLinks(prefetch.links)
+          : null,
+        providerUpdatedAt: prefetch.issue.providerUpdatedAt,
+      }),
+    )
+    : null;
+  const context = existing === null
+    ? await callContext(frame, null, askedIntent(frame), null, pinning)
+    : await recordedContext(frame, existing, existing.requirementsDigest);
+  return { report: await evaluate(frame, context), policy: source.policy };
+}
+
 async function admitWithin(
   deps: AdmissionDeps,
   transaction: PgTransactionClient,
@@ -724,6 +832,13 @@ async function admitWithin(
   };
   // (1) The source, `for share`: pins the policy revision and the delegation.
   const source = await lockSource(transaction, organizationId, call.sourceId);
+  // A task names an application and cannot omit one (tasks.application_id is
+  // NOT NULL), so a source with no application cannot admit. 0206 made the
+  // source's application optional for providers that verify a webhook with a
+  // shared secret; that is enough to read readiness and report it, and not
+  // enough to create a task. Refused here, before any write, so the answer is a
+  // stated reason rather than a contract error from deep inside task creation.
+  requireApplication(source);
   // (2) Live source authority, `for share`, in the order the intake path uses.
   const authority = await sourceAuthority(transaction, source);
   const frame: Frame = {
@@ -745,7 +860,11 @@ async function admitWithin(
     return await unstored(frame, callerActor);
   }
   // (4) The application, before any branch that can write a task or a run.
-  await lockApplication(transaction, organizationId, source.applicationId);
+  await lockApplication(
+    transaction,
+    organizationId,
+    requireApplication(source),
+  );
 
   const existing = await findNonterminalRequest(
     transaction,
@@ -924,6 +1043,9 @@ function evidenceOf(
     version: 1,
     origin: frame.call.origin,
     labelBasis: context.labelBasis,
+    labelName: context.labelBasis === "label"
+      ? requestLabelOf(issueLabels(frame.prefetch), frame.source.policy)
+      : null,
     actingPrincipalId: context.actor?.subject.principalId as string,
     callerPrincipalId: automatic
       ? null
@@ -936,7 +1058,11 @@ function evidenceOf(
       }
       : null,
     actorRole: automatic && actorRole?.kind === "present"
-      ? { userId: actorRole.userId, permission: actorRole.permission }
+      ? {
+        userId: actorRole.userId,
+        permission: actorRole.permission,
+        rank: actorRole.rank,
+      }
       : null,
   };
 }
@@ -989,7 +1115,12 @@ async function admitFresh(
   const snapshot = ticket.snapshot;
   const text = taskInputs(frame, snapshot, call.number);
   const taskInput = contractSchemas.TaskCreate.safeParse({
-    applicationId: source.applicationId,
+    // Omitted rather than sent as null: a provider-neutral source has no
+    // application (0206), and the task input's contract carries the field only
+    // when there is one - the same rule the repository below already follows.
+    ...(source.applicationId === null
+      ? {}
+      : { applicationId: source.applicationId }),
     ...(source.repositoryId === null
       ? {}
       : { repositoryId: source.repositoryId }),
@@ -1742,7 +1873,11 @@ async function prefetchForRecheck(
   return await prefetchTicketReads(
     deps.reader,
     handle,
-    { number, policy: source.policy, origin: call.origin },
+    {
+      ref: ticketRef(number),
+      policy: source.policy,
+      origin: call.origin,
+    },
     call.signal,
   );
 }
@@ -1812,7 +1947,11 @@ async function recheckWithin(
     existing === null ||
     (scope.requestId !== null && existing.id !== scope.requestId)
   ) return nothing;
-  await lockApplication(transaction, organizationId, source.applicationId);
+  await lockApplication(
+    transaction,
+    organizationId,
+    requireApplication(source),
+  );
   let ticket = locked;
   if (prefetch.issue.kind === "present") {
     const resolved = await resolveTicket(frame);
@@ -1889,6 +2028,11 @@ async function recheckWithin(
     organizationId,
     existing.id,
   );
+  const deliveryFacts = (await readRequestDeliveryFacts(
+    transaction,
+    organizationId,
+    [existing.id],
+  )).get(existing.id);
   const decide = (current: TicketRequest): RecheckDecision =>
     decideRecheck({
       disposition: current.disposition,
@@ -1901,6 +2045,15 @@ async function recheckWithin(
       pinnedRequirementsDigest: current.requirementsDigest,
       pauseRequestedAt: current.pauseRequestedAt?.toISOString() ?? null,
       planStatus,
+      delivery: requestDeliveryVerdict(
+        deliveryFacts,
+        requestWorkFinished({
+          hasRun: current.workflowRunId !== null,
+          runStatus,
+          taskStatus: task.status,
+          planStatus,
+        }),
+      ),
     }, report);
 
   const first = decide(request);

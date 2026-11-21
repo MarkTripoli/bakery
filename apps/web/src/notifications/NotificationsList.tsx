@@ -85,7 +85,7 @@ export function NotificationsList(
           }
           : { kind: "event", tile: copy.tile ?? "check" }}
         href={row.destination.available
-          ? `/notifications/open/${row.id}`
+          ? `/notifications?open=${row.id}&r=${row.revision}`
           : null}
         relativeTime={formatRelative(row.createdAt, serverNow)}
         exactTime={new Date(row.createdAt).toLocaleString()}

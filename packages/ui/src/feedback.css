@@ -64,6 +64,34 @@
   flex: none;
 }
 
+/* On a phone a banner's action takes its own row under the text, so a short
+   label never squeezes the message into a narrow column. */
+@media (max-width: 743px) {
+  .ui-alert-banner__action {
+    flex-basis: 100%;
+  }
+}
+
+/* A banner whose buttons are its next step: on a phone they sit under the text, full width. */
+@media (max-width: 743px) {
+  .ui-alert-banner[data-action-layout="stretch"] {
+    flex-wrap: wrap;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action {
+    flex: 1 1 100%;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline > * {
+    flex: none;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-button {
+    inline-size: 100%;
+  }
+}
+
 .ui-inline-notice__icon,
 .ui-alert-banner__icon {
   flex: none;
@@ -423,6 +451,11 @@
   min-inline-size: 0;
 }
 
+/* A sheet's close button sits on the title line, not below it. */
+.ui-sheet .ui-dialog__header {
+  align-items: center;
+}
+
 .ui-dialog__title {
   flex: 1 1 min(12rem, 100%);
   min-inline-size: 0;
@@ -443,6 +476,22 @@
 
 .ui-alert-dialog__safe-action {
   margin-inline-end: auto;
+}
+/* Opt-in (`data-actions-layout="stack"`): on a phone the two actions share a line
+   only when both fit; otherwise each takes a full-width line, the destructive
+   one first, so Cancel is never left alone on the left. */
+@media (max-width: 743px) {
+  .ui-alert-dialog[data-actions-layout="stack"] .ui-alert-dialog__actions {
+    flex-wrap: wrap-reverse;
+  }
+  .ui-alert-dialog[data-actions-layout="stack"] .ui-alert-dialog__actions > * {
+    flex: 1 1 auto;
+    margin-inline-end: var(--space-0);
+  }
+  .ui-alert-dialog[data-actions-layout="stack"] .ui-alert-dialog__actions .ui-button {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+  }
 }
 
 .ui-sheet {

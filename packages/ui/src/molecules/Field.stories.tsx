@@ -1,6 +1,6 @@
 import { useId } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Field, Stack } from "@bakery/ui";
+import { Field, Link, Stack } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Molecules/Field",
@@ -53,6 +53,13 @@ export const Contract: StoryObj = {
           hint="Shown across Bakery."
         >
           <input id={`${id}-inline`} defaultValue="Alex Morgan" />
+        </Field>
+        <Field
+          htmlFor={`${id}-label-end`}
+          label="Password"
+          labelEnd={<Link href="#" variant="sentence">Forgot password?</Link>}
+        >
+          <input id={`${id}-label-end`} type="password" defaultValue="secret" />
         </Field>
         <Field htmlFor={`${id}-disabled`} label="Unavailable" state="disabled">
           <input disabled id={`${id}-disabled`} value="No access" readOnly />

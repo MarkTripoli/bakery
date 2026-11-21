@@ -10,10 +10,11 @@ import {
   StandardError,
   unprocessable,
 } from "@bakery/contracts/http";
-import {
-  type TicketSourcePolicy,
-  TicketSourcePolicyInputSchema,
+import type {
+  TicketReadinessReport,
+  TicketSourcePolicy,
 } from "@bakery/contracts/ticket-admission";
+import type { TicketPrefetch } from "./ticket-prefetch.ts";
 import {
   appendAudit,
   appendDomainEvent,
@@ -25,14 +26,18 @@ import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts
 import { authorityVerdict } from "../integrations/fact-reads.ts";
 import { resolveRepositoryId } from "../integrations/pull-requests.ts";
 import { lockAuthority } from "../integrations/write-authority.ts";
-import { recordReadiness, TICKET_PRESET_ID } from "./ticket-admission.ts";
+import { previewReadiness, TICKET_PRESET_ID } from "./ticket-admission.ts";
 import {
   type TicketOperationDependencies,
   ticketReads,
 } from "./ticket-operation-runner.ts";
 import { loadTicketSource } from "./ticket-query.ts";
-import { parseTicketSourcePolicy } from "./ticket-policy.ts";
-import { lockSourceForUpdate } from "./ticket-store.ts";
+import {
+  intentFromLabels,
+  parsePreviewFilters,
+  storedTicketSourcePolicy,
+} from "./ticket-policy.ts";
+import { lockSource, lockSourceForUpdate } from "./ticket-store.ts";
 import {
   inSavepoint,
   runTicketSourceStep,
@@ -52,41 +57,11 @@ import { requireWorkTransaction } from "./work-transaction.ts";
 type SourceCreate = z.output<typeof contractSchemas.TicketSourceCreate>;
 type SourceUpdate = z.output<typeof contractSchemas.TicketSourceUpdate>;
 type OperationReceipt = z.output<typeof contractSchemas.TicketOperationReceipt>;
+type PreviewCreate = z.output<typeof contractSchemas.TicketPreviewCreate>;
+type PreviewResult = z.output<typeof contractSchemas.TicketPreviewResult>;
 type SourceOutput = z.output<typeof contractSchemas.TicketSource>;
 type RulesReplace = z.output<typeof contractSchemas.TicketRoutingRulesReplace>;
 type RuleSetOutput = z.output<typeof contractSchemas.TicketRoutingRuleSet>;
-
-/**
- * The policy to store from one a client sent. `automatic.since` is the
- * server's: now when automatic admission is switched on (on create, on every
- * false-to-true flip, and when a disabled source is enabled again, which the
- * caller passes as no `previous`), unchanged while it stays on, null while
- * off. Whatever the client sent for it is ignored.
- */
-function storedPolicy(
-  value: unknown,
-  previous: TicketSourcePolicy | null,
-  now: Date,
-): TicketSourcePolicy {
-  const parsed = TicketSourcePolicyInputSchema.safeParse(value);
-  if (!parsed.success) {
-    throw unprocessable(
-      ["policy"],
-      "ticket_source_policy_invalid",
-      parsed.error,
-    );
-  }
-  const enabled = parsed.data.automatic.enabled;
-  const since = !enabled
-    ? null
-    : previous?.automatic.enabled === true
-    ? previous.automatic.since
-    : now.toISOString();
-  return parseTicketSourcePolicy({
-    ...parsed.data,
-    automatic: { enabled, since },
-  });
-}
 
 /** The delegation principal must be a member of the organization; its permissions are checked live on every admission. */
 async function requireDelegationPrincipal(
@@ -167,11 +142,17 @@ export async function createTicketSource(
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
-  const policy = storedPolicy(input.policy, null, new Date());
+  const policy = storedTicketSourcePolicy(input.policy, null, new Date());
   const scope = await transaction.query<
-    { installationId: string; externalId: string; displayName: string }
+    {
+      installationId: string;
+      provider: string;
+      externalId: string;
+      displayName: string;
+    }
   >(
     `select connection.installation_id as "installationId",
+            connection.provider as "provider",
             resource.external_id as "externalId",
             resource.display_name as "displayName"
        from bakery.integration_connections as connection
@@ -241,16 +222,20 @@ export async function createTicketSource(
   const id = crypto.randomUUID();
   const inserted = await transaction.query(
     `insert into bakery.ticket_sources (
-       id, organization_id, integration_connection_id,
+       id, organization_id, provider, integration_connection_id,
        integration_resource_id, application_id, repository_id,
        external_container_id, enabled, policy
-     ) values ($1, $2, $3, $4, $5, $6, $7, true, $8::jsonb)
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, true, $9::jsonb)
      on conflict (organization_id, integration_connection_id,
                   external_container_id) do nothing
      returning id`,
     [
       id,
       organizationId,
+      // Named, never defaulted: the default was dropped so a source cannot be
+      // admitted without saying which provider it belongs to. The connection is
+      // the authority on that, so the source inherits it rather than assuming.
+      resource.provider,
       input.connectionId,
       input.resourceId,
       input.applicationId,
@@ -314,7 +299,7 @@ export async function updateTicketSource(
   const reenabled = !current.enabled && input.enabled === true;
   const policy = input.policy === undefined && !reenabled
     ? current.policy
-    : storedPolicy(
+    : storedTicketSourcePolicy(
       input.policy ?? current.policy,
       reenabled ? null : current.policy,
       new Date(),
@@ -595,39 +580,53 @@ export async function replaceTicketRoutingRules(
 }
 
 /**
- * `ticketSources.preview`: Admin. Records the snapshot and a readiness report
- * of each issue of one provider page (at most 25), read before the
- * transaction opened. It writes no link, request, task or run. An issue that
- * cannot be recorded is skipped; the others commit.
+ * `ticketSources.preview`: Admin (#69). Judges each issue the runner read (at
+ * most 25, read before this transaction opened) under the draft policy the
+ * input carries, or the saved one, as a poll would judge it, and answers with
+ * the buckets. It stores nothing behind the answer: no snapshot, report,
+ * link, request, task or run, and never the draft. A draft is validated as
+ * `ticketSources.update` validates a replacement. An issue that cannot be
+ * judged is counted in `skipped`. Only the audit row and the catalog event
+ * record that a preview ran.
  */
 export function createTicketSourcePreviewHandler(
   dependencies: TicketOperationDependencies,
 ) {
   return async (
     context: ActionContext,
-    _input: unknown,
-  ): Promise<OperationReceipt> => {
+    input: PreviewCreate,
+  ): Promise<PreviewResult> => {
     const { transaction, organizationId, principalId } = requireWorkTransaction(
       context,
     );
     const id = sourceId(context);
-    // Several tickets in one transaction: the source `for update` first, as
-    // sync does. Each ticket then takes the application row and holds it to
-    // the commit, so a single-ticket operation (ticket, then application)
-    // that held a later ticket of the page would wait on the application
-    // while the preview waits on that ticket. Every other writer takes the
-    // source `for share` first and now waits here instead.
-    await lockSourceForUpdate(transaction, organizationId, id);
+    const saved = await lockSource(transaction, organizationId, id);
+    const filters = parsePreviewFilters(input.filters);
+    const draft = input.policy === undefined || input.policy === null
+      ? null
+      : storedTicketSourcePolicy(input.policy, saved.policy, new Date());
+    if (draft !== null) {
+      await requireDelegationPrincipal(transaction, organizationId, draft);
+    }
     const { issues } = ticketReads(context, "preview");
-    let recorded = 0;
+    const entries: PreviewResult["issues"] = [];
     let skipped = 0;
     for (const [number, prefetch] of issues) {
+      const labels = prefetch.issue.kind === "present"
+        ? prefetch.issue.snapshot.labels
+        : null;
+      if (
+        filters.labels !== undefined &&
+        !(labels ?? []).some((label) => filters.labels!.includes(label))
+      ) {
+        continue;
+      }
       try {
-        await inSavepoint(
+        const { report, policy } = await inSavepoint(
           transaction,
-          `ticket_preview_${recorded + skipped}`,
+          `ticket_preview_${entries.length + skipped}`,
           () =>
-            recordReadiness({
+            previewReadiness({
               reader: dependencies.reader,
               budget: dependencies.budget,
               readsAllowed: false,
@@ -642,13 +641,20 @@ export function createTicketSourcePreviewHandler(
               prefetch,
               signal: context.signal,
               trace: { requestId: context.requestId, traceId: context.traceId },
-            }),
+            }, draft),
         );
-        recorded += 1;
+        entries.push(previewEntry(number, prefetch, report, policy));
       } catch (error) {
         if (!(error instanceof StandardError)) throw error;
         skipped += 1;
       }
+    }
+    const counts = { wouldStart: 0, planOnly: 0, held: 0, blocked: 0 };
+    for (const entry of entries) {
+      if (entry.outcome === "would_start") counts.wouldStart += 1;
+      else if (entry.outcome === "plan_only") counts.planOnly += 1;
+      else if (entry.outcome === "held") counts.held += 1;
+      else counts.blocked += 1;
     }
     await recordSourceFact(
       context,
@@ -657,9 +663,54 @@ export function createTicketSourcePreviewHandler(
       await loadTicketSource(transaction, organizationId, id),
       "ticketSources.preview",
       "ticket.preview_requested",
-      { recorded, skipped },
+      { draft: draft !== null, evaluated: entries.length, skipped },
     );
-    return { operationId: crypto.randomUUID(), status: "completed" };
+    return {
+      sourceId: id,
+      policyRevision: saved.policyRevision,
+      draft: draft !== null,
+      evaluatedAt: new Date().toISOString(),
+      counts,
+      issues: entries,
+      skipped,
+    };
+  };
+}
+
+/** One issue's bucket: the hold wins, then a ready verdict by its label's intent, else blocked. */
+function previewEntry(
+  number: number,
+  prefetch: TicketPrefetch,
+  report: TicketReadinessReport,
+  policy: TicketSourcePolicy,
+): PreviewResult["issues"][number] {
+  const labels = prefetch.issue.kind === "present"
+    ? prefetch.issue.snapshot.labels
+    : [];
+  const { intent, hold } = intentFromLabels(labels, policy);
+  const outcome = hold
+    ? "held"
+    : report.verdict !== "ready"
+    ? "blocked"
+    : intent === "start"
+    ? "would_start"
+    : intent === "plan"
+    ? "plan_only"
+    : "blocked";
+  const reasons: string[] = [];
+  for (const check of report.checks) {
+    if (check.status !== "pass" && !reasons.includes(check.reason)) {
+      reasons.push(check.reason);
+    }
+  }
+  return {
+    number,
+    title: prefetch.issue.kind === "present"
+      ? prefetch.issue.snapshot.title
+      : null,
+    outcome,
+    verdict: report.verdict,
+    reasons,
   };
 }
 

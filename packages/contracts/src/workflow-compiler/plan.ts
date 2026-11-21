@@ -53,6 +53,7 @@ function pushStep(
       ...(node.agentVersionId === undefined
         ? {}
         : { agentVersionId: node.agentVersionId }),
+      ...(node.files === undefined ? {} : { files: node.files }),
       timeoutMs: node.timeoutMs,
       retry: node.retry,
       loops: [...frame.loops],

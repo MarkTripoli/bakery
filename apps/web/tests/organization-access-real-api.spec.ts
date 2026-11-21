@@ -184,17 +184,9 @@ async function expectPerceivable(locator: Locator): Promise<void> {
   });
 }
 
-async function returnToSignInFormIfThrottled(page: Page): Promise<void> {
-  if (await page.getByTestId("sign-in-throttled").isVisible()) {
-    await page.getByRole("button", { name: "Return to sign in", exact: true })
-      .click();
-  }
-}
-
 async function signIn(page: Page): Promise<void> {
   await page.goto("/sign-in");
   await submitUntilAccepted(page, "/api/auth/sign-in/email", async () => {
-    await returnToSignInFormIfThrottled(page);
     await page.getByLabel("Email").fill(ADMIN_EMAIL);
     await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -559,16 +551,16 @@ test.describe("organization access against the real API", () => {
         await test.step("1. an organization with only the admin shows the empty state", async () => {
           await adminPage.goto(ACCESS_PATH);
           await expect(adminPage.locator("main h1")).toHaveText(
-            "Members & access",
+            "Members",
           );
-          await expect(adminPage.getByTestId("org-access-empty")).toContainText(
-            "Only you are in this organization",
-          );
-          await expect(adminPage.getByTestId("org-access-invite-first"))
+          // No page-wide empty card any more (#534): the Members section lists
+          // the one person in it, and the header's Invite member is the action.
+          await expect(adminPage.getByTestId("org-access-members"))
             .toBeVisible();
-          await expect(adminPage.getByTestId("org-access-members")).toHaveCount(
-            0,
-          );
+          await expect(adminPage.getByTestId("org-access-members"))
+            .not.toContainText("Only you are in this organization");
+          await expect(adminPage.getByTestId("org-access-invite"))
+            .toBeVisible();
           await shot(adminPage, "01-desktop-empty");
         });
 
@@ -596,7 +588,7 @@ test.describe("organization access against the real API", () => {
             const loading = probe.getByTestId("org-access-loading");
             await expect(loading).toBeVisible();
             await expect(probe.locator("main h1")).toHaveText(
-              "Members & access",
+              "Members",
             );
             await expect(probe.getByTestId("org-access-members")).toHaveCount(
               0,
@@ -618,7 +610,7 @@ test.describe("organization access against the real API", () => {
 
             mode = "pass";
             await probe.getByRole("button", { name: "Try again" }).click();
-            await expect(probe.getByTestId("org-access-empty")).toBeVisible();
+            await expect(probe.getByTestId("org-access-members")).toBeVisible();
             await expect(failure).toHaveCount(0);
           } finally {
             await probe.close();
@@ -639,6 +631,8 @@ test.describe("organization access against the real API", () => {
           ]);
           expect(response.status(), await response.text()).toBe(201);
           invitationId = ((await response.json()) as { id: string }).id;
+          // Invitations are a tab of their own (#534).
+          await adminPage.getByRole("tab", { name: /Invitations/ }).click();
           await expect(
             adminPage.getByTestId(`org-access-invitation-${invitationId}`),
           ).toContainText(guestEmail);

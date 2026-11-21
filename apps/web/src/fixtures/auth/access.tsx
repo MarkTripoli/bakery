@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { AccessScreen } from "../../screens/AccessScreen.tsx";
 import type { SecurityAsyncKind } from "../../screens/security-async.tsx";
 import { asyncKindFor, useAsyncHost } from "./security-suite.ts";
@@ -15,6 +16,7 @@ function AccessHost(
   },
 ) {
   const { async, settle } = useAsyncHost(initial);
+  const { translate } = useI18n();
   return (
     <AccessScreen
       async={async}
@@ -31,21 +33,21 @@ function AccessHost(
           id: "settings",
           title: "Settings",
           description: "Manage your account, appearance and sessions.",
-          level: "Manage",
+          level: translate("access.level.manage"),
         },
         {
           id: "work",
           title: "Work & collaboration",
           description:
             "Create tasks, run agents and review work in permitted repositories.",
-          level: "Scoped",
+          level: translate("access.level.scoped"),
         },
         {
           id: "machines",
           title: "Machines",
           description:
             "View status and use permitted capacity. Maintenance needs an admin.",
-          level: "View",
+          level: translate("access.level.view"),
         },
       ]}
       integrationsHref="#integrations"

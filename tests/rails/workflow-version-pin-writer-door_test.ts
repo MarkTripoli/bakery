@@ -187,3 +187,41 @@ Deno.test("the guard lives with the pin it protects", () => {
   assert(source.includes("export function assertCompilerPinTogether("));
   assert(source.includes("export function compilerPinOf("));
 });
+
+Deno.test("every column the insert names is bound by it", () => {
+  const source = read(writerFile);
+  const fn = source.indexOf("export async function insertWorkflowVersion(");
+  const body = source.slice(fn, source.indexOf("const PUBLISH_ISSUE_MAX", fn));
+  const columns =
+    /insert into bakery\.workflow_versions \(\s*([\s\S]*?)\)\s*values/.exec(
+      body,
+    )?.[1];
+  assert(columns !== undefined, "the insert's column list moved");
+  const names = columns.split(",").map((name) => name.trim()).filter((name) =>
+    name.length > 0
+  );
+  const values = /values \(([\s\S]*?)\)\s*returning/.exec(body)?.[1];
+  assert(values !== undefined, "the insert's value list moved");
+  // Each slot is either a placeholder or a literal such as 'published'. The
+  // two lists must have the same length: a column with no slot would be
+  // inserted as its default while the caller believes it was set, which is
+  // the failure starts is most likely to cause, since it arrived later.
+  const slots = values.split(",").map((slot) => slot.trim()).filter((slot) =>
+    slot.length > 0
+  );
+  assertEquals(
+    slots.length,
+    names.length,
+    `every column must have a slot: ${names.join(", ")}`,
+  );
+  const unbound = names.filter((_, index) => !slots[index].includes("$"));
+  assertEquals(
+    unbound,
+    ["status"],
+    "only status is a literal, not a parameter",
+  );
+  assert(
+    names.includes("starts"),
+    "the version row carries its starts, beside the specification",
+  );
+});

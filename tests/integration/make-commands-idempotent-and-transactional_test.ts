@@ -746,6 +746,9 @@ Deno.test("task commands replay exactly once through one tenant transaction", as
       registry,
       createContext: () => ({ principal: servicePrincipal }),
     });
+    // A service principal acts as an agent (#702): outside an agent session it
+    // may not create a task, grant or no grant. The grants still govern the
+    // rest, so a person creates the task and the service principal renames it.
     const serviceCreated = await serviceApp.fetch(
       new Request("http://test/v1/tasks", {
         method: "POST",
@@ -753,18 +756,31 @@ Deno.test("task commands replay exactly once through one tenant transaction", as
         body: createBody,
       }),
     );
-    assertEquals(serviceCreated.status, 201);
-    const serviceTask = await serviceCreated.json() as Record<string, unknown>;
-    const serviceReplayed = await serviceApp.fetch(
+    assertEquals(serviceCreated.status, 403);
+    const serviceRefusal = await serviceCreated.json();
+    assertEquals(
+      [serviceRefusal.code, serviceRefusal.reason],
+      ["AUTH_FORBIDDEN", "spawn_requires_grant"],
+    );
+    const serviceTaskCreated = await app.fetch(
       new Request("http://test/v1/tasks", {
         method: "POST",
-        headers: { ...baseHeaders, "Idempotency-Key": "service-create" },
+        headers: {
+          ...baseHeaders,
+          "Idempotency-Key": "service-task-by-person",
+        },
         body: createBody,
       }),
     );
-    assertEquals(serviceReplayed.status, 201);
-    assertEquals(serviceReplayed.headers.get("idempotent-replayed"), "true");
-    assertEquals((await serviceReplayed.json()).id, serviceTask.id);
+    assertEquals(
+      serviceTaskCreated.status,
+      201,
+      await serviceTaskCreated.clone().text(),
+    );
+    const serviceTask = await serviceTaskCreated.json() as Record<
+      string,
+      unknown
+    >;
     const serviceUpdated = await serviceApp.fetch(
       new Request(`http://test/v1/tasks/${serviceTask.id}`, {
         method: "PATCH",

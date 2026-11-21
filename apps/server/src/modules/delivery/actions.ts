@@ -26,15 +26,32 @@ type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
 type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
 type MergeEntryCreate = z.output<typeof contractSchemas.MergeEntryCreate>;
 type PullRequestMerge = z.output<typeof contractSchemas.PullRequestMerge>;
+type MergeAttemptQuery = z.output<typeof contractSchemas.MergeAttemptQuery>;
+type MergeEntryQuery = z.output<typeof contractSchemas.MergeEntryQuery>;
 type MergeAttemptReconcile = z.output<
   typeof contractSchemas.MergeAttemptReconcile
 >;
 
+type MetricsQuery = z.output<typeof contractSchemas.MetricsQuery>;
+type MetricSourcesQuery = z.output<typeof contractSchemas.MetricSourcesQuery>;
+
 export type DeliveryActionHandlers = {
+  metricsGet: (
+    context: ActionContext,
+    input: MetricsQuery,
+  ) => Promise<z.output<typeof contractSchemas.MetricSeries>>;
+  metricsSources: (
+    context: ActionContext,
+    input: MetricSourcesQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<MetricSource>"]>>;
   checksList: (
     context: ActionContext,
     input: CursorQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<CheckRun>"]>>;
+  runReviewsAccept: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ReviewAccept>,
+  ) => Promise<z.output<typeof contractSchemas.ReviewCycle>>;
   runReviewsList: (
     context: ActionContext,
     input: CursorQuery,
@@ -53,7 +70,7 @@ export type DeliveryActionHandlers = {
   ) => Promise<z.output<typeof contractSchemas["Page<PullRequest>"]>>;
   mergeEntriesList: (
     context: ActionContext,
-    input: RepositoryQuery,
+    input: MergeEntryQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<MergeEntry>"]>>;
   mergeEntriesCreate: (
     context: ActionContext,
@@ -63,6 +80,10 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: PullRequestMerge,
   ) => Promise<z.output<typeof contractSchemas.MergeAttempt>>;
+  mergeAttemptsList: (
+    context: ActionContext,
+    input: MergeAttemptQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<MergeAttempt>"]>>;
   mergeAttemptsReconcile: (
     context: ActionContext,
     input: MergeAttemptReconcile,
@@ -110,6 +131,15 @@ export function createDeliveryActionRegistry(
     handler: handlers.runReviewsList,
   });
   registry.register({
+    name: DeliveryImplementedAction.RunReviewsAccept,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/reviews/:reviewId/accept",
+    input: contractSchemas.ReviewAccept,
+    output: contractSchemas.ReviewCycle,
+    policy: { ...commandPolicy, access: ActionAccess.Admin },
+    handler: handlers.runReviewsAccept,
+  });
+  registry.register({
     name: DeliveryImplementedAction.ReviewFindingsList,
     method: HttpMethod.Get,
     path: "/v1/reviews/:id/findings",
@@ -131,6 +161,28 @@ export function createDeliveryActionRegistry(
   });
 
   registry.register({
+    name: DeliveryImplementedAction.MetricsGet,
+    method: HttpMethod.Get,
+    path: "/v1/metrics",
+    input: contractSchemas.MetricsQuery,
+    output: contractSchemas.MetricSeries,
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.metricsGet,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MetricsSources,
+    method: HttpMethod.Get,
+    path: "/v1/metrics/sources",
+    input: contractSchemas.MetricSourcesQuery,
+    output: contractSchemas["Page<MetricSource>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.metricsSources,
+  });
+
+  registry.register({
     name: DeliveryImplementedAction.PullRequestsList,
     method: HttpMethod.Get,
     path: "/v1/pull-requests",
@@ -145,11 +197,22 @@ export function createDeliveryActionRegistry(
     name: DeliveryImplementedAction.MergeEntriesList,
     method: HttpMethod.Get,
     path: "/v1/merge-entries",
-    input: contractSchemas.RepositoryQuery,
+    input: contractSchemas.MergeEntryQuery,
     output: contractSchemas["Page<MergeEntry>"],
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.mergeEntriesList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeAttemptsList,
+    method: HttpMethod.Get,
+    path: "/v1/merge-attempts",
+    input: contractSchemas.MergeAttemptQuery,
+    output: contractSchemas["Page<MergeAttempt>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.mergeAttemptsList,
   });
 
   registry.register({

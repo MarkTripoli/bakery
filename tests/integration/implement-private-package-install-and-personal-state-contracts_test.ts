@@ -62,6 +62,9 @@ function memoryStore(): SkillObjectStore & {
         throw new Error("SKILL_FILE_DIGEST_MISMATCH");
       }
     },
+    delete(objectKey) {
+      return Promise.resolve(objects.delete(objectKey));
+    },
     async *list() {
       for (const [objectKey, content] of objects) {
         yield {
@@ -2329,4 +2332,499 @@ Deno.test("the upgrade read holds the install row lock until the write", () =>
       "55P03",
       "the install row must be locked between the read and the UPDATE",
     );
+  }));
+
+/** Publishes one more version of a package with the given overrides. */
+async function publishVersionWith(
+  fixture: Fixture,
+  store: ReturnType<typeof memoryStore>,
+  packageId: string,
+  overrides: Record<string, unknown>,
+): Promise<{ versionId: string; versionName: string }> {
+  const bytes = new TextEncoder().encode(`bundle ${crypto.randomUUID()}`);
+  const bundle = await uploadBundle(fixture, store, bytes);
+  const body = versionBody(bundle, overrides);
+  const response = await call(
+    fixture,
+    `/v1/plugin-packages/${packageId}/versions`,
+    { method: "POST", body },
+  );
+  assertEquals(response.status, 201, await response.clone().text());
+  return {
+    versionId: (await response.json()).id,
+    versionName: body.versionName,
+  };
+}
+
+const grantCount = async (fixture: Fixture, installId: string) =>
+  (await fixture.pgDatabase.query<{ n: string }>(
+    `select count(*)::text as n from bakery.plugin_install_grants
+      where organization_id = $1 and plugin_install_id = $2`,
+    [fixture.organizationId, installId],
+  )).rows[0].n;
+
+Deno.test("an update that does not start is remembered, and the install keeps running", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    assertEquals(install.lastUpdateFailure ?? null, null);
+    const grantsBefore = await grantCount(fixture, install.id);
+
+    // A version the host cannot run: the SDK range asks for a major it lacks.
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+    const refused = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId },
+    });
+    // Answered as the install, not as an error: an error would roll the record back.
+    assertEquals(refused.status, 200, await refused.clone().text());
+    const after = await refused.json();
+    assertEquals(after.pluginVersionId, published.versionId);
+    assertEquals(after.status, "enabled");
+    assertEquals(after.lastUpdateFailure.versionId, tooNew.versionId);
+    assertEquals(after.lastUpdateFailure.versionName, tooNew.versionName);
+    assertEquals(after.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assert(!Number.isNaN(Date.parse(after.lastUpdateFailure.at)));
+    assertEquals(await grantCount(fixture, install.id), grantsBefore);
+
+    // It is still there when the install is read again, and in the list.
+    const read =
+      await (await call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "GET",
+      })).json();
+    assertEquals(read.lastUpdateFailure, after.lastUpdateFailure);
+    const listed = await (await call(fixture, "/v1/plugin-installs", {
+      method: "GET",
+    })).json();
+    assertEquals(
+      listed.items.find((item: { id: string }) => item.id === install.id)
+        .lastUpdateFailure,
+      after.lastUpdateFailure,
+    );
+
+    // A newer refusal replaces the older one: a manifest that asks for a
+    // capability the host does not give.
+    const badManifest = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      {
+        manifest: { ...VALID_MANIFEST, requestedCapabilities: ["root.shell"] },
+      },
+    );
+    const second =
+      await (await call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "PATCH",
+        body: { versionId: badManifest.versionId },
+      })).json();
+    assertEquals(second.lastUpdateFailure.versionId, badManifest.versionId);
+    assert(second.lastUpdateFailure.reason.startsWith("plugin_manifest_"));
+    assertEquals(second.pluginVersionId, published.versionId);
+
+    // A successful update clears it.
+    const good = await publishSecondVersion(fixture, store, published);
+    const updated = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: good.versionId },
+    });
+    assertEquals(updated.status, 200, await updated.clone().text());
+    const done = await updated.json();
+    assertEquals(done.pluginVersionId, good.versionId);
+    assertEquals(done.lastUpdateFailure ?? null, null);
+  }));
+
+Deno.test("a person can dismiss a remembered failure, and only one who may change the install", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+    await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId },
+    });
+
+    // A Developer cannot change an organization install, so cannot clear this.
+    const developer = asCookie(
+      fixture,
+      await inviteColleague(fixture, "developer"),
+    );
+    const refused = await developer(`/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { dismissUpdateFailure: true },
+    });
+    assertEquals(refused.status, 403, await refused.clone().text());
+    const kept =
+      await (await call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "GET",
+      })).json();
+    assertEquals(kept.lastUpdateFailure.versionId, tooNew.versionId);
+
+    // An administrator can: only the note goes, nothing else changes.
+    const dismissed = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { dismissUpdateFailure: true },
+    });
+    assertEquals(dismissed.status, 200, await dismissed.clone().text());
+    const body = await dismissed.json();
+    assertEquals(body.lastUpdateFailure ?? null, null);
+    assertEquals(body.pluginVersionId, published.versionId);
+    assertEquals(body.status, "enabled");
+  }));
+
+Deno.test("a refused update in the same request as a disable still disables and revokes", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    assert(Number(await grantCount(fixture, install.id)) > 0);
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+
+    // The version is refused and noted, and the status in the same request is
+    // still applied: authority stops with the lifecycle change (AC3).
+    const response = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId, status: "disabled" },
+    });
+    assertEquals(response.status, 200, await response.clone().text());
+    const body = await response.json();
+    assertEquals(body.status, "disabled");
+    assertEquals(body.pluginVersionId, published.versionId);
+    assertEquals(body.lastUpdateFailure.versionId, tooNew.versionId);
+    assertEquals(body.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assertEquals(await grantCount(fixture, install.id), "0");
+
+    // A dismissal beside a new refusal does not hide the refusal.
+    const both = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId, dismissUpdateFailure: true },
+    });
+    assertEquals(both.status, 200, await both.clone().text());
+    const kept = await both.json();
+    assertEquals(kept.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assertEquals(kept.status, "disabled");
+  }));
+
+Deno.test("a removed install does not remember an update, and a draft version is still not found", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+    await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { status: "uninstalled" },
+    });
+    const refused = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId },
+    });
+    assertEquals(refused.status, 409, await refused.clone().text());
+    const row = await fixture.pgDatabase.query<{ f: unknown }>(
+      `select last_update_failure as f from bakery.plugin_installs
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, install.id],
+    );
+    assertEquals(row.rows[0].f, null);
+  }));
+
+Deno.test("a state read says how big each saved item is, and the write answers with it too", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const put = (key: string, value: unknown) =>
+      call(fixture, `/v1/plugin-installs/${install.id}/state/settings/${key}`, {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key,
+          schemaVersion: 1,
+          value,
+          expectedCasVersion: 0,
+        },
+      });
+    const small = await put("small", { a: 1 });
+    assertEquals(small.status, 200, await small.clone().text());
+    const big = await put("big", { text: "x".repeat(5000) });
+    assertEquals(big.status, 200, await big.clone().text());
+    // The write answers with the size of what it stored.
+    assert((await big.json()).sizeBytes > 5000);
+
+    // The read gives each item's size and last-saved time without the caller
+    // having to hold the value to measure it, and the size is what Postgres
+    // stores, not something a caller supplied.
+    const listed = await (await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state`,
+      { method: "GET" },
+    )).json();
+    const stored = await fixture.pgDatabase.query<
+      { key: string; size: string }
+    >(
+      `select key, octet_length(value::text)::text as size
+         from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2`,
+      [fixture.organizationId, install.id],
+    );
+    const expected = new Map(
+      stored.rows.map((row) => [row.key, Number(row.size)]),
+    );
+    assertEquals(listed.items.length, 2);
+    for (
+      const item of listed.items as {
+        key: string;
+        sizeBytes: number;
+        updatedAt: string;
+      }[]
+    ) {
+      assertEquals(item.sizeBytes, expected.get(item.key));
+      assert(!Number.isNaN(Date.parse(item.updatedAt)));
+    }
+    assert(
+      listed.items.find((item: { key: string }) => item.key === "big")
+        .sizeBytes >
+        listed.items.find((item: { key: string }) => item.key === "small")
+          .sizeBytes,
+    );
+  }));
+
+Deno.test("each install lists only its own saved items, and a size counts bytes, not characters", () =>
+  withPluginFixture(async (fixture, store) => {
+    const install = async () => {
+      const published = await publishInstallable(fixture, store);
+      return await (await call(fixture, "/v1/plugin-installs", {
+        method: "POST",
+        body: {
+          packageId: published.packageId,
+          versionId: published.versionId,
+          scope: "organization",
+        },
+      })).json() as { id: string };
+    };
+    const first = await install();
+    const second = await install();
+    assert(first.id !== second.id);
+    const put = async (installId: string, key: string, value: unknown) => {
+      const response = await call(
+        fixture,
+        `/v1/plugin-installs/${installId}/state/settings/${key}`,
+        {
+          method: "PUT",
+          body: {
+            namespace: "settings",
+            key,
+            schemaVersion: 1,
+            value,
+            expectedCasVersion: 0,
+          },
+        },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+    };
+    // The same key in both installs, so a query that ignored the install would
+    // return the other install's row under a name the first one also has.
+    await put(first.id, "shared", { who: "first" });
+    await put(first.id, "only-first", { n: 1 });
+    await put(second.id, "shared", { who: "second", pad: "p".repeat(300) });
+    await put(second.id, "only-second", { n: 2 });
+    // Three bytes more than characters would be: "é" is two bytes.
+    const accented = "é".repeat(1000);
+    await put(second.id, "accented", { text: accented });
+
+    type Item = {
+      key: string;
+      pluginInstallId: string;
+      sizeBytes: number;
+    };
+    const itemsOf = async (
+      installId: string,
+      path: "state" | "state-items",
+    ) => {
+      const response = await call(
+        fixture,
+        `/v1/plugin-installs/${installId}/${path}`,
+        { method: "GET" },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      return (await response.json()).items as Item[];
+    };
+    for (const path of ["state-items", "state"] as const) {
+      const ofFirst = await itemsOf(first.id, path);
+      const ofSecond = await itemsOf(second.id, path);
+      assertEquals(ofFirst.map((item) => item.key).sort(), [
+        "only-first",
+        "shared",
+      ], path);
+      assertEquals(ofSecond.map((item) => item.key).sort(), [
+        "accented",
+        "only-second",
+        "shared",
+      ], path);
+      assert(ofFirst.every((item) => item.pluginInstallId === first.id), path);
+      assert(
+        ofSecond.every((item) => item.pluginInstallId === second.id),
+        path,
+      );
+      // The size of the shared key is the size of this install's own value.
+      const sharedFirst = ofFirst.find((item) => item.key === "shared")!;
+      const sharedSecond = ofSecond.find((item) => item.key === "shared")!;
+      assert(sharedSecond.sizeBytes > sharedFirst.sizeBytes + 250, path);
+    }
+    // The size is bytes: a thousand two-byte characters is over two thousand.
+    const stored = await fixture.pgDatabase.query<{ size: string }>(
+      `select octet_length(value::text)::text as size
+         from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2
+          and key = 'accented'`,
+      [fixture.organizationId, second.id],
+    );
+    const bytes = Number(stored.rows[0].size);
+    assert(bytes > 2000, `stored ${bytes}`);
+    assert(bytes > JSON.stringify({ text: accented }).length);
+    for (const path of ["state-items", "state"] as const) {
+      const item = (await itemsOf(second.id, path)).find((entry) =>
+        entry.key === "accented"
+      )!;
+      assertEquals(item.sizeBytes, bytes, path);
+    }
+  }));
+
+Deno.test("the values-free state read carries no saved value, pages, and is authorized like the full read", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const ownerCookie = await inviteColleague(fixture, "developer");
+    const owner = asCookie(fixture, ownerCookie);
+    const installed = await (await owner("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    })).json();
+    const secret = "TOPSECRET-SAVED-VALUE";
+    for (const key of ["one", "two"]) {
+      const put = await owner(
+        `/v1/plugin-installs/${installed.id}/state/settings/${key}`,
+        {
+          method: "PUT",
+          body: {
+            namespace: "settings",
+            key,
+            schemaVersion: 1,
+            value: { secret, key },
+            expectedCasVersion: 0,
+          },
+        },
+      );
+      assertEquals(put.status, 200, await put.clone().text());
+    }
+
+    // The owner reads what is saved, and the response holds no value anywhere:
+    // not as a field and not as text.
+    const itemsPath = `/v1/plugin-installs/${installed.id}/state-items`;
+    const response = await owner(itemsPath, { method: "GET" });
+    assertEquals(response.status, 200, await response.clone().text());
+    const text = await response.text();
+    assert(!text.includes(secret), "a saved value must not be in the response");
+    const page = JSON.parse(text) as {
+      items: Record<string, unknown>[];
+      nextCursor: string | null;
+    };
+    assertEquals(page.items.length, 2);
+    for (const item of page.items) {
+      assertEquals(Object.keys(item).sort(), [
+        "createdAt",
+        "id",
+        "key",
+        "namespace",
+        "pluginInstallId",
+        "sizeBytes",
+        "updatedAt",
+      ]);
+      assert(!("value" in item));
+      assert((item.sizeBytes as number) > 0);
+    }
+
+    // It pages, and a cursor from it belongs to it alone.
+    const first = await (await owner(`${itemsPath}?limit=1`, {
+      method: "GET",
+    })).json();
+    assertEquals(first.items.length, 1);
+    assert(first.nextCursor !== null);
+    const second = await (await owner(
+      `${itemsPath}?limit=1&cursor=${encodeURIComponent(first.nextCursor)}`,
+      { method: "GET" },
+    )).json();
+    assertEquals(second.items.length, 1);
+    assert(second.items[0].id !== first.items[0].id);
+    const crossed = await owner(
+      `/v1/plugin-installs/${installed.id}/state?limit=1&cursor=${
+        encodeURIComponent(first.nextCursor)
+      }`,
+      { method: "GET" },
+    );
+    assertEquals(crossed.status, 400, await crossed.clone().text());
+
+    // Authorized like the full read: another member, an Admin even, gets not
+    // found for somebody else's personal install, never the metadata.
+    const colleague = asCookie(
+      fixture,
+      await inviteColleague(fixture, "admin"),
+    );
+    const refused = await colleague(itemsPath, { method: "GET" });
+    assertEquals(refused.status, 404, await refused.clone().text());
+    assert(!(await refused.text()).includes("sizeBytes"));
   }));

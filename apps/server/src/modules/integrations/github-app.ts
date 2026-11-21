@@ -736,6 +736,24 @@ const GitHubPullRequestSchema = z.object({
   updated_at: GitHubTimestampSchema.describe(
     "Time GitHub last updated the pull request.",
   ),
+  created_at: GitHubTimestampSchema.nullable().optional().describe(
+    "Time the pull request was opened.",
+  ),
+  closed_at: GitHubTimestampSchema.nullable().optional().describe(
+    "Time the pull request was last closed; null while open.",
+  ),
+  merged_at: GitHubTimestampSchema.nullable().optional().describe(
+    "Time the pull request was merged; null when it was not.",
+  ),
+  additions: z.number().int().nonnegative().optional().describe(
+    "Lines added across the pull request's diff, as GitHub totals them.",
+  ),
+  deletions: z.number().int().nonnegative().optional().describe(
+    "Lines deleted across the pull request's diff, as GitHub totals them.",
+  ),
+  changed_files: z.number().int().nonnegative().optional().describe(
+    "Files the pull request's diff changes.",
+  ),
   html_url: z.string().url().max(2048).describe(
     "Web page of the pull request on GitHub.",
   ),
@@ -757,8 +775,14 @@ const GitHubPullRequestSchema = z.object({
   mergedSha: wire.merged ? wire.merge_commit_sha ?? null : null,
   updatedAt: wire.updated_at,
   url: wire.html_url,
+  openedAt: wire.created_at ?? null,
+  closedAt: wire.closed_at ?? null,
+  mergedAt: wire.merged ? wire.merged_at ?? null : null,
+  additions: wire.additions ?? null,
+  deletions: wire.deletions ?? null,
+  changedFiles: wire.changed_files ?? null,
 })).describe(
-  "Pull request number, state, head, base and merge commit SHAs, update time and web URL.",
+  "Pull request number, state, head, base and merge commit SHAs, lifecycle times, diff totals, update time and web URL.",
 );
 export type GitHubPullRequest = z.output<typeof GitHubPullRequestSchema>;
 
@@ -1194,6 +1218,67 @@ const GitHubCommitPullRequestPageSchema = z.array(
   "One page of GET /repos/{owner}/{repo}/commits/{sha}/pulls.",
 );
 
+/** One file of GET /repos/{owner}/{repo}/pulls/{number}/files; the patch text is dropped. */
+const GitHubPullRequestFileSchema = z.object({
+  filename: z.string().min(1).max(4096).describe(
+    "Path of the file in the head commit, relative to the repository root.",
+  ),
+  status: z.string().min(1).max(32).describe(
+    "GitHub's change status: added, removed, modified, renamed, copied, changed or unchanged.",
+  ),
+  additions: z.number().int().min(0).describe("Lines the change adds."),
+  deletions: z.number().int().min(0).describe("Lines the change deletes."),
+  changes: z.number().int().min(0).describe(
+    "Additions plus deletions as GitHub reports them.",
+  ),
+  patch: z.string().optional().describe(
+    "Unified diff of the file; GitHub leaves it out for a binary file and for a very large diff. Only its presence is kept.",
+  ),
+}).describe(
+  "Selected fields of one file of a pull request's diff; the patch text itself is never kept.",
+).transform((wire) => ({
+  filename: wire.filename,
+  status: wire.status,
+  additions: wire.additions,
+  deletions: wire.deletions,
+  changes: wire.changes,
+  hasPatch: wire.patch !== undefined,
+})).describe(
+  "A changed file's path, status, line totals and whether a patch was sent.",
+);
+/** One file of a pull request's diff, without its patch text. */
+export type GitHubPullRequestFile = z.output<
+  typeof GitHubPullRequestFileSchema
+>;
+
+const GitHubPullRequestFilePageSchema = z.array(
+  GitHubPullRequestFileSchema,
+).max(GITHUB_LIST_PAGE_SIZE).describe(
+  "One page of GET /repos/{owner}/{repo}/pulls/{number}/files.",
+);
+
+/** One label of GET /repos/{owner}/{repo}/labels; every other field is dropped. */
+const GitHubRepositoryLabelSchema = z.object({
+  id: PositiveIdSchema.describe(
+    "Numeric GitHub id of the label; stable across renames.",
+  ),
+  name: z.string().min(1).max(GITHUB_MAX_LABEL_LENGTH * 2).describe(
+    "Name of the label as GitHub reports it.",
+  ),
+  color: z.string().regex(/^[0-9a-fA-F]{6}$/).nullable().optional().describe(
+    "Colour of the label as six hex digits without a leading #.",
+  ),
+}).transform((wire) => ({
+  id: String(wire.id),
+  name: wire.name,
+  color: wire.color?.toLowerCase() ?? null,
+})).describe(
+  "Selected fields of one repository label, reduced to its id as a string, its name and its lowercase colour.",
+);
+
+const GitHubRepositoryLabelPageSchema = z.array(GitHubRepositoryLabelSchema)
+  .max(100).describe("One page of GET /repos/{owner}/{repo}/labels.");
+
 const GitHubCollaboratorPermissionSchema = z.object({
   permission: z.enum(["admin", "write", "read", "none"]).describe(
     "The user's calculated permission on the repository; organization and repository grants are not told apart.",
@@ -1548,6 +1633,19 @@ export type GitHubAppClient = {
     signal: AbortSignal,
   ): Promise<{ items: GitHubCommitPullRequest[]; hasNext: boolean }>;
   /**
+   * One page of 100 files of a pull request's diff
+   * (`GET /repos/{owner}/{repo}/pulls/{number}/files`), with line totals and
+   * whether GitHub sent a patch; the patch text is dropped. GitHub lists at
+   * most 3,000 files across pages. 301 or 308 is `moved`, 404 or 410 is
+   * `gone`, with the same meaning as `readPullRequest`.
+   */
+  listPullRequestFiles(
+    request: { token: string; fullName: string; number: number; page: number },
+    signal: AbortSignal,
+  ): Promise<
+    { items: GitHubPullRequestFile[]; hasNext: boolean } | GitHubReadAbsent
+  >;
+  /**
    * A user's calculated permission on a repository
    * (`GET /repos/{owner}/{repo}/collaborators/{login}/permission`). `login`
    * must match `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`, refused before any
@@ -1558,6 +1656,22 @@ export type GitHubAppClient = {
     request: { token: string; fullName: string; login: string },
     signal: AbortSignal,
   ): Promise<GitHubCollaboratorPermission | GitHubReadAbsent>;
+  /**
+   * One page of the repository's labels (`GET /repos/{owner}/{repo}/labels`),
+   * `GITHUB_READ_PAGE_SIZE` per page, with the label's numeric id as a string,
+   * its name and colour. A 404, 410 or redirect is `gone` or `moved`.
+   */
+  listRepositoryLabels(
+    request: { token: string; fullName: string; page: number },
+    signal: AbortSignal,
+  ): Promise<
+    | {
+      kind: "present";
+      items: { id: string; name: string; color: string | null }[];
+      hasNext: boolean;
+    }
+    | GitHubReadAbsent
+  >;
 };
 
 /**
@@ -2347,6 +2461,33 @@ export function createFetchGitHubAppClient(
         hasNext: hasNextPage(link),
       };
     },
+    async listPullRequestFiles(request, signal) {
+      const authorization = bearer(request.token);
+      const path = repositoryPath(request.fullName);
+      const number = positiveInteger(request.number);
+      const page = positiveInteger(request.page);
+      const url = new URL(`${GITHUB_API_ORIGIN}${path}/pulls/${number}/files`);
+      url.searchParams.set("per_page", String(GITHUB_LIST_PAGE_SIZE));
+      url.searchParams.set("page", String(page));
+      const { body, link, status } = await readJson(
+        transport,
+        url.href,
+        {
+          method: "GET",
+          expectedStatus: 200,
+          absentStatuses: ABSENT_STATUSES,
+          classify: "token",
+          authorization,
+          maxBytes: MAX_READ_PAGE_BYTES,
+        },
+        signal,
+      );
+      if (status !== 200) return absent(status);
+      return {
+        items: parsed(GitHubPullRequestFilePageSchema, body),
+        hasNext: hasNextPage(link),
+      };
+    },
     async readCollaboratorPermission(request, signal) {
       const authorization = bearer(request.token);
       const path = repositoryPath(request.fullName);
@@ -2370,6 +2511,33 @@ export function createFetchGitHubAppClient(
       return status === 200
         ? parsed(GitHubCollaboratorPermissionSchema, body)
         : absent(status);
+    },
+    async listRepositoryLabels(request, signal) {
+      const authorization = bearer(request.token);
+      const path = repositoryPath(request.fullName);
+      const page = positiveInteger(request.page);
+      const url = new URL(`${GITHUB_API_ORIGIN}${path}/labels`);
+      url.searchParams.set("per_page", String(GITHUB_READ_PAGE_SIZE));
+      url.searchParams.set("page", String(page));
+      const { body, status, link } = await readJson(
+        transport,
+        url.href,
+        {
+          method: "GET",
+          expectedStatus: 200,
+          absentStatuses: ABSENT_STATUSES,
+          classify: "token",
+          authorization,
+          maxBytes: MAX_READ_PAGE_BYTES,
+        },
+        signal,
+      );
+      if (status !== 200) return absent(status);
+      return {
+        kind: "present" as const,
+        items: parsed(GitHubRepositoryLabelPageSchema, body),
+        hasNext: hasNextPage(link),
+      };
     },
   };
 }

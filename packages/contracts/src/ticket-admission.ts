@@ -104,6 +104,7 @@ export const TICKET_CHECK_IDS = Object.freeze(
     "intent_authorized",
     "epic_excluded",
     "acceptance_present",
+    "status_ready",
     "dependencies_satisfied",
     "no_active_admission",
     "repository_ready",
@@ -178,6 +179,8 @@ export const TICKET_AUTO_RESUMABLE_REASONS = Object.freeze(
   [
     "held",
     "label_missing",
+    "status_missing",
+    "status_unsupported",
     "label_withdrawn",
     "predecessor_open",
     "closed_unmerged",
@@ -326,6 +329,9 @@ export const TICKET_CHECK_REASONS: Readonly<
       "provider_unavailable",
     ] as const,
   ),
+  status_ready: Object.freeze(
+    ["status_missing", "status_unsupported", "provider_unavailable"] as const,
+  ),
   no_active_admission: Object.freeze(["active_request"] as const),
   repository_ready: Object.freeze(
     [
@@ -373,9 +379,6 @@ export const TICKET_CHECK_MAX_EVIDENCE = 5;
 export const TICKET_REPORT_MAX_CHECKS = TICKET_CHECK_IDS.length;
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
-const REPOSITORY_FULL_NAME =
-  /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
-const PROVIDER_NUMERIC_ID = /^[1-9][0-9]{0,18}$/;
 
 /** True when a label name could be read as markup, a URL or an expression. */
 function labelNameIsUnsafe(value: string): boolean {
@@ -418,13 +421,78 @@ const sha256Hex = z.string().regex(SHA256_HEX).describe(
   "Lowercase 64-character hexadecimal SHA-256 digest.",
 );
 
-const repositoryFullName = z.string().regex(REPOSITORY_FULL_NAME).describe(
-  "GitHub repository full name in owner/name form, at most 140 characters.",
+/**
+ * An identifier the provider assigns, kept opaque.
+ *
+ * GitHub numbers its issues and users; Linear uses UUIDs and Jira uses short
+ * keys. Nothing in Bakery may parse these, sort them or assume they are
+ * numeric: they are compared for equality and stored. The numeric pattern is
+ * now a reader-side detail, not a contract.
+ */
+const providerOpaqueId = z.string().min(1).max(200).describe(
+  "Identifier the provider assigns, 1 to 200 characters, treated as an opaque token: compared for equality and never parsed.",
 );
 
-const providerNumericId = z.string().regex(PROVIDER_NUMERIC_ID).describe(
-  "GitHub numeric identifier written as a decimal string without leading zeros, so it survives JSON number limits.",
+/**
+ * A status a provider reports for one item.
+ *
+ * `id` is the provider's own identifier and is never parsed or compared to a
+ * display name: a source policy names ids, so renaming a column or translating
+ * a board does not silently change what admits work. `name` is for people.
+ */
+export const TicketStatusRefSchema = z.object({
+  id: providerOpaqueId.describe(
+    "Provider identifier of the status, opaque and stable across renames.",
+  ),
+  name: z.string().min(1).max(200).describe(
+    "Human-readable status name, shown to people and never matched against.",
+  ),
+}).strict().describe(
+  "One status a ticket currently sits in, in the provider's own terms.",
 );
+export type TicketStatusRef = z.output<typeof TicketStatusRefSchema>;
+
+/**
+ * Where a ticket lives, in provider terms.
+ *
+ * A GitHub repository, a Linear team and a Jira project are the same thing to
+ * admission: a named container with an id. `kind` is the provider's own word
+ * for it, so a fourth provider needs no contract change.
+ */
+export const TicketContainerSchema = z.object({
+  kind: z.string().min(1).max(40).describe(
+    "Provider's own word for the container type, for example repository, team or project.",
+  ),
+  externalId: providerOpaqueId.describe(
+    "Provider identifier of the container, opaque to Bakery.",
+  ),
+  displayName: z.string().min(1).max(200).describe(
+    "Human-readable container name, for example owner/name, a team key or a project key.",
+  ),
+}).strict().describe(
+  "The provider container a ticket belongs to, named in the provider's terms.",
+);
+export type TicketContainer = z.output<typeof TicketContainerSchema>;
+
+/**
+ * How much authority an actor holds, as a number the provider defines.
+ *
+ * Today admission compares GitHub's admin/write/read/none by hand. A ladder
+ * lets a provider state its own ranks, so Jira's roles or Linear's workspace
+ * permissions fit without admission learning their names.
+ */
+export const ACTOR_ROLE_RANK_MIN = 0;
+export const ACTOR_ROLE_RANK_MAX = 100;
+
+/**
+ * The rank at which an actor may act on a ticket rather than only read it.
+ *
+ * A provider maps its own ladder into the 0 to 100 band and must give a rank at
+ * or above this one to whoever may trigger work. GitHub's write and admin sit at
+ * or above it; read and none do not. Admission compares this number and never a
+ * role name.
+ */
+export const ACTOR_ROLE_RANK_ACT = 2;
 
 const issueNumber = z.number().int().min(1).describe(
   "GitHub issue number inside its repository, at least 1.",
@@ -452,18 +520,21 @@ const policyReadinessShape = {
   requireAcceptanceCriteria: z.boolean().describe(
     "Whether the ticket must carry an Acceptance criteria heading with at least one list item before it is ready.",
   ),
+  statuses: z.array(providerOpaqueId).min(1).max(10).optional().describe(
+    "Provider status ids, opaque and stable, any one of which makes the ticket ready alongside its label. Absent means the label alone decides, so a source that never names a status keeps working. A provider declares whether it has statuses at all by answering the status read, so a source that configures one against a label-only provider waits with status_unsupported rather than forever, and one that names the wrong status waits with status_missing.",
+  ),
 };
 
 const policyDelegationSchema = z.object({
   principalId: z.uuid().describe(
     "Bakery principal that automatic admissions act as. Its task:write and run:write authority is checked live on every admission.",
   ),
-  githubActorIds: z.array(providerNumericId).min(1).max(
+  externalActorIds: z.array(providerOpaqueId).min(1).max(
     TICKET_DELEGATION_MAX_ACTORS,
   ).refine((ids) => new Set(ids).size === ids.length, {
-    message: "A delegation lists each GitHub user id once.",
+    message: "A delegation lists each actor id once.",
   }).describe(
-    "GitHub user ids, 1 to 25 unique decimal strings, whose label applications may trigger automatic admission. Each must also hold repository role write or higher.",
+    "Provider actor ids, 1 to 25 unique opaque strings, whose label applications may trigger automatic admission. Each must also hold the provider's write rank or higher.",
   ),
 }).strict().describe(
   "Delegation that lets verified label applications by allowlisted GitHub users admit work as a Bakery principal.",
@@ -479,6 +550,11 @@ const policyLabelsSchema = z.object(policyLabelsShape).strict().refine(
 ).describe(
   "Label display names that drive admission intent and hold; all must differ.",
 );
+
+const policyCompletionSchema = z.enum(["task", "merged", "deployed_healthy"])
+  .default("merged").describe(
+    "What counts as delivery for this source's tickets: task (the run finished, for work that opens no pull request), merged (a registered pull request merged and none still open, or the run finished with no pull request registered, so there was nothing to merge; the default), or deployed_healthy (merged and healthy release evidence recorded). A planning-only request is always delivered when its run finishes. A closed issue or a pull request closed without a merge is never delivery.",
+  );
 
 const policyApprovalSchema = z.object(policyApprovalShape).strict().describe(
   "Approval checkpoints that gate a started run.",
@@ -529,6 +605,7 @@ export const TicketSourcePolicySchema = z.object({
   ),
   readiness: policyReadinessSchema,
   approval: policyApprovalSchema,
+  completion: policyCompletionSchema,
   preset: policyPresetSchema,
 }).strict().describe(
   "Strict, versioned ticket source policy as stored: label names, optional delegation, automatic admission window, readiness options, plan approval and preset. Data only; it holds no expression or URL.",
@@ -559,6 +636,7 @@ export const TicketSourcePolicyInputSchema = z.object({
   ),
   readiness: policyReadinessSchema,
   approval: policyApprovalSchema,
+  completion: policyCompletionSchema,
   preset: policyPresetSchema,
 }).strict().describe(
   "Ticket source policy as a client submits it; identical to the stored policy except that automatic.since is optional, nullable and ignored.",
@@ -566,6 +644,31 @@ export const TicketSourcePolicyInputSchema = z.object({
 export type TicketSourcePolicyInput = z.input<
   typeof TicketSourcePolicyInputSchema
 >;
+
+/** Most issues one ticket preview evaluates. */
+export const TICKET_PREVIEW_ISSUE_LIMIT = 25;
+
+/**
+ * The `filters` of `ticketSources.preview` (#69): which issues the preview
+ * evaluates. Neither changes the policy being previewed.
+ */
+export const TicketPreviewFiltersSchema = z.object({
+  labels: z.array(providerLabelName).min(1).max(10).optional().describe(
+    "Only issues carrying at least one of these label names (exact, case-sensitive) are evaluated; 1 to 10 names. Omitted, labels do not narrow the preview.",
+  ),
+  numbers: z.array(
+    z.number().int().min(1).max(2_147_483_647).describe(
+      "One provider issue number within the source's repository.",
+    ),
+  ).min(1).max(
+    TICKET_PREVIEW_ISSUE_LIMIT,
+  ).optional().describe(
+    "Issue numbers to evaluate instead of the provider's first page of open issues, 1 to 25, evaluated in this order; a repeated number is evaluated once.",
+  ),
+}).strict().describe(
+  "Narrowing of one ticket preview: the issues to evaluate and the labels they must carry. An empty object narrows nothing.",
+);
+export type TicketPreviewFilters = z.output<typeof TicketPreviewFiltersSchema>;
 
 /**
  * A fresh default policy: execute "ready for agent", planning-only
@@ -584,21 +687,22 @@ export function defaultTicketSourcePolicy(): TicketSourcePolicy {
     automatic: { enabled: false, since: null },
     readiness: { requireAcceptanceCriteria: true },
     approval: { plan: "human_approval" },
+    completion: "merged",
     preset: "fixed-coding",
   });
 }
 
-/** Reference to one issue: the provider id, number and repository. */
+/** Reference to one ticket: the provider id, its ordinal and its container. */
 export const TicketIssueRefSchema = z.object({
-  id: providerNumericId.describe(
-    "GitHub issue id (the immutable database id, not the number) as a decimal string.",
+  id: providerOpaqueId.describe(
+    "Provider's immutable id for the ticket, kept opaque; the dedupe identity.",
   ),
   number: issueNumber,
-  repositoryFullName: repositoryFullName.describe(
-    "Repository that holds the issue, in owner/name form.",
+  container: TicketContainerSchema.describe(
+    "Container that holds the ticket, named in the provider's terms.",
   ),
 }).strict().describe(
-  "Reference to one GitHub issue by its immutable id, number and repository.",
+  "Reference to one ticket by its immutable id, its ordinal and its container.",
 );
 export type TicketIssueRef = z.output<typeof TicketIssueRefSchema>;
 
@@ -614,8 +718,8 @@ const issueStateReason = z.string().min(1).max(40).nullable().describe(
  * body text of an oversized issue and sets `bodyTooLarge`.
  */
 export const TicketSnapshotInputSchema = z.object({
-  externalId: providerNumericId.describe(
-    "GitHub issue id (immutable database id) as a decimal string; the dedupe identity of the ticket.",
+  externalId: providerOpaqueId.describe(
+    "Provider's immutable id for the ticket, kept opaque; the dedupe identity.",
   ),
   number: issueNumber,
   title: z.string().max(TICKET_SNAPSHOT_TITLE_MAX_LENGTH).describe(
@@ -639,8 +743,8 @@ export const TicketSnapshotInputSchema = z.object({
   locked: z.boolean().describe(
     "Whether the issue is locked against new comments.",
   ),
-  repositoryFullName: repositoryFullName.describe(
-    "Repository the issue belongs to, in owner/name form.",
+  container: TicketContainerSchema.describe(
+    "Container the ticket belongs to, named in the provider's terms.",
   ),
 }).strict().superRefine((input, context) => {
   if ([...input.body].length > TICKET_PROVIDER_BODY_MAX_CODE_POINTS) {
@@ -704,8 +808,8 @@ export const TicketSnapshotSchema = z.object({
   locked: z.boolean().describe(
     "Whether the issue was locked at the observation.",
   ),
-  repositoryFullName: repositoryFullName.describe(
-    "Repository the issue belonged to at the observation, in owner/name form.",
+  container: TicketContainerSchema.describe(
+    "Container the ticket belonged to at the observation, named in the provider's terms.",
   ),
   links: TicketLinksSchema.nullable().describe(
     "Native relationships at the observation, or null when the links read did not succeed. Absence is never inferred.",
@@ -876,8 +980,8 @@ export const TicketAuthorityEvidenceSchema = z.object({
     "Bakery principal that made an explicit request, or null for a webhook or poll origin.",
   ),
   provenance: z.object({
-    actorId: providerNumericId.describe(
-      "GitHub user id that applied the request label.",
+    actorId: providerOpaqueId.describe(
+      "Provider id of the actor that applied the request label.",
     ),
     actorLogin: z.string().min(1).max(100).describe(
       "GitHub login that applied the request label, as the issue event reported it.",
@@ -888,13 +992,20 @@ export const TicketAuthorityEvidenceSchema = z.object({
   }).strict().nullable().describe(
     "Who applied the request label and when, for a webhook or poll origin; null otherwise.",
   ),
+  labelName: providerLabelName.nullable().optional().describe(
+    "The request label the issue carried when a label-based request (webhook, poll or adoption) was admitted; null for a manual request. Omitted on requests admitted before it was recorded.",
+  ),
   actorRole: z.object({
-    userId: providerNumericId.describe(
-      "GitHub user id the role answer is about.",
+    userId: providerOpaqueId.describe(
+      "Provider id of the actor the role answer is about.",
     ),
     permission: z.enum(["admin", "write", "read", "none"]).describe(
-      "Repository permission of that user at admission.",
+      "Provider permission name of that actor at admission, kept for evidence.",
     ),
+    rank: z.number().int().min(ACTOR_ROLE_RANK_MIN).max(ACTOR_ROLE_RANK_MAX)
+      .describe(
+        "Position on the provider's role ladder, higher is more authority. Admission compares ranks, never names, so a provider with other role names fits.",
+      ),
   }).strict().nullable().describe(
     "Repository role of the labelling actor at admission, for a webhook or poll origin; null otherwise.",
   ),

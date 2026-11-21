@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { SessionThread, type SessionThreadTurn } from "@bakery/ui";
+import {
+  EmptyState,
+  SessionThread,
+  type SessionThreadTurn,
+  Stack,
+} from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Organisms/SessionThread",
@@ -133,21 +138,45 @@ const turns: readonly SessionThreadTurn[] = [
   },
 ];
 
+const rest = {
+  labels,
+  showMore: (hidden: number) => `Show ${hidden} more`,
+};
+
 /**
- * A person's boxed message, the agent's plain text with its work open and a
- * failed step showing its output, a folded turn, and the end of the session.
+ * Four sessions: one still running, one that failed, one that finished and one
+ * with nothing yet. The failed one shows a person's boxed message, the agent's
+ * plain text with its work open, a failed step with its output, a folded turn
+ * and the end of the session.
  */
 export const Contract: StoryObj = {
   render: () => (
-    <SessionThread
-      turns={turns}
-      end={{
-        outcome: "failed",
-        label: "Session failed",
-        reason: "The signing key expired.",
-      }}
-      labels={labels}
-      showMore={(hidden) => `Show ${hidden} more`}
-    />
+    <Stack>
+      <SessionThread turns={turns.slice(0, 2)} {...rest} />
+      <SessionThread
+        turns={turns}
+        end={{
+          outcome: "failed",
+          label: "Session failed",
+          reason: "The signing key expired.",
+        }}
+        {...rest}
+      />
+      <SessionThread
+        turns={turns.slice(2)}
+        end={{ outcome: "completed", label: "Session finished" }}
+        {...rest}
+      />
+      <SessionThread
+        turns={[]}
+        empty={
+          <EmptyState
+            title="Nothing here yet"
+            description="Messages and the agent's work appear here as the session runs."
+          />
+        }
+        {...rest}
+      />
+    </Stack>
   ),
 };

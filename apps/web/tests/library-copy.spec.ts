@@ -124,7 +124,8 @@ for (
         "Built-in workflows cannot be changed. Make a copy to edit it.",
       );
       await expect(root).toContainText("Steps in version 3");
-      const steps = root.locator("[data-step-id]");
+      // The diagram draws "How it starts" first, then one card per step.
+      const steps = root.locator("[data-card]:not([data-card=start])");
       await expect(steps).toHaveCount(3);
       await expect(steps.nth(0)).toContainText("Write the task brief");
       await expect(steps.nth(1)).toContainText("Implement");

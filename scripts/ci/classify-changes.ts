@@ -240,6 +240,13 @@ export const AFFECTED_LANES_TABLE: readonly AffectedPathRule[] = [
     lanes: [],
   },
   {
+    // The bakery command line: a client of the public API with unit tests only
+    // (tests/unit), so the fast lanes cover it and no heavy lane is selected.
+    key: "packages/cli/",
+    prefixes: ["packages/cli/"],
+    lanes: [],
+  },
+  {
     key: "tests/browser/",
     prefixes: ["tests/browser/"],
     lanes: ["browser_tests"],

@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { REVIEW_LOOP_LIMITS } from "../../packages/contracts/src/review-evidence.ts";
-import { planReviewLoopLimits } from "../../apps/server/src/modules/delivery/plan-review-loop.ts";
+import { planReviewLoopLimits } from "../../apps/server/src/modules/review-loop/limits.ts";
 import { compiled } from "../helpers/workflow-interpreter.ts";
 
 // #397. A compiled plan freezes the review loop's bounds at admission when it

@@ -16,7 +16,10 @@ import {
   cleanupAuthFixture,
   openAuthFixture,
   sessionCookie,
+  signSessionCookie,
 } from "../helpers/auth.ts";
+import { resolveAgentSkillBindings } from "../../apps/server/src/modules/catalog/agent-skill-bindings.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 
 type Skill = {
   id: string;
@@ -25,6 +28,10 @@ type Skill = {
   name: string;
   activeVersionId: string | null;
   enabled: boolean;
+  scope: "global" | "organization" | "personal";
+  ownerPrincipalId: string | null;
+  copiedFromSkillId: string | null;
+  copiedFromVersionId: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -120,6 +127,10 @@ Deno.test("authenticated skills.create persists an exact tenant-local identity",
       name: "Release notes",
       activeVersionId: null,
       enabled: true,
+      scope: "organization",
+      ownerPrincipalId: null,
+      copiedFromSkillId: null,
+      copiedFromVersionId: null,
       createdAt: created.createdAt,
       updatedAt: created.updatedAt,
       version: 1,
@@ -1045,5 +1056,270 @@ Deno.test("publication locks and rechecks source license before metadata commit"
     await cleanupAuthFixture(fixture.pgDatabase, [email]);
     await fixture.close();
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("a personal skill is visible to its owner alone and never reaches an agent", async () => {
+  const fixture = await openAuthFixture();
+  const suffix = crypto.randomUUID();
+  const email = `personal-skill-a-${suffix}@example.test`;
+  const otherEmail = `personal-skill-b-${suffix}@example.test`;
+  const password = `PersonalSkill-${suffix}`;
+  try {
+    await createSuperuser({
+      pgDatabase: fixture.pgDatabase,
+      config: fixture.config.auth!,
+    }, { email, displayName: "Skill Owner", password });
+    const scope = await fixture.pgDatabase.query<{
+      organizationId: string;
+      principalId: string;
+    }>(
+      `select membership.organization_id as "organizationId",
+              membership.principal_id as "principalId"
+         from bakery.organization_memberships as membership
+         join bakery.principals as principal
+           on principal.id = membership.principal_id
+         join public."user" as provider_user
+           on provider_user.id = principal.provider_user_id
+        where provider_user.email = $1`,
+      [email],
+    );
+    const { organizationId, principalId } = scope.rows[0];
+    const signIn = await fixture.auth.handler(authRequest(
+      "/api/auth/sign-in/email",
+      { email, password },
+    ));
+    assertEquals(signIn.status, 200);
+    const ownerCookie = sessionCookie(signIn);
+
+    // A second member of the same organization: a Developer, not an Admin.
+    const otherUserId = crypto.randomUUID();
+    const otherPrincipalId = crypto.randomUUID();
+    const otherToken = `personal-skill-${crypto.randomUUID()}`;
+    const now = new Date();
+    await fixture.pgDatabase.query(
+      `insert into public."user" (
+         id, name, email, "emailVerified", "createdAt", "updatedAt"
+       ) values ($1, 'Other Member', $2, true, $3, $3)`,
+      [otherUserId, otherEmail, now],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.principals (
+         id, provider_user_id, display_name, principal_type
+       ) values ($1, $2, 'Other Member', 'human')`,
+      [otherPrincipalId, otherUserId],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_memberships (
+         id, organization_id, principal_id, role, status, joined_at,
+         created_at, updated_at, version
+       ) values ($1, $2, $3, 'developer', 'active', $4, $4, $4, 1)`,
+      [crypto.randomUUID(), organizationId, otherPrincipalId, now],
+    );
+    await fixture.pgDatabase.query(
+      `insert into public.session (
+         id, token, "userId", "expiresAt", "createdAt", "updatedAt"
+       ) values ($1, $2, $3, $4, $5, $5)`,
+      [
+        crypto.randomUUID(),
+        otherToken,
+        otherUserId,
+        new Date(now.getTime() + 3_600_000),
+        now,
+      ],
+    );
+    const otherCookie = await signSessionCookie(
+      otherToken,
+      fixture.config.auth!.secret,
+    );
+
+    const create = (
+      cookie: string,
+      body: Record<string, unknown>,
+      key: string,
+    ) =>
+      fixture.app.fetch(authRequest("/v1/skills", body, {
+        cookie,
+        headers: {
+          "Bakery-Organization-Id": organizationId,
+          "Idempotency-Key": key,
+        },
+      }));
+    const read = (cookie: string, path: string) =>
+      fixture.app.fetch(
+        new Request(`${authTestOrigin}${path}`, {
+          headers: { cookie, "Bakery-Organization-Id": organizationId },
+        }),
+      );
+
+    const personalResponse = await create(
+      ownerCookie,
+      { slug: "private-notes", name: "Private notes", scope: "personal" },
+      "create-private-notes",
+    );
+    assertEquals(
+      personalResponse.status,
+      201,
+      await personalResponse.clone().text(),
+    );
+    const personal = await personalResponse.json() as Skill;
+    assertEquals(personal.scope, "personal");
+    assertEquals(personal.ownerPrincipalId, principalId);
+    const sharedResponse = await create(
+      ownerCookie,
+      { slug: "shared-notes", name: "Shared notes" },
+      "create-shared-notes",
+    );
+    assertEquals(sharedResponse.status, 201);
+    const shared = await sharedResponse.json() as Skill;
+    assertEquals(shared.scope, "organization");
+    assertEquals(shared.ownerPrincipalId, null);
+
+    // The owner sees both; the other member sees the shared skill only.
+    const ownerList = await (await read(ownerCookie, "/v1/skills")).json() as {
+      items: Skill[];
+    };
+    assertEquals(ownerList.items.map((item) => item.slug).sort(), [
+      "private-notes",
+      "shared-notes",
+    ]);
+    const otherList = await (await read(otherCookie, "/v1/skills")).json() as {
+      items: Skill[];
+    };
+    assertEquals(otherList.items.map((item) => item.slug), ["shared-notes"]);
+    assertEquals(
+      (await read(ownerCookie, `/v1/skills/${personal.id}`)).status,
+      200,
+    );
+    assertEquals(
+      (await read(otherCookie, `/v1/skills/${personal.id}`)).status,
+      404,
+    );
+    assertEquals(
+      (await read(otherCookie, `/v1/skills/${shared.id}`)).status,
+      200,
+    );
+
+    // Another member cannot change it, and cannot tell it exists.
+    const foreignPatch = await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/skills/${personal.id}`, {
+        method: "PATCH",
+        headers: {
+          cookie: otherCookie,
+          "Bakery-Organization-Id": organizationId,
+          "content-type": "application/json",
+          "Idempotency-Key": "foreign-rename",
+          "If-Match": '"1"',
+          origin: authTestOrigin,
+        },
+        body: JSON.stringify({ name: "Taken over" }),
+      }),
+    );
+    assertEquals(foreignPatch.status, 404);
+
+    // The same personal slug under two owners is allowed and reveals nothing.
+    const otherPersonal = await create(
+      otherCookie,
+      { slug: "private-notes", name: "Other private notes", scope: "personal" },
+      "other-private-notes",
+    );
+    assertEquals(
+      otherPersonal.status,
+      201,
+      await otherPersonal.clone().text(),
+    );
+    // A Developer may keep a personal skill but not add an organization one,
+    // and an Admin cannot act on somebody else's personal skill.
+    const developerOrganization = await create(
+      otherCookie,
+      { slug: "developer-shared", name: "Developer shared" },
+      "developer-organization-skill",
+    );
+    assertEquals(developerOrganization.status, 403);
+    const otherPersonalSkill = await otherPersonal.json() as Skill;
+    const adminPatch = await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/skills/${otherPersonalSkill.id}`, {
+        method: "PATCH",
+        headers: {
+          cookie: ownerCookie,
+          "Bakery-Organization-Id": organizationId,
+          "content-type": "application/json",
+          "Idempotency-Key": "admin-rename-personal",
+          "If-Match": '"1"',
+          origin: authTestOrigin,
+        },
+        body: JSON.stringify({ name: "Renamed by an admin" }),
+      }),
+    );
+    assertEquals(adminPatch.status, 404);
+    // A skill that comes with Bakery is never created through the API.
+    const globalResponse = await create(
+      ownerCookie,
+      { slug: "from-bakery", name: "From Bakery", scope: "global" },
+      "create-global",
+    );
+    assertEquals(globalResponse.status, 403);
+
+    // An agent is shared by the organization: it can carry the organization
+    // skill and never the personal one, and the refusal is the one an absent
+    // skill gets.
+    const versionIds = {
+      shared: `00000000-0000-8000-8000-${crypto.randomUUID().slice(-12)}`,
+      personal: `00000000-0000-8000-8000-${crypto.randomUUID().slice(-12)}`,
+    };
+    for (
+      const [skillId, versionId] of [
+        [shared.id, versionIds.shared],
+        [personal.id, versionIds.personal],
+      ] as const
+    ) {
+      await fixture.pgDatabase.query(
+        `insert into bakery.skill_versions (
+           id, organization_id, skill_id, revision, source_revision, digest,
+           entry_path, manifest, status, created_by
+         ) values ($1, $2, $3, 1, 'rev-1', $4, 'SKILL.md', '{}'::jsonb,
+                   'published', $5)`,
+        [
+          versionId,
+          organizationId,
+          skillId,
+          `sha256:${"a".repeat(64)}`,
+          principalId,
+        ],
+      );
+    }
+    const pins = await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        resolveAgentSkillBindings(transaction, organizationId, {
+          notes: versionIds.shared,
+        }),
+    );
+    assertEquals(pins.map((pin) => pin.versionId), [versionIds.shared]);
+    const refused = await assertRejects(() =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          resolveAgentSkillBindings(transaction, organizationId, {
+            notes: versionIds.personal,
+          }),
+      )
+    );
+    const absent = await assertRejects(() =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          resolveAgentSkillBindings(transaction, organizationId, {
+            notes: `00000000-0000-8000-8000-${crypto.randomUUID().slice(-12)}`,
+          }),
+      )
+    );
+    assertEquals(
+      JSON.stringify((refused as { params?: unknown }).params),
+      JSON.stringify((absent as { params?: unknown }).params),
+    );
+  } finally {
+    await cleanupAuthFixture(fixture.pgDatabase, [email, otherEmail]);
+    await fixture.close();
   }
 });

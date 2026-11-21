@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest dd8369ac825c89f4142937ba49896841836f5b1352f88048665ffee249ae69d4. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 9751ef57dad9532c7dd744124499e031390d3bec10424b6067812b7d4f7154a6. */
 :root {
   --border-default: 1px;
   --border-emphasis: 2px;
@@ -35,6 +35,7 @@
   --layout-device-status-gap: 154px;
   --layout-dialog: 600px;
   --layout-field-label: 200px;
+  --layout-form-summary: 300px;
   --layout-header: 64px;
   --layout-inspector: 320px;
   --layout-item-action: 100px;
@@ -162,11 +163,17 @@
   --color-focus: #0B63C6;
   --color-logo-plate: #F5F6F8;
   --color-presence-1: #2563EB;
+  --color-presence-1-surface: #CFDDFB;
   --color-presence-2: #C2410C;
+  --color-presence-2-surface: #F2D5CA;
   --color-presence-3: #15803D;
+  --color-presence-3-surface: #CCE3D4;
   --color-presence-4: #7E22CE;
+  --color-presence-4-surface: #E3CEF4;
   --color-presence-5: #BE185D;
+  --color-presence-5-surface: #F1CCDB;
   --color-presence-6: #0F766E;
+  --color-presence-6-surface: #CAE1DF;
   --color-preview-ink: #000000;
   --color-primary: #141A24;
   --color-primary-foreground: #FFFFFF;

@@ -127,23 +127,25 @@ test.describe("organization repository rules against the real API", () => {
     expect(stored.map((row) => row.entries)).toEqual([2, 5]);
 
     await expect(page.getByTestId("org-rules-current")).toContainText(
-      "Published revision 2",
+      "Version 2 · published",
     );
     const row = (name: string) => ruleRow(page, name);
-    await expect(row("Semantic commits")).toContainText("Locked");
-    await expect(row("PR / MR titles")).toContainText("Locked");
-    await expect(row("Merge descriptions")).toContainText("Can override");
+    await expect(row("Semantic commits")).toContainText(/No, locked|Locked/);
+    await expect(row("PR / MR titles")).toContainText(/No, locked|Locked/);
+    await expect(row("Merge descriptions")).toContainText(
+      /Yes|Not locked/,
+    );
     await expect(row("Magic numbers")).toContainText("allow 0, 1");
     await expect(row("Magic strings")).toContainText("Off");
 
     const history = historyRows(page);
     // Both revisions, newest first.
     await expect(history).toHaveCount(2);
-    // The digest on screen is the one the server stored for that revision.
-    await expect(history.nth(0)).toContainText(
+    // The server stores a hash for each version; the page never shows it.
+    await expect(history.nth(0)).not.toContainText(
       stored[1].digest.slice(0, 8),
     );
-    await expect(history.nth(1)).toContainText(
+    await expect(history.nth(1)).not.toContainText(
       stored[0].digest.slice(0, 8),
     );
     await shot(page, "rules-current");
@@ -162,10 +164,10 @@ test.describe("organization repository rules against the real API", () => {
     await expect(history.nth(0)).toContainText(
       String(TOTAL_REVISIONS),
     );
-    await page.getByRole("button", { name: "Load more revisions" }).click();
+    await page.getByRole("button", { name: "Load older versions" }).click();
     await expect(history).toHaveCount(TOTAL_REVISIONS);
     await expect(
-      page.getByRole("button", { name: "Load more revisions" }),
+      page.getByRole("button", { name: "Load older versions" }),
     ).toHaveCount(0);
     await shot(page, "rules-history-paged");
   });
@@ -226,7 +228,7 @@ test.describe("organization repository rules against the real API", () => {
   test("edits a rule, reviews what it would do and publishes it against the real server", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
     await expect(page.getByTestId("org-rules-current")).toContainText(
-      `Published revision ${TOTAL_REVISIONS}`,
+      `Version ${TOTAL_REVISIONS} · published`,
     );
     await editRule(page, "Magic strings", async (editor) => {
       await editor.getByRole("switch", { name: "Rule enabled" }).check();
@@ -240,7 +242,7 @@ test.describe("organization repository rules against the real API", () => {
     await page.getByRole("button", { name: "Review and publish" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText(
-      `Publish revision ${TOTAL_REVISIONS + 1}?`,
+      `Publish version ${TOTAL_REVISIONS + 1}?`,
     );
     await expect(dialog.getByRole("button", { name: "Publish rules" }))
       .toBeEnabled();
@@ -249,7 +251,7 @@ test.describe("organization repository rules against the real API", () => {
 
     await dialog.getByRole("button", { name: "Publish rules" }).click();
     await expect(
-      page.getByText(`Revision ${TOTAL_REVISIONS + 1} published.`),
+      page.getByText(`Version ${TOTAL_REVISIONS + 1} published.`),
     ).toBeVisible();
     // The server stored it, and the page now reads what the server stored.
     const stored = (await state()).versions;
@@ -258,7 +260,7 @@ test.describe("organization repository rules against the real API", () => {
       entries: 5,
     });
     await expect(page.getByTestId("org-rules-current")).toContainText(
-      `Published revision ${TOTAL_REVISIONS + 1}`,
+      `Version ${TOTAL_REVISIONS + 1} · published`,
     );
     await expect(ruleRow(page, "Magic strings")).not.toContainText("Edited");
     await expect(ruleRow(page, "Magic strings")).toContainText("Warn");
@@ -284,11 +286,11 @@ test.describe("organization repository rules against the real API", () => {
     await page.getByRole("button", { name: "Review and publish" }).click();
     const notice = page.getByTestId("org-rules-stale");
     await expect(notice).toContainText(
-      `Revision ${current + 1} was published while you were editing.`,
+      `Version ${current + 1} was published while you were editing.`,
     );
     const conflicts = page.getByTestId("org-rules-conflicts");
     await expect(conflicts).toContainText("Semantic commits");
-    await expect(conflicts).toContainText(`Changed in revision ${current + 1}`);
+    await expect(conflicts).toContainText(`Changed in version ${current + 1}`);
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeDisabled();
     await shot(page, "rules-stale");
@@ -297,9 +299,9 @@ test.describe("organization repository rules against the real API", () => {
       .click();
     await page.getByRole("button", { name: "Review and publish" }).click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toContainText(`Publish revision ${current + 2}?`);
+    await expect(dialog).toContainText(`Publish version ${current + 2}?`);
     await dialog.getByRole("button", { name: "Publish rules" }).click();
-    await expect(page.getByText(`Revision ${current + 2} published.`))
+    await expect(page.getByText(`Version ${current + 2} published.`))
       .toBeVisible();
     const stored = (await state()).versions;
     expect(stored.at(-1)?.revision).toBe(current + 2);

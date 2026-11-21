@@ -24,6 +24,10 @@ export type TaskDetailProps =
       readonly reference?: string;
       readonly status: string;
     };
+    /**
+     * Session layout: the line of metadata in the header. Conversation layout:
+     * its own row under the header (for example the issue a task came from).
+     */
     meta?: ReactNode;
     presence?: ReactNode;
     /** Conversation layout, phone: back control before the title. */
@@ -87,6 +91,7 @@ export function TaskDetail(
                   : null}
               </div>
             </header>
+            {meta ? <div className="ui-task-detail__linked">{meta}</div> : null}
             {stages
               ? <div className="ui-task-detail__stages">{stages}</div>
               : null}

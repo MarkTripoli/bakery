@@ -124,7 +124,14 @@ function PathText({ path }: { path: string }) {
   return (
     <span className="ui-session-path" dir="ltr" translate="no" title={path}>
       {folder
-        ? <span className="ui-session-path__folder">{folder}</span>
+        ? (
+          <span
+            className="ui-session-path__folder"
+            data-rail="truncation-allowed"
+          >
+            {folder}
+          </span>
+        )
         : null}
       <span className="ui-session-path__name">{name}</span>
     </span>
@@ -409,11 +416,20 @@ export function SessionThread(
     return () => document.removeEventListener("keydown", onKey);
   }, [jumpToLatest, turns]);
 
+  // What a reader of the page can tell at a glance: working, ended well, ended
+  // badly, or nothing yet.
+  const state = turns.length === 0
+    ? "empty"
+    : end
+    ? (end.outcome === "failed" ? "failed" : "finished")
+    : "running";
   if (turns.length === 0 && empty) {
     return (
       <div
         className="ui-session-thread"
         data-ui-component="sessionThread"
+        data-variant="default"
+        data-state={state}
         data-empty="true"
         ref={rootRef}
       >
@@ -428,6 +444,8 @@ export function SessionThread(
     <div
       className="ui-session-thread"
       data-ui-component="sessionThread"
+      data-variant="default"
+      data-state={state}
       ref={rootRef}
     >
       {onLoadEarlier

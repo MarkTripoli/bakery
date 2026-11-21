@@ -284,7 +284,6 @@ export function AccessSettings(
           {section.columnHeaders && section.rows && section.rows.length > 0
             ? (
               <div
-                aria-hidden="true"
                 className="ui-access-settings__row ui-access-settings__row--head"
                 data-columns={section.columns ?? "role"}
                 data-testid={section.testId

@@ -32,7 +32,13 @@ export {
   type OpaqueCredential,
   opaqueCredential,
 } from "./integration-gate-broker.ts";
-export { deployedIntegrations } from "./integration-gate-registry.ts";
+export {
+  deployedIntegrationEntries,
+  deployedIntegrations,
+  deployedProviderByIntegrationId,
+  deployedProviderBySlug,
+  deployedProviders,
+} from "./integration-gate-registry.ts";
 export {
   DERIVED_EFFECT_KEY_PREFIX,
   deriveEffectIdempotencyKey,

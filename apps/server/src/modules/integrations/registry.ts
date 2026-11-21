@@ -1,3 +1,10 @@
+import {
+  type ActivatedProviders,
+  activateProviders,
+  type ProviderManifest,
+} from "@bakery/integration-sdk/provider";
+import { linearServerProvider } from "@bakery/integration-linear/server";
+
 /**
  * One manifest owns all three provider identifiers (chapter 09 section 12.4).
  *
@@ -35,6 +42,23 @@ export type ProviderIdentity = {
   readonly uuid: string;
 };
 
+/**
+ * The bundled native Linear provider.
+ *
+ * The package is the source of the manifest; this file is the only importer of its
+ * `/server` entry (boundary rule B1b), which is what keeps the GraphQL documents
+ * and the signature code out of every other module.
+ */
+export const LINEAR_PROVIDER_IDENTITY = Object.freeze(
+  {
+    gateId: "bakery.linear",
+    slug: "linear",
+    // UUIDv5 in the URL namespace of `urn:bakery:integration-provider:linear`,
+    // the same derivation as the GitHub row's id.
+    uuid: "7884e080-6d1f-5aa0-80a7-d03a941cef11",
+  } as const satisfies ProviderIdentity,
+);
+
 /** The bundled native GitHub provider. */
 export const GITHUB_PROVIDER_IDENTITY = Object.freeze(
   {
@@ -54,6 +78,7 @@ export const GITHUB_PROVIDER_IDENTITY = Object.freeze(
 export const PROVIDER_IDENTITIES = Object.freeze(
   [
     GITHUB_PROVIDER_IDENTITY,
+    LINEAR_PROVIDER_IDENTITY,
   ] as const satisfies readonly ProviderIdentity[],
 );
 
@@ -181,4 +206,56 @@ export function providerIdentityDefects(
     }
   }
   return defects;
+}
+
+/**
+ * The provider packages this build deploys, and their activated set.
+ *
+ * Section 12.4's one registry: this is the only importer of a provider `/server`
+ * entry, and `activateProviders` fails startup on any defect (B8). The gate's
+ * deployed list derives from `PROVIDERS` rather than being listed separately, so
+ * "which providers exist" has one answer.
+ */
+/**
+ * Declared `as const` rather than `satisfies readonly ServerProvider<ProviderManifest>[]`.
+ *
+ * The design's `satisfies` cannot be written for a concrete provider: a manifest
+ * annotated `ProviderManifest` widens `ingress`, and `IngressFor` then resolves to
+ * `undefined` (null is one of the possible manifest values), while this provider
+ * supplies a real `WebhookIngress`. The wide type is therefore not a supertype of
+ * the narrow one, and asserting it would be a lie the compiler is right to refuse.
+ * `activateProviders` takes `unknown[]` and narrows, so conformance is checked at
+ * runtime, once, by the one function that is allowed to throw.
+ */
+export const SERVER_PROVIDERS = Object.freeze(
+  [
+    linearServerProvider,
+  ] as const,
+);
+
+export const PROVIDERS: ActivatedProviders = activateProviders(
+  SERVER_PROVIDERS,
+);
+
+/** The deployed identity a provider row id names, or `undefined`. */
+export function identityForProviderId(
+  providerId: string,
+): ProviderIdentity | undefined {
+  return PROVIDER_IDENTITIES.find((identity) => identity.uuid === providerId);
+}
+
+/**
+ * The provider package a provider row id names, or `undefined`.
+ *
+ * The connection writer is handed a UUID, not a slug: the column is a foreign key to
+ * `integration_providers`. Resolving it here rather than in the writer keeps the
+ * provider packages behind the one importer, so a writer can read a manifest's
+ * connect kind without reaching a provider's server code.
+ */
+export function providerManifestForId(
+  providerId: string,
+): ProviderManifest | undefined {
+  return PROVIDERS.providers.find((provider) =>
+    provider.manifest.providerUuid === providerId
+  )?.manifest;
 }

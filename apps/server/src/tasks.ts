@@ -17,6 +17,8 @@ import {
   EVENT_CLOCK_SCHEMA_BOUNDARY,
 } from "./modules/work/migrations.ts";
 import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
+import { runStoragePurgesTask } from "./platform/storage-purges-task.ts";
+import { runRestoreFenceTask } from "./platform/restore-fence-task.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
 import {
   authEnvironmentNames,
@@ -145,6 +147,9 @@ const tasks = [
   "register-oauth-client",
   "settings",
   "reset",
+  "storage-purges",
+  "restore-fence",
+  "probe-runner",
 ];
 if (!task || !tasks.includes(task)) {
   console.error(`Expected ${tasks.join(", ")}`);
@@ -166,6 +171,34 @@ const authConfig =
   task === "createsuperuser" || task === "register-oauth-client"
     ? readAuthTaskConfig(databaseConfig)
     : undefined;
+
+if (task === "probe-runner") {
+  // Imported here, not at the top: the entry point is loaded for every task,
+  // and this one pulls the object store in with it. A top-level import made
+  // `createsuperuser` read an AWS SDK variable it never declared, which is the
+  // access this rail exists to prevent.
+  const { runProbeRunnerTask } = await import(
+    "./platform/probe-runner-task.ts"
+  );
+  console.log(JSON.stringify(await runProbeRunnerTask(databaseConfig.url)));
+  Deno.exit(0);
+}
+
+if (task === "storage-purges") {
+  console.log(JSON.stringify(await runStoragePurgesTask(databaseConfig.url)));
+  Deno.exit(0);
+}
+
+if (task === "restore-fence") {
+  // Run by restore.sh after the stores were restored and before any service
+  // starts; the owner role, one transaction, no migrations here.
+  console.log(
+    JSON.stringify(
+      await runRestoreFenceTask(databaseConfig.url, Deno.args.slice(1)),
+    ),
+  );
+  Deno.exit(0);
+}
 
 if (task === "auth:migrations:generate") {
   const pgDatabase = openPgDatabase(databaseConfig.url);

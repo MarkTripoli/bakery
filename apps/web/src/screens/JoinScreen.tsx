@@ -5,14 +5,15 @@ import { useAuthBrandProps } from "./auth-brand.tsx";
 export type JoinScreenProps = {
   /** Signups are switched off for this installation: say so. */
   readonly registrationPaused?: boolean;
-  /** Leave for `/sign-in`; Paper renders this as the primary action. */
+  /** Leave for `/sign-in`. */
   readonly onSignIn: () => void;
 };
 
 /**
- * `/register` with no invitation — Paper `join` (auth.js L152). Registration
- * is closed, so the screen explains the invitation path and offers the one
- * action a visitor without an invitation can still take.
+ * `/register` with no invitation. Bakery accounts are always created from an
+ * invitation, so the page says so in its heading, says what to ask for and from
+ * whom, and offers the one way back. When new accounts are paused on this
+ * server, it says that instead.
  */
 export function JoinScreen(
   { onSignIn, registrationPaused = false }: JoinScreenProps,
@@ -22,19 +23,19 @@ export function JoinScreen(
   return (
     <UI.AuthEntry variant="brand" {...brand}>
       <UI.AuthHeading
-        data-testid="join"
-        description={translate("auth.invitationRequired.description")}
-        title={translate("auth.invitationRequired.title")}
+        data-testid={registrationPaused ? "registration-paused" : "join"}
+        description={translate(
+          registrationPaused
+            ? "auth.invitationRequired.pausedDescription"
+            : "auth.invitationRequired.description",
+        )}
+        title={translate(
+          registrationPaused
+            ? "auth.invitationRequired.pausedTitle"
+            : "auth.invitationRequired.title",
+        )}
       />
-      {registrationPaused
-        ? (
-          <UI.InlineNotice data-testid="registration-paused" tone="warning">
-            {translate("features.registrationPaused.notice")}
-          </UI.InlineNotice>
-        )
-        : null}
-      <UI.Text variant="muted">{translate("auth.join.instructions")}</UI.Text>
-      <UI.Button onClick={onSignIn}>
+      <UI.Button onClick={onSignIn} variant="secondary">
         {translate("auth.invitationRequired.signIn")}
       </UI.Button>
     </UI.AuthEntry>

@@ -31,8 +31,13 @@ test("renders hostile Markdown as inert text and safe links", async ({ page }) =
     .toHaveCount(0);
   await expect(page.getByText("Must not render after verification failure"))
     .toHaveCount(0);
-  await expect(page.getByRole("img", { name: "Verified PNG fixture" }))
-    .toHaveAttribute("src", /^blob:/);
+  // The viewer shows a verified image twice, whole and full size (#437), so
+  // both carriages must carry the blob address and neither the raw one.
+  const verified = page.getByRole("img", { name: "Verified PNG fixture" });
+  await expect(verified).toHaveCount(2);
+  for (let index = 0; index < 2; index += 1) {
+    await expect(verified.nth(index)).toHaveAttribute("src", /^blob:/);
+  }
   await viewer.screenshot({
     path: resolve(evidenceDir, "hostile-markdown.png"),
   });

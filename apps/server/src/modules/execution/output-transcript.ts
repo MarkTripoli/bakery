@@ -14,6 +14,11 @@ import {
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { commitArtifactVersion } from "../knowledge/persistence.ts";
+import { attemptVersionProvenance } from "../knowledge/version-provenance.ts";
+import {
+  projectArtifactEntry,
+  storageQueryOf,
+} from "../knowledge/storage-tree.ts";
 
 // Execution-owned transcript publication. A closed stream's grant, minted under
 // live worker authority, is the only way transcript artifacts are published:
@@ -236,6 +241,12 @@ async function parent(
   )).rows[0];
   if (!row || row.revision !== 1 || row.version !== 1) precondition();
   if (row.currentVersionId !== null) precondition();
+  // The transcript artifact appears in the storage tree under its work item in
+  // the same transaction (#444); no artifact or version row changes.
+  await projectArtifactEntry(storageQueryOf(transaction), {
+    organizationId: grant.organization_id,
+    artifactId: row.id,
+  });
   return row;
 }
 async function finalizationReceipt(
@@ -364,6 +375,12 @@ export async function finalizeOutputTranscript(
     "log",
     `output-transcript/${grant.session_id}/manifest`,
   );
+  // The transcript is the attempt's own output: its versions name that attempt.
+  const provenance = await attemptVersionProvenance(
+    transaction,
+    grant.organization_id,
+    grant.attempt_id,
+  );
   const segmentRefs: Array<Record<string, unknown>> = [];
   for (let index = 0; index < preparedSegments.length; index++) {
     const row = preparedSegments[index];
@@ -376,6 +393,7 @@ export async function finalizeOutputTranscript(
         conversationId: grant.conversation_id,
       },
       parent: segmentParents[index],
+      provenance,
       version: {
         parentVersionId: null,
         runStepId: grant.run_step_id,
@@ -446,6 +464,7 @@ export async function finalizeOutputTranscript(
       conversationId: grant.conversation_id,
     },
     parent: manifestParent,
+    provenance,
     version: {
       parentVersionId: null,
       runStepId: grant.run_step_id,

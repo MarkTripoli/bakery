@@ -4,7 +4,10 @@ import { type AuthProblemCode, authProblemCode } from "../api/client.ts";
 import { AuthProviderError } from "@bakery/contracts/auth-provider-client";
 import { useBakeryApi } from "../api/context.tsx";
 import { useSingleFlightSubmit } from "../app/auth-form.ts";
-import { postSignInDestination } from "../app/auth-return.ts";
+import {
+  isDesktopSignInReturn,
+  postSignInDestination,
+} from "../app/auth-return.ts";
 import {
   ORGANIZATIONS_PATH,
   SIGN_IN_PATH,
@@ -143,7 +146,13 @@ export function TwoFactorChallengePage() {
       signal,
     );
     if (signal.aborted) return;
-    await navigate({ to: postSignInDestination({ outcome }) });
+    const destination = postSignInDestination({ outcome });
+    // A desktop sign-in question is a server page: leave the app for it.
+    if (isDesktopSignInReturn(destination)) {
+      globalThis.location.assign(destination);
+      return;
+    }
+    await navigate({ to: destination });
   };
 
   const continueAfterVerification = async () => {

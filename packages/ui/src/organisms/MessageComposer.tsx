@@ -17,6 +17,10 @@ export type MessageComposerProps =
     modes?: ReactNode;
     /** Notices announced above the box. */
     notices?: ReactNode;
+    /** The people a message will notify, between the field and the toolbar: chips and one sentence. */
+    mentions?: ReactNode;
+    /** A list hung above the box from its start edge, such as the mention picker. */
+    picker?: ReactNode;
     state?: "default" | "sending" | "disabled";
   };
 
@@ -25,8 +29,18 @@ export type MessageComposerProps =
  * hint and the send control. Notices sit above it and the footnote under it.
  */
 export function MessageComposer(
-  { field, footnote, hint, modes, notices, send, state = "default", ...props }:
-    MessageComposerProps,
+  {
+    field,
+    footnote,
+    hint,
+    mentions,
+    modes,
+    notices,
+    picker,
+    send,
+    state = "default",
+    ...props
+  }: MessageComposerProps,
 ) {
   return (
     <form
@@ -40,7 +54,13 @@ export function MessageComposer(
         ? <div className="ui-message-composer__notices">{notices}</div>
         : null}
       <div className="ui-message-composer__box">
+        {picker
+          ? <div className="ui-message-composer__picker">{picker}</div>
+          : null}
         <div className="ui-message-composer__field">{field}</div>
+        {mentions
+          ? <div className="ui-message-composer__mentions">{mentions}</div>
+          : null}
         <div className="ui-message-composer__toolbar">
           {modes}
           {hint

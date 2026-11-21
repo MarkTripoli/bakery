@@ -22,7 +22,10 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "artifact.publish",
     "memory.promote",
     "evaluation.sample",
+    "evaluation.check",
+    "evaluation.score",
     "task.brief",
+    "secret.identity.read",
   ] as const,
 );
 
@@ -34,6 +37,7 @@ export type WorkflowActionCapability =
   | "git"
   | "shell"
   | "browser"
+  | "secret.identity"
   | "reviewer"
   | "integration"
   | "delivery"
@@ -296,6 +300,34 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
       },
       effectPolicy: "evaluation_write",
     }),
+    // Deterministic scorer: reads one pinned output artifact version and runs
+    // a code-owned check over its bytes. No model, so no budget reservation.
+    "evaluation.check": metadata({
+      input: "EvaluationCheckInput",
+      output: "EvaluationCheckOutput",
+      capabilities: ["storage"],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 2,
+        backoff: "30s",
+        faults: ["DEPENDENCY_UNAVAILABLE"],
+      },
+      effectPolicy: "evaluation_write",
+    }),
+    // Model scorer (judge): the judge's answer is validated against the
+    // caller's output schema on the server before it counts as a measurement.
+    "evaluation.score": metadata({
+      input: "EvaluationScoreInput",
+      output: "EvaluationScoreOutput",
+      capabilities: ["model", "storage"],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 1,
+        backoff: "0s",
+        faults: ["DEPENDENCY_UNAVAILABLE"],
+      },
+      effectPolicy: "evaluation_write",
+    }),
     "task.brief": metadata({
       input: "TaskBriefInput",
       output: "ArtifactOutput",
@@ -307,6 +339,18 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
         faults: ["DEPENDENCY_UNAVAILABLE"],
       },
       effectPolicy: "artifact_only",
+    }),
+    // The server prepares one sealed operation per claimed attempt and the
+    // worker's daemon performs it, so a retry would be a second read of the
+    // provider identity: the attempt budget is one, and a lost worker fails
+    // the run.
+    "secret.identity.read": metadata({
+      input: "SecretIdentityReadInput",
+      output: "SecretIdentityOutput",
+      capabilities: ["secret.identity"],
+      cancel: "cooperative_fenced",
+      retry: { maxAttempts: 1, backoff: "0s", faults: [] },
+      effectPolicy: "evidence_only",
     }),
   } satisfies Record<WorkflowActionName, WorkflowActionMetadata>,
 );

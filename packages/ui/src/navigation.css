@@ -59,6 +59,26 @@
   text-decoration: none;
 }
 
+/* A run of items that belong to someone else (a plugin's pages): a small muted
+   heading with room above it, or a divider on the compact rail. */
+.bakery-application-rail__group {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
+}
+
+.bakery-application-rail__heading {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  padding-inline: var(--space-2-5);
+}
+
+.bakery-application-rail__divider {
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: block;
+  margin-inline: var(--space-2-5);
+}
+
 .bakery-application-rail__link .ui-icon {
   flex: none;
 }
@@ -1266,12 +1286,13 @@ a.bakery-application-rail__link:hover {
 .ui-auth-entry__status:empty {
   display: none;
 }
-.ui-auth-entry__form-bottom {
+/* The theme switch sits at the form pane's top end corner, away from the form. */
+.ui-auth-entry__theme {
   display: flex;
-  inline-size: 100%;
+  inset-block-start: var(--space-6);
+  inset-inline-end: var(--space-6);
   justify-content: flex-end;
-  margin-block-start: 40px; /* auth.css:9 .form-bottom */
-  max-inline-size: 380px; /* auth.css:9 .form-bottom */
+  position: absolute;
 }
 .ui-auth-entry--context {
   position: relative;
@@ -1408,9 +1429,9 @@ a.bakery-application-rail__link:hover {
     gap: var(--space-6); /* auth.css:13 .form-content 24px */
     max-inline-size: 420px; /* auth.css:13 .form-content */
   }
-  .ui-auth-entry__form-bottom {
-    margin-block-start: var(--space-8); /* auth.css:13 .form-bottom 32px */
-    max-inline-size: 420px; /* auth.css:13 .form-bottom */
+  .ui-auth-entry__theme {
+    inset-block-start: var(--space-5);
+    inset-inline-end: var(--space-5);
   }
   .ui-auth-entry--context {
     gap: var(--space-6); /* auth.css:13 .context-layout 24px */
@@ -1637,6 +1658,63 @@ a.bakery-application-rail__link:hover {
   inline-size: 100%;
   max-inline-size: 520px; /* auth.css:10 .settings-content>.form-content */
 }
+/* The batch start page (#58): the form (to 620px), a 300px summary beside it, the buttons under the form. */
+.ui-form-with-summary {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  /* One column: no wider than the form is beside its summary, so the buttons end at the form's edge. */
+  max-inline-size: var(--layout-message);
+}
+.ui-form-with-summary__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-inline-size: 0;
+}
+.ui-form-with-summary__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+.ui-form-with-summary__actions {
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  padding-block-start: var(--space-6);
+}
+@media (min-width: 1280px) {
+  .ui-form-with-summary {
+    align-items: start;
+    column-gap: var(--space-8);
+    grid-template-areas:
+      "form aside"
+      "actions aside";
+    grid-template-columns: minmax(0, var(--layout-message))
+      var(--layout-form-summary);
+    max-inline-size: none;
+  }
+  .ui-form-with-summary__form {
+    grid-area: form;
+  }
+  .ui-form-with-summary__aside {
+    grid-area: aside;
+  }
+  .ui-form-with-summary__actions {
+    grid-area: actions;
+  }
+}
+@media (max-width: 743px) {
+  /* Stacked, the main step comes first: the buttons are written the way out first. */
+  .ui-form-with-summary__actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+}
 @media (max-width: 743px) {
   .ui-settings-content {
     gap: var(--space-6); /* auth.css:13 .settings-content 24px */
@@ -1654,7 +1732,7 @@ a.bakery-application-rail__link:hover {
   .ui-settings-content .ui-description-item__action .ui-inline {
     flex-wrap: wrap;
     justify-content: flex-end; /* auth.css:8 .row in the right-aligned item action */
-    row-gap: var(--space-0);
+    row-gap: var(--space-2); /* wrapped items (a badge over its button) must not touch */
   }
   .ui-settings-content .ui-description-item[data-action-placement="below"] .ui-description-item__action:has(.ui-inline) {
     max-inline-size: none; /* the action has its own line under the text */
@@ -2009,10 +2087,21 @@ a.bakery-application-rail__link:hover {
   inline-size: var(--space-4);
   min-inline-size: 0;
 }
+/* The level is a sentence ("You can change this."): it sits on its own line under
+   the row's description, in the normal text colour, so it reads as the answer. */
+.ui-settings-content[data-variant="access"] .ui-capability-list__item {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__body,
 .ui-settings-content[data-variant="access"] .ui-capability-list__value {
-  inline-size: calc(var(--space-16) + var(--space-6));
+  flex: 1 0 100%;
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__value {
+  color: var(--color-fg);
+  inline-size: auto;
   max-inline-size: none;
-  text-align: end;
+  text-align: start;
 }
 @media (max-width: 743px) {
   .ui-settings-content[data-variant="access"] > .ui-access-card {

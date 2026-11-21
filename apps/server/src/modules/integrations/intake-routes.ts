@@ -19,12 +19,10 @@ import {
   parseEventNameHeader,
   parseIntakeContentType,
 } from "./intake-events.ts";
-import {
-  deliveryFailure,
-  readWebhookSecret,
-  verifyWithWebhookSecret,
-} from "./intake-receipts.ts";
+import { deliveryFailure, readWebhookSecret } from "./intake-receipts.ts";
 import { parseSignatureHeader, sha256Hex } from "./intake-signature.ts";
+import { admitDelivery } from "./ingress-admission.ts";
+import type { WebhookIngress } from "@bakery/integration-sdk";
 
 export type IntakeRouteOptions = {
   /** Registry holding the `intake.webhook` action. */
@@ -38,6 +36,15 @@ export type IntakeRouteOptions = {
    * stays inside GitHub's ten-second delivery timeout.
    */
   deadlineMs?: number;
+  /**
+   * The provider's ingress port: what verifies a delivery and says what it
+   * asks for.
+   *
+   * Supplied rather than imported, so this receiver names no provider. Which
+   * provider owns the endpoint is a decision the caller makes, and a receiver
+   * that imported one would be a second place that knows which is being served.
+   */
+  ingress: WebhookIngress;
 };
 
 /** Default time budget for one delivery; GitHub abandons a delivery after ten seconds. */
@@ -117,10 +124,14 @@ async function handleDelivery(
     options.deadlineMs ?? INTAKE_DEADLINE_MS,
   );
   try {
-    const signature = parseSignatureHeader(
-      request.headers.get("x-hub-signature-256"),
-    );
-    if (signature === null) {
+    // The signature header's form is checked here, before the body is read and
+    // before any secret is: a delivery with no signature, or one that is not a
+    // signature at all, is refused without spending the read or touching the
+    // database. Whether the signature is *right* is the provider's question,
+    // answered by the ingress port below.
+    if (
+      parseSignatureHeader(request.headers.get("x-hub-signature-256")) === null
+    ) {
       discardBody(request);
       throw authInvalid();
     }
@@ -149,8 +160,36 @@ async function handleDelivery(
       throw deliveryFailure(error, "secret", failure);
     }
     if (stored === null) throw authInvalid();
-    if (!await verifyWithWebhookSecret(stored, signature, raw)) {
-      throw authInvalid();
+
+    // Is this delivery ours, and what does it ask for? The port answers both,
+    // and nothing else reads the body to decide either question: one place
+    // knows GitHub's signature scheme, its replay rules and the vocabulary its
+    // events arrive in.
+    //
+    // The receipt below is still the host's: the port writes no row, so a
+    // verified delivery reaches the same `intake.github` action as before and
+    // is deduplicated by the same unique key.
+    let admission;
+    try {
+      admission = admitDelivery(options.ingress, {
+        body: raw,
+        headers: request.headers,
+        secrets: [stored.secret],
+        now: new Date(),
+        // The stored secret is wiped once the comparison finishes, on every
+        // path. That rule belongs to whoever owns the secret, not to the port.
+        releaseSecrets: () => stored.secret.fill(0),
+      });
+    } catch (error) {
+      // `admitDelivery` answers one code for every verify failure, so a wrong
+      // secret and a forgery are indistinguishable to the caller.
+      if (error instanceof StandardError) {
+        if (error.code === "BODY_TOO_LARGE") {
+          logOversize(requestId, traceId);
+        }
+        throw error;
+      }
+      throw deliveryFailure(error, "secret", failure);
     }
     const deliveryId = parseDeliveryIdHeader(
       request.headers.get("x-github-delivery"),
@@ -159,6 +198,11 @@ async function handleDelivery(
       request.headers.get("x-github-event"),
     );
     if (deliveryId === null || eventName === null) {
+      throw new StandardError({ code: "MALFORMED_REQUEST" });
+    }
+    // The port's id and the header's id must agree: a port that returned an id
+    // from somewhere else would dedupe on a key the receipt never sees.
+    if (admission.deliveryId !== deliveryId) {
       throw new StandardError({ code: "MALFORMED_REQUEST" });
     }
     const event = parseDelivery({ contentType, raw, eventName });

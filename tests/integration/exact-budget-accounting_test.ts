@@ -940,6 +940,19 @@ Deno.test("real model admission and worker receipts preserve exact paired accoun
         ],
       );
     });
+    // A record that reported no cost is counted as unknown, and only there: it
+    // is not also "reported, not confirmed".
+    const silentSummary = await withPgTransaction(
+      database,
+      async (transaction) =>
+        await readUsageSummary(transaction, {
+          from: "2026-09-01T00:00:00.000Z",
+          to: "2026-10-01T00:00:00.000Z",
+          provider: "openai",
+        }),
+    );
+    assertEquals(silentSummary.unknownCount, 1);
+    assertEquals(silentSummary.unverifiedCount, 0);
     const lateKnown = {
       ...lateUnknown,
       costUsd: "0.1",
@@ -1816,6 +1829,127 @@ Deno.test("scheduled reconciliation settles a bound receipt without worker usage
     // Reconciliation is idempotent: a second pass settles nothing more.
     const again = await reconcileBudgetLedger(database);
     assertEquals(again, { providerReceipts: 0, releases: 0 });
+  } finally {
+    await closeWorkerScope(fixture, fixture);
+    await fixture.close();
+    fixture.releaseFixture();
+  }
+});
+
+/**
+ * A canceled job that had a dispatched call: a worker bound the provider call and
+ * its attempt ended (the job waited for a retry), then the job was canceled. The
+ * budget sweep for canceled jobs never releases it, because money may be owed;
+ * `findProviderUsageReceiptCandidates` settles it from the provider's receipt,
+ * whatever the job's status, and leaves it reserved when there is no receipt.
+ */
+async function canceledAfterDispatch(
+  fixture: Awaited<ReturnType<typeof openWorkerFixture>>,
+  stepKey: string,
+  withReceipt: boolean,
+) {
+  const database = fixture.pgDatabase;
+  await seedProviderPricingSnapshot(database);
+  const worker = await registeredWorker(fixture, { slots: 8 });
+  const run = await seedRun(
+    database,
+    fixture.organizationId,
+    fixture.principalId,
+    { reservationUsd: "0.1", stepKey },
+  );
+  const admitted = await admit(database, run);
+  const assignment = await claimAssignment(fixture, worker);
+  assertEquals(assignment.jobId, admitted.jobId);
+  const dispatched = receipt(admitted, stepKey, {
+    costUsd: "0.04",
+    measurement: "reported",
+  });
+  await withPgTransaction(database, async (transaction) => {
+    await bindProviderCallIntent(transaction, {
+      organizationId: run.organizationId,
+      installationReservationId: admitted.installationReservationId,
+      providerCallId: dispatched.providerCallId,
+    });
+    if (!withReceipt) return;
+    const callIntent = (await transaction.query<{ id: string }>(
+      `select provider_call_intent_id as id
+         from bakery.budget_action_intents
+        where organization_id = $1 and installation_reservation_id = $2`,
+      [run.organizationId, admitted.installationReservationId],
+    )).rows[0];
+    assertExists(callIntent);
+    await recordProviderUsageReceipt(transaction, {
+      organizationId: run.organizationId,
+      providerCallIntentId: callIntent.id,
+      receipt: dispatched,
+    });
+  });
+  // The attempt ends with no usage fact, then the job is canceled.
+  const ended = await postWorkerResult(
+    fixture,
+    worker,
+    assignment,
+    {
+      leaseToken: assignment.leaseToken,
+      fence: assignment.fence,
+      localSeq: "1",
+      status: "failed" as const,
+      fault: fixedFault(),
+    },
+    crypto.randomUUID(),
+  );
+  assertEquals(ended.status, 200);
+  await ended.body?.cancel();
+  await database.query(
+    `update bakery.jobs set status = 'canceled' where organization_id = $1 and id = $2`,
+    [run.organizationId, admitted.jobId],
+  );
+  return { database, run };
+}
+
+Deno.test("a canceled job's dispatched call is settled from its receipt, not released", async () => {
+  const fixture = await openWorkerFixture();
+  try {
+    const { database, run } = await canceledAfterDispatch(
+      fixture,
+      "canceled-dispatched-receipt",
+      true,
+    );
+    const reconciled = await reconcileBudgetLedger(database);
+    assertEquals(reconciled, { providerReceipts: 1, releases: 0 });
+    const accounts = await accountRows(
+      database,
+      fixture.organizationId,
+      run.runId,
+    );
+    const runAccount = accounts.find((row) => row.scope === "run");
+    assertEquals(runAccount?.settledUsd, "0.040000");
+    assertEquals(runAccount?.reservedUsd, "0.000000");
+  } finally {
+    await closeWorkerScope(fixture, fixture);
+    await fixture.close();
+    fixture.releaseFixture();
+  }
+});
+
+Deno.test("a canceled job's dispatched call with no receipt stays reserved: money may be owed", async () => {
+  const fixture = await openWorkerFixture();
+  try {
+    const { database, run } = await canceledAfterDispatch(
+      fixture,
+      "canceled-dispatched-no-receipt",
+      false,
+    );
+    const reconciled = await reconcileBudgetLedger(database);
+    assertEquals(reconciled, { providerReceipts: 0, releases: 0 });
+    const accounts = await accountRows(
+      database,
+      fixture.organizationId,
+      run.runId,
+    );
+    const runAccount = accounts.find((row) => row.scope === "run");
+    assertEquals(runAccount?.settledUsd, "0.000000");
+    assertEquals(Number(runAccount?.reservedUsd) > 0, true);
   } finally {
     await closeWorkerScope(fixture, fixture);
     await fixture.close();

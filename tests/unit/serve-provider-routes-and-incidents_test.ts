@@ -164,6 +164,7 @@ Deno.test("health carries reachability and inference proof as separate facts", (
     route_id: "route-1",
     health: "open",
     reason: "reachable_inference_unverified",
+    reason_since: null,
     consecutive_failures: 5,
     consecutive_inference_trials: 2,
     evidence_watermark: "sha256:abc",
@@ -184,6 +185,33 @@ Deno.test("health carries reachability and inference proof as separate facts", (
   assertEquals(health.inferenceVerifiedAt, null);
   assertEquals(health.consecutiveFailures, 5);
   assertEquals(health.consecutiveInferenceTrials, 2);
+  assertEquals(health.reasonSince, null);
+});
+
+Deno.test("health says how long a reason has held, and a redirect is a reason", () => {
+  const health = toRouteHealth({
+    route_id: "route-1",
+    health: "unverified",
+    reason: "redirected",
+    reason_since: new Date("2026-11-19T12:00:00.000Z"),
+    consecutive_failures: 0,
+    consecutive_inference_trials: 0,
+    evidence_watermark: "probe:1",
+    last_failure_at: null,
+    last_success_at: null,
+    last_probe_at: new Date("2026-11-19T12:05:00.000Z"),
+    next_probe_at: null,
+    probe_lease_expires_at: null,
+    corroboration: "none",
+    incident_id: null,
+    incident_generation: 0,
+    inference_verified_at: null,
+    updated_at: new Date("2026-11-19T12:05:00.000Z"),
+  });
+  assertEquals(health.reason, "redirected");
+  // Since the reason began, not since the last probe: the two differ.
+  assertEquals(health.reasonSince, "2026-11-19T12:00:00.000Z");
+  assertEquals(health.lastProbeAt, "2026-11-19T12:05:00.000Z");
 });
 
 Deno.test("an incident's task counts are its own, not recomputed", () => {

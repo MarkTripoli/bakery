@@ -1,4 +1,4 @@
-import type { SelectHTMLAttributes } from "react";
+import type { ReactNode, SelectHTMLAttributes } from "react";
 import { IconGlyph } from "../atoms/IconGlyph.tsx";
 import {
   type SemanticNativeProps,
@@ -20,6 +20,12 @@ export type ComboboxProps =
     /** `filter` renders a compact toolbar control with a visually hidden label. */
     appearance?: "field" | "filter";
     label: string;
+    /**
+     * A help tip for the control, shown on the label line at the end of the
+     * control's width. It sits beside the label, not inside it, because a label
+     * may not contain another control.
+     */
+    help?: ReactNode;
     multiple?: boolean;
     options: ComboboxOption[];
     state?: "closed" | "open" | "loading" | "empty" | "selected" | "disabled";
@@ -30,6 +36,7 @@ export function Combobox(
   {
     appearance = "field",
     label,
+    help,
     multiple = false,
     options,
     state,
@@ -40,7 +47,7 @@ export function Combobox(
   const props = withoutSemanticOwnerProps(unsafeProps);
   const isMultiple = variant === "multiple" || multiple;
   const resolvedState = props.disabled ? "disabled" : state ?? "closed";
-  return (
+  const control = (
     <label
       className={`ui-combobox ui-combobox--${
         isMultiple ? "multiple" : "single"
@@ -58,7 +65,9 @@ export function Combobox(
         )
         : (
           <>
-            {label}
+            {help === undefined
+              ? label
+              : <span className="ui-combobox__label-text">{label}</span>}
             <IconGlyph name="chevron-down" />
           </>
         )}
@@ -79,5 +88,12 @@ export function Combobox(
       </select>
       {state === "empty" ? <span>No options available.</span> : null}
     </label>
+  );
+  if (help === undefined) return control;
+  return (
+    <div className="ui-combobox-help" data-ui-component="comboboxHelp">
+      {control}
+      <span className="ui-combobox__help">{help}</span>
+    </div>
   );
 }

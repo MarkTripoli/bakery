@@ -41,9 +41,10 @@ export type PresenceRowProps =
     overflowLabel: string;
     /** The one text line, already composed ("Ana is typing · Ben is viewing"). */
     status: string;
-    saveState: PresenceSaveState;
+    /** Omitted, with saveLabel, where nothing will be saved any more (access removed). */
+    saveState?: PresenceSaveState;
     /** The save state in words ("All changes saved"), already translated. */
-    saveLabel: string;
+    saveLabel?: string;
   };
 
 const SAVE_GLYPH: Record<PresenceSaveState, IconGlyphName> = {
@@ -116,14 +117,18 @@ export function PresenceRow(
           : null}
       </span>
       <span className="ui-presence-row__status">{status}</span>
-      <span
-        className="ui-presence-row__save"
-        data-tone={SAVE_TONE[saveState]}
-        role="status"
-      >
-        <IconGlyph name={SAVE_GLYPH[saveState]} size="small" />
-        <span>{saveLabel}</span>
-      </span>
+      {saveState !== undefined && saveLabel !== undefined
+        ? (
+          <span
+            className="ui-presence-row__save"
+            data-tone={SAVE_TONE[saveState]}
+            role="status"
+          >
+            <IconGlyph name={SAVE_GLYPH[saveState]} size="small" />
+            <span>{saveLabel}</span>
+          </span>
+        )
+        : null}
     </div>
   );
 }

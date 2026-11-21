@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { SessionNowLine, Stack } from "@bakery/ui";
+import { Button, SessionNowLine, Stack } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Organisms/SessionNowLine",
@@ -26,7 +26,7 @@ export const Contract: StoryObj = {
       <SessionNowLine
         tone="warning"
         icon="warning"
-        action={<button type="button">Try now</button>}
+        action={<Button variant="outline">Try now</Button>}
       >
         Connection lost. Reconnecting… Last update 2 min ago.
       </SessionNowLine>

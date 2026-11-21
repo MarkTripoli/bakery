@@ -87,11 +87,31 @@ export default defineConfig(({ mode, command }) => {
     ],
     build: { sourcemap: upload ? "hidden" : false },
     resolve: {
-      alias: {
-        "@bakery/ui": fileURLToPath(
-          new URL("../../packages/ui/src/index.ts", import.meta.url),
-        ),
-      },
+      alias: [
+        {
+          find: "@bakery/ui",
+          replacement: fileURLToPath(
+            new URL("../../packages/ui/src/index.ts", import.meta.url),
+          ),
+        },
+        // The provider web registry is the one web file allowed to import a
+        // provider /web entry, so the alias resolves that entry to its source:
+        // the package exports map points at TypeScript the bundler cannot follow
+        // through node resolution alone.
+        {
+          find: "@bakery/integration-linear/web",
+          replacement: fileURLToPath(
+            new URL(
+              "../../packages/integration-linear/src/web/mod.ts",
+              import.meta.url,
+            ),
+          ),
+        },
+        // loro-crdt's default entry needs a wasm loader; its base64 entry does
+        // not, and it is the one build every importer (the session, the
+        // loro-codemirror binding) must share.
+        { find: /^loro-crdt$/, replacement: "loro-crdt/base64" },
+      ],
     },
     server: { host, port, strictPort: true, proxy },
     preview: { host, port, strictPort: true, proxy },

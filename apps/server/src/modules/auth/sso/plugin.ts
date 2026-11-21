@@ -16,12 +16,15 @@ import {
   readActor,
   readOrganizationAccess,
   readProvider,
+  readRemovalEffect,
   restoreProvider,
   snapshotProvider,
   type SsoActor,
 } from "./access.ts";
 import {
+  SSO_AUDIT_OPERATIONS,
   SSO_AUDIT_RESOURCE_TYPE,
+  SSO_ENFORCEMENT_RESOURCE_TYPE,
   SSO_PROVIDER_MUTATION_PATHS,
   type SsoProviderMutationPath,
 } from "./operations.ts";
@@ -50,13 +53,23 @@ type Pending = {
   path: SsoProviderMutationPath;
   fields: string[];
   snapshot?: ProviderSnapshot;
+  /** The admin asked, explicitly, to stop requiring SSO as part of this removal. */
+  stopRequiringSso?: boolean;
 };
 
 const PENDING_KEY = "bakerySsoPending";
 
+/** The removal would leave SSO required with no verified provider and was not asked to stop requiring it. */
+class LastProviderRefused extends Error {}
+
 function refuse(
   code: string,
-  status: "FORBIDDEN" | "NOT_FOUND" | "BAD_REQUEST" | "UNAUTHORIZED",
+  status:
+    | "FORBIDDEN"
+    | "NOT_FOUND"
+    | "BAD_REQUEST"
+    | "UNAUTHORIZED"
+    | "CONFLICT",
   message: string,
 ): never {
   throw new APIError(status, { code, message });
@@ -103,7 +116,7 @@ export function redactSecrets(value: unknown): unknown {
 export function createSsoAuthPlugins(
   dependencies: SsoModuleDependencies,
 ): BetterAuthPlugin[] {
-  const { database, log } = dependencies;
+  const { database, log, now } = dependencies;
 
   const ssoPlugin = sso({
     domainVerification: { enabled: true, tokenPrefix: "bakery-verify" },
@@ -270,6 +283,29 @@ export function createSsoAuthPlugins(
             return;
           }
           const snapshot = await snapshotProvider(database, providerId);
+          // Removing the last verified provider of an organization that
+          // requires SSO would leave only break-glass administrators able to
+          // sign in. It is refused unless the admin says, in the same request,
+          // that SSO should stop being required. Checked before the ownership
+          // pointer below moves.
+          let stopRequiringSso = false;
+          if (path === "/sso/delete-provider") {
+            const effect = await readRemovalEffect(
+              database,
+              organizationId,
+              providerId,
+            );
+            const asked = body.stopRequiringSso === true;
+            delete (ctx.body as Record<string, unknown>).stopRequiringSso;
+            if (effect.locksOut && !asked) {
+              refuse(
+                "SSO_LAST_PROVIDER_REQUIRED",
+                "CONFLICT",
+                "This is the only verified provider and SSO is required. Confirm that SSO should stop being required to remove it.",
+              );
+            }
+            stopRequiringSso = asked && effect.locksOut;
+          }
           // Better Auth authorizes an existing provider by its owner; Bakery
           // has just authorized the caller as the organization's admin, so the
           // acting admin takes the ownership pointer.
@@ -287,6 +323,7 @@ export function createSsoAuthPlugins(
                 ? Object.keys(body).filter((key) => key !== "providerId").sort()
                 : [],
               snapshot,
+              stopRequiringSso,
             } satisfies Pending;
           }
         }),
@@ -317,6 +354,34 @@ export function createSsoAuthPlugins(
           const operation = SSO_PROVIDER_MUTATION_PATHS[pending.path];
           try {
             await withPgTransaction(database, async (transaction) => {
+              // True only when, under the lock, removing this provider really
+              // would leave SSO required with nothing to sign in through, and
+              // the admin asked for the requirement to end with it.
+              let endsRequirement = false;
+              if (pending.path === "/sso/delete-provider") {
+                // The page may have been out of date: SSO may have been turned
+                // on, or another provider removed, since the guard ran. The
+                // settings row is locked so this check and the write below
+                // cannot interleave with an enforcement change.
+                const settings = await transaction.query<{ enforce: boolean }>(
+                  `select enforce from bakery.organization_sso_settings
+                   where organization_id = $1 for update`,
+                  [pending.organizationId],
+                );
+                const verified = await transaction.query<{ count: string }>(
+                  `select count(*)::text as count from public."ssoProvider"
+                   where "organizationId" = $1 and "domainVerified" is true`,
+                  [pending.organizationId],
+                );
+                const wasVerified =
+                  pending.snapshot?.provider?.domainVerified === true;
+                const locksOut = settings.rows[0]?.enforce === true &&
+                  wasVerified && Number(verified.rows[0]?.count) === 0;
+                if (locksOut && !pending.stopRequiringSso) {
+                  throw new LastProviderRefused();
+                }
+                endsRequirement = locksOut && pending.stopRequiringSso === true;
+              }
               if (pending.path === "/sso/register") {
                 const attached = await transaction.query(
                   `update public."ssoProvider" set "organizationId" = $2
@@ -341,11 +406,42 @@ export function createSsoAuthPlugins(
                     : {},
                 },
               );
+              if (endsRequirement) {
+                // Removing the only verified provider and ending the SSO
+                // requirement stand or fall together, each with its audit row.
+                const turnedOff = await transaction.query(
+                  `update bakery.organization_sso_settings
+                   set enforce = false, updated_by_principal_id = $2,
+                       updated_at = $3
+                   where organization_id = $1 and enforce is true`,
+                  [
+                    pending.organizationId,
+                    pending.actor.principalId,
+                    now(),
+                  ],
+                );
+                if (turnedOff.rowCount === 1) {
+                  await recordAuthAudit(
+                    transaction,
+                    { requestId, traceId: requestId },
+                    {
+                      organizationId: pending.organizationId,
+                      principalId: pending.actor.principalId,
+                      operation: SSO_AUDIT_OPERATIONS.enforcementUpdate,
+                      resourceType: SSO_ENFORCEMENT_RESOURCE_TYPE,
+                      resourceId: pending.organizationId,
+                      details: { enforce: false },
+                    },
+                  );
+                }
+              }
             });
-          } catch {
-            log("AUTH_AUDIT_WRITE_FAILED");
+          } catch (error) {
+            const refused = error instanceof LastProviderRefused;
+            if (!refused) log("AUTH_AUDIT_WRITE_FAILED");
             if (pending.snapshot) {
               // No SSO change may stand without its audit row: put it back.
+              let restored = true;
               await withPgTransaction(
                 database,
                 (transaction) =>
@@ -354,7 +450,18 @@ export function createSsoAuthPlugins(
                     pending.providerId,
                     pending.snapshot!,
                   ),
-              ).catch(() => log("AUTH_SSO_RESTORE_FAILED"));
+              ).catch(() => {
+                restored = false;
+                log("AUTH_SSO_RESTORE_FAILED");
+              });
+              // "Nothing was removed" is only true when the put-back worked.
+              if (refused && restored) {
+                refuse(
+                  "SSO_LAST_PROVIDER_REQUIRED",
+                  "CONFLICT",
+                  "SSO became required for the only verified provider. Nothing was removed.",
+                );
+              }
               throw new APIError("INTERNAL_SERVER_ERROR", {
                 code: "AUDIT_UNAVAILABLE",
                 message:

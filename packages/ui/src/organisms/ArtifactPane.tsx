@@ -9,8 +9,12 @@ import {
 import { Combobox } from "../molecules/Combobox.tsx";
 import { Disclosure } from "../molecules/Disclosure.tsx";
 import { InlineNotice } from "../molecules/InlineNotice.tsx";
+import { artifactViewerRegion } from "./ArtifactViewer.tsx";
 import { SessionPane } from "./SessionPane.tsx";
 import "../collaboration.css";
+
+// A capitalised name, so the provider reads as JSX.
+const PreviewRegion = artifactViewerRegion;
 
 export type ArtifactPaneState =
   | "ready"
@@ -56,8 +60,13 @@ export type ArtifactPaneProps = {
   descriptor?: ArtifactDescriptorProps extends infer D
     ? Omit<D & object, "href">
     : never;
-  /** Bounded plain-text extract. Rendered as text, never as HTML. */
-  previewText?: string;
+  /**
+   * The preview body: what `ArtifactViewer` renders, so the pane and the
+   * artifact page show one file the same way. A caller that has only text passes
+   * a `<pre>`; a caller that knows the kind from the probe passes the viewer.
+   * Never HTML from the file.
+   */
+  preview?: ReactNode;
   downloadHref?: string;
   openHref?: string;
   /**
@@ -96,7 +105,7 @@ export function ArtifactPane(
     meta,
     onVersionChange,
     openHref,
-    previewText,
+    preview,
     state = "ready",
     title,
     version,
@@ -109,7 +118,7 @@ export function ArtifactPane(
   };
   const showsText = (state === "ready" || state === "partial" ||
     state === "offline" || state === "reconnecting") &&
-    previewText !== undefined;
+    preview !== undefined;
   const actionable = state !== "loading" && state !== "empty" &&
     state !== "forbidden" && state !== "error";
   const download = actionable && isSafeArtifactHref(downloadHref)
@@ -199,7 +208,9 @@ export function ArtifactPane(
               role="region"
               tabIndex={0}
             >
-              <pre dir="ltr">{previewText}</pre>
+              <PreviewRegion.Provider value>
+                {preview}
+              </PreviewRegion.Provider>
             </div>
           )
           : null}

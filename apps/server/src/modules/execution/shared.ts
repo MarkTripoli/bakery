@@ -1,6 +1,10 @@
 import type { ExecutionTelemetry } from "./telemetry.ts";
 import { type Context, type MiddlewareHandler } from "hono";
-import type { BudgetRuntimeConfig, SecretsKeyConfig } from "@bakery/config";
+import type {
+  AgentSpawnConfig,
+  BudgetRuntimeConfig,
+  SecretsKeyConfig,
+} from "@bakery/config";
 import { z } from "zod";
 import {
   contractSchemas,
@@ -18,6 +22,7 @@ import type { PgDatabase, PgTransactionClient } from "@bakery/persistence";
 import { loadWorkerIdentity, withPgTransaction } from "@bakery/persistence";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { reconcileFailedLifecycleTasks } from "../work/coordination-projection.ts";
+import type { SessionToolRegistry } from "./session-registry.ts";
 
 const ENROLLMENT_TTL_MS = 10 * 60 * 1000;
 
@@ -125,11 +130,21 @@ type ExecutionRouteOptions = {
   telemetry?: ExecutionTelemetry;
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
+  /** The session middleware that also accepts access tokens, for file reads only; see the artifact resource routes. */
+  tokenSession?: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   secret: string;
   budget?: BudgetRuntimeConfig;
+  /** Bounds on what an agent may spawn and steer (#413); defaults when absent. */
+  agentSpawn?: AgentSpawnConfig;
   secretsKey?: SecretsKeyConfig;
   secretsFetch?: typeof fetch;
+  /**
+   * The operations a worker session may call through the tool gateway (#401).
+   * Absent leaves the gateway unmounted rather than serving routes that would
+   * refuse every call.
+   */
+  sessionTools?: SessionToolRegistry;
 };
 
 type HostRow = {

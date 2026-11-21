@@ -1,10 +1,12 @@
 import * as UI from "@bakery/ui";
+import { PASSWORD_POLICY } from "@bakery/contracts/auth-provider-client";
 import {
   SECURITY_SETTINGS_PATH,
   SESSIONS_SETTINGS_PATH,
 } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import type { SecurityFailure } from "../app/security-failures.ts";
+import { formatWait } from "../app/retry-wait.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   isDisconnected,
@@ -15,17 +17,22 @@ import {
 /** Exported so the container can focus the field a failure rejected. */
 export const PASSWORD_CURRENT_INPUT_ID = "change-password-current";
 export const PASSWORD_NEW_INPUT_ID = "change-password-new";
+export const PASSWORD_CONFIRM_INPUT_ID = "change-password-confirm";
 
 export type ChangePasswordScreenProps = {
   /** `form` is Paper `default`/`invalid`/`loading`; `success` the done state. */
   readonly state: "form" | "success";
   readonly currentPassword: string;
   readonly newPassword: string;
+  readonly confirmPassword: string;
+  /** The confirmation was submitted and does not match the new password. */
+  readonly confirmMismatch: boolean;
   readonly pending: boolean;
   readonly failure: SecurityFailure | null;
   readonly async: SecurityAsyncKind | null;
   readonly onCurrentChange: (value: string) => void;
   readonly onNewChange: (value: string) => void;
+  readonly onConfirmChange: (value: string) => void;
   readonly onSubmit: () => void;
   readonly onRetry: () => void;
   readonly onReload: () => void;
@@ -41,9 +48,12 @@ export type ChangePasswordScreenProps = {
 export function ChangePasswordScreen(
   {
     async,
+    confirmMismatch,
+    confirmPassword,
     currentPassword,
     failure,
     newPassword,
+    onConfirmChange,
     onCurrentChange,
     onNewChange,
     onRefresh,
@@ -54,7 +64,11 @@ export function ChangePasswordScreen(
     state,
   }: ChangePasswordScreenProps,
 ) {
-  const { translate } = useI18n();
+  const { locale, translate } = useI18n();
+  const rule = {
+    minLength: PASSWORD_POLICY.minLength,
+    maxLength: PASSWORD_POLICY.maxLength,
+  };
   const revealLabels = {
     hide: translate("auth.signIn.hidePassword"),
     show: translate("auth.signIn.showPassword"),
@@ -98,7 +112,7 @@ export function ChangePasswordScreen(
                   {failure.retryAfterSeconds === null
                     ? translate(failure.messageKey)
                     : translate(failure.messageKey, {
-                      retryAfterSeconds: failure.retryAfterSeconds,
+                      wait: formatWait(failure.retryAfterSeconds, locale),
                     })}
                 </UI.InlineNotice>
               )
@@ -108,6 +122,9 @@ export function ChangePasswordScreen(
                   {translate("settings.async.offlineNotice")}
                 </UI.InlineNotice>
               )
+              : failure.kind === "invalidPassword" ||
+                  failure.kind === "weakPassword"
+              ? null
               : (
                 <UI.InlineNotice tone="error">
                   {translate("settings.password.formError")}
@@ -142,8 +159,9 @@ export function ChangePasswordScreen(
                 </UI.Field>
                 <UI.Field
                   error={failure?.kind === "weakPassword"
-                    ? translate("settings.password.newError")
+                    ? translate("settings.password.newError", rule)
                     : undefined}
+                  hint={translate("settings.password.rule", rule)}
                   htmlFor={PASSWORD_NEW_INPUT_ID}
                   label={translate("settings.password.newLabel")}
                 >
@@ -158,22 +176,44 @@ export function ChangePasswordScreen(
                     value={newPassword}
                   />
                 </UI.Field>
-                <UI.Button
-                  disabled={isDisconnected(async)}
-                  loading={pending}
-                  type="submit"
+                <UI.Field
+                  error={confirmMismatch
+                    ? translate("settings.password.confirmMismatch")
+                    : undefined}
+                  htmlFor={PASSWORD_CONFIRM_INPUT_ID}
+                  label={translate("settings.password.confirmLabel")}
                 >
-                  {translate(
-                    pending
-                      ? "auth.common.pendingAction"
-                      : "settings.password.save",
-                  )}
-                </UI.Button>
+                  <UI.PasswordInput
+                    autoComplete="new-password"
+                    id={PASSWORD_CONFIRM_INPUT_ID}
+                    invalid={confirmMismatch}
+                    name="confirm-password"
+                    onChange={onConfirmChange}
+                    placeholder={translate(
+                      "settings.password.confirmPlaceholder",
+                    )}
+                    revealLabels={revealLabels}
+                    value={confirmPassword}
+                  />
+                </UI.Field>
+                <UI.Inline gap="standard" variant="end">
+                  <RouterLink to={SECURITY_SETTINGS_PATH} variant="button">
+                    {translate("settings.password.cancel")}
+                  </RouterLink>
+                  <UI.Button
+                    disabled={isDisconnected(async)}
+                    loading={pending}
+                    type="submit"
+                  >
+                    {translate(
+                      pending
+                        ? "auth.common.pendingAction"
+                        : "settings.password.save",
+                    )}
+                  </UI.Button>
+                </UI.Inline>
               </UI.Stack>
             </form>
-            <RouterLink to={SECURITY_SETTINGS_PATH}>
-              {translate("settings.password.cancel")}
-            </RouterLink>
           </UI.FormContent>
         </SecurityAsyncBoundary>
       </>

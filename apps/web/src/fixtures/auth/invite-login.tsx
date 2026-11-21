@@ -37,7 +37,6 @@ function specimen(
         {...invitation}
         email="alex@example.com"
         onBackToSignIn={() => {}}
-        onReturnToSignIn={() => {}}
         onEmailChange={() => {}}
         onPasswordChange={() => {}}
         onRetry={() => {}}

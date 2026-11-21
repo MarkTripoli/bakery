@@ -43,6 +43,8 @@ export function SessionStepThread(
         aria-busy="true"
         aria-label={translate("session.thread.loading")}
         gap="standard"
+        // A label needs a role to be allowed; "status" also announces loading.
+        role="status"
       >
         <UI.Skeleton shape="row" />
         <UI.Skeleton shape="row" />

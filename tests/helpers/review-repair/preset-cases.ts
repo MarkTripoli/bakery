@@ -64,7 +64,7 @@ import {
 } from "../../../apps/server/src/modules/workflows/rule-guard.ts";
 import {
   planReviewLoopLimits,
-} from "../../../apps/server/src/modules/delivery/plan-review-loop.ts";
+} from "../../../apps/server/src/modules/review-loop/limits.ts";
 import type { PgTransactionClient } from "../../../apps/server/src/platform/database.ts";
 import {
   canonicalJson,

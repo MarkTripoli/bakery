@@ -27,7 +27,7 @@ export type TextInputProps = {
   placeholder?: string;
   readOnly?: boolean;
   required?: boolean;
-  type: "text" | "email" | "number";
+  type: "text" | "email" | "number" | "date";
   value: string;
 };
 

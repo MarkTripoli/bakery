@@ -39,8 +39,8 @@ function ClientsHost({ spec }: { readonly spec: ClientsSpecimen }) {
       organizationName:
         "Northstar Platform Engineering Group of the Americas and Pacific",
       scopes: [
-        translate("auth.consent.scope.read.title"),
-        translate("auth.consent.scope.operate.title"),
+        translate("auth.consent.scope.read.description"),
+        translate("auth.consent.scope.operate.description"),
       ],
     }))
     : [{
@@ -48,8 +48,8 @@ function ClientsHost({ spec }: { readonly spec: ClientsSpecimen }) {
       clientName: SAMPLE_CLIENT.clientName,
       organizationName: SAMPLE_CLIENT.organizationName,
       scopes: [
-        translate("auth.consent.scope.read.title"),
-        translate("auth.consent.scope.operate.title"),
+        translate("auth.consent.scope.read.description"),
+        translate("auth.consent.scope.operate.description"),
       ],
     }];
   const [removed, setRemoved] = useState<readonly string[]>([]);

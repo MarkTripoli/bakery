@@ -14,6 +14,15 @@ import {
 } from "../registry.ts";
 import { WORKFLOW_ACTION_REGISTRY_VERSION } from "../../workflow-action-registry.ts";
 import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
+import {
+  DEFAULT_STEP_FILES,
+  SEALED_STEP_FILES,
+  sealedByDefault,
+  WORKFLOW_FILE_READ_AREAS,
+  WORKFLOW_FILE_WRITE_AREAS,
+  type WorkflowStepFiles,
+  WorkflowStepSealedSchema,
+} from "../step-files.ts";
 import type {
   WorkflowActionNode,
   WorkflowBranchNode,
@@ -81,6 +90,8 @@ const ACTION_KEYS: ReadonlySet<string> = new Set([
   "role",
   "inputs",
   "outputs",
+  "files",
+  "sealed",
   "requires",
   "checks",
   "limits",
@@ -328,6 +339,139 @@ function readInputSlots(
 }
 
 /** Reads named output slots; `kind` is optional but never invented. */
+const FILES_KEYS: ReadonlySet<string> = new Set(["read", "write"]);
+
+/**
+ * Reads one axis of a files section: a list of known areas, each once. The
+ * list comes back in canonical order, so two documents naming the same areas
+ * share a digest; a repeat or an unknown area is refused, never collapsed.
+ * A read area named under write is the one widening a definition might try
+ * (/shared, the project tree), and it gets its own refusal: that needs a
+ * person's grant.
+ */
+function readFileAreas<T extends string>(
+  context: Context,
+  raw: unknown,
+  path: Path,
+  known: readonly T[],
+  widening: ReadonlySet<string>,
+): T[] | null {
+  if (!Array.isArray(raw) || raw.length > known.length) {
+    report(context, path, "action_files_invalid");
+    return null;
+  }
+  const seen = new Set<string>();
+  for (const [index, item] of raw.entries()) {
+    if (typeof item !== "string" || seen.has(item)) {
+      report(context, [...path, index], "action_files_invalid");
+      return null;
+    }
+    if (!(known as readonly string[]).includes(item)) {
+      report(
+        context,
+        [...path, index],
+        widening.has(item)
+          ? "action_files_write_needs_grant"
+          : "action_files_invalid",
+      );
+      return null;
+    }
+    seen.add(item);
+  }
+  return known.filter((area) => seen.has(area));
+}
+
+/**
+ * Reads a step's `sealed` sugar (O53). True expands into the sealed files
+ * section, so it and the explicit section normalize to the same node and
+ * digest; a files section naming anything else is a conflict, never resolved
+ * silently. False leaves the step's own files section alone. Absent, an
+ * evaluation step with no files section is sealed by default, and any other
+ * step keeps its own section or the defaults.
+ */
+function readSealed(
+  context: Context,
+  raw: Record<string, unknown>,
+  files: WorkflowStepFiles | undefined | null,
+  path: Path,
+  action: string,
+): WorkflowStepFiles | undefined | null {
+  if (!Object.hasOwn(raw, "sealed")) {
+    if (files !== undefined || !sealedByDefault(action)) return undefined;
+    return {
+      read: [...SEALED_STEP_FILES.read],
+      write: [...SEALED_STEP_FILES.write],
+    };
+  }
+  const parsed = WorkflowStepSealedSchema.safeParse(raw["sealed"]);
+  if (!parsed.success) {
+    report(context, [...path, "sealed"], "action_sealed_invalid");
+    return null;
+  }
+  if (!parsed.data) return undefined;
+  const sealed: WorkflowStepFiles = {
+    read: [...SEALED_STEP_FILES.read],
+    write: [...SEALED_STEP_FILES.write],
+  };
+  if (files === null) return null;
+  if (
+    files !== undefined &&
+    (!sameAreas(files.read, sealed.read) ||
+      !sameAreas(files.write, sealed.write))
+  ) {
+    report(context, [...path, "files"], "action_sealed_conflicts_files");
+    return null;
+  }
+  return sealed;
+}
+
+function sameAreas(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((area, index) => area === b[index]);
+}
+
+/**
+ * Reads a step's files section (section 17.6). Absent means the O44 and O45
+ * defaults and is left absent, so a document without one keeps its digest. An
+ * axis left out takes its default; the normalized section always has both.
+ */
+function readStepFiles(
+  context: Context,
+  raw: unknown,
+  path: Path,
+): WorkflowStepFiles | undefined | null {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    report(context, path, "action_files_invalid");
+    return null;
+  }
+  for (const key of Object.keys(raw)) {
+    if (!FILES_KEYS.has(key)) {
+      report(context, [...path, key], "action_files_invalid");
+      return null;
+    }
+  }
+  const read = Object.hasOwn(raw, "read")
+    ? readFileAreas(
+      context,
+      raw["read"],
+      [...path, "read"],
+      WORKFLOW_FILE_READ_AREAS,
+      new Set(),
+    )
+    : [...DEFAULT_STEP_FILES.read];
+  const write = Object.hasOwn(raw, "write")
+    ? readFileAreas(
+      context,
+      raw["write"],
+      [...path, "write"],
+      WORKFLOW_FILE_WRITE_AREAS,
+      new Set(WORKFLOW_FILE_READ_AREAS),
+    )
+    : [...DEFAULT_STEP_FILES.write];
+  if (read === null || write === null) return null;
+  return { read, write };
+}
+
 function readOutputSlots(
   context: Context,
   raw: unknown,
@@ -759,6 +903,10 @@ function shapeAction(
     [...path, "outputs"],
   );
   if (outputSlots === null) failed = true;
+  const files = readStepFiles(context, raw["files"], [...path, "files"]);
+  if (files === null) failed = true;
+  const sealedFiles = readSealed(context, raw, files, path, action);
+  if (sealedFiles === null) failed = true;
 
   let limits: WorkflowActionNode["limits"];
   if (Object.hasOwn(raw, "limits")) {
@@ -815,6 +963,8 @@ function shapeAction(
   if (role) node.role = role;
   if (inputSlots) node.inputs = inputSlots;
   if (outputSlots) node.outputs = outputSlots;
+  if (sealedFiles) node.files = sealedFiles;
+  else if (files) node.files = files;
   if (checks) node.checks = checks;
   if (effectKey) node.effectKey = effectKey;
   if (limits) node.limits = limits;

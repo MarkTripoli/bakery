@@ -1,6 +1,7 @@
 // Writes assets/brand/credits.json: provenance for every shipped Higgsfield image.
 // Reads brand/raw/*/result.json (worker output) and brand/gallery/picks.json (lead picks).
 // Asset URLs are left out on purpose: they embed the Higgsfield account id.
+import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -101,17 +102,45 @@ for (const requestId of (await readdir(rawDir)).sort()) {
   }
 }
 
+// The three images made before generation records were kept. The bytes are still
+// read by the legibility sheet and the workflow-studio mock, so they stay; each
+// carries what is known (its prompt file and a checksum of the committed bytes)
+// and says plainly that no generation id was recorded.
+const LEGACY = [
+  ["assets/brand/bakery-logo-v1.png", "assets/brand/bakery-logo-prompt.md"],
+  [
+    "assets/brand/bakery-logo-v2.png",
+    "assets/brand/bakery-conveyor-prompts.md",
+  ],
+  [
+    "assets/brand/bakery-favicon-master.png",
+    "assets/brand/bakery-conveyor-prompts.md",
+  ],
+];
+
+async function legacyImages() {
+  return await Promise.all(LEGACY.map(async ([file, promptFile]) => {
+    const bytes = await readFile(path.join(root, file));
+    return {
+      file,
+      promptFile,
+      tool: "built-in image generation (pre-Higgsfield)",
+      generationId: null,
+      generationIdNote:
+        "not recorded: made with the built-in image generation tool before generation records were kept",
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes: bytes.byteLength,
+    };
+  }));
+}
+
 const credits = {
   description:
     "Provenance of shipped Bakery brand art. Generated with Higgsfield through its MCP server, driven by an OMP worker from the request files named here; art direction, picks and post-processing by the brand lead. Raw originals are not committed; generationId + sha256 identify them.",
   legacy: {
-    files: [
-      "assets/brand/bakery-logo-v1.png",
-      "assets/brand/bakery-logo-v2.png",
-      "assets/brand/bakery-favicon-master.png",
-    ],
     tool:
       "built-in image generation (pre-Higgsfield); see bakery-logo-prompt.md and bakery-conveyor-prompts.md",
+    images: await legacyImages(),
   },
   images,
 };

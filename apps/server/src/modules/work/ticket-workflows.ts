@@ -18,6 +18,7 @@ import type {
   TicketFactIndex,
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import {
   findTicketForNumber,
   readSourceHandle,
@@ -162,7 +163,11 @@ async function intakeSource(
     const prefetch = await prefetchTicketReads(
       deps.reader,
       handle,
-      { number, policy: source.policy, origin: "webhook" },
+      {
+        ref: ticketRef(number),
+        policy: source.policy,
+        origin: "webhook",
+      },
       signal,
     );
     const found = await withPgTransaction(

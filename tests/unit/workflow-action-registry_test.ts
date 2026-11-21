@@ -38,7 +38,7 @@ function registration(
 }
 
 Deno.test("workflow registry exposes the exact documented metadata allowlist", () => {
-  assertEquals(WORKFLOW_ACTION_NAMES.length, 21);
+  assertEquals(WORKFLOW_ACTION_NAMES.length, 24);
   assertEquals(Object.keys(WORKFLOW_ACTION_METADATA), [
     ...WORKFLOW_ACTION_NAMES,
   ]);
@@ -108,6 +108,31 @@ Deno.test("workflow registry exposes the exact documented metadata allowlist", (
   assertEquals(WORKFLOW_ACTION_METADATA["evaluation.sample"], {
     input: "EvaluationInput",
     output: "EvaluationOutput",
+    capabilities: ["model", "storage"],
+    cancel: "cooperative",
+    retry: {
+      maxAttempts: 1,
+      backoff: "0s",
+      faults: ["DEPENDENCY_UNAVAILABLE"],
+    },
+    effectPolicy: "evaluation_write",
+  });
+  // #44 slice 2: the deterministic scorer runs no model; the judge does.
+  assertEquals(WORKFLOW_ACTION_METADATA["evaluation.check"], {
+    input: "EvaluationCheckInput",
+    output: "EvaluationCheckOutput",
+    capabilities: ["storage"],
+    cancel: "cooperative",
+    retry: {
+      maxAttempts: 2,
+      backoff: "30s",
+      faults: ["DEPENDENCY_UNAVAILABLE"],
+    },
+    effectPolicy: "evaluation_write",
+  });
+  assertEquals(WORKFLOW_ACTION_METADATA["evaluation.score"], {
+    input: "EvaluationScoreInput",
+    output: "EvaluationScoreOutput",
     capabilities: ["model", "storage"],
     cancel: "cooperative",
     retry: {
@@ -244,6 +269,8 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
     runtime.list().map(({ action }) => action).sort(),
     [
       "agent.freeform",
+      "evaluation.check",
+      "evaluation.score",
       "harness.implement",
       "harness.repair",
       "human.approval",
@@ -251,6 +278,7 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
       "review.independent",
       "rpi.design",
       "rpi.plan",
+      "secret.identity.read",
       "task.brief",
       "workflow.noop",
       "workflow.stop",

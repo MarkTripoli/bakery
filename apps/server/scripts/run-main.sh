@@ -135,7 +135,7 @@ fi
 # prlimit, systemd-run or systemctl themselves, each of which can run any
 # command. See infra/server-exec/ and tests/unit/start-script-run-grants_test.ts.
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
-run_grant="$repo_root/infra/server-exec/git.sh,$repo_root/infra/server-exec/draft-systemd.sh,/usr/bin/stat"
+run_grant="$repo_root/infra/server-exec/git.sh,$repo_root/infra/server-exec/draft-systemd.sh,$repo_root/infra/server-exec/artifact-probe.sh,/usr/bin/stat"
 
 exec env -i "${sanitized_environment[@]}" \
   "${init_wrapper[@]}" deno run --allow-env --allow-net "--allow-run=$run_grant" --allow-sys=uid,statfs,osRelease \

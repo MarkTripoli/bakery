@@ -21,6 +21,7 @@ import {
   checksPassed,
   decideMerge,
   type MergeObservation,
+  type MergeRefusalReason,
 } from "./merge-candidate.ts";
 import {
   lockMergeTarget,
@@ -30,6 +31,7 @@ import {
   settleMergeAttempt,
   unknownMergeAttempts,
 } from "./merge-attempts.ts";
+import { settleEntriesOfPullRequest } from "./merge-entries.ts";
 
 /**
  * The live merge dispatch (#40, B10.04). The action re-reads the pull request
@@ -237,24 +239,41 @@ function attemptTarget(
   };
 }
 
+/** Who a dispatch is for, and the request it belongs to. */
+export type MergeDispatchParams = {
+  organizationId: string;
+  principalId: string;
+  pullRequestId: string;
+  requestId: string;
+  traceId: string;
+  signal: AbortSignal;
+};
+
+/**
+ * What one dispatch came to: an attempt recorded (merged, refused by GitHub, or
+ * unknown), or a refusal before anything was sent, with the reason.
+ */
+export type MergeDispatchResult =
+  | { kind: "attempt"; attempt: MergeAttempt }
+  | { kind: "refused"; reason: MergeRefusalReason };
+
 /**
  * Dispatches one merge at the exact head the caller verified. The advisory lock
  * is taken before the live read, so two callers can never both verify the same
- * candidate and both send a merge.
+ * candidate and both send a merge. Shared by the action and the merge queue, so
+ * both decide and record the same way.
  */
-export async function mergePullRequest(
+export async function dispatchMerge(
   dependencies: MergeDispatchDependencies,
-  context: ActionContext,
+  transaction: PgTransactionClient,
+  params: MergeDispatchParams,
   input: z.output<typeof contractSchemas.PullRequestMerge>,
-): Promise<MergeAttempt> {
-  const { transaction, organizationId, principalId } = requireWorkTransaction(
-    context,
-  );
-  const signal = context.signal;
+): Promise<MergeDispatchResult> {
+  const { organizationId, principalId, signal } = params;
   const authority = await loadMergeAuthority(
     transaction,
     organizationId,
-    context.params.id,
+    params.pullRequestId,
   );
   const generation = dependencies.broker.generation(
     authority.repository.connectionId,
@@ -314,21 +333,20 @@ export async function mergePullRequest(
     authority,
     input,
     principalId,
-    context.requestId,
-    context.traceId,
+    params.requestId,
+    params.traceId,
   );
   if (decision.kind === "already_merged") {
-    return await recordMergeAttempt(transaction, target, {
-      kind: "merged",
-      mergedSha: decision.mergedSha,
-    });
+    return {
+      kind: "attempt",
+      attempt: await recordMergeAttempt(transaction, target, {
+        kind: "merged",
+        mergedSha: decision.mergedSha,
+      }),
+    };
   }
   if (decision.kind === "refused") {
-    throw new StandardError({
-      code: decision.reason === "checks_not_passed"
-        ? "UNPROCESSABLE"
-        : "STATE_CONFLICT",
-    });
+    return { kind: "refused", reason: decision.reason };
   }
   const outcome = await dependencies.github.mergePullRequest(
     {
@@ -340,7 +358,37 @@ export async function mergePullRequest(
     },
     signal,
   );
-  return await recordMergeAttempt(transaction, target, outcome);
+  return {
+    kind: "attempt",
+    attempt: await recordMergeAttempt(transaction, target, outcome),
+  };
+}
+
+/** The action: dispatches for the caller and answers a refusal as a problem. */
+export async function mergePullRequest(
+  dependencies: MergeDispatchDependencies,
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.PullRequestMerge>,
+): Promise<MergeAttempt> {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const result = await dispatchMerge(dependencies, transaction, {
+    organizationId,
+    principalId,
+    pullRequestId: context.params.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    signal: context.signal,
+  }, input);
+  if (result.kind === "refused") {
+    throw new StandardError({
+      code: result.reason === "checks_not_passed"
+        ? "UNPROCESSABLE"
+        : "STATE_CONFLICT",
+    });
+  }
+  return result.attempt;
 }
 
 /**
@@ -407,5 +455,12 @@ export async function reconcileMergeAttempts(
     if (settled.state === "merged") merged += 1;
     else refused += 1;
   }
+  // The entry waiting on that outcome finishes with it; nothing is sent.
+  await settleEntriesOfPullRequest(
+    transaction,
+    organizationId,
+    input.pullRequestId,
+    merged > 0 ? "merged" : "refused",
+  );
   return { reconciled: unknown.length, merged, refused };
 }

@@ -4,8 +4,18 @@ import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { z } from "zod";
 import { requireWorkTransaction } from "../../work/work-transaction.ts";
+import { auditAgentSessionId } from "../../auth/application/agent-power-grants.ts";
 import type { OrganizationBlobStore } from "../../catalog/storage-port.ts";
 import { validateAnchor } from "./anchors.ts";
+import {
+  commitCommentMentions,
+  resolveMentions,
+} from "../../conversation/mentions.ts";
+import {
+  assertAccessLevelAvailable,
+  lockArtifactScope,
+  upsertArtifactGrant,
+} from "../artifact-access.ts";
 import {
   type CommentRow,
   type CommentVersion,
@@ -31,10 +41,10 @@ async function recordChange(
     readonly rootVersion: number;
     readonly created: boolean;
   },
-) {
+): Promise<string> {
   const work = requireWorkTransaction(context);
   const { row, rootVersion, created } = change;
-  await appendDomainEvent(work.transaction, {
+  const eventId = await appendDomainEvent(work.transaction, {
     organizationId: work.organizationId,
     applicationId: version.application_id,
     repositoryId: version.repository_id,
@@ -63,6 +73,12 @@ async function recordChange(
     resourceId: row.id,
     requestId: context.requestId,
     traceId: context.traceId,
+    // An agent's comment names the session that wrote it (O50).
+    agentSessionId: await auditAgentSessionId(
+      work.transaction,
+      context,
+      work.organizationId,
+    ),
     details: {
       artifactId: version.artifact_id,
       artifactVersionId: version.id,
@@ -70,6 +86,7 @@ async function recordChange(
       rootVersion,
     },
   });
+  return eventId;
 }
 
 export async function createComment(
@@ -87,6 +104,7 @@ export async function createComment(
   if (version.content === null) {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
+  assertAccessLevelAvailable(input.accessLevel);
   let rootVersion = 1;
   if (input.rootId) {
     if (input.anchor) throw new StandardError({ code: "UNPROCESSABLE" });
@@ -104,6 +122,15 @@ export async function createComment(
       [work.organizationId, root.id],
     );
   } else if (input.anchor) validateAnchor(input.anchor, version);
+  // A comment notifies people who can already read its thread. With an
+  // accessLevel it also gives access to a mentioned person who cannot, when the
+  // writer may share; any refused mention writes nothing.
+  const mentions = await resolveMentions(context, work.transaction, {
+    kind: "comment_thread",
+    conversationId: version.conversation_id,
+    artifactId: version.artifact_id,
+    ...(input.accessLevel ? { accessLevel: input.accessLevel } : {}),
+  }, input.mentions);
   const inserted = await work.transaction.query<{ id: string }>(
     `insert into bakery.artifact_comments
     (organization_id,artifact_version_id,parent_comment_id,author_id,body,anchor,status)
@@ -121,7 +148,37 @@ export async function createComment(
   const id = inserted.rows[0]?.id;
   if (!id) throw new StandardError({ code: "INTERNAL" });
   const row = await loadComment(work, id);
-  await recordChange(context, version, { row, rootVersion, created: true });
+  const eventId = await recordChange(context, version, {
+    row,
+    rootVersion,
+    created: true,
+  });
+  if (mentions.toGrant.length > 0 && input.accessLevel) {
+    const artifact = await lockArtifactScope(
+      work.transaction,
+      work.organizationId,
+      version.artifact_id,
+      "share",
+    );
+    for (const principalId of mentions.toGrant) {
+      await upsertArtifactGrant(context, work.transaction, {
+        organizationId: work.organizationId,
+        artifact,
+        principalId,
+        level: input.accessLevel,
+        grantedBy: work.principalId,
+        sourceCommentId: id,
+      });
+    }
+  }
+  await commitCommentMentions(context, work.transaction, {
+    organizationId: work.organizationId,
+    commentId: id,
+    conversationId: version.conversation_id,
+    taskId: version.task_id,
+    sourceEventId: eventId,
+    resolved: mentions,
+  });
   return toComment(row);
 }
 

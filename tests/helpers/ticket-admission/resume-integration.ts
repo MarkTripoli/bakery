@@ -64,7 +64,7 @@ const setDelegate = (
 const setDelegation = (
   fx: TicketFixture,
   sourceId: string,
-  delegation: { principalId: string; githubActorIds: string[] } | null,
+  delegation: { principalId: string; externalActorIds: string[] } | null,
 ) =>
   fx.owner.query(
     `update bakery.ticket_sources
@@ -84,7 +84,7 @@ const MORE_AUTHORITY_TRIGGERS: Trigger[] = [
     restore: (fx, sourceId) =>
       setDelegation(fx, sourceId, {
         principalId: fx.developerId,
-        githubActorIds: [LABELER_ID],
+        externalActorIds: [LABELER_ID],
       }),
   },
   {

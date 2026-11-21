@@ -142,6 +142,8 @@ export const MCP_INVOCATION_DENIALS = Object.freeze(
     "host_ineligible",
     "capability_not_bound",
     "snapshot_missing",
+    "personal_use_not_granted",
+    "personal_unattended",
   ] as const,
 );
 export type McpInvocationDenial = typeof MCP_INVOCATION_DENIALS[number];

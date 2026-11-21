@@ -239,6 +239,7 @@ Deno.test("publish and read immutable artifact kinds through the mounted API", a
       );
     });
   } finally {
-    await f.fixture.close();
+    // The shared fixture's own close, which resets the database.
+    await f.close();
   }
 });

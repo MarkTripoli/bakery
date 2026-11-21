@@ -29,6 +29,8 @@ export type WsClient = {
   /** Like `next`, but also returns binary messages instead of failing on them. */
   nextMessage(timeoutMs?: number): Promise<WebSocketNext | WebSocketBinary>;
   close(code?: number): Promise<void>;
+  /** The subprotocol the server selected in its 101 answer; null when none. */
+  readonly protocol: string | null;
 };
 
 type HandshakeResponse = {
@@ -204,9 +206,15 @@ class SocketClient implements WsClient {
   #closed = false;
   #connClosed = false;
   #closeSent = false;
-  constructor(conn: Deno.Conn, initialBytes: Uint8Array) {
+  readonly protocol: string | null;
+  constructor(
+    conn: Deno.Conn,
+    initialBytes: Uint8Array,
+    protocol: string | null = null,
+  ) {
     this.#conn = conn;
     this.#readBuffer = initialBytes;
+    this.protocol = protocol;
   }
 
   #closeConnection(): void {
@@ -503,7 +511,11 @@ export async function connectWebSocket(
     if (!accepted || accepted !== await websocketAcceptKey(key)) {
       throw new Error("WEBSOCKET_ACCEPT_INVALID");
     }
-    return new SocketClient(conn, response.leftover);
+    return new SocketClient(
+      conn,
+      response.leftover,
+      response.headers.get("sec-websocket-protocol"),
+    );
   } catch (error) {
     conn.close();
     throw error;

@@ -262,6 +262,30 @@ p {
   font-weight: 500;
   font-size: 14px;
 }
+/* packages/ui/src/controls.css:167-181 .ui-field--label-end: an action sits on the label's row. */
+.field--label-end {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  row-gap: 8px;
+}
+.field--label-end > label {
+  grid-column: 1;
+  grid-row: 1;
+}
+.field--label-end > .field-label-end {
+  align-self: baseline;
+  grid-column: 2;
+  grid-row: 1;
+  line-height: inherit;
+}
+.field--label-end > :not(label):not(.field-label-end) {
+  grid-column: 1 / -1;
+}
+.field-label-end .text-link {
+  min-height: 0;
+  font-size: 13px;
+}
 .input-wrap {
   display: flex;
   align-items: center;
@@ -541,6 +565,13 @@ input[aria-invalid=true] {
 .theme-switch {
   min-width: 44px;
   padding: 10px;
+}
+/* packages/ui/src/navigation.css:1270 .ui-auth-entry__theme: the sign-in entry puts the theme switch at the
+   form pane's top end corner (24px in each direction), away from the form. */
+.form-pane--entry > .theme-switch {
+  position: absolute;
+  inset-block-start: 24px;
+  inset-inline-end: 24px;
 }
 .prototype-mark {
   font-size: 12px;

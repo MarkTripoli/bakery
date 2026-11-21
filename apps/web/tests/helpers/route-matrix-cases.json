@@ -16,6 +16,18 @@
     "path": "/tasks/$taskId/coordination"
   },
   {
+    "id": "files",
+    "path": "/files"
+  },
+  {
+    "id": "files-version",
+    "path": "/files/versions/$versionId"
+  },
+  {
+    "id": "files-folder",
+    "path": "/files/$"
+  },
+  {
     "id": "library",
     "path": "/library"
   },
@@ -108,6 +120,10 @@
     "path": "/sign-in"
   },
   {
+    "id": "forgot-password",
+    "path": "/sign-in/forgot-password"
+  },
+  {
     "id": "totp-challenge",
     "path": "/sign-in/two-factor"
   },
@@ -158,6 +174,14 @@
   {
     "id": "settings-organization-roles",
     "path": "/settings/organization/roles"
+  },
+  {
+    "id": "settings-organization-plugins",
+    "path": "/settings/organization/plugins"
+  },
+  {
+    "id": "settings-organization-plugin",
+    "path": "/settings/organization/plugins/$installId"
   },
   {
     "id": "settings-organization-repository-rules",
@@ -316,6 +340,34 @@
     "path": "/__fixtures__/machines/detail"
   },
   {
+    "id": "fixture-session-thread:default",
+    "path": "/__fixtures__/session-thread/default"
+  },
+  {
+    "id": "fixture-session-thread:loading",
+    "path": "/__fixtures__/session-thread/loading"
+  },
+  {
+    "id": "fixture-session-thread:empty",
+    "path": "/__fixtures__/session-thread/empty"
+  },
+  {
+    "id": "fixture-session-thread:error",
+    "path": "/__fixtures__/session-thread/error"
+  },
+  {
+    "id": "fixture-session-thread:failed",
+    "path": "/__fixtures__/session-thread/failed"
+  },
+  {
+    "id": "fixture-session-thread:complete",
+    "path": "/__fixtures__/session-thread/complete"
+  },
+  {
+    "id": "fixture-session-thread:reconnecting",
+    "path": "/__fixtures__/session-thread/reconnecting"
+  },
+  {
     "id": "fixture-api-boundary",
     "path": "/__fixtures__/api-boundary"
   },
@@ -392,6 +444,14 @@
     "path": "/__fixtures__/auth/login-loading"
   },
   {
+    "id": "fixture-auth:login-rate-limited",
+    "path": "/__fixtures__/auth/login-rate-limited"
+  },
+  {
+    "id": "fixture-auth:login-blocked",
+    "path": "/__fixtures__/auth/login-blocked"
+  },
+  {
     "id": "fixture-auth:login-offline",
     "path": "/__fixtures__/auth/login-offline"
   },
@@ -400,8 +460,8 @@
     "path": "/__fixtures__/auth/login-unavailable"
   },
   {
-    "id": "fixture-auth:login-throttled",
-    "path": "/__fixtures__/auth/login-throttled"
+    "id": "fixture-auth:forgot-default",
+    "path": "/__fixtures__/auth/forgot-default"
   },
   {
     "id": "fixture-auth:expired-default",
@@ -410,6 +470,10 @@
   {
     "id": "fixture-auth:join-default",
     "path": "/__fixtures__/auth/join-default"
+  },
+  {
+    "id": "fixture-auth:join-disabled",
+    "path": "/__fixtures__/auth/join-disabled"
   },
   {
     "id": "fixture-auth:register-default",
@@ -594,18 +658,6 @@
   {
     "id": "fixture-auth:section-index-default",
     "path": "/__fixtures__/auth/section-index-default"
-  },
-  {
-    "id": "fixture-auth:security-default",
-    "path": "/__fixtures__/auth/security-default"
-  },
-  {
-    "id": "fixture-auth:security-saved",
-    "path": "/__fixtures__/auth/security-saved"
-  },
-  {
-    "id": "fixture-auth:security-protected",
-    "path": "/__fixtures__/auth/security-protected"
   },
   {
     "id": "fixture-auth:sessions-default",

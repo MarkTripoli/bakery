@@ -9,7 +9,7 @@
 .ui-search-field__input,
 select,
 textarea,
-input:not([type="hidden"]) {
+input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
   min-block-size: var(--target-min);
   min-inline-size: var(--target-min);
 }
@@ -164,6 +164,40 @@ input:not([type="hidden"]) {
   column-gap: var(--space-6);
   grid-template-columns: var(--layout-field-label) minmax(0, 1fr);
 }
+/* A label-end action sits on the label's row, after the control in the DOM. */
+.ui-field--label-end {
+  column-gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.ui-field--label-end > label {
+  grid-column: 1;
+  grid-row: 1;
+}
+.ui-field--label-end > .ui-field__label-end {
+  align-self: baseline;
+  grid-column: 2;
+  grid-row: 1;
+  line-height: inherit;
+}
+.ui-field--label-end > :not(label):not(.ui-field__label-end) {
+  grid-column: 1 / -1;
+}
+/* On a touch screen the action is a full-size target; label and action then
+   share the row's centre line instead of the text baseline. */
+@media (pointer: coarse) {
+  .ui-field--label-end > label,
+  .ui-field--label-end > .ui-field__label-end {
+    align-self: center;
+  }
+  .ui-field__label-end .ui-link {
+    align-items: center;
+    display: inline-flex;
+    min-block-size: var(--target-coarse);
+    /* The touch target overhangs the row (less than the gap to the control)
+       so this row is no taller than the other labels. */
+    margin-block: calc((1lh - var(--target-coarse)) / 2);
+  }
+}
 .ui-field__heading {
   display: grid;
   gap: var(--space-0-5);
@@ -267,7 +301,8 @@ input:not([type="hidden"]) {
 /* A disabled switch reads as disabled at a glance: the track takes the disabled
    foreground instead of fading the whole control, and the label stays in the
    muted text colour so it can still be read. */
-.ui-switch[data-state="disabled"] {
+.ui-switch[data-state="disabled"],
+.ui-checkbox[data-state="disabled"] {
   color: var(--color-fg-muted);
 }
 .ui-switch input:disabled {

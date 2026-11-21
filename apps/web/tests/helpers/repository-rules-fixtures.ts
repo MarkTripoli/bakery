@@ -79,8 +79,8 @@ export function ruleRow(page: Page, name: string): Locator {
  * without the table's header row.
  */
 export function historyRows(page: Page): Locator {
-  const region = page.getByRole("table", { name: "Published revisions" }).or(
-    page.getByRole("list", { name: "Published revisions" }),
+  const region = page.getByRole("table", { name: "Published versions" }).or(
+    page.getByRole("list", { name: "Published versions" }),
   );
   return region.locator("tbody tr").or(region.getByRole("listitem"));
 }

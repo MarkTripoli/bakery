@@ -113,6 +113,7 @@ const wire = (b: Binding) => ({
   componentKey: b.componentKey,
   provider: b.provider,
   billingRoute: b.billingRoute,
+  paymentMethodSupported: true,
   enabled: b.enabled,
   authMode: "host_native",
   credentialLocation: "harness_host",
@@ -178,6 +179,7 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
         items: w.components.map((key, index) => ({
           id: `00000000-0000-4000-8000-0000000000c${index}`,
           componentKey: key,
+          paymentMethods: ["subscription"],
           kind: "harness",
           actualVersion: "1.0.0",
           actualDigest: null,

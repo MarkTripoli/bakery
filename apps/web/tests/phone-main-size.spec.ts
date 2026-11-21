@@ -7,8 +7,8 @@ import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 // These are the sizes this navigation change measured before and after itself.
 // Changing one means the control moved into or out of the compared box.
 const regions = [
-  { path: "/settings/security/passkeys", size: { width: 390, height: 329 } },
-  { path: "/settings/security", size: { width: 390, height: 32 } },
+  { path: "/settings/security/passkeys", size: { width: 390, height: 397 } },
+  { path: "/settings/security", size: { width: 390, height: 656 } },
   { path: "/settings/sessions", size: { width: 390, height: 350 } },
   { path: "/settings/password", size: { width: 390, height: 322 } },
 ] as const;

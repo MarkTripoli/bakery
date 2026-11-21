@@ -344,31 +344,51 @@ async function createWorkflow(
   stack: DurableCoreStack,
   organizationId: string,
   principalId: string,
-  action: {
-    readonly uses: "harness.implement" | "secret.identity.read";
-    readonly with: Readonly<Record<string, string>>;
-  } = {
-    uses: "harness.implement",
-    with: {
-      repositoryId: "$task.repositoryId",
-      planArtifact: crypto.randomUUID(),
-    },
-  },
+  secretId?: string,
 ): Promise<{ workflowId: string; workflowVersionId: string }> {
   const workflowId = crypto.randomUUID();
   const workflowVersionId = crypto.randomUUID();
   const suffix = workflowId.slice(0, 8);
-  const spec = {
-    apiVersion: "bakery.dev/v1",
-    kind: "workflow",
-    name: `durable-core-${suffix}`,
-    workflow: { kind: "fixed" },
-    steps: [{
-      id: "worker",
-      uses: action.uses,
-      with: action.with,
-    }],
-  };
+  // Every run is a compiled plan: a sequence container holds the one worker
+  // step, and the repository comes in as a declared run input (a plan cannot
+  // bind a uuid field from the task).
+  const spec = secretId === undefined
+    ? {
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: `durable-core-${suffix}`,
+      inputs: {
+        repositoryId: { type: "uuid", required: true },
+        taskId: { type: "uuid", required: false },
+      },
+      steps: [{
+        id: "flow",
+        steps: [{
+          id: "worker",
+          uses: "harness.implement",
+          with: {
+            repositoryId: "$input.repositoryId",
+            planArtifact: crypto.randomUUID(),
+          },
+        }],
+      }],
+    }
+    : {
+      // The fixed identity read: the plan names the opaque reference as a
+      // declared run input, and the server adds the frozen repository context.
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: `durable-core-identity-${suffix}`,
+      inputs: { identityRef: { type: "uuid", required: true } },
+      steps: [{
+        id: "flow",
+        steps: [{
+          id: "worker",
+          uses: "secret.identity.read",
+          with: { identityRef: "$input.identityRef" },
+        }],
+      }],
+    };
   const digest = await sha256Hex(canonicalJson(spec));
   await stack.psql(
     `insert into bakery.workflow_definitions (
@@ -403,54 +423,6 @@ async function createWorkflow(
     [organizationId, workflowVersionId, workflowId],
   );
   return { workflowId, workflowVersionId };
-}
-
-async function ensureAgentSession(
-  stack: DurableCoreStack,
-  organizationId: string,
-  runId: string,
-  agentVersionId?: string,
-): Promise<void> {
-  const rows = await stack.psql<{
-    runStepId: string;
-    conversationId: string;
-    sessionId: string | null;
-  }>(
-    `select step.id as "runStepId",
-            task.conversation_id as "conversationId",
-            session.id as "sessionId"
-       from bakery.workflow_runs as run
-       join bakery.run_steps as step
-         on step.organization_id = run.organization_id
-        and step.run_id = run.id
-       join bakery.tasks as task
-         on task.organization_id = run.organization_id
-        and task.id = run.task_id
-       left join bakery.agent_sessions as session
-         on session.organization_id = step.organization_id
-        and session.run_step_id = step.id
-      where run.organization_id = $1 and run.id = $2
-      order by session.created_at
-      limit 1`,
-    [organizationId, runId],
-  );
-  const row = rows[0];
-  if (!row) throw new Error("DURABLE_CORE_ADMISSION_RUN_STEP_MISSING");
-  if (row.sessionId !== null) return;
-  const sessionId = crypto.randomUUID();
-  await stack.psql(
-    `insert into bakery.agent_sessions (
-       id, organization_id, run_step_id, conversation_id, agent_version_id,
-       harness, status
-     ) values ($1, $2, $3, $4, $5, 'codex', 'active')`,
-    [
-      sessionId,
-      organizationId,
-      row.runStepId,
-      row.conversationId,
-      agentVersionId ?? crypto.randomUUID(),
-    ],
-  );
 }
 
 type EngineInvocation = {
@@ -1692,9 +1664,7 @@ async function admitEngineOwnedActionRun(
     stack,
     clients.identity.organizationId,
     clients.identity.principalId,
-    secretId
-      ? { uses: "secret.identity.read", with: { secretRef: secretId } }
-      : undefined,
+    secretId,
   );
   const task = await responseJson(
     await postJson(
@@ -1724,7 +1694,9 @@ async function admitEngineOwnedActionRun(
         executionMode: "repository",
         repositoryProfileId: repository.repositoryProfileId,
         budgetLimitUsd: secretId ? "0.005000" : "0.500000",
-        inputs: secretId ? {} : { taskId },
+        inputs: secretId
+          ? { identityRef: secretId }
+          : { taskId, repositoryId: repository.repositoryId },
       },
       `durable-core-run-${crypto.randomUUID()}`,
     ),
@@ -1735,12 +1707,7 @@ async function admitEngineOwnedActionRun(
   if (typeof runId !== "string" || !UUID.test(runId)) {
     throw new Error("DURABLE_CORE_ADMISSION_RUN_ID_MISSING");
   }
-  await ensureAgentSession(
-    stack,
-    clients.identity.organizationId,
-    runId,
-    agentVersionId,
-  );
+  // The engine creates the agent session when it admits the step.
   const admitted = await waitForEngineAdmission(
     stack,
     runId,

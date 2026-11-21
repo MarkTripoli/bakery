@@ -1,22 +1,32 @@
 import { useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type {
   AgentDefinitionResponse,
+  MemoryEntryResponse,
   WorkflowDefinitionResponse,
   WorkflowPresetResponse,
 } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
+import { useLiveEvents } from "../api/use-live-events.ts";
+
+import { focusAfterPaint } from "../app/focus.ts";
 import {
   effectiveAccessQueryOptions,
   libraryAgentsQueryOptions,
+  libraryMemoriesQueryOptions,
+  libraryRepositoriesQueryOptions,
   libraryWorkflowsQueryOptions,
+  memoryQueryOptions,
   workflowPresetsQueryOptions,
 } from "../api/query.ts";
-import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
+import {
+  asyncKindForError,
+  failureStatus,
+  isForbiddenFailure,
+} from "../app/async-state.ts";
 import { useConnectivity } from "../app/connectivity.ts";
-import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
@@ -30,9 +40,21 @@ import {
   presetSteps,
 } from "./library/library-state.ts";
 import { presetSource } from "./library/copy-workflow.ts";
+import { EvaluationsTab } from "./library/EvaluationsTab.tsx";
 import { type LibraryRow, LibraryRows } from "./library/LibraryRows.tsx";
 import { ImportDialog } from "./library/ImportDialog.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
+import {
+  memoryBadgeTone,
+  MemoryFactProblem,
+  MemoryFactSheet,
+} from "./library/MemoryFactSheet.tsx";
+import {
+  correctionCount,
+  memoryBadge,
+  orderMemories,
+  sourceLine,
+} from "./library/memory-state.ts";
 import { presetCopy } from "./task-composer-labels.ts";
 
 /**
@@ -47,7 +69,10 @@ export function LibraryPage() {
   const { translate } = useI18n();
   useRestoreOrganizationScope();
   const phone = useShellViewport() === "phone";
-  const search = useSearch({ strict: false }) as { tab?: string };
+  const search = useSearch({ strict: false }) as {
+    tab?: string;
+    fact?: string;
+  };
   const tab = libraryTab(search.tab);
   const ready = Boolean(scope.organizationId);
   const workflows = useQuery({
@@ -62,19 +87,60 @@ export function LibraryPage() {
     ...libraryAgentsQueryOptions(api, scope),
     enabled: ready && tab === "agents",
   });
+  const memories = useQuery({
+    ...libraryMemoriesQueryOptions(api, scope),
+    enabled: ready && tab === "memory",
+  });
+  // Repository names for the rows: one read, never one per fact.
+  const repositories = useQuery({
+    ...libraryRepositoriesQueryOptions(api, scope),
+    enabled: ready && tab === "memory",
+  });
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const canManage = access.data?.role === "admin";
   const offlineNow = useConnectivity() === "offline";
+  const queryClient = useQueryClient();
+  // Another person's change to a fact reaches an open Memory tab as a signal;
+  // the page then reads again. A dropped connection is said out loud.
+  const live = useLiveEvents(
+    ready && tab === "memory" && scope.organizationId
+      ? [{ type: "memory", id: scope.organizationId }]
+      : [],
+    () => void queryClient.invalidateQueries({ queryKey: ["protected"] }),
+  );
+  const memoryStale = tab === "memory" && (offlineNow || live === "lost");
   const [copying, setCopying] = useState<WorkflowPresetResponse | null>(null);
   const [importing, setImporting] = useState(false);
   const importOpener = useRef<HTMLElement | null>(null);
-  const active = tab === "workflows" ? [workflows, presets] : [agents];
+  const active = tab === "workflows"
+    ? [workflows, presets]
+    : tab === "memory"
+    ? [memories]
+    : [agents];
   const failure = active.find((query) => query.isError)?.error;
   const forbidden = failure !== undefined && isForbiddenFailure(failure);
   const offline = failure !== undefined && !forbidden &&
     asyncKindForError(failure) === "offline";
   const loading = !forbidden && failure === undefined &&
     active.some((query) => query.isPending);
+
+  const listedFact = tab === "memory" && search.fact !== undefined
+    ? memories.data?.items.find((entry) => entry.id === search.fact)
+    : undefined;
+  // A link to a fact the loaded list does not hold (the list was cut short, or
+  // the fact is gone) reads that one fact, so the page never opens nothing.
+  const unlisted = tab === "memory" && search.fact !== undefined &&
+    memories.data !== undefined && listedFact === undefined;
+  const fetchedFact = useQuery({
+    ...memoryQueryOptions(api, scope, search.fact ?? ""),
+    enabled: ready && unlisted,
+  });
+  const openFact = listedFact ?? (unlisted ? fetchedFact.data : undefined);
+  const factProblem = unlisted && fetchedFact.isError
+    ? [403, 404].includes(failureStatus(fetchedFact.error) ?? 0)
+      ? "missing" as const
+      : "failed" as const
+    : null;
 
   const badgeRow = (
     definition: WorkflowDefinitionResponse | AgentDefinitionResponse,
@@ -102,6 +168,50 @@ export function LibraryPage() {
           }),
         }
         : {}),
+    };
+  };
+  const repositoryNames = new Map(
+    (repositories.data ?? []).map((
+      repository,
+    ) => [repository.id, repository.name] as const),
+  );
+  const memoryRow = (entry: MemoryEntryResponse): LibraryRow => {
+    const badge = memoryBadge(entry);
+    const source = sourceLine(entry);
+    const corrected = correctionCount(entry);
+    const sourceText = source.kind === "available"
+      ? translate("library.memory.source.available" as never, {
+        name: source.name,
+        version: source.revision,
+      })
+      : translate(`library.memory.source.${source.kind}.row` as never);
+    const fact = entry.currentRevision?.body ?? entry.topic;
+    const repositoryName = repositoryNames.get(entry.repositoryId);
+    return {
+      id: entry.id,
+      name: fact,
+      line: corrected > 0
+        ? `${sourceText} · ${
+          translate("library.memory.corrected" as never, { count: corrected })
+        }`
+        : sourceText,
+      badge: translate(`library.memory.badge.${badge}` as never),
+      tone: memoryBadgeTone(badge),
+      note: repositoryName === undefined
+        ? ""
+        : translate("library.memory.repository" as never, {
+          name: repositoryName,
+        }),
+      openLabel: translate("library.memory.openNamed" as never, { fact }),
+      // A suggestion waits on a person: its button says so and is the primary one.
+      ...(badge === "suggested"
+        ? {
+          openText: translate("library.memory.review" as never),
+          primary: true,
+        }
+        : {}),
+      ...(badge === "noLongerUsed" ? { muted: true } : {}),
+      selected: search.fact === entry.id,
     };
   };
   const presetRow = (preset: WorkflowPresetResponse): LibraryRow => {
@@ -155,7 +265,12 @@ export function LibraryPage() {
           )}
         onNavigate={(href) => void navigate({ to: href })}
         onOpen={(row) =>
-          void (tab === "agents"
+          void (tab === "memory"
+            ? navigate({
+              to: "/library",
+              search: { tab: "memory", fact: row.id },
+            })
+            : tab === "agents"
             ? navigate({
               to: "/library/agents/$agentId",
               params: { agentId: row.id },
@@ -183,11 +298,17 @@ export function LibraryPage() {
   const agentRows = byName(agents.data?.items ?? []).map((row) =>
     badgeRow(row, true)
   );
+  const memoryEntries = orderMemories(memories.data?.items ?? []);
+  const memoryRows = memoryEntries.map(memoryRow);
   const truncated = tab === "workflows"
     ? workflows.data?.truncated
+    : tab === "memory"
+    ? memories.data?.truncated
     : agents.data?.truncated;
 
-  const content = forbidden
+  const content = tab === "evaluations"
+    ? <EvaluationsTab />
+    : forbidden
     ? (
       <UI.EmptyState
         title={translate("library.forbidden.title" as never)}
@@ -236,7 +357,47 @@ export function LibraryPage() {
             </UI.InlineNotice>
           )
           : null}
-        {tab === "workflows"
+        {memoryStale
+          ? (
+            <UI.InlineNotice tone="information" data-testid="memory-stale">
+              {translate(
+                (offlineNow
+                  ? "library.memory.live.offline"
+                  : "library.memory.live.lost") as never,
+              )}
+            </UI.InlineNotice>
+          )
+          : null}
+        {tab === "memory"
+          ? memoryRows.length > 0
+            ? (
+              <>
+                <UI.Text variant="muted">
+                  {translate("library.memory.intro" as never)}
+                </UI.Text>
+                {section(
+                  "library-memory",
+                  translate("library.memory.title" as never),
+                  undefined,
+                  memoryRows,
+                  translate("library.memory.listLabel" as never),
+                )}
+              </>
+            )
+            : (
+              <UI.ListSection
+                data-testid="library-memory"
+                flush
+                title={translate("library.memory.title" as never)}
+                variant={phone ? "list" : "table"}
+              >
+                {empty(
+                  translate("library.memory.emptyTitle" as never),
+                  translate("library.memory.emptyDescription" as never),
+                )}
+              </UI.ListSection>
+            )
+          : tab === "workflows"
           ? (
             <>
               {section(
@@ -343,7 +504,11 @@ export function LibraryPage() {
           onSelect={(id) =>
             void navigate({
               to: "/library",
-              search: { tab: id === "agents" ? "agents" : undefined },
+              search: {
+                tab: id === "agents" || id === "memory" || id === "evaluations"
+                  ? id
+                  : undefined,
+              },
               replace: true,
             })}
           tabs={[
@@ -357,9 +522,56 @@ export function LibraryPage() {
               label: translate("library.tab.agents" as never),
               content: tab === "agents" ? content : null,
             },
+            {
+              id: "memory",
+              label: translate("library.tab.memory" as never),
+              content: tab === "memory" ? content : null,
+            },
+            {
+              id: "evaluations",
+              label: translate("library.tab.evaluations" as never),
+              content: tab === "evaluations" ? content : null,
+            },
           ]}
         />
       </UI.SettingsContent>
+      {openFact === undefined ? null : (
+        <MemoryFactSheet
+          key={openFact.id}
+          canManage={canManage}
+          entry={openFact}
+          phone={phone}
+          onOpenSource={(href) => void navigate({ to: href })}
+          repositoryName={repositoryNames.get(openFact.repositoryId) ?? null}
+          onClose={() => {
+            const id = openFact.id;
+            void navigate({
+              to: "/library",
+              search: { tab: "memory" },
+              replace: true,
+            });
+            // Back to the row that opened it.
+            focusAfterPaint(() =>
+              document.querySelector<HTMLElement>(
+                `[data-library-id="${id}"] button`,
+              )
+            );
+          }}
+        />
+      )}
+      {factProblem === null ? null : (
+        <MemoryFactProblem
+          kind={factProblem}
+          phone={phone}
+          onClose={() =>
+            void navigate({
+              to: "/library",
+              search: { tab: "memory" },
+              replace: true,
+            })}
+          onRetry={() => void fetchedFact.refetch()}
+        />
+      )}
       {importing
         ? (
           <ImportDialog

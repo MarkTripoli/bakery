@@ -662,3 +662,13 @@ export function createAuthProviderClient(options: {
     },
   };
 }
+
+/**
+ * The length rule every password must meet, in characters. The server gives the
+ * same numbers to the auth provider and the web app words the rule from them,
+ * so what a person is told before typing is what is enforced.
+ */
+export const PASSWORD_POLICY = Object.freeze({
+  minLength: 8,
+  maxLength: 128,
+});

@@ -1,0 +1,14 @@
+{
+  "name": "@bakery/integration-linear",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./manifest": "./src/manifest.ts",
+    "./server": "./src/server/mod.ts",
+    "./web": "./src/web/mod.ts"
+  },
+  "dependencies": {
+    "@bakery/i18n": "workspace:*",
+    "@bakery/integration-sdk": "workspace:*"
+  }
+}

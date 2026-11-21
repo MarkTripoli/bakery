@@ -36,6 +36,25 @@ export const InstallationSecretCipherBindingSchema = z.object({
 export type InstallationSecretCipherBinding = z.infer<
   typeof InstallationSecretCipherBindingSchema
 >;
+export const McpCredentialCipherBindingSchema = z.object({
+  organizationId: z.string().uuid().describe(
+    "Organization owning the MCP connection this credential belongs to.",
+  ),
+  secretId: z.string().uuid().describe(
+    "Immutable secret metadata identifier of the MCP connection credential.",
+  ),
+  revision: z.number().int().positive().describe(
+    "Immutable encrypted version revision of the credential.",
+  ),
+  keyId: SecretsKeyConfigSchema.shape.keyId.describe(
+    "External key identity bound to this ciphertext.",
+  ),
+}).strict().describe(
+  "MCP connection credential AES-GCM associated-data binding; distinct from project and installation bindings so no ciphertext decrypts as another kind.",
+);
+export type McpCredentialCipherBinding = z.infer<
+  typeof McpCredentialCipherBindingSchema
+>;
 export const AuthAttemptVerifierCipherBindingSchema = z.object({
   organizationId: z.string().uuid().describe(
     "Organization that owns the integration auth attempt.",
@@ -146,6 +165,21 @@ function installationAad(
     JSON.stringify([2, "installation", b.secretId, b.revision, b.keyId]),
   );
 }
+function mcpCredentialAad(
+  binding: McpCredentialCipherBinding,
+): Uint8Array<ArrayBuffer> {
+  const b = McpCredentialCipherBindingSchema.parse(binding);
+  return new TextEncoder().encode(
+    JSON.stringify([
+      5,
+      "mcp_connection",
+      b.organizationId,
+      b.secretId,
+      b.revision,
+      b.keyId,
+    ]),
+  );
+}
 function authAttemptVerifierAad(
   binding: AuthAttemptVerifierCipherBinding,
 ): Uint8Array<ArrayBuffer> {
@@ -234,6 +268,22 @@ export async function decryptSecret(
   cipher: SecretCipher,
 ): Promise<Uint8Array> {
   return await decryptWith(key, () => aad(binding), cipher);
+}
+/** Encrypts an MCP connection's credential (a bearer token or API key); write-only. */
+export async function encryptMcpCredential(
+  key: CryptoKey,
+  binding: McpCredentialCipherBinding,
+  value: string,
+): Promise<SecretCipher> {
+  return await encryptWith(key, () => mcpCredentialAad(binding), value);
+}
+/** Decrypts an MCP connection credential for the server-side broker alone. */
+export async function decryptMcpCredential(
+  key: CryptoKey,
+  binding: McpCredentialCipherBinding,
+  cipher: SecretCipher,
+): Promise<Uint8Array> {
+  return await decryptWith(key, () => mcpCredentialAad(binding), cipher);
 }
 /** Encrypts an installation-owned credential, such as a GitHub App private key. */
 export async function encryptInstallationSecret(

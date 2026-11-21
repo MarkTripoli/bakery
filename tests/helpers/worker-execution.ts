@@ -406,6 +406,21 @@ export async function closeWorkerOrganization(
         where organization_id = $1`,
       [organizationId],
     );
+    // Evaluation rows reference cases, scorers and artifact versions without
+    // cascading; batches take their results and attempts with them.
+    for (
+      const table of [
+        "evaluation_batches",
+        "evaluation_datasets",
+        "evaluation_cases",
+        "evaluation_definitions",
+      ]
+    ) {
+      await pgDatabase.query(
+        `delete from bakery.${table} where organization_id = $1`,
+        [organizationId],
+      );
+    }
     await pgDatabase.query(
       `delete from bakery.artifact_versions
         where organization_id = $1`,
@@ -617,6 +632,8 @@ export async function workerRequest(
     idempotencyKey?: string;
     headers?: HeadersInit;
     includeWorkerSession?: boolean;
+    /** Defaults to POST; read routes (the tool gateway) need GET. */
+    method?: string;
   } = {},
 ): Promise<Response> {
   const headers = jsonHeaders({
@@ -629,9 +646,8 @@ export async function workerRequest(
   let requestBody = body;
   const mutationPath = path === "/v1/worker/claims" ||
     path === "/v1/worker/heartbeat" ||
-    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|result)$/.test(
-      path,
-    );
+    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|handoff-manifests|result|session-tools|session-call)$/
+      .test(path);
   if (mutationPath) {
     const host = await fixture.pgDatabase.query<{
       workerSessionId: string | null;
@@ -675,7 +691,7 @@ export async function workerRequest(
   }
   return await fixture.app.fetch(
     new Request(`${authTestOrigin}${path}`, {
-      method: "POST",
+      method: options.method ?? "POST",
       headers,
       body: JSON.stringify(requestBody),
     }),
@@ -829,6 +845,15 @@ export async function seedEligibleJob(
     action?: string;
     input?: Record<string, unknown>;
     legacy?: boolean;
+    /**
+     * Publish a workflow document the plan compiler accepts, declaring the
+     * `taskId` input a spawn supplies. The default keeps the flat-era
+     * `workflow: { kind: "fixed" }` marker, which the compiler rejects as an
+     * unknown field, so a run admitted from that version (a spawn) would be
+     * refused as not compilable, and a plan with no declared `taskId` refuses
+     * the spawn's inputs.
+     */
+    compilable?: boolean;
     skillRefs?: readonly { versionId: string; digest: string }[];
     agentConfig?: AgentVersionCreateConfig;
   } = {},
@@ -904,7 +929,12 @@ export async function seedEligibleJob(
     apiVersion: "bakery.dev/v1",
     kind: "workflow",
     name: `issue39-${suffix}`,
-    ...(options.legacy ? {} : { workflow: { kind: "fixed" } }),
+    ...(options.legacy || options.compilable
+      ? {}
+      : { workflow: { kind: "fixed" } }),
+    ...(options.compilable
+      ? { inputs: { taskId: { type: "uuid", required: true } } }
+      : {}),
     ...(fixtureAgentConfig === null
       ? {}
       : { agents: { [action]: ids.agentVersionId } }),

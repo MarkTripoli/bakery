@@ -275,13 +275,13 @@ Deno.test("AC1: with the exporter disabled, execution and exact-once settlement 
   assertEquals(stats.disabled, true);
   assertEquals(stats.queued, 0);
   assertEquals(stats.inFlight, 0);
-  // The routes did tell it: one renewal, one completion, one settlement (the
-  // replays said nothing), each counted as discarded.
+  // The routes did tell it: one claim, one renewal, one completion, one
+  // settlement (the replays said nothing), each counted as discarded.
   const discarded = telemetry.metrics.snapshot().find((sample) =>
     sample.name === TELEMETRY_META_METRICS.events &&
     sample.labels.outcome === "discarded"
   )?.value;
-  assertEquals(discarded, 3);
+  assertEquals(discarded, 4);
   await telemetry.close(100);
 });
 
@@ -312,11 +312,11 @@ Deno.test("AC1: with a sink that never answers and a full queue, execution and e
     `${stats.queued} queued`,
   );
   assert(stats.inFlight <= SERVER_TELEMETRY_EXPORTER.batchSize);
-  // The job offered exactly three events (a renewal, a completion and a
-  // settlement; the replays said nothing). Each was either queued or dropped,
+  // The job offered exactly four events (a claim, a renewal, a completion and
+  // a settlement; the replays said nothing). Each was either queued or dropped,
   // whichever the hung sink's one in-flight batch left room for, and none lost
   // track of: the exporter's accounting balances.
-  assertEquals(stats.offered - before.offered, 3);
+  assertEquals(stats.offered - before.offered, 4);
   assertEquals(
     stats.offered,
     stats.queued + stats.inFlight + stats.exported + stats.discarded +
@@ -398,7 +398,7 @@ Deno.test("AC1: with a telemetry that itself throws, rejects or hangs when told,
   }
 });
 
-Deno.test("what a healthy sink receives: three events, ids and a closed outcome, once each despite replays, and no token", async () => {
+Deno.test("what a healthy sink receives: four events, ids and a closed outcome, once each despite replays, and no token", async () => {
   const sent: TelemetryRecord[] = [];
   const exporter = createServerTelemetry({
     send: (batch) => {
@@ -421,30 +421,35 @@ Deno.test("what a healthy sink receives: three events, ids and a closed outcome,
     "ac1-healthy",
     {
       // Before the replays. Emitting on the replay instead of on the first call
-      // would leave the same three events at the end, and only this can tell.
+      // would leave the same four events at the end, and only this can tell.
       afterRenewal: () =>
         assertEquals(
           told,
-          ["lease.renewed"],
+          ["attempt.started", "lease.renewed"],
           "the first renewal told telemetry",
         ),
       afterResult: () =>
         assertEquals(
           [...told].sort(),
-          ["job.completed", "lease.renewed", "usage.settled"],
+          [
+            "attempt.started",
+            "job.completed",
+            "lease.renewed",
+            "usage.settled",
+          ],
           "the first result told telemetry its completion and its settlement",
         ),
     },
   );
   assertEquals(observation, EXPECTED);
-  assertEquals(told.length, 3, "the replays told it nothing more");
+  assertEquals(told.length, 4, "the replays told it nothing more");
   await exporter.close(1_000);
   const events = sent.flatMap((record) =>
     record.kind === "event" ? [record] : []
   );
   assertEquals(
     events.map((event) => event.name).sort(),
-    ["job.completed", "lease.renewed", "usage.settled"],
+    ["attempt.started", "job.completed", "lease.renewed", "usage.settled"],
     "one of each: the replayed renewal and the replayed result added nothing",
   );
   for (const event of events) {
@@ -463,10 +468,22 @@ Deno.test("what a healthy sink receives: three events, ids and a closed outcome,
   ) {
     assert(!text.includes(forbidden), `${forbidden} reached the sink`);
   }
-  // Only the two keys the routes pass, and nothing the worker or the database said.
+  // Only the keys the routes pass (and how many attempts came before), and
+  // nothing the worker or the database said.
   for (const event of events) {
     for (const key of Object.keys(event.attributes)) {
-      assert(["bakery.attempt.id", "bakery.outcome"].includes(key), key);
+      assert(
+        [
+          "bakery.attempt.id",
+          "bakery.outcome",
+          "bakery.retry.count",
+          "bakery.usage.input_tokens",
+          "bakery.usage.output_tokens",
+          "bakery.usage.measurement",
+          "bakery.usage.route",
+        ].includes(key),
+        key,
+      );
     }
   }
 });

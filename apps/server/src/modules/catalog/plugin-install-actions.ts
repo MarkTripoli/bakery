@@ -65,11 +65,47 @@ export type PluginInstallActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<PluginState>"]>>;
+  getStateItems: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<PluginStateItem>"]>>;
   putState: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.PluginStatePut>,
   ) => Promise<z.output<typeof contractSchemas.PluginState>>;
+  listPages: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<PluginPageEntry>"]>>;
+  getPage: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.PluginPagePath>,
+  ) => Promise<z.output<typeof contractSchemas.PluginPageAccess>>;
 };
+
+/**
+ * The document read's definition, shared by the registry (for the catalog and
+ * the authority) and the raw route that serves it. Its registered handler is
+ * never reached: the route mounted ahead of the JSON router answers the path
+ * with the page's HTML, under this action's authority.
+ */
+export const pluginPageDocumentActionDefinition = {
+  name: PluginInstallImplementedAction.PluginPageDocumentsGet,
+  method: HttpMethod.Get,
+  path: "/v1/plugin-installs/:id/pages/:pageId/document",
+  input: contractSchemas.PluginPageDocumentQuery,
+  output: contractSchemas.PluginPageDocument,
+  policy: {
+    type: ActionKind.Query,
+    access: "Authorized owner/member",
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+    // An iframe src cannot send the organization header.
+    organizationIdQuery: "organizationId",
+  },
+  handler: () => {
+    throw new StandardError({ code: "INTERNAL" });
+  },
+} as const;
 
 export function createPluginInstallActionRegistry(
   database: PgDatabase,
@@ -238,6 +274,21 @@ export function createPluginInstallActionRegistry(
     handler: handlers.getState,
   });
   registry.register({
+    name: PluginInstallImplementedAction.PluginStateItemsList,
+    method: HttpMethod.Get,
+    path: "/v1/plugin-installs/:id/state-items",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<PluginStateItem>"],
+    // Authorized exactly like the full read: the same member rule, the same
+    // owner check inside, the same permission.
+    policy: {
+      ...policy("Authorized owner/member", ActionKind.Query, memberContext),
+      authorize: requireMember,
+    },
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.getStateItems,
+  });
+  registry.register({
     name: PluginInstallImplementedAction.PluginStatePut,
     method: HttpMethod.Put,
     // The namespace and key are route segments as well as input fields, and the
@@ -256,6 +307,39 @@ export function createPluginInstallActionRegistry(
     },
     explicitIdempotency: "key",
     handler: handlers.putState,
+  });
+  registry.register({
+    name: PluginInstallImplementedAction.PluginPagesList,
+    method: HttpMethod.Get,
+    path: "/v1/plugin-pages",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<PluginPageEntry>"],
+    policy: {
+      ...policy("Authorized owner/member", ActionKind.Query, memberContext),
+      authorize: requireMember,
+    },
+    // One snapshot per page and cursor, as for the install list.
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.listPages,
+  });
+  registry.register({
+    name: PluginInstallImplementedAction.PluginPagesGet,
+    method: HttpMethod.Get,
+    path: "/v1/plugin-installs/:id/pages/:pageId",
+    input: contractSchemas.PluginPagePath,
+    output: contractSchemas.PluginPageAccess,
+    policy: {
+      ...policy("Authorized owner/member", ActionKind.Query, memberContext),
+      authorize: requireMember,
+    },
+    handler: handlers.getPage,
+  });
+  registry.register({
+    ...pluginPageDocumentActionDefinition,
+    policy: {
+      ...pluginPageDocumentActionDefinition.policy,
+      authorize: requireMember,
+    },
   });
 
   assertRegisteredActions(registry);

@@ -22,10 +22,12 @@ import {
   type CandidateChecksVerdict,
   type CheckRequirement,
   evaluateCandidateChecks,
-  REQUIREMENT_STATUSES,
   type RequirementEvaluation,
-  type RequirementStatus,
 } from "../../../apps/server/src/modules/delivery/verdict.ts";
+import {
+  REQUIREMENT_STATUSES,
+  type RequirementStatus,
+} from "../../../apps/server/src/modules/review-loop/evidence.ts";
 import type {
   CandidateIdentity,
   CheckRunEvidence,
@@ -33,15 +35,18 @@ import type {
 import {
   decideDelivery,
   type DecisionCheckFact,
-  type DeliveryDecisionInput,
+  type DeliveryDecisionInput as DecisionInputOf,
   type DeliveryDecisionResult,
   type PriorDecision,
-} from "../../../apps/server/src/modules/delivery/repair-loop.ts";
+} from "../../../apps/server/src/modules/review-loop/decision.ts";
 import {
   currentIdentity,
   digest,
   evidence,
 } from "../deterministic-checks/identity-fixture.ts";
+
+/** The decision input with the delivery pack's own verdict type. */
+type DeliveryDecisionInput = DecisionInputOf<CandidateChecksVerdict>;
 import { fingerprintOf } from "./fixtures.ts";
 
 /**

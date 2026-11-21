@@ -4,6 +4,7 @@ import type { ServerAuthConfig } from "@bakery/config";
 import { createTranslator } from "@bakery/i18n";
 import type { PgDatabase } from "../../../platform/database.ts";
 import { requestLocale } from "../../../platform/locale.ts";
+import { PASSWORD_POLICY } from "@bakery/contracts/auth-provider-client";
 import { RegistrationMode } from "@bakery/contracts/installation-settings";
 import type { InstallationSettingsReader } from "../application/installation-settings.ts";
 import { createPostgresInstallationSettingsReader } from "./installation-settings-postgres.ts";
@@ -88,7 +89,12 @@ export function buildBetterAuthOptions({
     basePath: "/api/auth",
     secret: config.secret,
     trustedOrigins: [...config.trustedOrigins],
-    emailAndPassword: { enabled: true, autoSignIn: false },
+    emailAndPassword: {
+      enabled: true,
+      autoSignIn: false,
+      minPasswordLength: PASSWORD_POLICY.minLength,
+      maxPasswordLength: PASSWORD_POLICY.maxLength,
+    },
     session: { cookieCache: { enabled: false } },
     plugins: [
       bakerySessionAssurance({ now }),

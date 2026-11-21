@@ -27,6 +27,8 @@ export function createWorkflowsRoutes(options: {
   app.use("/v1/workflow-validations", authoring);
   app.use("/v1/definition-publish-grants", options.browserSession);
   app.use("/v1/definition-publish-grants/*", options.browserSession);
+  app.use("/v1/agent-power-grants", options.browserSession);
+  app.use("/v1/agent-power-grants/*", options.browserSession);
   app.use(
     "/v1/workflow-definition-proposals/*",
     options.tokenSession ?? options.browserSession,

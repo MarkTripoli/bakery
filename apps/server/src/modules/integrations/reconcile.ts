@@ -171,13 +171,17 @@ async function backfillBotUser(
   registrationId: string,
   signal: AbortSignal,
 ): Promise<void> {
-  const registration = await dependencies.database.query<{ slug: string }>(
+  const registration = await dependencies.database.query<
+    { slug: string | null }
+  >(
     `select slug from bakery.integration_app_registrations
       where id = $1 and bot_user_id is null`,
     [registrationId],
   );
   const slug = registration.rows[0]?.slug;
-  if (slug === undefined) return;
+  // A registration with no App slug is not a GitHub App (another provider's OAuth
+  // registration shares the table) and has no bot user to look up.
+  if (slug === undefined || slug === null) return;
   let botUserId: number | null;
   try {
     botUserId = await dependencies.github.getBotUser(slug, signal);

@@ -612,6 +612,10 @@ export async function recordDelivery(
   try {
     return await withPgTransaction(
       database,
+      // A backup holding the installation does not refuse a delivery: GitHub
+      // does not redeliver one that got a 503, so it would be lost. The receipt
+      // and its routes are stored; the consumers leave a route alone while the
+      // installation is held, and the recovery sweep resends it after.
       (transaction) => receive(transaction, prepared, context),
       context.signal,
     );

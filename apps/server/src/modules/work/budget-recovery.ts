@@ -5,10 +5,12 @@ import { type PgDatabase, withPgTransaction } from "../../platform/database.ts";
 import {
   type BudgetRecoveryFailureKind,
   clearBudgetRecoveryFailure,
+  findCanceledJobReleaseCandidates,
   findExpiredBudgetReleaseCandidates,
   findProviderUsageReceiptCandidates,
   reconcileProviderUsageReceipt,
   recordBudgetRecoveryFailure,
+  releaseCanceledJobReservation,
   releaseWorkflowAction,
 } from "./budget.ts";
 
@@ -114,6 +116,42 @@ export async function reconcileBudgetLedger(
         organizationId: candidate.organizationId,
         installationReservationId: candidate.installationReservationId,
         candidateId: candidate.evidenceId,
+        error,
+      });
+    }
+  }
+
+  // A canceled job's held reservation has no evidence row, so the sweep above
+  // never sees it: release those whose provider call never went out.
+  const canceledCandidates = await withPgTransaction(
+    database,
+    (transaction) => findCanceledJobReleaseCandidates(transaction, limit),
+  );
+  for (const candidate of canceledCandidates) {
+    try {
+      const released = await withPgTransaction(
+        database,
+        async (transaction) => {
+          const done = await releaseCanceledJobReservation(
+            transaction,
+            candidate,
+          );
+          await clearBudgetRecoveryFailure(transaction, {
+            kind: "release",
+            organizationId: candidate.organizationId,
+            candidateId: candidate.jobId,
+          });
+          return done;
+        },
+      );
+      if (released) releases++;
+    } catch (error) {
+      if (isEffectInFlight(error)) continue;
+      await rememberFailure(database, {
+        kind: "release",
+        organizationId: candidate.organizationId,
+        installationReservationId: candidate.installationReservationId,
+        candidateId: candidate.jobId,
         error,
       });
     }

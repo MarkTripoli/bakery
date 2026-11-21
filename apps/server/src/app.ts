@@ -4,14 +4,52 @@ import {
   type probeSkillStorage,
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
+import { createBackupRoutes } from "./modules/backups/actions.ts";
+import type { probeBackupDestination } from "./modules/backups/s3.ts";
+import type { HostResolver } from "./modules/backups/dns.ts";
+import {
+  type AlertChannelDependencies,
+  createAlertChannelRoutes,
+} from "./modules/monitoring/alert-channels.ts";
+import { createAlertEvaluator } from "./modules/monitoring/alert-evaluator.ts";
+import {
+  type AlertRuleDependencies,
+  createAlertRuleRoutes,
+} from "./modules/monitoring/alert-rules.ts";
+import {
+  createTelemetryDestinationRoutes,
+  type TelemetryDestinationDependencies,
+} from "./modules/monitoring/telemetry-destinations.ts";
+import {
+  allowAnyAddress,
+  createDestinationFanout,
+  createPinnedFetch,
+  createProviderRegistry,
+  createPublicHttpsPolicy,
+  otlpProvider,
+} from "./platform/telemetry-destinations/index.ts";
+import {
+  createEmailSettingsRoutes,
+  type EmailSettingsDependencies,
+} from "./modules/work/email-actions.ts";
+import { createClientCredentialsRoutes } from "./modules/integrations/client-credentials.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
+import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
+import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
+import {
+  TICKET_NOTE_ACTION,
+  TICKET_NOTE_UPDATE_ACTION,
+} from "./modules/catalog/integration-providers/github.ts";
+import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
+import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
+import { createEvaluationRoutes } from "./modules/evaluations/routes.ts";
 import {
   createFetchGitHubAppClient,
   createInstallationTokenBroker,
@@ -22,15 +60,19 @@ import {
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
 import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
+import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
 import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
 import { withPgTransaction } from "./platform/database.ts";
+import { createDesktopCors } from "./platform/desktop-cors.ts";
 import { createWorkflowsRoutes } from "./modules/workflows/index.ts";
 import { createAutomationsRoutes } from "./modules/workflows/automations/routes.ts";
 import {
   activateDeployedIntegrations,
   createCatalogRoutes,
   deployedIntegrations,
+  deployedProviders,
 } from "./modules/catalog/index.ts";
 import {
   createSkillSourceAdapter,
@@ -95,10 +137,18 @@ import {
   type EventsSocketLimits,
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
+import { createBatchRoutes } from "./modules/work/batch-routes.ts";
 import {
+  createMcpActionRegistry,
+  createMcpManagementRoutes,
+} from "./modules/mcp/routes.ts";
+import {
+  createGroupRoutes,
   createNotificationRoutes,
+  createRunRequestRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
+  registerNotificationProjection,
 } from "./modules/work/index.ts";
 import type {
   TicketFactIndex,
@@ -116,6 +166,17 @@ import {
 } from "./modules/projects/index.ts";
 
 import { createExecutionRoutes } from "./modules/execution/index.ts";
+import { createRunControlRegistry } from "./modules/execution/control.ts";
+import { createCatalogActionRegistry } from "./modules/catalog/actions.ts";
+import { createCatalogHandlers } from "./modules/catalog/persistence.ts";
+import {
+  createGlobalSkillAuthority,
+  withGlobalSkillInstall,
+} from "./modules/catalog/global-skills.ts";
+import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
+import { createAgentsHandlers } from "./modules/agents/postgres.ts";
+import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
+import { sessionOperationScopes } from "./modules/execution/session-tools.ts";
 import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
@@ -133,7 +194,20 @@ import {
   createConversationRoutes,
 } from "./modules/conversation/index.ts";
 import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts";
-import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
+import {
+  createApprovalRegistry,
+  createApprovalRoutes,
+} from "./modules/conversation/approval-routes.ts";
+
+/** The auth provider's password hashing, read from its initialized context; undefined for a provider that exposes none. */
+function providerPasswordHasher(auth: AuthHttpProvider) {
+  const context = auth.$context;
+  return context ? async () => (await context).password : undefined;
+}
+
+// The inbox is derived from committed domain events, so every process that
+// serves requests registers the projection once, before any event is written.
+registerNotificationProjection();
 
 export function createApp(options: {
   /**
@@ -160,10 +234,29 @@ export function createApp(options: {
   ticketReader?: TicketSourceReader;
   /** Fact index sync candidates come from; the stored-fact index by default. */
   ticketFactIndex?: TicketFactIndex;
+  /** Writes Bakery's status note on a ticket; the integration gate by default, an in-memory one in tests. */
+  ticketNoteWriter?: TicketNoteWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /** Destination test runner; tests inject one so no suite reaches a real bucket. */
+  backupDestinationProbe?: typeof probeBackupDestination;
+  /** Destination host resolver; tests inject one so no suite touches real DNS. */
+  backupDestinationResolver?: HostResolver;
+  /**
+   * The telemetry destinations the Monitoring settings manage: the adapters the
+   * server knows, the fan-out that delivers to them and how to reach a
+   * destination. The server's entry point builds it and shares the fan-out with
+   * its telemetry; left out, the routes run on a fan-out nothing feeds.
+   */
+  telemetryDestinations?: TelemetryDestinationDependencies;
+  /** Where alert messages go and how a send is made; tests inject a receiver. */
+  alertChannels?: AlertChannelDependencies;
+  /** How the test alert is sent; left out, it uses the channels' own fetch and address rules. */
+  alertRules?: AlertRuleDependencies;
+  /** Replaces the SMTP exchange of the installation email test (tests only). */
+  emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
   skillSourceLocatorNormalizer?: typeof normalizeSkillSourceLocator;
   skillImportProcessHooks?: SkillImportProcessHooks;
@@ -190,6 +283,8 @@ export function createApp(options: {
   // start disagreeing.
   const integrationRegistry = activateDeployedIntegrations(
     deployedIntegrations,
+    undefined,
+    deployedProviders,
   );
   if (!options.config.auth) throw new Error(AuthErrorCode.ConfigRequired);
   const installationSettings = options.installationSettings ??
@@ -277,6 +372,12 @@ export function createApp(options: {
     })
     : undefined;
   app.use("*", createPreviewHostDispatch(previewOrigin, previewHandler));
+  // The desktop web view's origins may call the API with a bearer credential. Mounted before
+  // every origin guard, because a preflight carries no credential and the guard would refuse it.
+  app.use(
+    "*",
+    createDesktopCors({ origins: options.config.auth.desktopOrigins }),
+  );
   app.route(
     "/",
     createHealthApp({
@@ -303,10 +404,55 @@ export function createApp(options: {
   );
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
+  // One approvals registry for the routes and for the session tools, so an
+  // agent's decision runs the same handler and guard a person's does.
+  // Run control for the session tools: the same handlers and guard as the route.
+  const runControlRegistry = createRunControlRegistry({
+    database: options.pgDatabase,
+    secret: options.config.auth.secret,
+    agentSpawn: options.config.agentSpawn,
+  });
+  const approvalRegistry = createApprovalRegistry({
+    database: options.pgDatabase,
+    cursorSecret: options.config.auth.secret,
+  });
   const conversationRegistry = createConversationRegistry({
     database: options.pgDatabase,
     cursorSecret: options.config.auth.secret,
   });
+  /**
+   * The catalog operations, built here once so the worker tool gateway and the
+   * catalog routes share a single registration. Two registrations would be two
+   * handlers to keep in step, and the first disagreement would make a session
+   * call something different from the route the rest of the product calls.
+   */
+  const catalogRegistry = createCatalogActionRegistry(
+    withGlobalSkillInstall(
+      createCatalogHandlers(options.config.auth.secret, {
+        normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+        // A draft is started from a published version's files, read from here.
+        skillFileStore,
+      }),
+    ),
+    {
+      // Listing skills installs Bakery's own skills the first time: it needs
+      // the file store, so the install runs in stages under this authority.
+      authorityRunner: createGlobalSkillAuthority(
+        new PostgresAuthorityRunner(options.pgDatabase),
+        skillFileStore,
+      ),
+      commandRunner: createPostgresCommandRunner(),
+      includeSkillVersionPublication: false,
+    },
+  );
+  /**
+   * Agent operations, built here for the same reason as the catalog ones: the
+   * worker tool gateway must call the same registration the agent routes serve.
+   */
+  const agentsRegistry = createAgentsActionRegistry(
+    options.pgDatabase,
+    createAgentsHandlers(options.config.auth.secret),
+  );
   const artifactActions = createArtifactActions({
     database: options.pgDatabase,
     publicBaseUrl: options.config.publicBaseUrl,
@@ -322,6 +468,7 @@ export function createApp(options: {
     options.taskHandlers ??
       createWorkTaskHandlers(options.config.auth.secret, {
         budget: options.config.budget,
+        agentSpawn: options.config.agentSpawn,
       }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
@@ -357,6 +504,7 @@ export function createApp(options: {
     installationSettings,
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
+    passwordHasher: providerPasswordHasher(auth),
   });
   app.route(
     "/",
@@ -558,16 +706,41 @@ export function createApp(options: {
       telemetry: options.telemetry,
       database: options.pgDatabase,
       browserSession,
+      // Reads of the storage tree and file search accept an access token (the
+      // command line); every write stays on the browser session.
+      tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
       skillFileStore,
       budget: options.config.budget,
+      agentSpawn: options.config.agentSpawn,
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
+      // The tool gateway's operations: whatever these registries already
+      // implement, narrowed to the operation map a session is defined by.
+      // Composed rather than re-registered so a session calls the same handler
+      // and the same authority guard as the route the rest of the product uses.
+      sessionTools: createSessionToolRegistry({
+        registries: [
+          taskRegistry,
+          catalogRegistry,
+          agentsRegistry,
+          artifactActions.registry,
+          approvalRegistry,
+          runControlRegistry,
+          // Connection drafts (#448 S9b): the same management registry the
+          // routes mount, so a draft runs the same handler and guard.
+          createMcpActionRegistry(options.pgDatabase, {
+            cursorSecret: options.config.auth.secret,
+            secretsKey: options.config.secretsKey,
+          }),
+        ],
+        offered: sessionOperationScopes(),
+      }),
       ...(skillFileStore
         ? {
           skillImport: {
@@ -611,6 +784,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      registry: approvalRegistry,
     }),
   );
   const projects = new Hono<{ Variables: AuthVariables }>();
@@ -656,6 +830,14 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createRouteContinuationRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
     createRepositoryRulesRoutes({
       database: options.pgDatabase,
       browserSession,
@@ -684,6 +866,11 @@ export function createApp(options: {
     "/",
     createPluginInstallRoutes({
       database: options.pgDatabase,
+      // Absent when no object store is configured; a page's document read
+      // then fails closed.
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
@@ -715,18 +902,82 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createBatchRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+      budget: options.config.budget,
+    }),
+  );
+  app.route(
+    "/",
+    createEvaluationRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createMcpManagementRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+      secretsKey: options.config.secretsKey,
+    }),
+  );
+  app.route(
+    "/",
     createTicketRoutes({
       database: options.pgDatabase,
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
-      reader: options.ticketReader ?? createTicketSourceReader({
-        ...integrations,
-        database: options.pgDatabase,
-      }),
+      // Chosen per source, by the provider its connection names: a build that
+      // deploys one provider's reader must not read another provider's sources
+      // with it. A provider with no reader here fails closed rather than falling
+      // back to whichever reader a map happened to yield first.
+      reader: options.ticketReader ?? selectTicketSourceReader(
+        new Map([
+          [
+            GITHUB_PROVIDER,
+            createTicketSourceReader({
+              ...integrations,
+              database: options.pgDatabase,
+            }),
+          ],
+        ]),
+      ),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
+      // The composition root names the provider whose comment action writes
+      // the note, as it names the webhook ingress below.
+      noteWriter: options.ticketNoteWriter ?? createGateTicketNoteWriter({
+        database: options.pgDatabase,
+        registry: integrationRegistry,
+        providerRequests,
+        noteActions: {
+          github: {
+            create: TICKET_NOTE_ACTION,
+            update: TICKET_NOTE_UPDATE_ACTION,
+          },
+        },
+      }),
     }),
+  );
+  app.route(
+    "/",
+    createRunRequestRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+    }),
+  );
+  app.route(
+    "/",
+    createGroupRoutes({ database: options.pgDatabase, session: tokenSession }),
   );
   app.route(
     "/",
@@ -746,6 +997,9 @@ export function createApp(options: {
       githubAppClient,
       broker: installationTokenBroker,
       cursorSecret: options.config.auth.secret,
+      // The webhook path is GitHub's, so the composition root - the one place
+      // that already names the GitHub App client above - names its ingress too.
+      ingress: githubIngress,
       // The one activated registry this process owns, bound above and handed to
       // the invoke door. Every consumer now reads the same set of deployed
       // providers instead of re-deriving one.
@@ -781,6 +1035,7 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
       budget: options.config.budget,
+      agentSpawn: options.config.agentSpawn,
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
@@ -806,6 +1061,68 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
+  // Outbound alert and telemetry sends dial only the addresses they checked, so
+  // a name that answers differently the second time cannot reach a private
+  // network. A test environment may run its receiver on loopback, over http.
+  const egressFetch = options.config.environment === "test"
+    ? fetch
+    : createPinnedFetch();
+  const alertChannelDependencies: AlertChannelDependencies =
+    options.alertChannels ?? {
+      secretsKey: options.config.secretsKey,
+      fetch: egressFetch,
+      // A test environment may run its receiver on loopback.
+      addressPolicy: options.config.environment === "test"
+        ? allowAnyAddress
+        : createPublicHttpsPolicy(),
+    };
+  app.route(
+    "/",
+    createAlertChannelRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      dependencies: alertChannelDependencies,
+    }),
+  );
+  app.route(
+    "/",
+    createAlertRuleRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      // The test alert goes through the same channels, fetch and address rules
+      // as the channel routes; the timed checks run from main.ts.
+      dependencies: options.alertRules ?? createAlertEvaluator({
+        database: options.pgDatabase,
+        ...alertChannelDependencies,
+      }),
+    }),
+  );
+  app.route(
+    "/",
+    createTelemetryDestinationRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+      dependencies: options.telemetryDestinations ?? {
+        registry: createProviderRegistry([otlpProvider]),
+        fanout: createDestinationFanout({
+          registry: createProviderRegistry([otlpProvider]),
+          dependencies: { fetch: egressFetch, addressPolicy: allowAnyAddress },
+        }),
+        providerDependencies: {
+          fetch: egressFetch,
+          // A test environment may run its receiver on loopback.
+          addressPolicy: options.config.environment === "test"
+            ? allowAnyAddress
+            : createPublicHttpsPolicy(),
+        },
+        secretsKey: options.config.secretsKey,
+      },
+    }),
+  );
   app.route(
     "/",
     createSkillStorageRoutes({
@@ -817,6 +1134,44 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createBackupRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secret: options.config.auth.secret,
+      settings: {
+        secretsKey: options.config.secretsKey,
+        allowLoopbackEndpoint: options.config.environment === "test",
+        probe: options.backupDestinationProbe,
+        resolve: options.backupDestinationResolver,
+      },
+    }),
+  );
+  app.route(
+    "/",
+    createClientCredentialsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secretsKey: options.config.secretsKey,
+    }),
+  );
+  app.route(
+    "/",
+    createEmailSettingsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      dependencies: {
+        secretsKey: options.config.secretsKey,
+        send: options.emailSend,
+        // Only a test environment may reach a loopback fixture over plain SMTP.
+        allowPlainLoopback: options.config.environment === "test",
+      },
+    }),
+  );
+  app.route(
+    "/",
     createCatalogRoutes({
       database: options.pgDatabase,
       browserSession,
@@ -824,7 +1179,9 @@ export function createApp(options: {
       cursorSecret: options.config.auth.secret,
       skillFileRoot: options.config.skillFileRoot?.root,
       skillFileStore,
+      sourceAdapter: skillSourceAdapter,
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+      registry: catalogRegistry,
     }),
   );
   return app;

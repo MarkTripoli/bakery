@@ -1,0 +1,23 @@
+[package]
+name = "bakery-desktop"
+version = "0.0.0"
+edition = "2021"
+description = "The Bakery desktop app: the Tauri shell around bakery-desktop-core."
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+bakery-desktop-core = { path = "../core" }
+tauri = { version = "2", features = [] }
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-opener = "2"
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls"] }
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"

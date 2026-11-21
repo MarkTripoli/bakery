@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "source": {
-    "revision": "ux-ruling:248#6942308107; app:1f1ba04f2d66d2783516ac1c46b42743c7331ea9",
-    "digest": "b2c47acfac7867cbf4927ae63a4d80191a21f2228f90e4c6c414db10f111df6f",
-    "rulingBodyPath": "docs/technical-design/ui-baselines/paper/rulings/248-6942308107.md",
-    "rulingBodySha256": "dc846368fedd3de7d6277dee93a2c33068c58b21aa8a134de065bc065a90c657",
+    "revision": "ux-ruling:241#7034092486; app:dd57ce20531ff7f2ffa471548810d1eba312da3e",
+    "digest": "67cea1eee96ac8de65d7746a5ad30906bdd9ea29abcf691cf4b8eaf887243e7d",
+    "rulingBodyPath": "docs/technical-design/ui-baselines/paper/rulings/241-7034092486.md",
+    "rulingBodySha256": "0b5a5bc1ab515ba82de8a27befb869ad3fec14c01d04291c620ca89f1cdc7217",
     "manifestPath": "docs/technical-design/auth-mocks/paper-manifest.json",
     "fileId": "01M1X504XVC45FC0VDK857A37D",
     "pageId": "V-0",
@@ -163,7 +163,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--github-disabled--light--desktop.png",
-      "imageSha256": "961ac329f8521cca86a65428caf9428e4aa22a0688e326e3d2e22c962ce21bd8",
+      "imageSha256": "d294ea849dbfcc5833755d59d6a2fcd7cb3e3e8504a648ad59d32cf455e7cafa",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -195,7 +195,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.github-disabled.light.phone",
@@ -209,7 +209,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--github-disabled--light--phone.png",
-      "imageSha256": "fbdf9f39b9cb48a233621acbb93768b0ab93945999ac3103efb798aec3e9a8a8",
+      "imageSha256": "0abdda47ef9bba845e64e25809aedf4a1882ac6169eb69c7c8c276a94a9a1104",
       "viewport": {
         "width": 390,
         "height": 844
@@ -241,7 +241,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.github-disabled.dark.desktop",
@@ -255,7 +255,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--github-disabled--dark--desktop.png",
-      "imageSha256": "2e6fd2a9315b2a2f290b434a4075662f1ff9b9a23755f97486c08b50b81e18a0",
+      "imageSha256": "725e03d122816e47937b323ae640df3425d95e67ca5e50456aa2ec3e2dc461b3",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -287,7 +287,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.github-disabled.dark.phone",
@@ -301,7 +301,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--github-disabled--dark--phone.png",
-      "imageSha256": "afe5656a268ed43f89db981c2de94978b7897e059a3856ce4911fa16908514b2",
+      "imageSha256": "b3ccf6f734e292ebdb96d3c5493c62e6f88dc87eceb6efa451eec8d1535270f0",
       "viewport": {
         "width": 390,
         "height": 844
@@ -333,7 +333,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.invalid.light.desktop",
@@ -347,7 +347,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--invalid--light--desktop.png",
-      "imageSha256": "20d783bf1520e1110cebdd66ac0f8a1fc204bba1a779247b82ff39a93b60dd6e",
+      "imageSha256": "f22a6aff83fb92b8258d164d32bca2956d278c9c2a754d45db943272405965b7",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -379,7 +379,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.invalid.light.phone",
@@ -393,7 +393,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--invalid--light--phone.png",
-      "imageSha256": "890b28215ac8b60868bfb315dff306d85e1715d60c0d55186155cf2233660cad",
+      "imageSha256": "03e1d0ad56dac043460616fd32e47f2d90f8618d5990340585c64860789eb4c7",
       "viewport": {
         "width": 390,
         "height": 844
@@ -425,7 +425,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.invalid.dark.desktop",
@@ -439,7 +439,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--invalid--dark--desktop.png",
-      "imageSha256": "3fb0b752fb5f300d39cf9ac5240fcaa9b0380d0a3d573edd99ca0b42b494ff3a",
+      "imageSha256": "ed4e4c3f4ad550cc6930da3ff9f96cf19fb9ada689b67ac8e0aba7a8604f2205",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -471,7 +471,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.invalid.dark.phone",
@@ -485,7 +485,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--invalid--dark--phone.png",
-      "imageSha256": "bab030264c4fc7794bbb693027d97a564cee7c3705f087e1913a0763608a836b",
+      "imageSha256": "6d25826f944241c0fc353fa70ae78074e8260e9f14c7b31ddbba5bf0085c5b9f",
       "viewport": {
         "width": 390,
         "height": 844
@@ -517,7 +517,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.offline.light.desktop",
@@ -531,7 +531,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--offline--light--desktop.png",
-      "imageSha256": "ce4567fd4b8058b2dea182b45e2b941b8c6be968e38ebaa10bbbc8b1172a70f0",
+      "imageSha256": "49e7e8e992848a77f9be62dede335c7262c6b54f42033a00370ffe80ca43958a",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -563,7 +563,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.offline.light.phone",
@@ -577,7 +577,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--offline--light--phone.png",
-      "imageSha256": "863e80960d93dadbd9fa12d1de4b9e7c0ef7044221d9af003b6d6f68f9258e03",
+      "imageSha256": "cb4db65d313a87d69fd9245f32a248f514cf213cee37f4a8c793d242a3d93870",
       "viewport": {
         "width": 390,
         "height": 844
@@ -609,7 +609,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.offline.dark.desktop",
@@ -623,7 +623,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--offline--dark--desktop.png",
-      "imageSha256": "f4910d3965925692af8d63f4b4c51b0a55d04d2ae1aa38a5db107ce7c5bdbcfa",
+      "imageSha256": "15f48a26f13d6746252164884373c8a5955bfb586cccbf04e46f27f7f017938e",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -655,7 +655,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.offline.dark.phone",
@@ -669,7 +669,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--offline--dark--phone.png",
-      "imageSha256": "d44a845496293685961f0b8d0abad5d21c93fa975b7848d023dbb05d4242e4bb",
+      "imageSha256": "fbf4f43dc872794d3f7e56932f082d9d0eb6077d81f6e7701d86e80a565a7114",
       "viewport": {
         "width": 390,
         "height": 844
@@ -701,7 +701,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.unavailable.light.desktop",
@@ -715,7 +715,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--unavailable--light--desktop.png",
-      "imageSha256": "b250c5514887119359366b9b029d9514eb1b2af511a173531b3bb96065d61637",
+      "imageSha256": "a174f48ffbbc437283a98083821c577569038ce5dd3ef903e0ed2045e89fa11e",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -747,7 +747,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.unavailable.light.phone",
@@ -761,7 +761,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--unavailable--light--phone.png",
-      "imageSha256": "f2fdac8ff08afad9ef305dc32d8c332425e40fd9bdb41406f0e596d88c0b1562",
+      "imageSha256": "d7b649f5c50df9b6ea273eed46aff4c7b36e3881c0cf054955c11a36674f1886",
       "viewport": {
         "width": 390,
         "height": 844
@@ -793,7 +793,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.unavailable.dark.desktop",
@@ -807,7 +807,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--unavailable--dark--desktop.png",
-      "imageSha256": "c1c401636a5e82a2a9701aee3a5c7e1df63d73a804698ac9c03cecf325c6cf3d",
+      "imageSha256": "f7ee9a1d066d45568cdcff4e78e5571482c3d9e45d9214d0185b29e79a6b8fa5",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -839,7 +839,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.unavailable.dark.phone",
@@ -853,7 +853,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--unavailable--dark--phone.png",
-      "imageSha256": "1f7676a76a684c21afe5cfdf8ed944de4f7952cc64c7076452c0c15e67d248a1",
+      "imageSha256": "5d4ffe43dd650b89987d6d29e1dfba6e149d8bab58902ff42c46e59225a231af",
       "viewport": {
         "width": 390,
         "height": 844
@@ -885,7 +885,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "expired.default.light.desktop",
@@ -931,7 +931,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "expired.default.light.phone",
@@ -977,7 +977,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "expired.default.dark.desktop",
@@ -1023,7 +1023,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "expired.default.dark.phone",
@@ -1069,7 +1069,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.default.light.desktop",
@@ -1115,7 +1115,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.default.light.phone",
@@ -1161,7 +1161,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.default.dark.desktop",
@@ -1207,7 +1207,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.default.dark.phone",
@@ -1253,7 +1253,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.invalid.light.desktop",
@@ -1299,7 +1299,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.invalid.light.phone",
@@ -1345,7 +1345,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.invalid.dark.desktop",
@@ -1391,7 +1391,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.invalid.dark.phone",
@@ -1437,7 +1437,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.no-access.light.desktop",
@@ -1483,7 +1483,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.no-access.light.phone",
@@ -1529,7 +1529,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.no-access.dark.desktop",
@@ -1575,7 +1575,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.no-access.dark.phone",
@@ -1621,7 +1621,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-codes.copied.light.desktop",
@@ -1674,7 +1674,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -1733,7 +1733,7 @@
         "height": 685,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -1792,7 +1792,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -1851,7 +1851,7 @@
         "height": 685,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -1910,7 +1910,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -1969,7 +1969,7 @@
         "height": 665,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2028,7 +2028,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -2087,7 +2087,7 @@
         "height": 665,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2146,7 +2146,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -2205,7 +2205,7 @@
         "height": 655,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2264,7 +2264,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -2323,7 +2323,7 @@
         "height": 655,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2382,7 +2382,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -2441,7 +2441,7 @@
         "height": 608,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2500,7 +2500,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -2559,7 +2559,7 @@
         "height": 608,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2618,7 +2618,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -2677,7 +2677,7 @@
         "height": 665,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2736,7 +2736,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -2795,7 +2795,7 @@
         "height": 665,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -2847,7 +2847,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.accepted.light.phone",
@@ -2893,7 +2893,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.accepted.dark.desktop",
@@ -2939,7 +2939,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.accepted.dark.phone",
@@ -2985,7 +2985,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.authenticated.light.desktop",
@@ -3031,7 +3031,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.authenticated.light.phone",
@@ -3077,7 +3077,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.authenticated.dark.desktop",
@@ -3123,7 +3123,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.authenticated.dark.phone",
@@ -3169,7 +3169,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.declined.light.desktop",
@@ -3215,7 +3215,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.declined.light.phone",
@@ -3261,7 +3261,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.declined.dark.desktop",
@@ -3307,7 +3307,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.declined.dark.phone",
@@ -3353,7 +3353,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.default.light.desktop",
@@ -3399,7 +3399,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.default.light.phone",
@@ -3445,7 +3445,7 @@
         "width": 390,
         "height": 912
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.default.dark.desktop",
@@ -3491,7 +3491,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.default.dark.phone",
@@ -3537,7 +3537,7 @@
         "width": 390,
         "height": 912
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.revoked.light.desktop",
@@ -3583,7 +3583,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.revoked.light.phone",
@@ -3629,7 +3629,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.revoked.dark.desktop",
@@ -3675,7 +3675,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.revoked.dark.phone",
@@ -3721,7 +3721,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.wrong-account.light.desktop",
@@ -3767,7 +3767,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.wrong-account.light.phone",
@@ -3813,7 +3813,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.wrong-account.dark.desktop",
@@ -3859,7 +3859,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite.wrong-account.dark.phone",
@@ -3905,7 +3905,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.default.light.desktop",
@@ -3951,7 +3951,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.default.light.phone",
@@ -3997,7 +3997,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.default.dark.desktop",
@@ -4043,7 +4043,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.default.dark.phone",
@@ -4089,7 +4089,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.invalid.light.desktop",
@@ -4135,7 +4135,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.invalid.light.phone",
@@ -4181,7 +4181,7 @@
         "width": 390,
         "height": 927
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.invalid.dark.desktop",
@@ -4227,7 +4227,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.invalid.dark.phone",
@@ -4273,7 +4273,7 @@
         "width": 390,
         "height": 927
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "join.default.light.desktop",
@@ -4319,7 +4319,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "join.default.light.phone",
@@ -4365,7 +4365,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "join.default.dark.desktop",
@@ -4411,7 +4411,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "join.default.dark.phone",
@@ -4457,7 +4457,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.default.light.desktop",
@@ -4503,7 +4503,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.default.light.phone",
@@ -4549,7 +4549,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.default.dark.desktop",
@@ -4595,7 +4595,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.default.dark.phone",
@@ -4641,7 +4641,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.empty.light.desktop",
@@ -4687,7 +4687,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.empty.light.phone",
@@ -4733,7 +4733,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.empty.dark.desktop",
@@ -4779,7 +4779,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.empty.dark.phone",
@@ -4825,7 +4825,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.removed.light.desktop",
@@ -4871,7 +4871,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.removed.light.phone",
@@ -4917,7 +4917,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.removed.dark.desktop",
@@ -4963,7 +4963,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "organizations.removed.dark.phone",
@@ -5009,7 +5009,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.default.light.desktop",
@@ -5055,7 +5055,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.default.light.phone",
@@ -5101,7 +5101,7 @@
         "width": 390,
         "height": 1002
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.default.dark.desktop",
@@ -5147,7 +5147,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.default.dark.phone",
@@ -5193,7 +5193,7 @@
         "width": 390,
         "height": 1002
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.existing.light.desktop",
@@ -5239,7 +5239,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.existing.light.phone",
@@ -5285,7 +5285,7 @@
         "width": 390,
         "height": 1094
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.existing.dark.desktop",
@@ -5331,7 +5331,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.existing.dark.phone",
@@ -5377,7 +5377,7 @@
         "width": 390,
         "height": 1094
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.invalid.light.desktop",
@@ -5423,7 +5423,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.invalid.light.phone",
@@ -5469,7 +5469,7 @@
         "width": 390,
         "height": 1075
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.invalid.dark.desktop",
@@ -5515,7 +5515,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.invalid.dark.phone",
@@ -5561,7 +5561,7 @@
         "width": 390,
         "height": 1075
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "revoke.default.light.desktop",
@@ -5614,7 +5614,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -5673,7 +5673,7 @@
         "height": 272,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -5732,7 +5732,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -5791,7 +5791,7 @@
         "height": 272,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -5850,7 +5850,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -5909,7 +5909,7 @@
         "height": 250,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -5968,7 +5968,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6027,7 +6027,7 @@
         "height": 250,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6086,7 +6086,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6145,7 +6145,7 @@
         "height": 272,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6204,7 +6204,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6263,7 +6263,7 @@
         "height": 272,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6322,7 +6322,7 @@
         "height": 917,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6381,7 +6381,7 @@
         "height": 885,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6440,7 +6440,7 @@
         "height": 917,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6499,7 +6499,7 @@
         "height": 885,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6558,7 +6558,7 @@
         "height": 917,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6617,7 +6617,7 @@
         "height": 904,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6676,7 +6676,7 @@
         "height": 917,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6735,7 +6735,7 @@
         "height": 904,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6794,7 +6794,7 @@
         "height": 991,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6853,7 +6853,7 @@
         "height": 955,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -6912,7 +6912,7 @@
         "height": 991,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -6971,7 +6971,7 @@
         "height": 955,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -7030,7 +7030,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -7089,7 +7089,7 @@
         "height": 487,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -7148,7 +7148,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -7207,7 +7207,7 @@
         "height": 487,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -7266,7 +7266,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -7325,7 +7325,7 @@
         "height": 350,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -7384,7 +7384,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -7443,7 +7443,7 @@
         "height": 350,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -7502,7 +7502,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -7561,7 +7561,7 @@
         "height": 557,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -7620,7 +7620,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -7679,7 +7679,7 @@
         "height": 557,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -7731,7 +7731,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "setup.default.light.phone",
@@ -7777,7 +7777,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "setup.default.dark.desktop",
@@ -7823,7 +7823,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "setup.default.dark.phone",
@@ -7869,7 +7869,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "setup.ready.light.desktop",
@@ -7915,7 +7915,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "setup.ready.light.phone",
@@ -7961,7 +7961,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "setup.ready.dark.desktop",
@@ -8007,7 +8007,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "setup.ready.dark.phone",
@@ -8053,7 +8053,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.default.light.desktop",
@@ -8099,7 +8099,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.default.light.phone",
@@ -8145,7 +8145,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.default.dark.desktop",
@@ -8191,7 +8191,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.default.dark.phone",
@@ -8237,7 +8237,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.success.light.desktop",
@@ -8283,7 +8283,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.success.light.phone",
@@ -8329,7 +8329,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.success.dark.desktop",
@@ -8375,7 +8375,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "signout.success.dark.phone",
@@ -8421,7 +8421,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.default.light.desktop",
@@ -8467,7 +8467,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.default.light.phone",
@@ -8513,7 +8513,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.default.dark.desktop",
@@ -8559,7 +8559,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.default.dark.phone",
@@ -8605,7 +8605,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.expired.light.desktop",
@@ -8651,7 +8651,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.expired.light.phone",
@@ -8697,7 +8697,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.expired.dark.desktop",
@@ -8743,7 +8743,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.expired.dark.phone",
@@ -8789,7 +8789,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.invalid.light.desktop",
@@ -8835,7 +8835,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.invalid.light.phone",
@@ -8881,7 +8881,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.invalid.dark.desktop",
@@ -8927,7 +8927,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.invalid.dark.phone",
@@ -8973,7 +8973,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.rate-limited.light.desktop",
@@ -9019,7 +9019,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.rate-limited.light.phone",
@@ -9065,7 +9065,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.rate-limited.dark.desktop",
@@ -9111,7 +9111,7 @@
         "width": 1440,
         "height": 960
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.rate-limited.dark.phone",
@@ -9157,7 +9157,7 @@
         "width": 390,
         "height": 844
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-disable.default.light.desktop",
@@ -9210,7 +9210,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -9269,7 +9269,7 @@
         "height": 618,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -9328,7 +9328,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -9387,7 +9387,7 @@
         "height": 618,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -9446,7 +9446,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -9505,7 +9505,7 @@
         "height": 296,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -9564,7 +9564,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -9623,7 +9623,7 @@
         "height": 296,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -9682,7 +9682,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -9741,7 +9741,7 @@
         "height": 618,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -9800,7 +9800,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -9859,7 +9859,7 @@
         "height": 618,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -9918,7 +9918,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -9977,7 +9977,7 @@
         "height": 341,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10036,7 +10036,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10095,7 +10095,7 @@
         "height": 341,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10154,7 +10154,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10213,7 +10213,7 @@
         "height": 318,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10272,7 +10272,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10331,7 +10331,7 @@
         "height": 318,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10390,7 +10390,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10449,7 +10449,7 @@
         "height": 810,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10508,7 +10508,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10567,7 +10567,7 @@
         "height": 810,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10626,7 +10626,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10685,7 +10685,7 @@
         "height": 790,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10744,7 +10744,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10803,7 +10803,7 @@
         "height": 790,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10862,7 +10862,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -10921,7 +10921,7 @@
         "height": 391,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -10980,7 +10980,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -11039,7 +11039,7 @@
         "height": 391,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -11098,7 +11098,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -11157,7 +11157,7 @@
         "height": 455,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -11216,7 +11216,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -11275,7 +11275,7 @@
         "height": 455,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -11334,7 +11334,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -11393,7 +11393,7 @@
         "height": 523,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -11452,7 +11452,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -11511,197 +11511,13 @@
         "height": 523,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
         "width": 390,
         "height": 523
       }
-    },
-    {
-      "id": "login.throttled.light.desktop",
-      "reference": "design",
-      "frameId": "KY8-0",
-      "pageId": "V-0",
-      "design": {
-        "screen": "login",
-        "state": "throttled",
-        "theme": "light",
-        "device": "desktop"
-      },
-      "imagePath": "docs/technical-design/ui-baselines/paper/design/login--throttled--light--desktop.png",
-      "imageSha256": "b50ea42ee777160c1cd6417c13431e7b2f5abb738ce793d269d13b30d401e883",
-      "viewport": {
-        "width": 1440,
-        "height": 960
-      },
-      "artboard": {
-        "width": 1440,
-        "height": 960
-      },
-      "dpr": 1,
-      "theme": "light",
-      "pointer": "fine",
-      "locale": "en-US",
-      "direction": "ltr",
-      "browser": "chromium",
-      "os": "linux-x64",
-      "fontDigests": {
-        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
-        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
-        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
-      },
-      "candidate": {
-        "route": "/__fixtures__/auth/login-throttled",
-        "session": "anonymous"
-      },
-      "image": {
-        "width": 1440,
-        "height": 960
-      },
-      "designRuling": "248#6942308107"
-    },
-    {
-      "id": "login.throttled.light.phone",
-      "reference": "design",
-      "frameId": "KZS-0",
-      "pageId": "V-0",
-      "design": {
-        "screen": "login",
-        "state": "throttled",
-        "theme": "light",
-        "device": "phone"
-      },
-      "imagePath": "docs/technical-design/ui-baselines/paper/design/login--throttled--light--phone.png",
-      "imageSha256": "4a5c245fd797ba600b93c23ab2983750e159cf76ed43d5be40c184c8b2c895dc",
-      "viewport": {
-        "width": 390,
-        "height": 844
-      },
-      "artboard": {
-        "width": 390,
-        "height": 844
-      },
-      "dpr": 1,
-      "theme": "light",
-      "pointer": "coarse",
-      "locale": "en-US",
-      "direction": "ltr",
-      "browser": "chromium",
-      "os": "linux-x64",
-      "fontDigests": {
-        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
-        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
-        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
-      },
-      "candidate": {
-        "route": "/__fixtures__/auth/login-throttled",
-        "session": "anonymous"
-      },
-      "image": {
-        "width": 390,
-        "height": 844
-      },
-      "designRuling": "248#6942308107"
-    },
-    {
-      "id": "login.throttled.dark.desktop",
-      "reference": "design",
-      "frameId": "XD9-0",
-      "pageId": "V-0",
-      "design": {
-        "screen": "login",
-        "state": "throttled",
-        "theme": "dark",
-        "device": "desktop"
-      },
-      "imagePath": "docs/technical-design/ui-baselines/paper/design/login--throttled--dark--desktop.png",
-      "imageSha256": "3819503d32215fb629f2dc58bc87f8cfa99d9a6a75424e972f508d54defac904",
-      "viewport": {
-        "width": 1440,
-        "height": 960
-      },
-      "artboard": {
-        "width": 1440,
-        "height": 960
-      },
-      "dpr": 1,
-      "theme": "dark",
-      "pointer": "fine",
-      "locale": "en-US",
-      "direction": "ltr",
-      "browser": "chromium",
-      "os": "linux-x64",
-      "fontDigests": {
-        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
-        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
-        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
-      },
-      "candidate": {
-        "route": "/__fixtures__/auth/login-throttled",
-        "session": "anonymous"
-      },
-      "image": {
-        "width": 1440,
-        "height": 960
-      },
-      "designRuling": "248#6942308107"
-    },
-    {
-      "id": "login.throttled.dark.phone",
-      "reference": "design",
-      "frameId": "XEL-0",
-      "pageId": "V-0",
-      "design": {
-        "screen": "login",
-        "state": "throttled",
-        "theme": "dark",
-        "device": "phone"
-      },
-      "imagePath": "docs/technical-design/ui-baselines/paper/design/login--throttled--dark--phone.png",
-      "imageSha256": "01d3ae567e5babb47b1cf7d3af0c11d4008e86fb4f17b224456f2eaec1409aa7",
-      "viewport": {
-        "width": 390,
-        "height": 844
-      },
-      "artboard": {
-        "width": 390,
-        "height": 844
-      },
-      "dpr": 1,
-      "theme": "dark",
-      "pointer": "coarse",
-      "locale": "en-US",
-      "direction": "ltr",
-      "browser": "chromium",
-      "os": "linux-x64",
-      "fontDigests": {
-        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
-        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
-        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
-        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
-      },
-      "candidate": {
-        "route": "/__fixtures__/auth/login-throttled",
-        "session": "anonymous"
-      },
-      "image": {
-        "width": 390,
-        "height": 844
-      },
-      "designRuling": "248#6942308107"
     },
     {
       "id": "login.loading.light.desktop",
@@ -11715,7 +11531,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--loading--light--desktop.png",
-      "imageSha256": "4b7912881e15d91cf24af910e36f86cbc92963d493320c52a7a98672e4fe1edd",
+      "imageSha256": "272b39694b016d5e4feebcfd48010f9f831c8f71f7fdf783c813e0f0fc10b423",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -11747,7 +11563,7 @@
         "route": "/__fixtures__/auth/login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.loading.light.phone",
@@ -11761,7 +11577,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--loading--light--phone.png",
-      "imageSha256": "0baa69d93ce916ead303ac16abe5d3ac6598c659587cd4f5297d4b75197790e4",
+      "imageSha256": "cb4d703251ed40e026ed7f5e44c67a50f96bc939ae4997d6c3b0bd613c4157a6",
       "viewport": {
         "width": 390,
         "height": 844
@@ -11793,7 +11609,7 @@
         "route": "/__fixtures__/auth/login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.loading.dark.desktop",
@@ -11807,7 +11623,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--loading--dark--desktop.png",
-      "imageSha256": "ad3758ced7addf579923dd0a5b4400398a09c1aeb37961505335aa9d41d6486f",
+      "imageSha256": "23056a68bdd1b35332760f5f1ed7a376303b49de96d9afbb0d89539f133bd840",
       "viewport": {
         "width": 1440,
         "height": 960
@@ -11839,7 +11655,7 @@
         "route": "/__fixtures__/auth/login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "login.loading.dark.phone",
@@ -11853,7 +11669,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/design/login--loading--dark--phone.png",
-      "imageSha256": "55b455cc2292b1413d14b569515a33d70091c3668437dc3abb7336de4d057435",
+      "imageSha256": "73d2889c5642db60be6052d85284683af23826da0679b0b304459cbdf8d9e2f0",
       "viewport": {
         "width": 390,
         "height": 844
@@ -11885,7 +11701,7 @@
         "route": "/__fixtures__/auth/login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.loading.light.desktop",
@@ -11931,7 +11747,7 @@
         "route": "/__fixtures__/auth/invite-login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.loading.light.phone",
@@ -11977,7 +11793,7 @@
         "route": "/__fixtures__/auth/invite-login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.loading.dark.desktop",
@@ -12023,7 +11839,7 @@
         "route": "/__fixtures__/auth/invite-login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "invite-login.loading.dark.phone",
@@ -12069,7 +11885,7 @@
         "route": "/__fixtures__/auth/invite-login-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.loading.light.desktop",
@@ -12115,7 +11931,7 @@
         "route": "/__fixtures__/auth/register-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.loading.light.phone",
@@ -12161,7 +11977,7 @@
         "route": "/__fixtures__/auth/register-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.loading.dark.desktop",
@@ -12207,7 +12023,7 @@
         "route": "/__fixtures__/auth/register-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "register.loading.dark.phone",
@@ -12253,7 +12069,7 @@
         "route": "/__fixtures__/auth/register-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.loading.light.desktop",
@@ -12299,7 +12115,7 @@
         "route": "/__fixtures__/auth/totp-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.loading.light.phone",
@@ -12345,7 +12161,7 @@
         "route": "/__fixtures__/auth/totp-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.loading.dark.desktop",
@@ -12391,7 +12207,7 @@
         "route": "/__fixtures__/auth/totp-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-challenge.loading.dark.phone",
@@ -12437,7 +12253,7 @@
         "route": "/__fixtures__/auth/totp-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.loading.light.desktop",
@@ -12483,7 +12299,7 @@
         "route": "/__fixtures__/auth/backup-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.loading.light.phone",
@@ -12529,7 +12345,7 @@
         "route": "/__fixtures__/auth/backup-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.loading.dark.desktop",
@@ -12575,7 +12391,7 @@
         "route": "/__fixtures__/auth/backup-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "backup-challenge.loading.dark.phone",
@@ -12621,7 +12437,7 @@
         "route": "/__fixtures__/auth/backup-challenge-loading",
         "session": "anonymous"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "totp-setup.loading.light.desktop",
@@ -12674,7 +12490,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -12733,7 +12549,7 @@
         "height": 790,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -12792,7 +12608,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -12851,7 +12667,7 @@
         "height": 790,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -13772,7 +13588,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -13831,7 +13647,7 @@
         "height": 430,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -13890,7 +13706,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -13949,7 +13765,7 @@
         "height": 430,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14008,7 +13824,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14067,7 +13883,7 @@
         "height": 569,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14126,7 +13942,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14185,7 +14001,7 @@
         "height": 569,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14244,7 +14060,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14303,7 +14119,7 @@
         "height": 430,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14362,7 +14178,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14421,7 +14237,7 @@
         "height": 430,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14480,7 +14296,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14539,7 +14355,7 @@
         "height": 440,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14598,7 +14414,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14657,7 +14473,7 @@
         "height": 440,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14716,7 +14532,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14775,7 +14591,7 @@
         "height": 351,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14834,7 +14650,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -14893,7 +14709,7 @@
         "height": 351,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -14952,7 +14768,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15011,7 +14827,7 @@
         "height": 404,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15070,7 +14886,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15129,7 +14945,7 @@
         "height": 404,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15188,7 +15004,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15247,7 +15063,7 @@
         "height": 533,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15306,7 +15122,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15365,7 +15181,7 @@
         "height": 533,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15424,7 +15240,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15483,7 +15299,7 @@
         "height": 555,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15542,7 +15358,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15601,7 +15417,7 @@
         "height": 555,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15660,7 +15476,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15719,7 +15535,7 @@
         "height": 337,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15778,7 +15594,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15837,7 +15653,7 @@
         "height": 337,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -15896,7 +15712,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -15955,7 +15771,7 @@
         "height": 248,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16014,7 +15830,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -16073,7 +15889,7 @@
         "height": 248,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16132,7 +15948,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -16191,7 +16007,7 @@
         "height": 478,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16250,7 +16066,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -16309,7 +16125,7 @@
         "height": 478,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16368,7 +16184,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -16427,7 +16243,7 @@
         "height": 250,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16486,7 +16302,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -16545,7 +16361,7 @@
         "height": 250,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16604,7 +16420,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -16663,7 +16479,7 @@
         "height": 296,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16722,7 +16538,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -16781,7 +16597,7 @@
         "height": 296,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -16833,7 +16649,7 @@
         "route": "/__fixtures__/auth/reauth-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.default.light.phone",
@@ -16879,7 +16695,7 @@
         "route": "/__fixtures__/auth/reauth-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.default.dark.desktop",
@@ -16925,7 +16741,7 @@
         "route": "/__fixtures__/auth/reauth-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.default.dark.phone",
@@ -16971,7 +16787,7 @@
         "route": "/__fixtures__/auth/reauth-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.invalid.light.desktop",
@@ -17017,7 +16833,7 @@
         "route": "/__fixtures__/auth/reauth-invalid",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.invalid.light.phone",
@@ -17063,7 +16879,7 @@
         "route": "/__fixtures__/auth/reauth-invalid",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.invalid.dark.desktop",
@@ -17109,7 +16925,7 @@
         "route": "/__fixtures__/auth/reauth-invalid",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.invalid.dark.phone",
@@ -17155,7 +16971,7 @@
         "route": "/__fixtures__/auth/reauth-invalid",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.loading.light.desktop",
@@ -17201,7 +17017,7 @@
         "route": "/__fixtures__/auth/reauth-loading",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.loading.light.phone",
@@ -17247,7 +17063,7 @@
         "route": "/__fixtures__/auth/reauth-loading",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.loading.dark.desktop",
@@ -17293,7 +17109,7 @@
         "route": "/__fixtures__/auth/reauth-loading",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "reauth.loading.dark.phone",
@@ -17339,7 +17155,7 @@
         "route": "/__fixtures__/auth/reauth-loading",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "clients.empty.light.desktop",
@@ -17392,7 +17208,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -17451,7 +17267,7 @@
         "height": 200,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -17510,7 +17326,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -17569,7 +17385,7 @@
         "height": 200,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -17628,7 +17444,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -17687,7 +17503,7 @@
         "height": 270,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -17746,7 +17562,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -17805,7 +17621,7 @@
         "height": 270,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -17864,7 +17680,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -17923,7 +17739,7 @@
         "height": 340,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -17982,7 +17798,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -18041,7 +17857,7 @@
         "height": 340,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -18100,7 +17916,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -18159,7 +17975,7 @@
         "height": 274,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -18218,7 +18034,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -18277,7 +18093,7 @@
         "height": 274,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -18329,7 +18145,7 @@
         "route": "/__fixtures__/auth/consent-denied",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.denied.light.phone",
@@ -18375,7 +18191,7 @@
         "route": "/__fixtures__/auth/consent-denied",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.denied.dark.desktop",
@@ -18421,7 +18237,7 @@
         "route": "/__fixtures__/auth/consent-denied",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.denied.dark.phone",
@@ -18467,7 +18283,7 @@
         "route": "/__fixtures__/auth/consent-denied",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.expired.light.desktop",
@@ -18513,7 +18329,7 @@
         "route": "/__fixtures__/auth/consent-expired",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.expired.light.phone",
@@ -18559,7 +18375,7 @@
         "route": "/__fixtures__/auth/consent-expired",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.expired.dark.desktop",
@@ -18605,7 +18421,7 @@
         "route": "/__fixtures__/auth/consent-expired",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.expired.dark.phone",
@@ -18651,7 +18467,7 @@
         "route": "/__fixtures__/auth/consent-expired",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.success.light.desktop",
@@ -18697,7 +18513,7 @@
         "route": "/__fixtures__/auth/consent-success",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.success.light.phone",
@@ -18743,7 +18559,7 @@
         "route": "/__fixtures__/auth/consent-success",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.success.dark.desktop",
@@ -18789,7 +18605,7 @@
         "route": "/__fixtures__/auth/consent-success",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.success.dark.phone",
@@ -18835,7 +18651,7 @@
         "route": "/__fixtures__/auth/consent-success",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.default.light.desktop",
@@ -18881,7 +18697,7 @@
         "route": "/__fixtures__/auth/consent-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.default.dark.desktop",
@@ -18927,7 +18743,7 @@
         "route": "/__fixtures__/auth/consent-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "clients.default.light.desktop",
@@ -18980,7 +18796,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -19039,7 +18855,7 @@
         "height": 275,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -19098,7 +18914,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -19157,7 +18973,7 @@
         "height": 275,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -19209,7 +19025,7 @@
         "route": "/__fixtures__/auth/consent-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "consent.default.dark.phone",
@@ -19255,7 +19071,7 @@
         "route": "/__fixtures__/auth/consent-default",
         "session": "authenticated"
       },
-      "designRuling": "248#6942308107"
+      "designRuling": "241#7034092486"
     },
     {
       "id": "passkey-add.prompt.light.desktop",
@@ -19308,7 +19124,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -19367,7 +19183,7 @@
         "height": 422,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -19426,7 +19242,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -19485,7 +19301,7 @@
         "height": 422,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -19544,7 +19360,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -19603,7 +19419,7 @@
         "height": 268,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,
@@ -19662,7 +19478,7 @@
         "height": 896,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 208,
         "y": 64,
@@ -19721,7 +19537,7 @@
         "height": 268,
         "candidateOrigin": "main"
       },
-      "designRuling": "248#6942308107",
+      "designRuling": "241#7034092486",
       "referenceClip": {
         "x": 0,
         "y": 117,

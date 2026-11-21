@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Combobox, Stack } from "@bakery/ui";
+import { Combobox, HelpTip, Stack } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Molecules/Combobox",
@@ -30,6 +30,16 @@ export const Contract: StoryObj = {
           value: "astra",
           label: "Astra",
         }]}
+      />
+      <Combobox
+        label="Fact"
+        help={
+          <HelpTip label="About facts">
+            Facts are values a kind records.
+          </HelpTip>
+        }
+        options={[{ value: "", label: "Choose a kind first" }]}
+        disabled
       />
       <Combobox label="Loading models" state="loading" options={[]} />
       <Combobox label="No models" state="empty" options={[]} />

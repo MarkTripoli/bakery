@@ -181,7 +181,7 @@ test.describe("live artifact review", () => {
       const text2 = required("BAKERY_REVIEW_VERSION2_TEXT");
       const path = `/tasks/${taskId}/artifacts/${artifactId}`;
       const viewer = page.locator('[data-ui-component="artifactViewer"]');
-      const stale = page.getByText("A newer revision is available", {
+      const stale = page.getByText("A newer version is available", {
         exact: true,
       });
       await page.goto(path);
@@ -195,7 +195,7 @@ test.describe("live artifact review", () => {
       await expect(viewer).not.toContainText(text2);
       await expect(stale).toBeVisible();
       await expect(page.getByTestId("artifact-retrieval-open-newest"))
-        .toHaveText("Open revision 2");
+        .toHaveText("Open version 2");
 
       await page.reload();
       await expect(viewer).toContainText(text1);
@@ -253,7 +253,7 @@ test.describe("live artifact review", () => {
       await openComments(page);
       const outdated = page.locator(`#comment-${rootId}`);
       await expect(outdated).toBeVisible();
-      await outdated.getByRole("link", { name: "Open original revision" })
+      await outdated.getByRole("link", { name: "Open original version" })
         .click();
       await expect(page).toHaveURL(new RegExp(`version=${version1}`));
       await expect(page).toHaveURL(new RegExp(`comment=${rootId}`));

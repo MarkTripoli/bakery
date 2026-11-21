@@ -87,6 +87,8 @@ export const SHARED_ADMIN_SPECS: readonly string[] = [
   // registration row, which installation-integrations-real-api reads.
   "**/organization-integrations-fake-github.spec.ts",
   "**/browser-artifact-core.spec.ts",
+  "**/desktop-sign-in-return.spec.ts",
+  "**/files-media-real-api.spec.ts",
 ];
 
 /**

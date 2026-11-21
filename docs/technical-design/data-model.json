@@ -5903,6 +5903,12 @@
      "type": "timestamp?",
      "nullable": true,
      "references": null
+    },
+    {
+     "name": "traceparent",
+     "type": "text?",
+     "nullable": true,
+     "references": null
     }
    ],
    "constraints": "UNIQUE(job_id,attempt_no); UNIQUE(job_id,fence); one live attempt per job; completion requires current fence, active lease and matching host. worker_session_id and worker_session_generation preserve the process session that claimed the attempt while allowing a replacement process to report it after restart with the current server-issued session fence. started_at records the first accepted execution start; last_event_seq defaults to 0; first accepted event is 1; all event/result submissions share one contiguous journal ingestion transaction. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.",
@@ -7601,6 +7607,12 @@
      "name": "status",
      "type": "enum(queued,validating,merging,merged,blocked,canceled)",
      "nullable": false,
+     "references": null
+    },
+    {
+     "name": "blocked_reason",
+     "type": "text",
+     "nullable": true,
      "references": null
     },
     {
@@ -10233,6 +10245,189 @@
    ],
    "constraints": "UNIQUE(organization_id,name). Public visibility exposes package metadata only, never organization state. Initial delivery uses private packages; public SDK/marketplace publication remains later. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.",
    "scopedReferences": []
+  },
+  {
+   "group": "Conversation",
+   "name": "conversation_access_grants",
+   "purpose": "Direct read and reply access to one conversation given to one person by a mention",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "organizations"
+    },
+    {
+     "name": "conversation_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "conversations"
+    },
+    {
+     "name": "principal_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "principals",
+     "description": "The person the grant opens the conversation to; effective access still requires their current active membership."
+    },
+    {
+     "name": "granted_by",
+     "type": "uuid",
+     "nullable": false,
+     "references": "principals",
+     "description": "The writer whose mention created or most recently renewed the grant; they held sharing authority at that moment."
+    },
+    {
+     "name": "source_message_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "messages"
+    },
+    {
+     "name": "granted_at",
+     "type": "timestamp",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "revoked_at",
+     "type": "timestamp?",
+     "nullable": true,
+     "references": null
+    },
+    {
+     "name": "revoked_by",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "principals"
+    },
+    {
+     "name": "version",
+     "type": "int",
+     "nullable": false,
+     "references": null,
+     "description": "Compare-and-set version bumped on every grant, renewal and revoke."
+    }
+   ],
+   "constraints": "UNIQUE(organization_id,conversation_id,principal_id): one effective grant per person per conversation; a mention after a revoke reactivates the same row and bumps version, and audit_events keeps every repeated provenance. Grants never change the organization role, repository access or sibling conversations. Inherited access has no row.",
+   "scopedReferences": [
+    {
+     "fields": [
+      "organization_id",
+      "conversation_id"
+     ],
+     "references": "conversations(organization_id,id)",
+     "nullable": false
+    },
+    {
+     "fields": [
+      "organization_id",
+      "source_message_id"
+     ],
+     "references": "messages(organization_id,id)",
+     "nullable": true
+    }
+   ]
+  },
+  {
+   "group": "Conversation",
+   "name": "message_mentions",
+   "purpose": "The typed people one message mentions",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "organizations"
+    },
+    {
+     "name": "message_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "messages"
+    },
+    {
+     "name": "principal_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "principals"
+    },
+    {
+     "name": "ordinal",
+     "type": "int",
+     "nullable": false,
+     "references": null,
+     "description": "Position of the mention in the message."
+    },
+    {
+     "name": "display_name",
+     "type": "text",
+     "nullable": false,
+     "references": null,
+     "description": "Display snapshot for rendering only; the principal is the identity."
+    }
+   ],
+   "constraints": "PRIMARY KEY(organization_id,message_id,principal_id): one logical recipient per message.",
+   "scopedReferences": [
+    {
+     "fields": [
+      "organization_id",
+      "message_id"
+     ],
+     "references": "messages(organization_id,id)",
+     "nullable": false
+    }
+   ]
+  },
+  {
+   "group": "Artifacts",
+   "name": "artifact_comment_mentions",
+   "purpose": "The typed people one artifact comment mentions",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "organizations"
+    },
+    {
+     "name": "comment_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "artifact_comments"
+    },
+    {
+     "name": "principal_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "principals"
+    },
+    {
+     "name": "ordinal",
+     "type": "int",
+     "nullable": false,
+     "references": null,
+     "description": "Position of the mention in the comment."
+    },
+    {
+     "name": "display_name",
+     "type": "text",
+     "nullable": false,
+     "references": null,
+     "description": "Display snapshot for rendering only."
+    }
+   ],
+   "constraints": "PRIMARY KEY(organization_id,comment_id,principal_id). A comment mention never grants access.",
+   "scopedReferences": [
+    {
+     "fields": [
+      "organization_id",
+      "comment_id"
+     ],
+     "references": "artifact_comments(organization_id,id)",
+     "nullable": false
+    }
+   ]
   }
  ]
 }

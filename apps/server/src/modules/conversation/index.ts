@@ -18,6 +18,12 @@ import {
 } from "./conversations.ts";
 import { createConversationQueryHandlers } from "./queries.ts";
 import {
+  createConversationAccessListHandler,
+  createConversationAccessSharersHandler,
+  createConversationMentionCandidatesHandler,
+  revokeConversationAccess,
+} from "./access.ts";
+import {
   answerQuestion,
   createQuestionsListHandler,
   getQuestion,
@@ -73,6 +79,12 @@ export function createConversationRegistry(options: {
       questionsAnswer: answerQuestion,
       turnsGet: getConversationTurn,
       turnsCancel: cancelConversationTurn,
+      mentionCandidates: createConversationMentionCandidatesHandler(
+        options.cursorSecret,
+      ),
+      accessList: createConversationAccessListHandler(options.cursorSecret),
+      accessRevoke: revokeConversationAccess,
+      accessSharers: createConversationAccessSharersHandler(),
     },
     {
       authorityRunner: new PostgresAuthorityRunner(options.database),

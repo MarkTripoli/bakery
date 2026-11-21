@@ -105,6 +105,7 @@ const ROW: WorkflowVersionInsert = {
   createdBy: "00000000-0000-4000-8000-0000000000d1",
   compilerVersion: null,
   semanticDigest: null,
+  starts: "[]",
 };
 
 for (
@@ -139,14 +140,17 @@ Deno.test("a fully pinned version is written once with both pin values bound", a
   });
   assertEquals(seen.length, 1);
   assert(seen[0].text.includes("insert into bakery.workflow_versions"));
-  assertEquals(seen[0].params.slice(-2), [VERSION, DIGEST]);
+  // The pin values are located by position in the value list, not by "last
+  // two": a later column added to the insert would silently move the window
+  // and make this assertion about something else.
+  assertEquals(seen[0].params.slice(8, 10), [VERSION, DIGEST]);
 });
 
 Deno.test("an unpinned version is written once with both pin values null", async () => {
   const { transaction, seen } = recordingTransaction();
   await insertWorkflowVersion(transaction, ROW);
   assertEquals(seen.length, 1);
-  assertEquals(seen[0].params.slice(-2), [null, null]);
+  assertEquals(seen[0].params.slice(8, 10), [null, null]);
 });
 
 Deno.test("the other nine bound columns are passed through unchanged", async () => {

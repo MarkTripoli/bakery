@@ -1,12 +1,36 @@
 {
   "description": "Provenance of shipped Bakery brand art. Generated with Higgsfield through its MCP server, driven by an OMP worker from the request files named here; art direction, picks and post-processing by the brand lead. Raw originals are not committed; generationId + sha256 identify them.",
   "legacy": {
-    "files": [
-      "assets/brand/bakery-logo-v1.png",
-      "assets/brand/bakery-logo-v2.png",
-      "assets/brand/bakery-favicon-master.png"
-    ],
-    "tool": "built-in image generation (pre-Higgsfield); see bakery-logo-prompt.md and bakery-conveyor-prompts.md"
+    "tool": "built-in image generation (pre-Higgsfield); see bakery-logo-prompt.md and bakery-conveyor-prompts.md",
+    "images": [
+      {
+        "file": "assets/brand/bakery-logo-v1.png",
+        "promptFile": "assets/brand/bakery-logo-prompt.md",
+        "tool": "built-in image generation (pre-Higgsfield)",
+        "generationId": null,
+        "generationIdNote": "not recorded: made with the built-in image generation tool before generation records were kept",
+        "sha256": "d42d4f0fe7ff0c175ef2adcbd0e1bf8abe901afda333f057ef5cca4a90fbedf0",
+        "bytes": 582694
+      },
+      {
+        "file": "assets/brand/bakery-logo-v2.png",
+        "promptFile": "assets/brand/bakery-conveyor-prompts.md",
+        "tool": "built-in image generation (pre-Higgsfield)",
+        "generationId": null,
+        "generationIdNote": "not recorded: made with the built-in image generation tool before generation records were kept",
+        "sha256": "7c4e8bec0c0118d2d7e65f42946ede4c17626a80964c01e8327728f980a84437",
+        "bytes": 620862
+      },
+      {
+        "file": "assets/brand/bakery-favicon-master.png",
+        "promptFile": "assets/brand/bakery-conveyor-prompts.md",
+        "tool": "built-in image generation (pre-Higgsfield)",
+        "generationId": null,
+        "generationIdNote": "not recorded: made with the built-in image generation tool before generation records were kept",
+        "sha256": "97594cb87d16698a896a582b72612812282e3ba079c2f330b28ea858bc3073f5",
+        "bytes": 1045201
+      }
+    ]
   },
   "images": [
     {

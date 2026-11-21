@@ -136,6 +136,53 @@ export async function holdsPasswordOrPasskey(
   return result.rows[0]?.found === true;
 }
 
+/**
+ * What removing one provider does to an organization's SSO requirement.
+ * `locksOut` is true when SSO is required, the provider's domain is verified
+ * and no other verified provider remains: removing it would leave only
+ * break-glass administrators able to sign in.
+ */
+export type RemovalEffect = Readonly<{
+  enforced: boolean;
+  providerVerified: boolean;
+  otherVerifiedProviders: number;
+  locksOut: boolean;
+}>;
+
+export async function readRemovalEffect(
+  database: Pick<PgDatabase, "query">,
+  organizationId: string,
+  providerId: string,
+): Promise<RemovalEffect> {
+  const result = await database.query<{
+    enforced: boolean;
+    providerVerified: boolean;
+    others: string;
+  }>(
+    // The settings table keys the organization as a uuid and the provider table
+    // as text, so the id is passed once per type (one parameter cannot be both).
+    `select
+       coalesce((select enforce from bakery.organization_sso_settings
+                  where organization_id = $1::uuid), false) as enforced,
+       coalesce((select "domainVerified" is true from public."ssoProvider"
+                  where "providerId" = $2 and "organizationId" = $3::text), false)
+         as "providerVerified",
+       (select count(*)::text from public."ssoProvider"
+         where "organizationId" = $3::text and "providerId" <> $2
+           and "domainVerified" is true) as others`,
+    [organizationId, providerId, organizationId],
+  );
+  const row = result.rows[0];
+  const otherVerifiedProviders = Number(row.others);
+  return {
+    enforced: row.enforced,
+    providerVerified: row.providerVerified,
+    otherVerifiedProviders,
+    locksOut: row.enforced && row.providerVerified &&
+      otherVerifiedProviders === 0,
+  };
+}
+
 /** A provider row and its linked accounts as they were before a mutation. */
 export type ProviderSnapshot = Readonly<{
   provider: Record<string, unknown> | null;

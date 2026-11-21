@@ -30,11 +30,18 @@ import {
 import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
+import { BatchesListPage } from "./pages/BatchesListPage.tsx";
+import { BatchPage } from "./pages/BatchPage.tsx";
+import { BatchStartPage } from "./pages/BatchStartPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
 import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
+import { FilesPage } from "./pages/FilesPage.tsx";
+import { FileVersionPage } from "./pages/FileVersionPage.tsx";
+import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
+import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
@@ -45,6 +52,7 @@ import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
 import { AppearancePage } from "./pages/AppearancePage.tsx";
 import { HealthPage } from "./pages/HealthPage.tsx";
 import { SetupPage } from "./pages/SetupPage.tsx";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.tsx";
 import { SignInPage } from "./pages/SignInPage.tsx";
 import { TwoFactorChallengePage } from "./pages/TwoFactorChallengePage.tsx";
 import { RecoveryCodePage } from "./pages/RecoveryCodePage.tsx";
@@ -58,6 +66,7 @@ import {
   InstallationBreadcrumbs,
 } from "./shell/SettingsShellSlots.tsx";
 import { OrganizationSettingsPage } from "./pages/OrganizationSettingsPage.tsx";
+import { OrganizationStoragePage } from "./pages/OrganizationStoragePage.tsx";
 import {
   InstallationIntegrationsPage,
   parseRegistrationOutcome,
@@ -71,6 +80,9 @@ import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryR
 import { RepositoryPage } from "./pages/RepositoryPage.tsx";
 import { RepositoryRulesPage } from "./pages/RepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
+import { PluginFramePage } from "./pages/PluginFramePage.tsx";
+import { PluginPage } from "./pages/PluginPage.tsx";
+import { PluginsPage } from "./pages/PluginsPage.tsx";
 import {
   CONNECTION_ID_PARAMETER,
   CONNECTION_OUTCOME_PARAMETER,
@@ -80,6 +92,10 @@ import {
 import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
+import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
+import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
+import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
+import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
 import { SettingsIndexPage } from "./pages/SettingsIndexPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
@@ -98,7 +114,9 @@ import { AddPasskeyPage } from "./pages/AddPasskeyPage.tsx";
 import { ReauthPage } from "./pages/ReauthPage.tsx";
 import { ConnectedClientsPage } from "./pages/ConnectedClientsPage.tsx";
 import { RevokeClientPage } from "./pages/RevokeClientPage.tsx";
+import { NotificationOpening } from "./notifications/NotificationOpening.tsx";
 import { NotificationsPage } from "./notifications/NotificationsPage.tsx";
+import { type LandingSearch, landingSearch } from "./notifications/landing.ts";
 import { isNotificationView } from "./notifications/presentation.ts";
 import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
@@ -203,6 +221,66 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "delivery",
+    path: "/delivery",
+    classification: "production",
+    // Not a fifth kind of failure: `partial` is the page with figures and a
+    // note that some records are missing, and `degraded` is a source that
+    // stopped, whose figures are unknown rather than zero.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "stale",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "files",
+    path: "/files",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-version",
+    path: "/files/versions/$versionId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-folder",
+    path: "/files/$",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
     id: "library",
     path: "/library",
     classification: "production",
@@ -272,6 +350,20 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "library-evaluation",
+    path: "/library/evaluations/$batchId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
     id: "issues",
     path: "/issues",
     classification: "production",
@@ -282,6 +374,43 @@ export const routeCoverage = [
       "error",
       "forbidden",
       "offline",
+    ],
+  },
+  {
+    id: "batches",
+    path: "/issues/batches",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "batch-new",
+    path: "/issues/batches/new",
+    classification: "production",
+    states: [
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "batch-detail",
+    path: "/issues/batches/$batchId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
     ],
   },
   {
@@ -489,12 +618,19 @@ export const routeCoverage = [
       "github-disabled",
       "invalid",
       "loading",
+      "rate-limited",
+      "blocked",
       "offline",
       "unavailable",
-      "throttled",
       "expired",
       "factor-required",
     ],
+  },
+  {
+    id: "forgot-password",
+    path: "/sign-in/forgot-password",
+    classification: "production",
+    states: ["default"],
   },
   {
     id: "totp-challenge",
@@ -546,6 +682,41 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "installation-monitoring-new",
+    path: "/installation/monitoring/new",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "installation-monitoring-destination",
+    path: "/installation/monitoring/$destinationId",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden", "unavailable"],
+  },
+  {
+    id: "installation-monitoring",
+    path: "/installation/monitoring",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
+  },
+  {
+    id: "installation-usage",
+    path: "/installation/usage",
+    classification: "production",
+    // `unknown` is not a fifth kind of failure: it is the state where the
+    // records exist but Bakery cannot say how complete they are, and the page
+    // must still render figures with that warning rather than an error.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
     id: "installation-audit",
     path: "/installation/audit",
     classification: "production",
@@ -590,6 +761,24 @@ export const routeCoverage = [
     path: "/settings/organization/roles",
     classification: "production",
     states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-plugins",
+    path: "/settings/organization/plugins",
+    classification: "production",
+    states: ["loading", "default", "empty", "error"],
+  },
+  {
+    id: "settings-organization-plugin",
+    path: "/settings/organization/plugins/$installId",
+    classification: "production",
+    states: ["loading", "default", "error"],
+  },
+  {
+    id: "plugin-page",
+    path: "/plugins/$installId/$pageId",
+    classification: "production",
+    states: ["loading", "default", "error", "denied", "stale"],
   },
   {
     id: "settings-organization-repository-rules",
@@ -642,6 +831,21 @@ export const routeCoverage = [
       "ready",
       "default",
       "long-copy",
+      "error",
+      "forbidden",
+      "conflict",
+      "offline",
+      "reconnecting",
+    ],
+  },
+  {
+    id: "organization-storage",
+    path: "/organization/storage",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "default",
       "error",
       "forbidden",
       "conflict",
@@ -882,7 +1086,6 @@ export const routeCoverage = [
       "skeleton",
       "stale",
       "success",
-      "throttled",
       "unavailable",
       "unsupported",
       "wrong-account",
@@ -1049,9 +1252,25 @@ const taskNewRoute = createRoute({
 const taskDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks/$taskId",
+  // `at`, `gone`, `n` and `r` carry a notification's landing (see landing.ts).
+  validateSearch: (search: Record<string, unknown>) => landingSearch(search),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: () => <TasksPage taskId={taskDetailRoute.useParams().taskId} />,
+  component: () => {
+    const landing = taskDetailRoute.useSearch();
+    const navigate = taskDetailRoute.useNavigate();
+    return (
+      <TasksPage
+        taskId={taskDetailRoute.useParams().taskId}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
+  },
   errorComponent: ProtectedRouteError,
 });
 
@@ -1097,6 +1316,47 @@ const issuesRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const batchesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/batches",
+  // `?repository=<id>` narrows the list to one repository.
+  validateSearch: (search: Record<string, unknown>) => ({
+    repository:
+      typeof search.repository === "string" && search.repository !== ""
+        ? search.repository
+        : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: BatchesListPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const batchNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/batches/new",
+  // `?repository=<id>` preselects the repository.
+  validateSearch: (search: Record<string, unknown>) => ({
+    repository:
+      typeof search.repository === "string" && search.repository !== ""
+        ? search.repository
+        : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: BatchStartPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const batchDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/batches/$batchId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <BatchPage batchId={batchDetailRoute.useParams().batchId} />,
+  errorComponent: ProtectedRouteError,
+});
+
 const issueDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/issues/$issueId",
@@ -1128,12 +1388,108 @@ const issueSettingsDetailRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+/** `?file=<id>&tab=versions|uses`: the file whose details are open, and its tab. */
+function validateFilesSearch(
+  search: Record<string, unknown>,
+): {
+  file?: string;
+  tab?: "versions" | "uses";
+  version?: number;
+  q?: string;
+  type?: "text" | "image" | "video" | "audio" | "data" | "archive" | "other";
+  kind?: string;
+  by?: string;
+  fact?: string;
+  view?: "open";
+  in?: "all";
+} {
+  return {
+    ...(typeof search.file === "string" && search.file !== ""
+      ? { file: search.file }
+      : {}),
+    ...(search.tab === "versions" || search.tab === "uses"
+      ? { tab: search.tab }
+      : {}),
+    ...(typeof search.q === "string" && search.q !== "" ? { q: search.q } : {}),
+    ...(typeof search.type === "string" &&
+        ["text", "image", "video", "audio", "data", "archive", "other"]
+          .includes(search.type)
+      ? { type: search.type as "text" }
+      : {}),
+    ...(typeof search.kind === "string" && search.kind !== ""
+      ? { kind: search.kind.slice(0, 64) }
+      : {}),
+    ...(typeof search.by === "string" && search.by !== ""
+      ? { by: search.by.slice(0, 64) }
+      : {}),
+    ...(search.view === "open" ? { view: "open" as const } : {}),
+    ...(typeof search.fact === "string" && search.fact.includes(":")
+      ? { fact: search.fact.slice(0, 700) }
+      : {}),
+    ...(search.in === "all" ? { in: "all" as const } : {}),
+    ...(Number.isInteger(Number(search.version)) && Number(search.version) > 0
+      ? { version: Number(search.version) }
+      : {}),
+  };
+}
+
+const deliveryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/delivery",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <DeliveryPage />,
+  errorComponent: ProtectedRouteError,
+});
+
+const filesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files",
+  validateSearch: validateFilesSearch,
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <FilesPage path="" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const fileVersionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/versions/$versionId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FileVersionPage versionId={fileVersionRoute.useParams().versionId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const filesPathRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/$",
+  validateSearch: validateFilesSearch,
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FilesPage path={folderPathOf(filesPathRoute.useParams()._splat)} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const libraryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library",
   // `?tab=agents` opens the Agents list; Workflows is the page itself.
-  validateSearch: (search: Record<string, unknown>): { tab?: "agents" } =>
-    search.tab === "agents" ? { tab: "agents" } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "agents" | "memory" | "evaluations"; fact?: string } => {
+    if (search.tab === "agents") return { tab: "agents" };
+    if (search.tab === "evaluations") return { tab: "evaluations" };
+    if (search.tab !== "memory") return {};
+    // An open fact is only meaningful on the Memory tab.
+    return typeof search.fact === "string" && search.fact !== ""
+      ? { tab: "memory", fact: search.fact }
+      : { tab: "memory" };
+  },
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: LibraryPage,
@@ -1180,6 +1536,17 @@ const agentRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <AgentPage agentId={agentRoute.useParams().agentId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const evaluationRunRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/evaluations/$batchId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <EvaluationRunPage batchId={evaluationRunRoute.useParams().batchId} />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -1321,6 +1688,12 @@ const signInRoute = createRoute({
   },
 });
 
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sign-in/forgot-password",
+  component: ForgotPasswordPage,
+});
+
 const totpChallengeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sign-in/two-factor",
@@ -1390,6 +1763,15 @@ const organizationSettingsRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationStorageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/organization/storage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: OrganizationStoragePage,
+  errorComponent: ProtectedRouteError,
+});
+
 const installationSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/settings",
@@ -1420,6 +1802,52 @@ const installationIntegrationsRoute = createRoute({
       <InstallationIntegrationsPage outcome={githubAppRegistration ?? null} />
     );
   },
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="shell.navigation.monitoring">
+      <InstallationMonitoringPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring/new",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringDestinationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring/$destinationId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
+  errorComponent: ProtectedRouteError,
+});
+
+const installationUsageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/usage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.usage.title">
+      <InstallationUsagePage />
+    </InstallationBreadcrumbs>
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -1529,6 +1957,39 @@ const organizationRolesRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationPluginsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: PluginsPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationPluginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins/$installId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { installId } = organizationPluginRoute.useParams();
+    return <PluginPage installId={installId} />;
+  },
+  errorComponent: ProtectedRouteError,
+});
+
+const pluginFrameRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/plugins/$installId/$pageId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { installId, pageId } = pluginFrameRoute.useParams();
+    return <PluginFramePage installId={installId} pageId={pageId} />;
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationIntegrationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/integrations",
@@ -1621,15 +2082,30 @@ const artifactRetrievalRoute = createRoute({
   path: "/tasks/$taskId/artifacts/$artifactId",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { version?: string; comment?: string } => ({
+  ): { version?: string; comment?: string } & LandingSearch => ({
     version: typeof search.version === "string" ? search.version : undefined,
     comment: typeof search.comment === "string" ? search.comment : undefined,
+    ...landingSearch(search),
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
     const { artifactId, taskId } = artifactRetrievalRoute.useParams();
-    return <ArtifactRetrievalPage artifactId={artifactId} taskId={taskId} />;
+    const { version: _version, comment: _comment, ...landing } =
+      artifactRetrievalRoute.useSearch();
+    const navigate = artifactRetrievalRoute.useNavigate();
+    return (
+      <ArtifactRetrievalPage
+        artifactId={artifactId}
+        taskId={taskId}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
   },
   errorComponent: ProtectedRouteError,
 });
@@ -1855,17 +2331,60 @@ const notificationsRoute = createRoute({
   path: "/notifications",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { view?: "all" | "unread" | "mentions"; item?: string } => ({
+  ): {
+    view?: "all" | "unread" | "mentions";
+    item?: string;
+    open?: string;
+    r?: number;
+  } => ({
     view: isNotificationView(search.view) ? search.view : undefined,
     item: typeof search.item === "string" && isUuid(search.item)
       ? search.item
+      : undefined,
+    // `open` is a row being opened: resolved now, then replaced by its place.
+    open: typeof search.open === "string" && isUuid(search.open)
+      ? search.open
+      : undefined,
+    r: Number.isInteger(Number(search.r)) && Number(search.r) >= 1
+      ? Number(search.r)
       : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { view, item } = notificationsRoute.useSearch();
+    const { view, item, open, r } = notificationsRoute.useSearch();
     const navigate = notificationsRoute.useNavigate();
+    const landNavigate = useNavigate();
+    if (open !== undefined) {
+      return (
+        <NotificationOpening
+          id={open}
+          revision={r ?? null}
+          onLand={(destination) => {
+            const { route, search } = destination;
+            void (route.to === "/tasks/$taskId"
+              ? landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              })
+              : landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              }));
+          }}
+          onBack={() =>
+            void navigate({
+              to: NOTIFICATIONS_PATH,
+              search: {},
+              replace: true,
+            })}
+        />
+      );
+    }
     return (
       <NotificationsPage
         item={item ?? null}
@@ -2157,12 +2676,19 @@ const routeTree = rootRoute.addChildren([
   issueDetailRoute,
   issueSettingsRoute,
   issueSettingsDetailRoute,
+  batchesRoute,
+  batchNewRoute,
+  batchDetailRoute,
   machinesRoute,
+  filesRoute,
+  fileVersionRoute,
+  filesPathRoute,
   libraryRoute,
   workflowRoute,
   workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
+  evaluationRunRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,
@@ -2172,6 +2698,7 @@ const routeTree = rootRoute.addChildren([
   accessRoute,
   setupRoute,
   signInRoute,
+  forgotPasswordRoute,
   totpChallengeRoute,
   recoveryCodeRoute,
   signOutRoute,
@@ -2179,7 +2706,13 @@ const routeTree = rootRoute.addChildren([
   invitationRoute,
   organizationsRoute,
   organizationSettingsRoute,
+  organizationStorageRoute,
   installationSettingsRoute,
+  installationMonitoringRoute,
+  installationMonitoringNewRoute,
+  installationMonitoringDestinationRoute,
+  installationUsageRoute,
+  deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,
@@ -2188,6 +2721,9 @@ const routeTree = rootRoute.addChildren([
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
+  organizationPluginsRoute,
+  organizationPluginRoute,
+  pluginFrameRoute,
   organizationRepositoryRulesRoute,
   repositoryRoute,
   repositoryRulesRoute,

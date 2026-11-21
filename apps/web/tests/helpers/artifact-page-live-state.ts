@@ -149,15 +149,15 @@ test("a newer revision shows the stale notice and keeps the viewed revision and 
     { type: "task", id: ARTIFACT.taskId },
   ]);
   await openComments(page);
-  await expect(page.getByText("A newer revision is available")).toHaveCount(0);
+  await expect(page.getByText("A newer version is available")).toHaveCount(0);
 
   await publishNewest(page);
   stream.push();
-  await expect(page.getByText("A newer revision is available", {
+  await expect(page.getByText("A newer version is available", {
     exact: true,
   })).toBeVisible();
   await expect(
-    page.getByText(/You are reading revision 2\. Your selection and comment/),
+    page.getByText(/You are reading version 2\. Your selection and comment/),
   ).toBeVisible();
   // The reader stays on the immutable revision and its deep links.
   const search = new URL(page.url()).searchParams;
@@ -167,14 +167,14 @@ test("a newer revision shows the stale notice and keeps the viewed revision and 
     .toContainText(CONTENT.trim());
 
   const link = page.getByTestId("artifact-retrieval-open-newest");
-  await expect(link).toHaveText("Open revision 3");
+  await expect(link).toHaveText("Open version 3");
   await expect(link).toHaveAttribute(
     "href",
     `${PATH}?version=${NEWEST_VERSION_ID}`,
   );
   await link.click();
   await expect(page).toHaveURL(new RegExp(`version=${NEWEST_VERSION_ID}`));
-  await expect(page.getByText("A newer revision is available")).toHaveCount(0);
+  await expect(page.getByText("A newer version is available")).toHaveCount(0);
 });
 
 test("a dropped event socket shows the reconnecting notice until the stream resumes", async ({ page }) => {
@@ -292,7 +292,7 @@ test("an in-flight download survives a newer revision arriving", async ({ page }
   await expect.poll(() => held).toBe(1);
   await publishNewest(page);
   stream.push();
-  await expect(page.getByText("A newer revision is available", {
+  await expect(page.getByText("A newer version is available", {
     exact: true,
   })).toBeVisible();
   release();

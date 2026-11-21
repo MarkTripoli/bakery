@@ -22,6 +22,7 @@ import {
   McpTool,
 } from "./scopes.ts";
 import type { McpToolRunner } from "./tools.ts";
+import type { McpCallTrace } from "./trace.ts";
 
 /** A tool call is a few hundred bytes; anything larger is not one. */
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -104,6 +105,7 @@ function registerArtifactResources(
   server: McpServer,
   grant: McpGrant,
   catalog: McpCatalogToolRunner,
+  trace: McpCallTrace,
 ): void {
   const extract = catalog.get("bakery_artifactVersions_extract");
   const content = catalog.get("bakery_artifactVersions_content");
@@ -118,7 +120,7 @@ function registerArtifactResources(
     },
     async (uri, variables) => {
       const id = String(variables.id ?? "");
-      const window = await catalog.run(extract, grant, { id });
+      const window = await catalog.run(extract, grant, { id }, trace);
       if (window.ok) {
         const body = window.result.body as {
           sha256: string;
@@ -143,7 +145,7 @@ function registerArtifactResources(
         };
       }
       // Not text (or not extractable): answer with the reference instead.
-      const reference = await catalog.run(content, grant, { id });
+      const reference = await catalog.run(content, grant, { id }, trace);
       if (!reference.ok) {
         // Unreadable is not found, but a server fault stays a server fault:
         // hiding a 5xx as not-found would hide real defects.
@@ -166,6 +168,7 @@ function registerCatalogTools(
   server: McpServer,
   grant: McpGrant,
   catalog: McpCatalogToolRunner,
+  trace: McpCallTrace,
 ): void {
   for (const tool of catalog.tools) {
     if (!catalogToolAllowed(grant, tool)) continue;
@@ -179,6 +182,7 @@ function registerCatalogTools(
             tool,
             grant,
             isRecord(args) ? args : {},
+            trace,
           );
         } catch {
           outcome = {
@@ -210,12 +214,13 @@ function registerCatalogTools(
 function buildMcpServer(
   grant: McpGrant,
   tools: McpToolRunner,
-  catalog?: McpCatalogToolRunner,
+  catalog: McpCatalogToolRunner | undefined,
+  trace: McpCallTrace,
 ): McpServer {
   const server = new McpServer({ name: "bakery", version: "1.0.0" });
   if (catalog) {
-    registerCatalogTools(server, grant, catalog);
-    registerArtifactResources(server, grant, catalog);
+    registerCatalogTools(server, grant, catalog, trace);
+    registerArtifactResources(server, grant, catalog, trace);
   }
   for (const tool of Object.values(McpTool)) {
     if (!toolAllowed(grant, tool)) continue;
@@ -229,7 +234,7 @@ function buildMcpServer(
       },
       async () => {
         try {
-          const result = await tools.run(tool, grant);
+          const result = await tools.run(tool, grant, trace);
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result) }],
           };
@@ -402,7 +407,10 @@ export function createMcpRoutes(options: {
       });
     }
     const handler = createMcpHandler(
-      () => buildMcpServer(granted, options.tools, options.catalog),
+      () =>
+        buildMcpServer(granted, options.tools, options.catalog, {
+          traceparent: request.headers.get("traceparent") ?? undefined,
+        }),
       { legacy: "reject", responseMode: "json", maxSubscriptions: 0 },
     );
     try {

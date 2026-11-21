@@ -562,6 +562,53 @@ Deno.test("unsent pieces survive a reload when a store is given, until they are 
   assertEquals(store.size, 0);
 });
 
+Deno.test("leaving with text the server has not acknowledged keeps it for the next visit; acknowledged text is not kept", () => {
+  const store = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => void store.set(key, value),
+    removeItem: (key: string) => void store.delete(key),
+  } as unknown as Storage;
+  const h = harness({ storage });
+  const { socket } = connect(h, "Intro");
+  type(h, "sent", 5);
+  const [first] = socket.binary();
+  socket.receive({
+    type: "ack",
+    room: ROOM,
+    mutationId: first.mutationId,
+    receipt: null,
+  });
+  // Offline: this one is never acknowledged.
+  socket.drop();
+  type(h, " unsent", 9);
+  assertEquals(h.session.getSnapshot().pendingCount, 1);
+  h.session.destroy();
+  assertEquals(store.size, 1);
+  const returned = harness({ storage });
+  const kept = returned.session.getSnapshot().refused;
+  assertEquals(kept.map((piece) => [piece.text, piece.cause]), [[
+    " unsent",
+    "closed",
+  ]]);
+  // Leaving a second time changes nothing.
+  h.session.destroy();
+  assertEquals(store.size, 1);
+});
+
+Deno.test("leaving with nothing unsent keeps nothing", () => {
+  const store = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => void store.set(key, value),
+    removeItem: (key: string) => void store.delete(key),
+  } as unknown as Storage;
+  const h = harness({ storage });
+  connect(h, "Intro");
+  h.session.destroy();
+  assertEquals(store.size, 0);
+});
+
 Deno.test("presence: joined and later hints are kept, removals drop them, hints are coalesced", () => {
   const h = harness();
   h.session.start();

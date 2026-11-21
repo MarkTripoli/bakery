@@ -1,6 +1,7 @@
 import { useId } from "react";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import type { MentionField } from "../../mentions/useMentionField.tsx";
 import type { DraftIntent } from "./draft.ts";
 
 export const MESSAGE_MAX = 20_000;
@@ -18,7 +19,8 @@ export type ComposerProps = Readonly<{
   runBlocked?: boolean;
   /** Prompt to discuss results after a finished run. */
   resultsHint: boolean;
-  onBody: (value: string) => void;
+  /** The mention field: the textarea's props, the picker, the chips and what the server refused. */
+  mentionField: MentionField;
   onIntent: (value: DraftIntent) => void;
   onSend: () => void;
   onRetry: () => void;
@@ -38,7 +40,7 @@ export function Composer(
     runActive,
     runBlocked = false,
     resultsHint,
-    onBody,
+    mentionField,
     onIntent,
     onSend,
     onRetry,
@@ -49,7 +51,10 @@ export function Composer(
   const tooLong = body.length > MESSAGE_MAX;
   const locked = phase === "sending" || phase === "unknown";
   const canSend = !locked && !offline && body.trim() !== "" && !tooLong &&
-    phase !== "forbidden";
+    phase !== "forbidden" && !mentionField.refused && !mentionField.blocked;
+  // A send that was giving access failed on the server: nothing was given.
+  const failedOffer = phase === "error" ? mentionField.failed : null;
+  const reasonId = `${id}-reason`;
   const notice = phase === "unknown"
     ? {
       tone: "warning" as const,
@@ -59,6 +64,11 @@ export function Composer(
     ? {
       tone: "error" as const,
       text: t("tasks.conversation.composer.forbidden"),
+    }
+    : failedOffer !== null
+    ? {
+      tone: "error" as const,
+      text: `${failedOffer.line} ${failedOffer.detail}`,
     }
     : phase === "error"
     ? { tone: "error" as const, text: t("tasks.conversation.composer.failed") }
@@ -74,6 +84,11 @@ export function Composer(
       }}
       notices={
         <>
+          {mentionField.notice !== null && (
+            <UI.InlineNotice layout="bar" role="alert" tone="error">
+              {mentionField.notice}
+            </UI.InlineNotice>
+          )}
           {runActive && (
             <UI.InlineNotice layout="bar" tone="information">
               {t("tasks.conversation.steering.saved")}
@@ -98,19 +113,22 @@ export function Composer(
           </div>
         </>
       }
+      picker={mentionField.picker}
+      mentions={mentionField.row}
       field={
         <textarea
+          {...mentionField.fieldProps}
           id={MESSAGE_FIELD_ID}
           name="message"
           aria-label={t("tasks.conversation.composer.label")}
           rows={1}
           placeholder={t("tasks.conversation.composer.placeholder")}
-          value={body}
           readOnly={locked}
           aria-invalid={tooLong || undefined}
           aria-describedby={tooLong ? `${id}-error` : `${id}-draft`}
-          onChange={(event) => onBody(event.currentTarget.value)}
           onKeyDown={(event) => {
+            mentionField.fieldProps.onKeyDown(event);
+            if (event.defaultPrevented) return;
             if (
               event.key === "Enter" && (event.metaKey || event.ctrlKey) &&
               canSend
@@ -146,17 +164,34 @@ export function Composer(
         : (
           <UI.Button
             type="submit"
+            aria-describedby={mentionField.sendReason !== null
+              ? reasonId
+              : undefined}
             disabled={!canSend}
             loading={phase === "sending"}
           >
             <UI.IconGlyph name="arrow" size="small" />
             {phase === "sending"
-              ? t("tasks.conversation.composer.sending")
-              : t("tasks.conversation.composer.send")}
+              ? mentionField.sendLabel !== null
+                ? t("mentions.offer.sending")
+                : t("tasks.conversation.composer.sending")
+              : failedOffer !== null
+              ? t("mentions.failed.retry")
+              : mentionField.sendLabel ?? t("tasks.conversation.composer.send")}
           </UI.Button>
         )}
       footnote={
         <>
+          {mentionField.sendReason !== null
+            ? (
+              <>
+                <span id={reasonId} role="status">
+                  {mentionField.sendReason}
+                </span>
+                <br />
+              </>
+            )
+            : null}
           {tooLong
             ? (
               <span id={`${id}-error`} role="alert">

@@ -3,6 +3,7 @@ import {
   readDatabaseConfig,
   readEnvironmentSnapshot,
 } from "@bakery/config";
+import { releaseCanceledUnclaimedJobReservation } from "../work/budget.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { COORDINATOR_TURN_ACTION } from "@bakery/contracts/coordinator-turn";
 import { releaseCoordinatorJobReservation } from "@bakery/persistence";
@@ -23,6 +24,7 @@ import {
   COORDINATOR_TRANSIENT_RETRY_DELAYS_MILLISECONDS,
 } from "./shared.ts";
 import { reclaimExpiredAttempts } from "@bakery/persistence/attempts";
+import { releaseReconciledHandoffs } from "./handoff-release.ts";
 import { reconcileFailedLifecycleTasks } from "../work/coordination-projection.ts";
 
 type DenoSignalApi = {
@@ -456,6 +458,12 @@ export async function cancelQueuedJobsOfRun(
     if (version === undefined) {
       throw new StandardError({ code: "STATE_CONFLICT" });
     }
+    // A queued job that never ran gives back what was held for it.
+    await releaseCanceledUnclaimedJobReservation(transaction, {
+      organizationId: input.organizationId,
+      jobId: id,
+      onUnreleasable: "skip",
+    });
     const last = await transaction.query<{ id: string }>(
       `select id from bakery.job_attempts
         where organization_id = $1 and job_id = $2
@@ -575,6 +583,11 @@ export async function cancelRunWithoutAttempt(
     if (version === undefined) {
       throw new StandardError({ code: "STATE_CONFLICT" });
     }
+    await releaseCanceledUnclaimedJobReservation(transaction, {
+      organizationId: input.organizationId,
+      jobId: job.id,
+      onUnreleasable: "skip",
+    });
     canceledJobs.push({ id: job.id, version });
   }
   await cancelRunLifecycle(transaction, {
@@ -1145,6 +1158,7 @@ export async function runExecutionCoordinatorTask(): Promise<void> {
             database,
             async (transaction) => {
               await reclaimExpiredAttempts(transaction);
+              await releaseReconciledHandoffs(transaction);
               await reconcileFailedLifecycleTasks(transaction);
               await sweepExecutionRetention(transaction);
             },

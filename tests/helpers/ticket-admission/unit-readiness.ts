@@ -1,5 +1,8 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import {
+  ACTOR_ROLE_RANK_ACT,
+  ACTOR_ROLE_RANK_MAX,
+  ACTOR_ROLE_RANK_MIN,
   defaultTicketSourcePolicy,
   TICKET_CHECK_IDS,
   TICKET_CHECK_MAX_EVIDENCE,
@@ -28,6 +31,7 @@ import {
   normalizeSnapshot,
   requirementsDigest,
 } from "../../../apps/server/src/modules/work/ticket-snapshot.ts";
+import { roleRank } from "../../../apps/server/src/modules/catalog/integration-providers/roles.ts";
 import type {
   PredecessorProof,
   TicketActorRole,
@@ -35,6 +39,7 @@ import type {
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketStatusRead,
 } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 
 /**
@@ -64,8 +69,21 @@ const FAILURE: TicketReadFailure = {
   retryAfterSeconds: 30,
 };
 
+/** A container for a GitHub repository, the shape the contract stores. */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 function ref(number: number, repository = "owner/repo"): TicketIssueRef {
-  return { id: String(9000 + number), number, repositoryFullName: repository };
+  return {
+    id: String(9000 + number),
+    number,
+    container: containerOf(repository),
+  };
 }
 
 function issueSnapshot(
@@ -81,7 +99,7 @@ function issueSnapshot(
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: "owner/repo",
+    container: containerOf("owner/repo"),
     ...overrides,
   };
 }
@@ -136,7 +154,7 @@ function delegatedPolicy(
     ...defaultTicketSourcePolicy(),
     delegation: {
       principalId: PRINCIPAL_ID,
-      githubActorIds: [ACTOR_ID, "1002"],
+      externalActorIds: [ACTOR_ID, "1002"],
     },
     automatic: {
       enabled,
@@ -158,7 +176,12 @@ function role(
   permission: "admin" | "write" | "read" | "none" = "write",
   userId = ACTOR_ID,
 ): TicketActorRole {
-  return { kind: "present", userId, permission };
+  return {
+    kind: "present",
+    userId,
+    permission,
+    rank: { none: 0, read: 1, write: 2, admin: 3 }[permission],
+  };
 }
 
 /** A manual request on a clean issue: every check passes. */
@@ -179,6 +202,7 @@ function readyInput(overrides: Partial<ReadinessInput> = {}): ReadinessInput {
     preset: PRESET,
     issue: presentIssue(),
     links: presentLinks(),
+    statuses: null,
     proofs: [],
     authority: { principalActive: true, provenance: null, actorRole: null },
     activeRequest: null,
@@ -229,8 +253,10 @@ Deno.test("issue 82 unit readiness: a clean manual request is ready with every c
   assertEquals(report.verdict, "ready");
   assertEquals(
     report.checks.map((check) => check.id),
-    TICKET_CHECK_IDS.filter((id) => id !== "requirements_unchanged"),
-    "all checks, in contract order; the pin check appears only with a pin",
+    TICKET_CHECK_IDS.filter((id) =>
+      id !== "requirements_unchanged" && id !== "status_ready"
+    ),
+    "all checks, in contract order; the pin check appears only with a pin, and the status check only when a policy names a status",
   );
   assert(report.checks.every((check) => check.status === "pass"));
   assert(report.checks.every((check) => check.reason === "ok"));
@@ -255,7 +281,12 @@ Deno.test("issue 82 unit readiness: a matching pin adds a passing requirements_u
   );
   const report = await evaluate(readyInput({ pinnedRequirementsDigest: live }));
   assertEquals(report.verdict, "ready");
-  assertEquals(report.checks.length, TICKET_CHECK_IDS.length);
+  assertEquals(
+    report.checks.length,
+    // The pin check is now present; the status check still is not, because no
+    // policy in this fixture names a status.
+    TICKET_CHECK_IDS.length - 1,
+  );
   assertEquals(outcome(report, "requirements_unchanged"), ["pass", "ok"]);
   assertEquals(report.requirementsDigest, live);
 });
@@ -308,7 +339,7 @@ Deno.test("issue 82 unit readiness: ticket_supported accepts an open issue of th
     ["moved", { kind: "moved" }, "reject", "ticket_moved"],
     [
       "other repository",
-      presentIssue({ repositoryFullName: "owner/elsewhere" }),
+      presentIssue({ container: containerOf("owner/elsewhere") }),
       "reject",
       "repository_mismatch",
     ],
@@ -321,7 +352,7 @@ Deno.test("issue 82 unit readiness: ticket_supported accepts an open issue of th
     ["provider unavailable", FAILURE, "wait", "provider_unavailable"],
     [
       "repository case differs",
-      presentIssue({ repositoryFullName: "Owner/Repo" }),
+      presentIssue({ container: containerOf("Owner/Repo") }),
       "pass",
       "ok",
     ],
@@ -1550,6 +1581,36 @@ Deno.test("issue 82 unit readiness: authority_live for a delegated admission che
       "wait",
       "actor_role_insufficient",
     ],
+    // Rank decides, and the provider's word for the role does not. Every other
+    // case in this table builds a role whose name and rank agree, so replacing
+    // the rank comparison with a name comparison would leave them all green;
+    // these two disagree on purpose.
+    [
+      "rank acts while the name reads",
+      {
+        authority: auth(applied(), {
+          kind: "present",
+          userId: ACTOR_ID,
+          permission: "read",
+          rank: 2,
+        }),
+      },
+      "pass",
+      "ok",
+    ],
+    [
+      "rank does not act while the name says admin",
+      {
+        authority: auth(applied(), {
+          kind: "present",
+          userId: ACTOR_ID,
+          permission: "admin",
+          rank: 1,
+        }),
+      },
+      "wait",
+      "actor_role_insufficient",
+    ],
     [
       "role of another user",
       { authority: auth(applied(), role("write", "2002")) },
@@ -1766,6 +1827,7 @@ Deno.test("issue 82 unit readiness: a cut label list waits as provider_unavailab
     approvalAvailable: false,
     pinnedRequirementsDigest: pinned,
     pauseRequestedAt: null,
+    delivery: { delivered: true },
   };
   assertEquals(decideRecheck(running, report), {
     action: "suspend",
@@ -2113,7 +2175,9 @@ function randomInput(random: () => number): ReadinessInput {
           : CRITERIA_BODY,
         bodyTooLarge: flip(0.04),
         state: flip() ? "closed" : "open",
-        repositoryFullName: flip(0.04) ? "owner/other" : "owner/repo",
+        container: containerOf(
+          flip(0.04) ? "owner/other" : "owner/repo",
+        ),
         title: `Title ${Math.floor(random() * 3)}`,
       },
       chance(0.5) ? MARKER : "2027-01-01T00:00:00Z",
@@ -2194,6 +2258,7 @@ function randomInput(random: () => number): ReadinessInput {
     preset: PRESET,
     issue,
     links,
+    statuses: null,
     proofs,
     authority: { principalActive: !flip(0.05), provenance, actorRole },
     activeRequest: flip(0.25)
@@ -2317,4 +2382,135 @@ Deno.test("issue 82 unit readiness: property run over random inputs (seed 82) ho
     "the seed exercises every verdict",
   );
   assert(ready >= 20, `the seed reaches ready ${ready} times`);
+});
+
+Deno.test("issue 82 unit readiness: GitHub's ladder conforms to the contract's act threshold", () => {
+  // The contract states the band and the rank at which an actor may act; the
+  // provider maps its own names into it. If either side moves without the
+  // other, admission would either refuse everyone or admit a reader, so the
+  // conformance is pinned rather than assumed.
+  for (const permission of ["none", "read", "write", "admin"] as const) {
+    const rank = roleRank(permission);
+    assert(
+      rank >= ACTOR_ROLE_RANK_MIN && rank <= ACTOR_ROLE_RANK_MAX,
+      `${permission} ranks inside the contract band`,
+    );
+    const mayAct = permission === "write" || permission === "admin";
+    assertEquals(
+      rank >= ACTOR_ROLE_RANK_ACT,
+      mayAct,
+      `${permission} may act exactly when it meets the act threshold`,
+    );
+  }
+});
+
+// ------------------------------------------------- readiness by label AND status
+
+function statusPolicy(statuses: string[]): TicketSourcePolicy {
+  return {
+    ...defaultTicketSourcePolicy(),
+    readiness: { ...defaultTicketSourcePolicy().readiness, statuses },
+  };
+}
+
+function statusesHeld(
+  ...held: [id: string, name: string][]
+): TicketStatusRead {
+  return {
+    kind: "present",
+    statuses: held.map(([id, name]) => ({ id, name })),
+  };
+}
+
+Deno.test("issue 82 unit readiness: a ticket holding a configured status is ready alongside its label", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: statusesHeld(["open", "Todo"]),
+  }));
+  assertEquals(report.verdict, "ready");
+  assertEquals(outcome(report, "status_ready"), ["pass", "ok"]);
+  assertEquals(
+    report.checks.find((check) => check.id === "status_ready")?.evidence.map(
+      (item) => item.ref,
+    ),
+    ["status:open"],
+  );
+});
+
+Deno.test("issue 82 unit readiness: a labelled ticket in the wrong status waits for the status", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["in-progress"]),
+    statuses: statusesHeld(["open", "Todo"]),
+  }));
+  assertEquals(report.verdict, "waiting");
+  assertEquals(outcome(report, "status_ready"), ["wait", "status_missing"]);
+  // The label check still passes: the ticket was labelled, it is the status
+  // that has not arrived, and the report has to say which.
+  assertEquals(outcome(report, "intent_authorized"), ["pass", "ok"]);
+});
+
+Deno.test("issue 82 unit readiness: statuses match by id, so renaming a column changes nothing", async () => {
+  const renamed = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: statusesHeld(["open", "Ready for work"]),
+  }));
+  const original = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: statusesHeld(["open", "Todo"]),
+  }));
+  assertEquals(renamed.verdict, "ready");
+  assertEquals(
+    renamed.checks.map((check) => [check.id, check.status, check.reason]),
+    original.checks.map((check) => [check.id, check.status, check.reason]),
+    "a display name never decides readiness",
+  );
+});
+
+Deno.test("issue 82 unit readiness: a policy may name any of several statuses", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["ready", "in-progress"]),
+    statuses: statusesHeld(["in-progress", "Doing"]),
+  }));
+  assertEquals(report.verdict, "ready");
+  assertEquals(outcome(report, "status_ready"), ["pass", "ok"]);
+});
+
+Deno.test("issue 82 unit readiness: asking a label-only provider for a status says so instead of waiting forever", async () => {
+  // "This ticket is not in the status you named" and "this provider has no
+  // statuses at all" are different problems with different fixes, so they carry
+  // different reasons: a label-only provider is a misconfigured source, not an
+  // unready ticket.
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: { kind: "unsupported" },
+  }));
+  assertEquals(report.verdict, "waiting");
+  assertEquals(outcome(report, "status_ready"), [
+    "wait",
+    "status_unsupported",
+  ]);
+});
+
+Deno.test("issue 82 unit readiness: a provider that could not answer is unavailable, not missing", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: {
+      kind: "unavailable",
+      reason: "rate_limited",
+      retryAfterSeconds: 30,
+    },
+  }));
+  assertEquals(report.verdict, "waiting");
+  assertEquals(outcome(report, "status_ready"), [
+    "wait",
+    "provider_unavailable",
+  ]);
+});
+
+Deno.test("issue 82 unit readiness: a source that names no status keeps deciding on its label alone", async () => {
+  const report = await evaluate(
+    readyInput({ statuses: statusesHeld(["open", "Todo"]) }),
+  );
+  assertEquals(report.verdict, "ready");
+  assertEquals(outcome(report, "status_ready"), undefined);
 });

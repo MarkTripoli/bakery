@@ -1,0 +1,785 @@
+import type { ActionContext } from "@bakery/contracts/action-registry";
+import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
+import {
+  appendAudit,
+  appendDomainEvent,
+  type PgTransactionClient,
+} from "@bakery/persistence";
+import { attributeAction } from "../auth/application/action-attribution.ts";
+import { accessScopeClause } from "../auth/application/bindings.ts";
+import type { RunPower } from "../auth/application/run-grants.ts";
+import { requireWorkTransaction } from "./work-transaction.ts";
+
+/**
+ * Requests on a run (issue #456, chapter 25 section 19).
+ *
+ * A request is one person asking another, on one run, for one thing. It gives
+ * the person asked the right to see that run (migration 0247) and, in a later
+ * slice, one narrow power on one thing in it. This slice is the record, the
+ * observe grant, owner fallback, withdrawal and the decisions-ledger entries.
+ *
+ * "Request" is the product word; the access it carries is stated to the asker
+ * before sending and to the person asked on arrival.
+ */
+
+/** A request expires seven days after it is made (O63); silence never approves. */
+export const REQUEST_LIFETIME_DAYS = 7;
+export const REQUEST_NOTE_MAX = 280;
+/** The "People asked" list is bounded. */
+export const REQUEST_LIST_LIMIT = 50;
+
+export type RequestIntent =
+  | "fyi"
+  | "review"
+  | "approve"
+  | "answer"
+  | "take_over";
+
+/**
+ * Intents whose power exists. The others are accepted by the contract and
+ * refused here until their power is built, so no request promises a right it
+ * cannot grant.
+ */
+const AVAILABLE_INTENTS: readonly RequestIntent[] = [
+  "fyi",
+  "approve",
+  "answer",
+];
+
+/** The intents that give one expiring power on one question row (#456 2a). */
+const POWER_OF_INTENT: Readonly<Partial<Record<RequestIntent, RunPower>>> = {
+  approve: "approve",
+  answer: "answer",
+};
+
+const NO_TARGET = "00000000-0000-0000-0000-000000000000";
+
+/** Roles that already read every run, so a grant would add nothing. */
+const STANDING_READ_ROLES = ["admin", "developer", "viewer"];
+
+type RequestRow = {
+  id: string;
+  run_id: string;
+  step_key: string | null;
+  target_id: string | null;
+  intent: RequestIntent;
+  recipient_id: string;
+  recipient_name: string;
+  asked_by: string | null;
+  asked_by_name: string | null;
+  asked_by_kind: "person" | "agent" | "workflow";
+  note: string | null;
+  needed_by: Date | string | null;
+  status: "open" | "answered" | "handled" | "expired" | "withdrawn";
+  expires_at: Date | string;
+  fallback_for_name: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  version: number;
+};
+
+const REQUEST_SELECT = `
+  select request.id, request.run_id, request.step_key, request.target_id,
+         request.intent,
+         request.recipient_id, recipient.display_name as recipient_name,
+         request.asked_by, asker.display_name as asked_by_name,
+         request.asked_by_kind, request.note, request.needed_by,
+         case when request.status = 'open' and request.expires_at <= now()
+              then 'expired' else request.status end as status,
+         request.expires_at, request.fallback_for_name,
+         request.created_at, request.updated_at, request.version
+    from bakery.person_requests as request
+    join bakery.principals as recipient on recipient.id = request.recipient_id
+    left join bakery.principals as asker on asker.id = request.asked_by`;
+
+function iso(value: Date | string): string {
+  return (value instanceof Date ? value : new Date(value)).toISOString();
+}
+
+function unprocessable(path: string[], code: string, message: string): never {
+  throw new StandardError({
+    code: "UNPROCESSABLE",
+    params: { issues: [{ path, code, message }] },
+  });
+}
+
+function toRunRequest(row: RequestRow) {
+  return {
+    id: row.id,
+    runId: row.run_id,
+    stepKey: row.step_key,
+    questionId: row.target_id,
+    intent: row.intent,
+    recipient: {
+      principalId: row.recipient_id,
+      displayName: row.recipient_name,
+    },
+    askedBy: row.asked_by === null || row.asked_by_name === null
+      ? null
+      : { principalId: row.asked_by, displayName: row.asked_by_name },
+    askedByKind: row.asked_by_kind,
+    note: row.note,
+    neededBy: row.needed_by === null ? null : iso(row.needed_by),
+    status: row.status,
+    expiresAt: iso(row.expires_at),
+    ownerFallback: row.fallback_for_name !== null,
+    fallbackForName: row.fallback_for_name,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    version: row.version,
+  };
+}
+
+type RunFacts = {
+  id: string;
+  task_id: string;
+  requested_by: string | null;
+  task_created_by: string | null;
+};
+
+/** The run, if the caller may see its task; a hidden run is a missing run. */
+async function loadRun(
+  context: ActionContext,
+  transaction: PgTransactionClient,
+  organizationId: string,
+  accessScope: ReturnType<typeof requireWorkTransaction>["accessScope"],
+): Promise<RunFacts> {
+  const runId = context.params.id;
+  if (!runId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const values: unknown[] = [organizationId, runId];
+  let scopeSql = "";
+  if (accessScope !== undefined) {
+    const scoped = accessScopeClause(
+      accessScope,
+      { application: "task.application_id", repository: "task.repository_id" },
+      values.length + 1,
+    );
+    values.push(...scoped.values);
+    scopeSql = ` and ${scoped.sql}`;
+  }
+  const found = await transaction.query<RunFacts>(
+    `select run.id, run.task_id, run.requested_by,
+            task.created_by as task_created_by
+       from bakery.workflow_runs as run
+       join bakery.tasks as task
+         on task.organization_id = run.organization_id
+        and task.id = run.task_id
+      where run.organization_id = $1 and run.id = $2${scopeSql}`,
+    values,
+  );
+  const run = found.rows[0];
+  if (!run) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  return run;
+}
+
+/** An active human member of this organization, by id. */
+async function activeHuman(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+): Promise<{ displayName: string } | null> {
+  const found = await transaction.query<{ display_name: string }>(
+    `select principal.display_name
+       from bakery.principals as principal
+       join bakery.organization_memberships as membership
+         on membership.principal_id = principal.id
+      where membership.organization_id = $1 and membership.status = 'active'
+        and principal.principal_type = 'human'
+        and principal.disabled_at is null and principal.id = $2`,
+    [organizationId, principalId],
+  );
+  const row = found.rows[0];
+  return row ? { displayName: row.display_name } : null;
+}
+
+/**
+ * Whether the person already reads every run through their role, so a grant
+ * would only add a row that explains nothing. A custom role counts when it
+ * holds run:read. A binding is not consulted: a grant on top of one is
+ * harmless and removing it changes nothing.
+ */
+async function hasStandingRunAccess(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+): Promise<boolean> {
+  const found = await transaction.query<
+    { role: string | null; permissions: string[] | null }
+  >(
+    `select membership.role, custom.permissions
+       from bakery.organization_memberships as membership
+       left join bakery.organization_roles as custom
+         on custom.organization_id = membership.organization_id
+        and custom.id = membership.custom_role_id
+      where membership.organization_id = $1 and membership.principal_id = $2
+        and membership.status = 'active'`,
+    [organizationId, principalId],
+  );
+  const row = found.rows[0];
+  if (!row) return false;
+  if (row.permissions?.includes("run:read")) return true;
+  // A member with a custom role keeps the lowest system role, so this reads
+  // only a system role.
+  return row.role !== null && STANDING_READ_ROLES.includes(row.role);
+}
+
+async function ledger(
+  transaction: PgTransactionClient,
+  facts: Readonly<{
+    organizationId: string;
+    taskId: string;
+    runId: string;
+    kind: string;
+    decidedBy: string;
+    text: string;
+    detail: Record<string, unknown>;
+  }>,
+): Promise<void> {
+  await transaction.query(
+    `insert into bakery.decisions_ledger
+       (organization_id, task_id, run_id, kind, subject_kind, subject_id,
+        decided_by, text, detail)
+     values ($1, $2, $3, $4, 'run', $3, $5, $6, $7::jsonb)`,
+    [
+      facts.organizationId,
+      facts.taskId,
+      facts.runId,
+      facts.kind,
+      facts.decidedBy,
+      facts.text,
+      JSON.stringify(facts.detail),
+    ],
+  );
+}
+
+async function appendFacts(
+  transaction: PgTransactionClient,
+  context: ActionContext,
+  facts: Readonly<{
+    organizationId: string;
+    principalId: string;
+    operation: string;
+    eventType: string;
+    requestId: string;
+    version: number;
+    taskId: string;
+    runId: string;
+    details: Record<string, unknown>;
+  }>,
+): Promise<void> {
+  await appendAudit(transaction, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    operation: facts.operation,
+    resourceType: "person_request",
+    resourceId: facts.requestId,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: facts.details,
+  });
+  await appendDomainEvent(transaction, {
+    organizationId: facts.organizationId,
+    taskId: facts.taskId,
+    eventType: facts.eventType,
+    aggregateId: facts.requestId,
+    aggregateVersion: facts.version,
+    payload: { resourceId: facts.requestId, resourceVersion: facts.version },
+    traceId: context.traceId,
+  });
+}
+
+async function readRequest(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  requestId: string,
+): Promise<RequestRow> {
+  const found = await transaction.query<RequestRow>(
+    `${REQUEST_SELECT} where request.organization_id = $1 and request.id = $2`,
+    [organizationId, requestId],
+  );
+  const row = found.rows[0];
+  if (!row) throw new Error("REQUEST_READ_FAILED");
+  return row;
+}
+
+/** runRequests.create */
+export async function createRunRequest(context: ActionContext, input: unknown) {
+  const { transaction, organizationId, principalId, accessScope } =
+    requireWorkTransaction(context);
+  const value = input as {
+    recipientId: string;
+    intent: RequestIntent;
+    stepKey?: string;
+    questionId?: string;
+    note?: string;
+    neededBy?: string;
+  };
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+
+  if (!AVAILABLE_INTENTS.includes(value.intent)) {
+    unprocessable(
+      ["intent"],
+      "request_intent_unavailable",
+      "Only a request to let someone know, approve or answer can be made yet",
+    );
+  }
+  // An approval or a question is asked about by name: the person asked is
+  // given the right to act on that one row, so it has to exist, be open and be
+  // on this run, and be the kind the intent says.
+  const power = POWER_OF_INTENT[value.intent];
+  if (power === undefined && value.questionId !== undefined) {
+    unprocessable(
+      ["questionId"],
+      "request_question_unexpected",
+      "Only an approve or answer request names a question",
+    );
+  }
+  if (power !== undefined) {
+    if (value.questionId === undefined) {
+      unprocessable(
+        ["questionId"],
+        "request_question_required",
+        "Name the approval or question the request asks about",
+      );
+    }
+    const target = await transaction.query<{
+      kind: string;
+      subject_type: string | null;
+      status: string;
+      expires_at: Date | null;
+    }>(
+      `select kind, subject_type, status, expires_at from bakery.questions
+        where organization_id = $1 and id = $2 and run_id = $3`,
+      [organizationId, value.questionId, run.id],
+    );
+    const found = target.rows[0];
+    if (!found) {
+      unprocessable(
+        ["questionId"],
+        "request_question_not_found",
+        "No such approval or question on this run",
+      );
+    }
+    const kindMatches = power === "approve"
+      ? found.kind === "approval" && found.subject_type === "run_step"
+      : found.kind === "question";
+    if (!kindMatches) {
+      unprocessable(
+        ["questionId"],
+        "request_question_wrong_kind",
+        power === "approve"
+          ? "That is not a step approval"
+          : "That is not a question",
+      );
+    }
+    if (
+      found.status !== "open" ||
+      (found.expires_at !== null && found.expires_at.getTime() <= Date.now())
+    ) {
+      unprocessable(
+        ["questionId"],
+        "request_question_closed",
+        "That approval or question is no longer open",
+      );
+    }
+  }
+  const note = value.note?.trim() ?? "";
+  if (note.length > REQUEST_NOTE_MAX) {
+    unprocessable(["note"], "request_note_too_long", "The note is too long");
+  }
+  if (value.stepKey !== undefined) {
+    const step = await transaction.query(
+      `select 1 from bakery.run_steps
+        where organization_id = $1 and run_id = $2 and step_key = $3`,
+      [organizationId, run.id, value.stepKey],
+    );
+    if (step.rows.length === 0) {
+      unprocessable(["stepKey"], "request_step_not_found", "No such step");
+    }
+  }
+  const neededBy = value.neededBy === undefined
+    ? null
+    : new Date(value.neededBy);
+  if (neededBy !== null && Number.isNaN(neededBy.getTime())) {
+    unprocessable(["neededBy"], "request_needed_by_invalid", "Not a date");
+  }
+  if (neededBy !== null) {
+    const limit = Date.now() + REQUEST_LIFETIME_DAYS * 86_400_000;
+    if (neededBy.getTime() > limit) {
+      unprocessable(
+        ["neededBy"],
+        "request_needed_by_after_expiry",
+        "Needed by must be before the request expires",
+      );
+    }
+  }
+  if (value.recipientId === principalId) {
+    unprocessable(["recipientId"], "request_self", "You cannot ask yourself");
+  }
+
+  // The person asked is resolved once, here, and frozen on the request. One who
+  // cannot be found (removed, disabled, not a member, not a person) falls back
+  // to whoever started the run, with a visible note (O62).
+  let recipientId = value.recipientId;
+  let fallbackForName: string | null = null;
+  const resolved = await activeHuman(transaction, organizationId, recipientId);
+  if (resolved === null) {
+    const meant = await transaction.query<{ display_name: string }>(
+      "select display_name from bakery.principals where id = $1",
+      [value.recipientId],
+    );
+    const owner = run.requested_by ?? run.task_created_by;
+    const ownerPerson = owner === null
+      ? null
+      : await activeHuman(transaction, organizationId, owner);
+    if (owner === null || ownerPerson === null || owner === principalId) {
+      unprocessable(
+        ["recipientId"],
+        "request_recipient_unavailable",
+        "That person cannot be asked and nobody else can be asked in their place",
+      );
+    }
+    recipientId = owner;
+    fallbackForName = meant.rows[0]?.display_name ?? "someone";
+  }
+
+  // A request past its time is over; asking again makes a new one.
+  await transaction.query(
+    `update bakery.person_requests
+        set status = 'expired', updated_at = now(), version = version + 1
+      where organization_id = $1 and run_id = $2 and recipient_id = $3
+        and intent = $4 and status = 'open' and expires_at <= now()`,
+    [organizationId, run.id, recipientId, value.intent],
+  );
+  const open = await transaction.query<{ id: string }>(
+    `select id from bakery.person_requests
+      where organization_id = $1 and run_id = $2 and recipient_id = $3
+        and intent = $4 and coalesce(step_key, '') = $5 and status = 'open'
+        and coalesce(target_id, $6::uuid) = coalesce($7::uuid, $6::uuid)
+      for update`,
+    [
+      organizationId,
+      run.id,
+      recipientId,
+      value.intent,
+      value.stepKey ?? "",
+      NO_TARGET,
+      value.questionId ?? null,
+    ],
+  );
+  if (open.rows[0]) {
+    // Asking again reminds: the same open request, touched. A reminder is an
+    // act like any other, so it is recorded: the decisions ledger, the audit
+    // trail and the invalidation event all say it happened.
+    const reminded = await transaction.query<{ version: number }>(
+      `update bakery.person_requests
+          set updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2
+        returning version`,
+      [organizationId, open.rows[0].id],
+    );
+    const remindedVersion = reminded.rows[0]?.version;
+    if (remindedVersion === undefined) throw new Error("REQUEST_REMIND_FAILED");
+    const remindedBy = attributeAction(context, principalId).actorKind;
+    await ledger(transaction, {
+      organizationId,
+      taskId: run.task_id,
+      runId: run.id,
+      kind: "request_reminded",
+      decidedBy: principalId,
+      text: value.intent,
+      detail: {
+        requestId: open.rows[0].id,
+        recipientId,
+        intent: value.intent,
+        actorKind: remindedBy,
+      },
+    });
+    await appendFacts(transaction, context, {
+      organizationId,
+      principalId,
+      operation: "runRequests.create",
+      eventType: "runRequest.created",
+      requestId: open.rows[0].id,
+      version: remindedVersion,
+      taskId: run.task_id,
+      runId: run.id,
+      details: {
+        runId: run.id,
+        intent: value.intent,
+        reminded: true,
+      },
+    });
+    return toRunRequest(
+      await readRequest(transaction, organizationId, open.rows[0].id),
+    );
+  }
+
+  const kind = attributeAction(context, principalId).actorKind;
+  const created = await transaction.query<{ id: string }>(
+    `insert into bakery.person_requests (
+       organization_id, run_id, task_id, step_key, intent, recipient_id,
+       fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at,
+       target_id)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+             now() + make_interval(days => $12), $13)
+     returning id`,
+    [
+      organizationId,
+      run.id,
+      run.task_id,
+      value.stepKey ?? null,
+      value.intent,
+      recipientId,
+      fallbackForName,
+      principalId,
+      kind === "agent" ? "agent" : "person",
+      note === "" ? null : note,
+      neededBy,
+      REQUEST_LIFETIME_DAYS,
+      value.questionId ?? null,
+    ],
+  );
+  const requestId = created.rows[0]?.id;
+  if (!requestId) throw new Error("REQUEST_INSERT_FAILED");
+
+  // The one power, on exactly that row, for as long as the request lasts. It
+  // is given whatever role the person already has: observe says nothing about
+  // doing, and the gate asks the grant only when the role refuses.
+  if (power !== undefined) {
+    await transaction.query(
+      `insert into bakery.run_power_grants (
+         organization_id, run_id, principal_id, power, target_kind,
+         question_id, source_request_id, expires_at)
+       select $1, $2, $3, $4, 'question', $5, $6, expires_at
+         from bakery.person_requests
+        where organization_id = $1 and id = $6
+       on conflict (
+         organization_id, principal_id, power, question_id
+       ) where revoked_at is null do nothing`,
+      [organizationId, run.id, recipientId, power, value.questionId, requestId],
+    );
+  }
+
+  // The right to see this run, unless the person already can through a role.
+  // Observe stays after the request ends; only removing access takes it away.
+  const standing = await hasStandingRunAccess(
+    transaction,
+    organizationId,
+    recipientId,
+  );
+  if (!standing) {
+    await transaction.query(
+      `insert into bakery.run_access_grants (
+         organization_id, run_id, task_id, principal_id, source_request_id,
+         via, granted_by, granted_by_kind)
+       values ($1, $2, $3, $4, $5, 'request', $6, $7)
+       on conflict do nothing`,
+      [
+        organizationId,
+        run.id,
+        run.task_id,
+        recipientId,
+        requestId,
+        principalId,
+        kind === "agent" ? "agent" : "person",
+      ],
+    );
+  }
+  await ledger(transaction, {
+    organizationId,
+    taskId: run.task_id,
+    runId: run.id,
+    kind: "request",
+    decidedBy: principalId,
+    text: value.intent,
+    detail: {
+      requestId,
+      recipientId,
+      intent: value.intent,
+      ownerFallback: fallbackForName !== null,
+      actorKind: kind,
+    },
+  });
+  await appendFacts(transaction, context, {
+    organizationId,
+    principalId,
+    operation: "runRequests.create",
+    eventType: "runRequest.created",
+    requestId,
+    version: 1,
+    taskId: run.task_id,
+    runId: run.id,
+    details: {
+      runId: run.id,
+      intent: value.intent,
+      ownerFallback: fallbackForName !== null,
+      granted: !standing,
+    },
+  });
+  return toRunRequest(
+    await readRequest(transaction, organizationId, requestId),
+  );
+}
+
+/** runRequests.list: the requests made on one run, newest first. */
+export async function listRunRequests(context: ActionContext) {
+  const { transaction, organizationId, accessScope } = requireWorkTransaction(
+    context,
+  );
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  const found = await transaction.query<RequestRow>(
+    `${REQUEST_SELECT}
+      where request.organization_id = $1 and request.run_id = $2
+      order by request.created_at desc, request.id desc limit $3`,
+    [organizationId, run.id, REQUEST_LIST_LIMIT],
+  );
+  return { requests: found.rows.map(toRunRequest) };
+}
+
+/**
+ * runRequests.mine: the requests addressed to the caller on one run. It needs
+ * no run access of its own: a person asked is told what they were asked even
+ * after their access was removed, and nothing here names anyone else's
+ * requests.
+ */
+export async function myRunRequests(context: ActionContext) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const runId = context.params.id;
+  if (!runId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const found = await transaction.query<RequestRow>(
+    `${REQUEST_SELECT}
+      where request.organization_id = $1 and request.run_id = $2
+        and request.recipient_id = $3
+      order by request.created_at desc, request.id desc limit $4`,
+    [organizationId, runId, principalId, REQUEST_LIST_LIMIT],
+  );
+  return { requests: found.rows.map(toRunRequest) };
+}
+
+/**
+ * runRequests.withdraw: only the asker, or an organization Admin, ends an open
+ * request. The person keeps seeing the run: ending a request and removing
+ * access are different acts.
+ */
+export async function withdrawRunRequest(context: ActionContext) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const requestId = context.params.id;
+  if (!requestId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const current = await transaction.query<
+    {
+      run_id: string;
+      task_id: string;
+      asked_by: string | null;
+      status: string;
+      version: number;
+      recipient_id: string;
+    }
+  >(
+    `select run_id, task_id, asked_by, recipient_id, version,
+            case when status = 'open' and expires_at <= now()
+                 then 'expired' else status end as status
+       from bakery.person_requests
+      where organization_id = $1 and id = $2 for update`,
+    [organizationId, requestId],
+  );
+  const row = current.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (row.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  if (row.asked_by !== principalId) {
+    const role = await transaction.query<{ role: string | null }>(
+      `select role from bakery.organization_memberships
+        where organization_id = $1 and principal_id = $2 and status = 'active'`,
+      [organizationId, principalId],
+    );
+    if (role.rows[0]?.role !== "admin") {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+  }
+  if (row.status !== "open") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "request_not_open" },
+    });
+  }
+  await transaction.query(
+    `update bakery.person_requests
+        set status = 'withdrawn', withdrawn_at = now(), withdrawn_by = $3,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2`,
+    [organizationId, requestId, principalId],
+  );
+  // A withdrawn request takes its power with it; observe stays (only removing
+  // access ends that).
+  await transaction.query(
+    `update bakery.run_power_grants
+        set revoked_at = now(), revoked_by = $3, version = version + 1
+      where organization_id = $1 and source_request_id = $2
+        and revoked_at is null`,
+    [organizationId, requestId, principalId],
+  );
+  await ledger(transaction, {
+    organizationId,
+    taskId: row.task_id,
+    runId: row.run_id,
+    kind: "request_withdrawn",
+    decidedBy: principalId,
+    text: "withdrawn",
+    detail: { requestId, recipientId: row.recipient_id },
+  });
+  await appendFacts(transaction, context, {
+    organizationId,
+    principalId,
+    operation: "runRequests.withdraw",
+    eventType: "runRequest.withdrawn",
+    requestId,
+    version: row.version + 1,
+    taskId: row.task_id,
+    runId: row.run_id,
+    details: { runId: row.run_id },
+  });
+  return toRunRequest(
+    await readRequest(transaction, organizationId, requestId),
+  );
+}
+
+/**
+ * A decision or an answer on a row ends the request that asked for it, and the
+ * power it gave: a row is decided once, and the right to act on it is spent.
+ * Called by the handlers in the transaction that decides, so the request never
+ * says "open" about a row that is done. It closes every open request and
+ * revokes every live grant for the row, whoever decided: the asked person's
+ * power is spent when anyone else acts first. `principalId` is the actor, kept
+ * as the revoker.
+ */
+export async function completeRequestsOnQuestion(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  questionId: string,
+  status: "answered" | "handled",
+): Promise<void> {
+  await transaction.query(
+    `update bakery.person_requests
+        set status = $3, responded_at = now(), updated_at = now(),
+            version = version + 1
+      where organization_id = $1 and target_id = $2 and status = 'open'`,
+    [organizationId, questionId, status],
+  );
+  await transaction.query(
+    `update bakery.run_power_grants
+        set revoked_at = now(), revoked_by = $3, version = version + 1
+      where organization_id = $1 and question_id = $2 and revoked_at is null`,
+    [organizationId, questionId, principalId],
+  );
+}

@@ -55,6 +55,7 @@ import {
 import { seedLegacyLeasedModelAttempt } from "../helpers/worker-execution/legacy-attempt.ts";
 import {
   admitFundedModelRun as admit,
+  admitRefusedFundedModelRun,
   type AdmittedJob,
   fundedModelPolicy,
   seedAdmissibleRun as seedRun,
@@ -1385,6 +1386,80 @@ Deno.test("a receipt settles nothing once an effect turns live after candidate s
       }
     } finally {
       await deleteRecoveryFailures(db, fixture.organizationId);
+      await closePgDatabase(side);
+    }
+  }));
+
+Deno.test("children reserving at once never exceed their plan's budget cap", () =>
+  withWorkerFixture(async (fixture) => {
+    const db = fixture.pgDatabase;
+    const side = openPgDatabase(readTestDatabaseConfig().databaseUrl, 8);
+    try {
+      await seedProviderPricingSnapshot(db);
+      // Six children at 0.10 each under a 0.35 cap: at most three may hold.
+      const children: Awaited<ReturnType<typeof seedRun>>[] = [];
+      for (let index = 0; index < 6; index++) {
+        children.push(
+          await seedRun(db, fixture.organizationId, fixture.principalId, {
+            reservationUsd: "0.1",
+            stepKey: `cap-${index}`,
+            ...(children[0]
+              ? { applicationId: children[0].applicationId }
+              : {}),
+          }),
+        );
+      }
+      const scope = {
+        organizationId: fixture.organizationId,
+        applicationId: children[0].applicationId,
+        repositoryId: null,
+        principalId: fixture.principalId,
+      };
+      const parent = await insertTask(db, scope, "capped parent");
+      await insertPlan(
+        db,
+        scope,
+        parent,
+        children.map((c) => ({
+          childTaskId: c.taskId,
+          repositoryId: c.repositoryId,
+        })),
+        "0.35",
+      );
+      // The engine's raw admission: a refused child answers terminal, no job.
+      const outcomes = await Promise.all(
+        children.map((child) => admitRefusedFundedModelRun(side, child)),
+      );
+      assertEquals(outcomes.filter((o) => o.jobId).length, 3);
+      const refused = await db.query<{ n: string }>(
+        `select count(*)::text as n from bakery.workflow_runs
+          where organization_id = $1 and id = any($2::uuid[])
+            and status = 'failed'`,
+        [fixture.organizationId, children.map((c) => c.runId)],
+      );
+      assertEquals(Number(refused.rows[0].n), 3);
+      const held = await db.query<{ total: string; runs: string }>(
+        `select coalesce(sum(reserved_usd + settled_usd), 0)::text as total,
+                count(*) filter (where reserved_usd + settled_usd > 0)::text as runs
+           from bakery.budget_accounts
+          where scope = 'run' and organization_id = $1
+            and run_id = any($2::uuid[])`,
+        [fixture.organizationId, children.map((c) => c.runId)],
+      );
+      assert(
+        Number(held.rows[0].total) <= 0.35 + 1e-9,
+        "the plan cap was overrun: " + held.rows[0].total,
+      );
+      assertEquals(Number(held.rows[0].runs), 3);
+      const jobs = await db.query<{ n: string }>(
+        `select count(*)::text as n from bakery.jobs j
+           join bakery.run_steps s on s.organization_id = j.organization_id and s.id = j.run_step_id
+          where j.organization_id = $1 and s.run_id = any($2::uuid[])`,
+        [fixture.organizationId, children.map((c) => c.runId)],
+      );
+      assertEquals(Number(jobs.rows[0].n), 3);
+    } finally {
+      await deleteCoordination(db, fixture.organizationId);
       await closePgDatabase(side);
     }
   }));

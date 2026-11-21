@@ -115,13 +115,12 @@ test("every action of the spec's catalogue is named, with its sentence where the
   await open(page);
   const steps = page.getByTestId("workflow-steps");
   for (const [index, [uses, name, line]] of CATALOGUE.entries()) {
-    const step = steps.locator(`[data-step-id=s${index}]`);
+    const step = steps.locator(`[data-card=s${index}]`);
     await expect(step, uses).toContainText(name);
     // Never the action's own identifier.
     await expect(step, uses).not.toContainText(uses);
-    const action = step.locator('[data-step-line="action"]');
-    if (line === "") await expect(action, uses).toHaveCount(0);
-    else await expect(action, uses).toHaveText(line);
+    const action = step.locator(".ui-step-card__summary");
+    await expect(action, uses).toHaveText(line);
   }
 });
 
@@ -130,16 +129,16 @@ test("the old name is gone, and the sentence sits above the agent line", async (
   const steps = page.getByTestId("workflow-steps");
   await expect(steps).not.toContainText("Run the coding agent");
   await expect(steps).not.toContainText("Review the changes");
-  const implement = steps.locator("[data-step-id=s4]");
-  await expect(implement.locator('[data-step-line="action"]')).toHaveText(
+  const implement = steps.locator("[data-card=s4]");
+  await expect(implement.locator(".ui-step-card__summary")).toHaveText(
     "A coding agent makes the change in the repository.",
   );
-  await expect(implement.locator('[data-step-line="agent"]')).toHaveText(
+  await expect(implement.locator('[data-step-extra="true"]')).toHaveText(
     "Agent: Code writer, version 1",
   );
-  const sentence = (await implement.locator('[data-step-line="action"]')
+  const sentence = (await implement.locator(".ui-step-card__summary")
     .boundingBox())!;
-  const agent = (await implement.locator('[data-step-line="agent"]')
+  const agent = (await implement.locator('[data-step-extra="true"]')
     .boundingBox())!;
   expect(sentence.y).toBeLessThan(agent.y);
 });
@@ -147,10 +146,10 @@ test("the old name is gone, and the sentence sits above the agent line", async (
 test("an action the spec does not name keeps showing its own identifier, with no sentence", async ({ page }) => {
   await open(page);
   const other = page.getByTestId("workflow-steps").locator(
-    "[data-step-id=other]",
+    "[data-card=other]",
   );
   await expect(other).toContainText("custom.thing");
-  await expect(other.locator('[data-step-line="action"]')).toHaveCount(0);
+  await expect(other.locator(".ui-step-card__summary")).toHaveText("");
   await page.mouse.move(700, 700);
   await shot(page, "workflow-step-names");
 });

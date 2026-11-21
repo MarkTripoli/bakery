@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 import {
   type CursorBinding,
   decodeCursor,
@@ -13,7 +14,28 @@ import {
   POSTGRES_UNIQUE_VIOLATION,
   postgresErrorCode,
 } from "../../platform/postgres-errors.ts";
+import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { attributeAction } from "../auth/application/action-attribution.ts";
+import {
+  hiddenArtifactIds,
+  reviewerIsolationOf,
+} from "../knowledge/reviewer-isolation.ts";
+import { assertMayAuthorSkill, SKILL_VISIBLE_TO } from "./skill-scope-guard.ts";
+import { insertLocalSkillIdentity } from "./skill-identity.ts";
+import {
+  checkSkillDraft,
+  deleteSkillDraftFile,
+  discardSkillDraft,
+  getSkillDraft,
+  getSkillDraftFile,
+  openSkillDraft,
+  saveSkillDraftFile,
+  updateSkillDraft,
+} from "./skill-drafts.ts";
+import type { SkillFileStoreOperations } from "./storage.ts";
+import { listSkillUsage } from "./skill-usage.ts";
+import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
   type RunRow,
   runWorkspaceBaseShaColumn,
@@ -29,7 +51,9 @@ import {
 const PAGE_ORDERING = "createdAt:desc,id:desc";
 const SOURCE_COLUMNS = `id, source_type, locator, publisher, license,
   last_checked_at, enabled, created_at, updated_at, version`;
-const SKILL_COLUMNS = `id, source_id, slug, name, active_version_id, enabled,
+export const SKILL_COLUMNS =
+  `id, source_id, slug, name, active_version_id, enabled,
+  scope, owner_principal_id, copied_from_skill_id, copied_from_version_id,
   created_at, updated_at, version`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
@@ -42,7 +66,15 @@ const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
 type CursorInput = { cursor?: string; limit?: number };
 type SourceCreateInput = z.output<typeof contractSchemas.SkillSourceCreate>;
 type SourceUpdateInput = { name?: string; enabled?: boolean };
-type SkillCreateInput = { slug: string; name: string };
+type SkillDraftUpdateInput = z.output<typeof contractSchemas.SkillDraftUpdate>;
+type SkillDraftFileSaveInput = z.output<
+  typeof contractSchemas.SkillDraftFileSave
+>;
+type SkillCreateInput = {
+  slug: string;
+  name: string;
+  scope?: "global" | "organization" | "personal";
+};
 type SkillImportInput = z.output<typeof contractSchemas.SkillImport>;
 type SkillUpdateInput = {
   name?: string;
@@ -54,6 +86,9 @@ type SkillUpdateInput = {
 export const SkillCreatePersistenceSchema = z.object({
   slug: z.string().min(1).max(120).describe("Tenant-unique skill slug."),
   name: z.string().min(1).max(200).describe("Human-readable skill name."),
+  scope: z.enum(["global", "organization", "personal"]).optional().describe(
+    "Whether the skill comes with Bakery, belongs to the organization or only to its creator.",
+  ),
 }).describe(
   "Validated local skill identity fields accepted before SQL writes.",
 );
@@ -111,13 +146,17 @@ type SkillSourceRow = {
   updated_at: Date | string;
   version: number;
 };
-type SkillRow = {
+export type SkillRow = {
   id: string;
   source_id: string | null;
   slug: string;
   name: string;
   active_version_id: string | null;
   enabled: boolean;
+  scope: "global" | "organization" | "personal";
+  owner_principal_id: string | null;
+  copied_from_skill_id: string | null;
+  copied_from_version_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -161,13 +200,17 @@ export function toSkill(row: SkillRow) {
     name: row.name,
     activeVersionId: row.active_version_id,
     enabled: row.enabled,
+    scope: row.scope,
+    ownerPrincipalId: row.owner_principal_id,
+    copiedFromSkillId: row.copied_from_skill_id,
+    copiedFromVersionId: row.copied_from_version_id,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: row.version,
   };
 }
 
-async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+export async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (error) {
@@ -183,7 +226,7 @@ async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-async function recordMutation(
+export async function recordMutation(
   transaction: PgTransactionClient,
   context: ActionContext,
   options: {
@@ -237,13 +280,21 @@ async function listPage<
   table: "skill_sources" | "skills";
   columns: string;
   project: (row: T) => O;
+  /** Only skills of this scope; the cursor is bound to it. Skills only. */
+  scope?: "global" | "organization" | "personal";
 }) {
+  const visibility = options.table === "skills"
+    ? `and ${SKILL_VISIBLE_TO("$5")}`
+    : "";
+  const scopeFilter = options.scope === undefined ? "" : "and scope = $6::text";
   const binding: CursorBinding = {
     action: options.action,
     principalId: options.principalId,
     organizationId: options.organizationId,
     ordering: PAGE_ORDERING,
-    filters: "{}",
+    filters: options.scope === undefined
+      ? "{}"
+      : JSON.stringify({ scope: options.scope }),
     schemaVersion: 1,
   };
   const position = await decodeCursor(
@@ -259,6 +310,8 @@ async function listPage<
        from bakery.${options.table}
       where organization_id = $1
         and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
+        ${visibility}
+        ${scopeFilter}
       order by created_at desc, id desc
       limit $4`,
     [
@@ -266,6 +319,8 @@ async function listPage<
       position?.createdAt ?? null,
       position?.id ?? null,
       limit + 1,
+      ...(visibility === "" ? [] : [options.principalId]),
+      ...(scopeFilter === "" ? [] : [options.scope]),
     ],
   );
   const visible = result.rows.slice(0, limit);
@@ -281,10 +336,117 @@ async function listPage<
   };
 }
 
+type LibrarySearchInput = z.output<typeof contractSchemas.LibrarySearchQuery>;
+type LibrarySearchRow = {
+  kind: "skill" | "agent" | "artifact";
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: Date | string;
+  cursor_created_at: string;
+};
+
+/**
+ * Finds skills, agents and artifacts of one organization by text.
+ *
+ * Matching is a case-insensitive substring over the name (and the description,
+ * where the kind has one), done with `strpos` so a `%` or `_` typed by the
+ * caller is matched literally rather than as a wildcard. The page is keyset
+ * ordered by (created_at, id) across the three tables, and its cursor is bound
+ * to the caller, the organization, the query text and the kind filter, so a
+ * cursor cannot be replayed against a different search.
+ */
+async function searchLibraryPage(options: {
+  transaction: PgTransactionClient;
+  organizationId: string;
+  principalId: string;
+  input: LibrarySearchInput;
+  secret: string;
+  /** False when a session lacks the scope artifacts need; see below. */
+  includeArtifacts: boolean;
+}) {
+  const kind = options.input.kind ?? null;
+  const binding: CursorBinding = {
+    action: "library.search",
+    principalId: options.principalId,
+    organizationId: options.organizationId,
+    ordering: PAGE_ORDERING,
+    // Hashed: the query is up to 200 characters (600 bytes in UTF-8) and a raw
+    // copy would overflow the cursor's size limit on the first full page.
+    filters: await sha256Hex(
+      canonicalJson({ query: options.input.query, kind }),
+    ),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(
+    options.secret,
+    options.input.cursor,
+    binding,
+  );
+  const limit = options.input.limit ?? 25;
+  const result = await options.transaction.query<LibrarySearchRow>(
+    `select kind, id, name, description, created_at,
+            to_char(created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
+       from (
+         select 'skill'::text as kind, id, name, description, created_at
+           from bakery.skills
+          where organization_id = $1 and ($5::text is null or $5 = 'skill')
+            and (scope <> 'personal' or owner_principal_id = $8::uuid)
+            and (strpos(lower(name), lower($6)) > 0
+              or strpos(lower(coalesce(description, '')), lower($6)) > 0)
+         union all
+         select 'agent'::text, id, name, description, created_at
+           from bakery.agent_definitions
+          where organization_id = $1 and ($5::text is null or $5 = 'agent')
+            and (strpos(lower(name), lower($6)) > 0
+              or strpos(lower(coalesce(description, '')), lower($6)) > 0)
+         union all
+         select 'artifact'::text, id, name, null::text, created_at
+           from bakery.artifacts
+          where organization_id = $1 and ($5::text is null or $5 = 'artifact')
+            and $7::boolean
+            and strpos(lower(name), lower($6)) > 0
+       ) as hits
+      where ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
+      order by created_at desc, id desc
+      limit $4`,
+    [
+      options.organizationId,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      limit + 1,
+      kind,
+      options.input.query,
+      options.includeArtifacts,
+      options.principalId,
+    ],
+  );
+  const visible = result.rows.slice(0, limit);
+  const last = visible.at(-1);
+  return {
+    items: visible.map((row) => ({
+      kind: row.kind,
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      createdAt: toIso(row.created_at),
+    })),
+    nextCursor: result.rows.length > limit && last
+      ? await encodeCursor(options.secret, binding, {
+        createdAt: last.cursor_created_at,
+        id: last.id,
+      })
+      : null,
+  };
+}
+
 export function createCatalogHandlers(
   secret: string,
   options: Readonly<{
     normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
+    /** Where a published version's files are read back from, to start a draft. */
+    skillFileStore?: SkillFileStoreOperations;
   }> = {},
 ) {
   const normalizeSourceLocator = options.normalizeSourceLocator ??
@@ -366,6 +528,8 @@ export function createCatalogHandlers(
     async importSkill(context: ActionContext, input: SkillImportInput) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
+      // A backup holds the installation: no import starts until it lets go.
+      await assertNotQuiesced(transaction, "intake");
       requireCommandMetadata(context);
       const parsed = SkillImportAdmissionPersistenceSchema.safeParse(input);
       if (!parsed.success) invalidSourceInput(parsed.error);
@@ -549,7 +713,10 @@ export function createCatalogHandlers(
       return toSkillSource(row);
     },
 
-    async listSkills(context: ActionContext, input: CursorInput) {
+    async listSkills(
+      context: ActionContext,
+      input: z.output<typeof contractSchemas.SkillQuery>,
+    ) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       return await listPage<SkillRow, ReturnType<typeof toSkill>>({
@@ -562,15 +729,56 @@ export function createCatalogHandlers(
         table: "skills",
         columns: SKILL_COLUMNS,
         project: toSkill,
+        scope: input.scope,
       });
     },
 
+    async searchLibrary(context: ActionContext, input: LibrarySearchInput) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      // Artifacts are gated by their own scope (`artifacts.read`), which the
+      // `library.read` scope that offers this tool does not imply. A session
+      // that holds the one and not the other must not list artifacts through
+      // search that `artifacts.list` would refuse it. A person's own request
+      // carries no session scopes and is bounded by their permissions alone.
+      const includeArtifacts = context.sessionScopes === undefined ||
+        context.sessionScopes.includes("artifacts.read");
+      if (!includeArtifacts && input.kind === "artifact") {
+        throw new StandardError({ code: "AUTH_FORBIDDEN" });
+      }
+      const page = await searchLibraryPage({
+        transaction,
+        organizationId,
+        principalId,
+        input,
+        secret,
+        includeArtifacts,
+      });
+      // A reviewer session never finds another step's transcript (O47).
+      const hidden = await hiddenArtifactIds(
+        transaction,
+        await reviewerIsolationOf(transaction, context, organizationId),
+        organizationId,
+        page.items.filter((item) => item.kind === "artifact").map((item) =>
+          item.id
+        ),
+      );
+      return {
+        ...page,
+        items: page.items.filter((item) =>
+          item.kind !== "artifact" || !hidden.has(item.id)
+        ),
+      };
+    },
+
     async getSkill(context: ActionContext) {
-      const { transaction, organizationId } = requireWorkTransaction(context);
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
       const result = await transaction.query<SkillRow>(
         `select ${SKILL_COLUMNS} from bakery.skills
-          where organization_id = $1 and id = $2`,
-        [organizationId, idFromPath(context)],
+          where organization_id = $1 and id = $2
+            and ${SKILL_VISIBLE_TO("$3")}`,
+        [organizationId, idFromPath(context), principalId],
       );
       const row = result.rows[0];
       if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -581,34 +789,40 @@ export function createCatalogHandlers(
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       const persistedInput = requireSkillCreatePersistence(input);
-      const skillId = crypto.randomUUID();
-      const sourceId = crypto.randomUUID();
-      const locator =
-        `bakery://organizations/${organizationId}/skills/${skillId}`;
-      const result = await boundedMutation(async () => {
-        await transaction.query(
-          `insert into bakery.skill_sources (
-             id, organization_id, source_type, locator, display_name,
-             publisher, license, last_checked_at, enabled
-           ) values ($1, $2, 'local_bundle', $3, $4, null, null, null, true)`,
-          [sourceId, organizationId, locator, persistedInput.name],
-        );
-        return await transaction.query<SkillRow>(
-          `insert into bakery.skills (
-             id, organization_id, source_id, slug, name, active_version_id,
-             enabled
-           ) values ($1, $2, $3, $4, $5, null, true)
-           returning ${SKILL_COLUMNS}`,
-          [
-            skillId,
-            organizationId,
-            sourceId,
-            persistedInput.slug,
-            persistedInput.name,
-          ],
-        );
+      const scope = persistedInput.scope ?? "organization";
+      // A global skill comes with Bakery and is never created through the API.
+      if (scope === "global") {
+        throw new StandardError({
+          code: "AUTH_FORBIDDEN",
+          params: { reason: "global_skill_comes_with_bakery" },
+        });
+      }
+      // A personal skill is a person's own; an agent or a token never owns one.
+      if (
+        scope === "personal" &&
+        attributeAction(context, principalId).actorKind !== "person"
+      ) {
+        throw new StandardError({
+          code: "AUTH_FORBIDDEN",
+          params: { reason: "personal_skill_requires_person" },
+        });
+      }
+      await assertMayAuthorSkill(transaction, organizationId, principalId, {
+        scope,
+        ownerPrincipalId: scope === "personal" ? principalId : null,
       });
-      const row = result.rows[0];
+      const skillId = crypto.randomUUID();
+      const row = await boundedMutation(() =>
+        insertLocalSkillIdentity<SkillRow>(transaction, organizationId, {
+          skillId,
+          sourceId: crypto.randomUUID(),
+          slug: persistedInput.slug,
+          name: persistedInput.name,
+          scope,
+          ownerPrincipalId: scope === "personal" ? principalId : null,
+          copiedFrom: null,
+        }, SKILL_COLUMNS)
+      );
       if (!row) throw new Error("CATALOG_SKILL_INSERT_FAILED");
       await recordMutation(transaction, context, {
         organizationId,
@@ -620,6 +834,77 @@ export function createCatalogHandlers(
         resourceVersion: row.version,
       });
       return toSkill(row);
+    },
+
+    listSkillUseGrants(context: ActionContext, input: CursorInput) {
+      return listSkillUseGrants(context, input, secret);
+    },
+
+    openSkillDraft(context: ActionContext) {
+      return openSkillDraft(context, options.skillFileStore);
+    },
+
+    getSkillDraft(context: ActionContext) {
+      return getSkillDraft(context);
+    },
+
+    updateSkillDraft(context: ActionContext, input: SkillDraftUpdateInput) {
+      return updateSkillDraft(context, input);
+    },
+
+    discardSkillDraft(context: ActionContext) {
+      return discardSkillDraft(context);
+    },
+
+    checkSkillDraft(context: ActionContext) {
+      return checkSkillDraft(context);
+    },
+
+    checkSkillSourceUpdate(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.IdPath>,
+    ) {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
+    },
+
+    saveSkillDraftFile(context: ActionContext, input: SkillDraftFileSaveInput) {
+      return saveSkillDraftFile(context, input);
+    },
+
+    getSkillDraftFile(context: ActionContext) {
+      return getSkillDraftFile(context);
+    },
+
+    deleteSkillDraftFile(context: ActionContext) {
+      return deleteSkillDraftFile(context);
+    },
+
+    listSkillUsage(context: ActionContext, input: CursorInput) {
+      return listSkillUsage(context, input, secret);
+    },
+
+    deleteSkillUseGrant(context: ActionContext) {
+      return deleteSkillUseGrant(context);
+    },
+
+    copySkill(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.SkillCopy>,
+    ) {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
+    },
+
+    publishSkillDraft(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.IdPath>,
+    ) {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
     },
 
     createSkillVersion(
@@ -639,6 +924,21 @@ export function createCatalogHandlers(
       if (expectedVersion === undefined) {
         throw new StandardError({ code: "PRECONDITION_REQUIRED" });
       }
+      // The caller must be able to see the skill at all, then to author it.
+      const current = await transaction.query<
+        Pick<SkillRow, "scope" | "owner_principal_id">
+      >(
+        `select scope, owner_principal_id from bakery.skills
+          where organization_id = $1 and id = $2
+            and ${SKILL_VISIBLE_TO("$3")}`,
+        [organizationId, skillId, principalId],
+      );
+      const target = current.rows[0];
+      if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      await assertMayAuthorSkill(transaction, organizationId, principalId, {
+        scope: target.scope,
+        ownerPrincipalId: target.owner_principal_id,
+      });
       const result = await boundedMutation(() =>
         transaction.query<SkillRow>(
           `update bakery.skills
@@ -647,6 +947,7 @@ export function createCatalogHandlers(
                   enabled = coalesce($7, enabled),
                   updated_at = now(), version = version + 1
             where organization_id = $1 and id = $2 and version = $3
+              and ${SKILL_VISIBLE_TO("$8")}
             returning ${SKILL_COLUMNS}`,
           [
             organizationId,
@@ -656,14 +957,16 @@ export function createCatalogHandlers(
             input.description !== undefined,
             input.description ?? null,
             input.enabled ?? null,
+            principalId,
           ],
         )
       );
       const row = result.rows[0];
       if (!row) {
         const visible = await transaction.query(
-          "select 1 from bakery.skills where organization_id = $1 and id = $2",
-          [organizationId, skillId],
+          `select 1 from bakery.skills where organization_id = $1 and id = $2
+              and ${SKILL_VISIBLE_TO("$3")}`,
+          [organizationId, skillId, principalId],
         );
         throw new StandardError({
           code: visible.rows.length === 1

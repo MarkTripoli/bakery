@@ -453,7 +453,7 @@ test.describe("security suite states are honest", () => {
     await open(page, "security-hub", "error");
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.getByTestId("security-error")).toHaveCount(0);
-    await expect(page.getByText("Sign-in methods")).toBeVisible();
+    await expect(page.getByText("Passkeys").first()).toBeVisible();
   });
 
   test("loading announces itself and reserves the rows", async ({ page }) => {
@@ -479,9 +479,16 @@ test.describe("security suite states are honest", () => {
   test("errors and failures use alert regions, confirmations use status regions: password-invalid", async ({ page }) => {
     test.setTimeout(MATRIX_CASE_TIMEOUT_MS);
     await open(page, "password", "invalid");
+    // The field says what is wrong and states the rule; no second banner
+    // repeats it.
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: "That password does not meet the rule.",
+      }),
+    ).toBeVisible();
     await expect(
       page.getByRole("alert").filter({ hasText: "We couldn’t complete that" }),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 
   test("errors and failures use alert regions, confirmations use status regions: password-success", async ({ page }) => {
@@ -505,11 +512,11 @@ test.describe("security suite keyboard-only completion", () => {
   test("change password: invalid focuses the field, then saves", async ({ page }) => {
     await open(page, "password", "default");
     const current = page.getByLabel("Current password");
-    const next = page.getByLabel("New password");
+    const next = page.getByLabel("New password", { exact: true });
     // Focus order inside the page: current field + reveal, new field + reveal,
-    // Save, Cancel.
+    // confirmation field + reveal, Cancel, Save.
     const order: string[] = [];
-    for (let presses = 0; presses < 40 && order.length < 6; presses += 1) {
+    for (let presses = 0; presses < 40 && order.length < 8; presses += 1) {
       await page.keyboard.press("Tab");
       const label = await page.evaluate(() => {
         const element = document.activeElement as HTMLElement | null;
@@ -525,8 +532,10 @@ test.describe("security suite keyboard-only completion", () => {
       "Show password",
       "New password",
       "Show password",
-      "Save password",
+      "Confirm new password",
+      "Show password",
       "Cancel",
+      "Save password",
     ]);
     await tabTo(page, current);
     await page.keyboard.type("old-password");
@@ -537,10 +546,17 @@ test.describe("security suite keyboard-only completion", () => {
     await page.keyboard.press("Tab");
     await expect(next).toBeFocused();
     await page.keyboard.type("short");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("short");
     await page.keyboard.press("Enter");
-    await expect(page.getByText("Choose a different password")).toBeVisible();
+    await expect(page.getByText("That password does not meet the rule."))
+      .toBeVisible();
     await expect(next).toBeFocused();
     await page.keyboard.type("-and-much-longer");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("short-and-much-longer");
     await page.keyboard.press("Enter");
     await expect(page.locator("main h1")).toHaveText("Password changed");
     await expect(
@@ -592,7 +608,7 @@ test.describe("security suite keyboard-only completion", () => {
       }),
     ).toBeVisible();
     await expect(
-      page.getByText("No passkeys added yet. Your existing sign-in methods"),
+      page.getByTestId("passkeys-none").getByText("No passkeys yet"),
     ).toBeVisible();
     await expect(remove).toHaveCount(0);
   });
@@ -661,7 +677,7 @@ test.describe("security suite keyboard-only completion", () => {
 });
 
 test.describe("security suite accessible names and landmarks", () => {
-  test("hub rows have unique link names, including connected clients", async ({ page }) => {
+  test("hub rows have unique button names, including connected clients", async ({ page }) => {
     await open(page, "security-hub", "protected");
     for (
       const name of [
@@ -670,11 +686,10 @@ test.describe("security suite accessible names and landmarks", () => {
         "Manage two-factor authentication",
         "Manage active sessions",
         "Manage connected clients",
-        "Sign out of this session",
       ]
     ) {
       await expect(
-        page.locator("main").getByRole("link", { name, exact: true }),
+        page.locator("main").getByRole("button", { name, exact: true }),
       ).toHaveCount(
         1,
       );
@@ -739,7 +754,7 @@ test.describe("security suite locales", () => {
           locale === "ar-XB" ? "rtl" : "ltr",
         );
         await expect(page.locator("main button[type=submit]")).toBeVisible();
-        await expect(page.locator("main input")).toHaveCount(2);
+        await expect(page.locator("main input")).toHaveCount(3);
         await expectNoHorizontalOverflow(page);
         await expectNoAxeViolations(page, `password ${locale}`);
       });
@@ -767,8 +782,12 @@ test.describe("security suite locales", () => {
         test.setTimeout(MATRIX_CASE_TIMEOUT_MS);
         await page.setViewportSize(viewport);
         await open(page, "security-hub", "default", `?locale=${locale}`);
-        await expect(page.locator("main a[href^='/settings/']"))
-          .toHaveCount(5);
+        // Four rows are the control (password, passkeys, sessions, connected
+        // apps); two-factor, while off, has its own button.
+        await expect(
+          page.locator("main button.ui-description-item--selectable"),
+        )
+          .toHaveCount(4);
         await expectNoHorizontalOverflow(page);
       });
 
@@ -1537,6 +1556,23 @@ test.describe("organization settings states", () => {
 test.describe("contextual feature availability", () => {
   test("/organizations disables Create organization with a reason when creation is paused", async ({ page }) => {
     await mockFeatureAvailability(page, { organizationCreation: false });
+    // The shared mock session answers installation settings as an administrator,
+    // and an administrator may create organizations. This person is not one.
+    await page.route("**/v1/installation/settings", (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "https://bakery.example/problems/forbidden",
+          title: "Forbidden",
+          status: 403,
+          code: "AUTH_FORBIDDEN",
+          retryable: false,
+          detail: "Administrators only.",
+          requestId: "00000000-0000-4000-8000-00000000f001",
+          traceId: "00000000000000000000000000000001",
+        }),
+      }));
     await page.goto("/organizations");
     const create = page.getByRole("button", { name: "Create organization" });
     await expect(create).toBeDisabled();
@@ -1941,11 +1977,16 @@ test.describe("connected clients and consent", () => {
     const row = page.getByTestId("clients-row");
     await expect(row).toHaveCount(1);
     await expect(row).toContainText("Local development client");
-    // The approved Paper caption: organization, then the scopes as one
-    // sentence (tests/rails/ui-paper-frames.node.mjs pins the same text).
+    // The caption names the organization, then each scope in plain words,
+    // never the raw permission name.
+    await expect(row).toContainText("Northstar");
     await expect(row).toContainText(
-      "Northstar · Read work and artifacts, start and steer tasks",
+      "Read tasks, plans and results you can access.",
     );
+    await expect(row).toContainText(
+      "Create work and send instructions under your permissions.",
+    );
+    await expect(row).not.toContainText("bakery:");
     await expect(
       page.getByRole("button", {
         name: "Revoke access for Local development client in Northstar",

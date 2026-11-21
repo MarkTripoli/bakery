@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { WorkflowCompilerDiagnosticSchema } from "./diagnostics.ts";
 import type { WorkflowJsonValue } from "./json-value.ts";
+import {
+  type WorkflowStepFiles,
+  WorkflowStepFilesSchema,
+} from "./step-files.ts";
 
 const IDENTIFIER = /^[a-z][a-z0-9_]{1,63}$/;
 const FIELD_SEGMENT = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
@@ -306,6 +310,8 @@ export type WorkflowActionNode = {
   inputs?: WorkflowInputSlot[] | undefined;
   /** Named output slots the step must publish when it completes. */
   outputs?: WorkflowOutputSlot[] | undefined;
+  /** Storage areas the step may read and write; absent means O44 and O45. */
+  files?: WorkflowStepFiles | undefined;
   requires: string[];
   checks?: string[] | undefined;
   effectKey?: z.infer<typeof WorkflowEffectKeySchema> | undefined;
@@ -443,6 +449,7 @@ const actionNodeSchema = z.object({
   ).max(32).optional().describe(
     "Named output slots the step must publish when it completes; a declared slot with nothing published fails the step.",
   ),
+  files: WorkflowStepFilesSchema.optional(),
   requires: z.array(described(z.string().max(64), "Capability name.")).max(32)
     .describe(
       "Sorted union of declared and registry capabilities.",
@@ -696,6 +703,9 @@ export const WorkflowPlanStepSchema = z.object({
   ),
   agentVersionId: z.string().regex(UUID).optional().describe(
     "Agent version the step selects for itself, when it selects one.",
+  ),
+  files: WorkflowStepFilesSchema.optional().describe(
+    "The files section the step declared, carried so the session claim mints its read and write scopes; absent means the O44 and O45 defaults.",
   ),
   timeoutMs: durationMsSchema.describe("Timeout applied to each attempt."),
   retry: retrySchema,

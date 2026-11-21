@@ -440,7 +440,7 @@ Deno.test("ci aggregate runs rails and diff checks", async () => {
 });
 
 Deno.test(
-  "ordinary backend e2e launches the identity full stack in a delegated cgroup",
+  "ordinary backend e2e launches the preset full stack in a delegated cgroup",
   async () => {
     const workflow = await readWorkflow("ci.yml");
     const e2eStart = workflow.indexOf("\n  e2e:\n");
@@ -457,7 +457,7 @@ Deno.test(
     assert(e2eBlock.includes("command -v bwrap"));
 
     const wrapper = await Deno.readTextFile(
-      "tests/e2e/run-fixed-secret-identity-full-stack_test.ts",
+      "tests/e2e/fixed-coding-preset-execution_test.ts",
     );
     assert(wrapper.includes('new Deno.Command("systemd-run"'));
     assert(wrapper.includes('"--property=Delegate=yes"'));
@@ -469,22 +469,17 @@ Deno.test(
     assert(wrapper.includes('"--allow-net"'));
     assert(!wrapper.includes('"--allow-all"'));
     assert(
-      wrapper.includes('"./run-fixed-secret-identity-full-stack.child.ts"'),
+      wrapper.includes('"./fixed-coding-preset-execution.child.ts"'),
     );
 
     const child = await Deno.readTextFile(
-      "tests/e2e/run-fixed-secret-identity-full-stack.child.ts",
+      "tests/e2e/fixed-coding-preset-execution.child.ts",
     );
     assert(child.includes("provisionDelegatedCgroupV2"));
-    assert(child.includes("admitEngineOwnedSecretIdentityRun"));
-    assert(child.includes("startOwnedSystemdUnit"));
-    assert(child.includes('command: "pnpm"'));
-    assert(
-      child.includes('args: ["--filter", "@bakery/worker", "start"]'),
-    );
-    assert(child.includes("bindToUnit: ownerUnit"));
-    assert(child.includes("stopOwnedSystemdUnit"));
-    assert(child.indexOf("await stack.down()") < child.indexOf("console.log"));
+    assert(child.includes("startPresetTaskRun"));
+    assert(child.includes("launchPresetWorker"));
+    assert(child.includes("stopPresetWorker"));
+    assert(child.includes("await stack.down()"));
   },
 );
 
@@ -764,7 +759,8 @@ Deno.test("the route job, the docs validation, the aggregate and the description
   const policy = await readWorkflow("description-policy.yml");
   assertEquals(
     [...policy.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1]),
-    ["ubuntu-24.04", "ubuntu-24.04"],
+    // issue, pull-request and verification: every one GitHub-hosted.
+    ["ubuntu-24.04", "ubuntu-24.04", "ubuntu-24.04"],
   );
 });
 

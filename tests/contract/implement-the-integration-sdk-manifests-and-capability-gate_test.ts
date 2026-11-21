@@ -151,15 +151,25 @@ Deno.test("gate capability entries parse with the transport IntegrationCapabilit
     connectionId: connection,
     resourceId: resource,
   });
-  assertStrictEquals(report.actions.length, 1);
+  // One capability entry per action the deployed provider declares, rather than
+  // a number that has to be edited every time an action is added: the contract is
+  // that every one of them parses as a transport `IntegrationCapability`.
+  assertStrictEquals(report.actions.length, provider.actions.length);
+  assertStrictEquals(report.actions.length > 0, true);
   for (const entry of report.actions) {
     const parsed = contractSchemas.IntegrationCapability.safeParse(entry);
-    assertStrictEquals(parsed.success, true);
+    assertStrictEquals(
+      parsed.success,
+      true,
+      `unparsable capability entry: ${JSON.stringify(entry)}`,
+    );
+    // The actor in this snapshot holds no `integrationConnection:invoke`, so every
+    // action is unavailable for the same stated reason.
+    assertStrictEquals(
+      entry.unavailableReason,
+      "provider_permission_missing",
+    );
   }
-  assertEquals(
-    report.actions[0]!.unavailableReason,
-    "provider_permission_missing",
-  );
 });
 
 Deno.test("github integration schemas are described in zod and JSON schema", () => {

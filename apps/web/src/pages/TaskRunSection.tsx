@@ -33,6 +33,9 @@ import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
+import { RouteWaiting } from "./task-waiting/RouteWaiting.tsx";
+import { stepRowCopy } from "./task-waiting/model.ts";
+import { useWaitingOffers } from "./task-waiting/use-waiting-offers.ts";
 
 /**
  * Picks the step whose output the run view shows: the viewer's choice when it
@@ -152,14 +155,17 @@ function BlockedNotice(
 
 /** Read the task's authoritative current run, never infer one from list order. */
 export function TaskRunSection(
-  { taskId, runId, enabled, connectivity = "online", artifacts }: {
-    taskId: string;
-    runId: string;
-    enabled: boolean;
-    /** Sync connectivity; anything but `online` shows as a banner, never a row. */
-    connectivity?: DurableSyncConnectivity;
-    artifacts?: ReactNode;
-  },
+  { taskId, runId, enabled, connectivity = "online", artifacts, landingStepId }:
+    {
+      taskId: string;
+      runId: string;
+      enabled: boolean;
+      /** The step a notification opened: selected once, paging forward to find it. */
+      landingStepId?: string | null;
+      /** Sync connectivity; anything but `online` shows as a banner, never a row. */
+      connectivity?: DurableSyncConnectivity;
+      artifacts?: ReactNode;
+    },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -186,6 +192,26 @@ export function TaskRunSection(
     }),
     enabled: activeRun,
   });
+  // The steps waiting on a model, once each has waited a minute (#70).
+  const waiting = useWaitingOffers({
+    runId,
+    enabled: activeRun,
+    waitingOnModel: run.data?.waitingOnModel,
+  });
+  const waitingOffers = waiting.offers;
+  // A failed read of the choices still leaves the run waiting on a model.
+  const waitingOnModel = waitingOffers.length > 0 || waiting.failed;
+  const stepLanded = useRef(false);
+  useEffect(() => {
+    if (!landingStepId || stepLanded.current || !steps.data) return;
+    if (steps.data.items.some((step) => step.id === landingStepId)) {
+      stepLanded.current = true;
+      setOutputStepId(landingStepId);
+    } else if (steps.data.nextCursor && !steps.isFetching) {
+      const next = steps.data.nextCursor;
+      setCursors((current) => [...current, next]);
+    }
+  }, [landingStepId, steps.data, steps.isFetching]);
   const observedSteps = useRef<
     {
       cursor: string | undefined;
@@ -318,17 +344,40 @@ export function TaskRunSection(
       overview={
         <>
           <UI.Inline gap="standard">
-            <UI.Heading level="section">{t("tasks.run.heading")}</UI.Heading>
+            <UI.Heading
+              id="task-run-heading"
+              level="section"
+              tabIndex={-1}
+            >
+              {t("tasks.run.heading")}
+            </UI.Heading>
             {validRun && run.data
               ? (
-                <UI.Badge tone={RUN_TONES[run.data.status]}>
-                  {t(`tasks.run.status.${run.data.status}`)}
+                <UI.Badge
+                  tone={waitingOnModel ? "warning" : RUN_TONES[run.data.status]}
+                >
+                  {waitingOnModel
+                    ? t("tasks.waiting.badge")
+                    : t(`tasks.run.status.${run.data.status}`)}
                 </UI.Badge>
               )
               : null}
           </UI.Inline>
           {validRun && run.data?.status === "blocked"
             ? <BlockedNotice run={run.data} />
+            : null}
+          {validRun && run.data
+            ? (
+              <RouteWaiting
+                key={runId}
+                taskId={taskId}
+                runId={runId}
+                offers={waitingOffers}
+                failed={waiting.failed}
+                retrying={waiting.retrying}
+                onRetry={waiting.retry}
+              />
+            )
             : null}
           <UI.VisuallyHidden
             role={threadShown ? undefined : "status"}
@@ -339,8 +388,9 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <>
-                  {t("tasks.run.heading")}:{" "}
-                  {t(`tasks.run.status.${run.data.status}`)}
+                  {t("tasks.run.heading")}: {waitingOnModel
+                    ? t("tasks.waiting.badge")
+                    : t(`tasks.run.status.${run.data.status}`)}
                   {stepUpdate && !steps.isError && !invalidSteps
                     ? (
                       <>
@@ -409,10 +459,20 @@ export function TaskRunSection(
                   }`,
                 )}
                 events={[
-                  ...runTimelineEvents(run.data, steps.data.items, t, {
-                    first: cursors.length === 1,
-                    last: !steps.data.nextCursor,
-                  }),
+                  ...runTimelineEvents(
+                    run.data,
+                    steps.data.items,
+                    t,
+                    {
+                      first: cursors.length === 1,
+                      last: !steps.data.nextCursor,
+                    },
+                    new Map(
+                      waitingOffers.map((offer) =>
+                        [offer.runStepId, stepRowCopy(offer, t)] as const
+                      ),
+                    ),
+                  ),
                   ...(receipts.authority === authority ? receipts.events : []),
                 ]}
               />
@@ -562,28 +622,30 @@ export function TaskRunSection(
                             setOutputStepId(event.target.value)}
                         />
                       )}
-                      <SessionStepThread
-                        key={selectedStepId}
-                        taskId={taskId}
-                        source={selectedThread}
-                        highlightedItemId={itemParam ?? undefined}
-                        rawOutput={
-                          <TaskRunOutput
-                            taskId={taskId}
-                            onUsageChange={onUsageChange}
-                            quiet={threadShown}
-                            stepId={selectedStepId}
-                            stepStatus={steps.data?.items.find((step) =>
-                              step.id === selectedStepId
-                            )?.status}
-                            stepErrorCode={stepFaultCode(
-                              steps.data?.items.find((step) =>
+                      <UI.Stack gap="none" data-landing-step={selectedStepId}>
+                        <SessionStepThread
+                          key={selectedStepId}
+                          taskId={taskId}
+                          source={selectedThread}
+                          highlightedItemId={itemParam ?? undefined}
+                          rawOutput={
+                            <TaskRunOutput
+                              taskId={taskId}
+                              onUsageChange={onUsageChange}
+                              quiet={threadShown}
+                              stepId={selectedStepId}
+                              stepStatus={steps.data?.items.find((step) =>
                                 step.id === selectedStepId
-                              )?.error,
-                            )}
-                          />
-                        }
-                      />
+                              )?.status}
+                              stepErrorCode={stepFaultCode(
+                                steps.data?.items.find((step) =>
+                                  step.id === selectedStepId
+                                )?.error,
+                              )}
+                            />
+                          }
+                        />
+                      </UI.Stack>
                       {nowLinePublished ? null : nowLine}
                     </>
                   )}

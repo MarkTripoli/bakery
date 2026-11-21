@@ -32,6 +32,8 @@ export const RESOURCE_AREAS = {
   externalTicket: "work",
   run: "work",
   runStep: "work",
+  runRequest: "work",
+  batch: "work",
   job: "work",
   jobAttempt: "work",
   session: "work",
@@ -80,6 +82,7 @@ export const RESOURCE_AREAS = {
   skillFile: "automation",
   skillSource: "automation",
   skillVersion: "automation",
+  library: "automation",
   evaluationCase: "automation",
   evaluationDefinition: "automation",
   evaluationResult: "automation",
@@ -122,6 +125,7 @@ export const RESOURCE_AREAS = {
   organizationInvitation: "access",
   organizationMembership: "access",
   organizationRole: "access",
+  group: "access",
   principal: "access",
   accessBinding: "access",
   accessToken: "access",
@@ -138,6 +142,7 @@ export const RESOURCE_AREAS = {
   installationAdministrator: "installation",
   installationAuditEvent: "installation",
   installationSetting: "installation",
+  backup: "installation",
 } as const satisfies Record<string, PermissionArea>;
 export type PermissionResource = keyof typeof RESOURCE_AREAS;
 
@@ -156,9 +161,12 @@ export const PERMISSION_VERBS = [
   "invoke",
   "reconcile",
   "respond",
+  "accept",
   "readSelf",
   "readPinned",
   "preview",
+  "share",
+  "author",
 ] as const;
 export type PermissionVerb = (typeof PERMISSION_VERBS)[number];
 

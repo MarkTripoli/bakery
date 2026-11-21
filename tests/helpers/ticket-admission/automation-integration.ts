@@ -1,3 +1,4 @@
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 /**
  * Issue 82 integration lane: the webhook and poll functions on real Postgres.
  * The intake function body runs over a signed delivery the application
@@ -1286,7 +1287,7 @@ Deno.test("issue 82 automation: no backend sits idle in a transaction while the 
     );
     await withPgTransaction(fx.runtime, async (transaction) => {
       await transaction.query("select 1");
-      await control.reader.readIssue(handle, 83, signal);
+      await control.reader.readIssue(handle, ticketRef(83), signal);
     });
     assert(control.samples.some((sample) => sample.idle > 0));
   }));

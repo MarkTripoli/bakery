@@ -374,9 +374,20 @@ export function PasskeysScreen(props: PasskeysScreenProps) {
           : <UI.InlineNotice tone="success">{props.notice}</UI.InlineNotice>}
         {props.passkeys.length === 0
           ? (
-            <UI.InlineNotice tone="neutral">
-              {translate("passkeys.noneNotice")}
-            </UI.InlineNotice>
+            <UI.EmptyState
+              action={
+                <RouterLink
+                  data-passkey-add=""
+                  to={props.addTo}
+                  variant="primaryButton"
+                >
+                  {translate("passkeys.addAction")}
+                </RouterLink>
+              }
+              data-testid="passkeys-none"
+              description={translate("passkeys.emptyDescription")}
+              title={translate("passkeys.emptyTitle")}
+            />
           )
           : (
             <UI.Stack
@@ -426,15 +437,17 @@ export function PasskeysScreen(props: PasskeysScreenProps) {
               ))}
             </UI.Stack>
           )}
-        <UI.FormContent>
-          <RouterLink
-            data-passkey-add=""
-            to={props.addTo}
-            variant="primaryButton"
-          >
-            {translate("passkeys.addAction")}
-          </RouterLink>
-        </UI.FormContent>
+        {props.passkeys.length === 0 ? null : (
+          <UI.FormContent>
+            <RouterLink
+              data-passkey-add=""
+              to={props.addTo}
+              variant="primaryButton"
+            >
+              {translate("passkeys.addAction")}
+            </RouterLink>
+          </UI.FormContent>
+        )}
         <UI.Text variant="hint">{translate("passkeys.privacyHint")}</UI.Text>
       </SecurityAsyncBoundary>
     </UI.SettingsContent>

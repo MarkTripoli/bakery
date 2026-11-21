@@ -49,7 +49,7 @@ erDiagram
   jobs ||--o{ job_attempts : leases
   worker_hosts ||--o{ job_attempts : executes
   job_attempts ||--o{ workspaces : isolates
-  workspaces ||--o{ previews : serves
+  job_attempts ||--o{ previews : registers
   tasks ||--o{ artifacts : collects
   artifacts ||--o{ artifact_versions : versions
   artifact_versions ||--o{ memory_revisions : supports
@@ -1476,8 +1476,9 @@ Fenced execution lease and recovery truth.
 | `result` | `jsonb?` | yes | none |
 | `started_at` | `timestamp?` | yes | none |
 | `ended_at` | `timestamp?` | yes | none |
+| `traceparent` | `text?` | yes | none |
 
-**Integrity:** UNIQUE(job_id,attempt_no); UNIQUE(job_id,fence); one live attempt per job; completion requires current fence, active lease and matching host. worker_session_id and worker_session_generation preserve the process session that claimed the attempt while allowing a replacement process to report it after restart with the current server-issued session fence. started_at records the first accepted execution start; last_event_seq defaults to 0; first accepted event is 1; all event/result submissions share one contiguous journal ingestion transaction. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+**Integrity:** UNIQUE(job_id,attempt_no); UNIQUE(job_id,fence); one live attempt per job; completion requires current fence, active lease and matching host. worker_session_id and worker_session_generation preserve the process session that claimed the attempt while allowing a replacement process to report it after restart with the current server-issued session fence. started_at records the first accepted execution start; last_event_seq defaults to 0; first accepted event is 1; traceparent is the attempt's W3C span context (a child of the run's span, identifiers and a sampling flag only) kept at claim so later events join the run's trace and a retry can link to its first attempt, null before it was kept; all event/result submissions share one contiguous journal ingestion transaction. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
 
 #### `prepared_operations`
 
@@ -1562,19 +1563,24 @@ Prepared worktree and cleanup lifecycle.
 
 #### `previews`
 
-Authenticated dev URL registration.
+A running app registered for an authenticated preview by the worker of one attempt.
 
 | Field | Type | Nullable | Reference |
 |---|---|---|---|
 | `organization_id` | `uuid` | no | `organizations` |
-| `workspace_id` | `uuid` | no | `workspaces` |
+| `run_id` | `uuid` | no | `workflow_runs` |
+| `job_id` | `uuid` | no | `jobs` |
+| `attempt_id` | `uuid` | no | `job_attempts` |
 | `head_sha` | `text` | no | none |
 | `route_key` | `text` | no | none |
 | `upstream_port` | `int` | no | none |
 | `status` | `enum(starting,ready,stopped,expired)` | no | none |
+| `stop_reason` | `enum(person,run_cancelled,run_ended,machine_lost,time_limit,replaced)?` | yes | none |
+| `stopped_by` | `uuid?` | yes | `principals` |
+| `stopped_at` | `timestamp?` | yes | none |
 | `expires_at` | `timestamp` | no | none |
 
-**Integrity:** UNIQUE route_key; port 1024..65535; private origin, separate preview origin, session-bound access, no API cookies forwarded. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+**Integrity:** A preview belongs to one attempt, not to a workspace: no workspace record exists, and the attempt's id, fence and lease are what decide whether it may register and whether it is live. UNIQUE route_key (a lowercase label of letters, digits and hyphens, 8 to 64 characters, never a host, path or port); port 1024..65535 and the route key never leave the server (they are not in any read). Registration needs the attempt's current lease token, fence and worker session; a newer attempt of the same job stops the older attempts' live previews with `replaced`. The status a client sees is derived on every read from this row and its attempt, so an expired time limit, a cancelled run, a finished run, a lost lease or a newer fence reads as stopped or expired even when no sweep has run; the stored status changes only for a person's stop, a replacement and the sweep. Private origin, separate preview origin, session-bound access, no API cookies forwarded. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
 
 ### Artifacts
 
@@ -2028,6 +2034,7 @@ Redacted actor/action outcome trail.
 | `request_id` | `text` | no | none |
 | `trace_id` | `text` | no | none |
 | `details` | `jsonb` | no | none |
+| `agent_session_id` | `uuid?` | yes | none (outlives the session) |
 
 **Integrity:** Append-only; no prompts/credentials; Admin read; separate retention from short-lived streams. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
 
@@ -2197,7 +2204,7 @@ Compact durable command acknowledgement replay.
 
 #### `preview_grants`
 
-One-use browser handoff to isolated preview origin.
+One-use browser handoff to the isolated preview origin.
 
 | Field | Type | Nullable | Reference |
 |---|---|---|---|
@@ -2205,11 +2212,26 @@ One-use browser handoff to isolated preview origin.
 | `preview_id` | `uuid` | no | `previews` |
 | `principal_id` | `uuid` | no | `principals` |
 | `token_hash` | `text` | no | none |
+| `session_seconds` | `int` | no | none |
 | `expires_at` | `timestamp` | no | none |
 | `consumed_at` | `timestamp?` | yes | none |
 | `revoked_at` | `timestamp?` | yes | none |
 
-**Integrity:** UNIQUE token_hash; POST handoff body, no URL token; 30 second one-use grant -> isolated HttpOnly session; reauthorize repository on access. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+**Integrity:** UNIQUE token_hash; the grant is 32 random bytes, base64url, stored only as its sha256 and returned once. POST handoff body, no URL token. The grant is exchangeable for 30 seconds (`expires_at` is 30 seconds after issue whatever the session length) and once; `session_seconds` (60 seconds to 24 hours, default 3600) is how long the session lasts after the exchange and is separate from the grant's life. A grant is issued only for a preview that is ready now. Ending one person's access revokes their grant and its sessions; stopping the preview revokes every grant and session. Reauthorize repository on access: the grantor's access is re-checked on every use of the grant and of the session, not only when it is issued; that check is enforced where the grant is exchanged and the preview is served (the preview host, slice A2), not by the issuing action. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+
+#### `preview_sessions`
+
+Short-lived HttpOnly sessions opened by exchanging a running-app preview grant.
+
+| Field | Type | Nullable | Reference |
+|---|---|---|---|
+| `organization_id` | `uuid` | no | `organizations` |
+| `grant_id` | `uuid` | no | `preview_grants` |
+| `session_hash` | `text` | no | none |
+| `expires_at` | `timestamp` | no | none |
+| `revoked_at` | `timestamp?` | yes | none |
+
+**Integrity:** Opened only by exchanging a grant on the preview origin; the cookie secret is stored only as session_hash (sha256). `expires_at` is the exchange time plus the grant's `session_seconds`. Revoked with its grant or with the preview.
 
 ### Observation
 

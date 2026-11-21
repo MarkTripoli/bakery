@@ -1,0 +1,341 @@
+/* Geist, the web's typeface: the same files the web uses, copied in at build time. */
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/geist-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/geist-500.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/geist-600.ttf") format("truetype");
+}
+
+/* One panel with different words (design-ux, #77 slice 3). Every value is a web token. */
+html,
+body {
+  block-size: 100%;
+}
+
+body {
+  margin: 0;
+  display: grid;
+  /* One full-width column, so a panel narrower than the window centres in the window. */
+  grid-template-columns: minmax(0, 1fr);
+  /* The panel centres when it fits; taller than the window it starts at the top and the page scrolls. */
+  place-items: start center;
+  overflow-y: auto;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font: var(--type-body);
+}
+
+/* The wrapper takes no part in layout: the panel, or the dialog's scrim, is the grid item. */
+#root {
+  display: contents;
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.panel {
+  box-sizing: border-box;
+  margin-block: auto;
+  inline-size: 420px;
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+}
+
+.panel__notice {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+  font: var(--type-notice);
+  color: var(--color-fg-muted);
+}
+
+.panel__heading {
+  margin: 0;
+  font: var(--type-heading-page);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* The heading takes focus so a screen reader reads it, but it is not a control: no ring is drawn. */
+.panel__heading:focus,
+.panel__heading:focus-visible {
+  outline: none;
+}
+
+.panel__text {
+  margin: 0;
+  color: var(--color-fg-muted);
+  /* The web's body size, 14 on 20. */
+  font: var(--type-body);
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  font: var(--type-body);
+  overflow-wrap: anywhere;
+}
+
+.detail__label {
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+}
+
+.detail__value {
+  user-select: all;
+}
+
+.detail--waiting {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.detail--warning {
+  background: var(--color-status-warning-surface);
+  color: var(--color-status-warning);
+  border-color: transparent;
+}
+
+.spinner {
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  border: 2px solid var(--color-border-strong);
+  border-block-start-color: var(--color-fg);
+  border-radius: var(--radius-circle);
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 0s;
+  }
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.btn {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--size-control);
+  padding: 0 var(--space-4);
+  font: var(--type-auth-button);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.btn--primary {
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.btn:disabled {
+  color: var(--color-fg-disabled);
+  cursor: default;
+}
+
+/* Under 480 wide the panel fills the window and the buttons are 44 high. */
+@media (max-width: 479px) {
+  .panel {
+    /* The window's width less 16 on each side. */
+    inline-size: calc(100% - var(--space-8));
+    padding: var(--space-6);
+  }
+
+  .btn {
+    min-block-size: 44px;
+  }
+}
+
+/* "Sign in again" is a dialog over the kept page, which stays visible but dimmed. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  background: color-mix(in srgb, var(--color-canvas) 70%, transparent);
+}
+
+/* Two boxes one under the other: who is signed in, then the server. */
+.detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Addresses read in the web's data face, as the design's server box shows them. */
+.detail__value {
+  overflow-wrap: anywhere;
+}
+
+/* An address on its own line reads in the data face; names and sentences stay in the body font. */
+.detail__value--address {
+  font: var(--type-data);
+}
+
+/* The server chooser (design-ux, #77 slice 4): two options in one bordered group. */
+.chooser {
+  display: flex;
+  flex-direction: column;
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-subtle);
+}
+
+.chooser__option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.chooser__option + .chooser__option {
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+
+.chooser__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chooser__head input[type="radio"] {
+  flex: none;
+  margin: 0;
+  inline-size: var(--size-checkbox);
+  block-size: var(--size-checkbox);
+  accent-color: var(--color-primary);
+}
+
+.chooser__label {
+  font: var(--type-body);
+  cursor: pointer;
+}
+
+/* Under the first option: its address and whether anything answers there now. */
+.chooser__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-inline-start: var(--space-6);
+}
+
+.chooser__address {
+  font: var(--type-data);
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.chooser__status {
+  flex: none;
+  font: var(--type-hint);
+  color: var(--color-fg-muted);
+}
+
+.chooser__boxrow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-6);
+}
+
+.chooser__boxrow[hidden] {
+  display: none;
+}
+
+.chooser__box {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--size-control);
+  padding: 0 var(--space-3);
+  font: var(--type-body);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+}
+
+.chooser__box[aria-invalid="true"] {
+  border-color: var(--color-destructive);
+}
+
+.chooser__help,
+.chooser__problem {
+  font: var(--type-hint);
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.chooser__problem {
+  color: var(--color-destructive);
+}
+
+/* Under 480 wide the address and its status stack on two lines. */
+@media (max-width: 479px) {
+  .chooser__line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+
+  .chooser__box {
+    min-block-size: 44px;
+  }
+}

@@ -185,8 +185,9 @@ export function createSyncQueryHandler(secret: string) {
     const principalId = asPrincipalId(rawPrincipalId);
     const query = input as SyncQuery;
     const scope = scopeValue(query);
-    // An inbox scope is an events-only signal channel with no snapshot state.
-    if (scope.type === "inbox") {
+    // The inbox and memory scopes are events-only signal channels with no
+    // snapshot state.
+    if (scope.type === "inbox" || scope.type === "memory") {
       throw new StandardError({ code: "MALFORMED_REQUEST" });
     }
     await assertScope(transaction, organizationId, scope);

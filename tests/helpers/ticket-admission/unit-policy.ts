@@ -25,10 +25,10 @@ function policyDocument(): Record<string, unknown> {
   >;
 }
 
-function withDelegation(githubActorIds: unknown): Record<string, unknown> {
+function withDelegation(externalActorIds: unknown): Record<string, unknown> {
   return {
     ...policyDocument(),
-    delegation: { principalId: crypto.randomUUID(), githubActorIds },
+    delegation: { principalId: crypto.randomUUID(), externalActorIds },
   };
 }
 
@@ -47,12 +47,12 @@ Deno.test("issue 82 unit policy: the default and a delegated policy parse to the
   const principalId = crypto.randomUUID();
   const delegated = parseTicketSourcePolicy({
     ...policyDocument(),
-    delegation: { principalId, githubActorIds: ["1001", "1002"] },
+    delegation: { principalId, externalActorIds: ["1001", "1002"] },
     automatic: { enabled: true, since: SINCE },
   });
   assertEquals(delegated.delegation, {
     principalId,
-    githubActorIds: ["1001", "1002"],
+    externalActorIds: ["1001", "1002"],
   });
   assertEquals(delegated.automatic, { enabled: true, since: SINCE });
 });
@@ -74,7 +74,7 @@ Deno.test("issue 82 unit policy: unknown keys are refused at every level", () =>
     ...policyDocument(),
     delegation: {
       principalId: crypto.randomUUID(),
-      githubActorIds: ["1"],
+      externalActorIds: ["1"],
       x: 1,
     },
   });
@@ -82,21 +82,32 @@ Deno.test("issue 82 unit policy: unknown keys are refused at every level", () =>
   refused({ ...policyDocument(), version: 2 });
 });
 
-Deno.test("issue 82 unit policy: delegation holds 1 to 25 unique numeric GitHub ids", () => {
+Deno.test("issue 82 unit policy: delegation holds 1 to 25 unique opaque actor ids", () => {
   const ids = (count: number) =>
     Array.from({ length: count }, (_, index) => String(5000 + index));
   parseTicketSourcePolicy(withDelegation(ids(1)));
   parseTicketSourcePolicy(withDelegation(ids(25)));
   refused(withDelegation(ids(26)));
   refused(withDelegation([]));
-  refused(withDelegation(["octocat"]));
-  refused(withDelegation(["12a"]));
-  refused(withDelegation(["012"]));
+
+  // Actor ids are opaque now. GitHub numbers its users, but Linear uses UUIDs
+  // and Jira uses account ids, so "numeric" is no longer a property admission
+  // may rely on: a login, a UUID and a leading-zero key are all acceptable.
+  parseTicketSourcePolicy(withDelegation(["octocat"]));
+  parseTicketSourcePolicy(withDelegation(["12a"]));
+  parseTicketSourcePolicy(withDelegation(["012"]));
+  parseTicketSourcePolicy(withDelegation([
+    "8f2b0e1c-1a2b-4c3d-9e8f-0a1b2c3d4e5f",
+  ]));
+  // What is still refused: a non-string, an empty id, an over-long id, and a
+  // duplicate.
   refused(withDelegation([12]));
+  refused(withDelegation([""]));
+  refused(withDelegation(["a".repeat(201)]));
   refused(withDelegation(["12", "12"]));
   refused({
     ...policyDocument(),
-    delegation: { principalId: "not-a-uuid", githubActorIds: ["1"] },
+    delegation: { principalId: "not-a-uuid", externalActorIds: ["1"] },
   });
 });
 
@@ -304,7 +315,10 @@ Deno.test("issue 82 unit policy: automatic admission needs enabled, a since, and
 Deno.test("issue 82 unit policy: a label time without an explicit offset never admits, whatever the process time zone", () => {
   const enabled = parseTicketSourcePolicy({
     ...policyDocument(),
-    delegation: { principalId: crypto.randomUUID(), githubActorIds: ["1001"] },
+    delegation: {
+      principalId: crypto.randomUUID(),
+      externalActorIds: ["1001"],
+    },
     automatic: { enabled: true, since: SINCE },
   });
   // Each of these would parse (as local time, or as a rolled-over date) with
@@ -352,7 +366,10 @@ Deno.test("issue 82 unit policy: a label time without an explicit offset never a
 Deno.test("issue 82 unit policy: offset timestamps are compared by instant down to the nanosecond", () => {
   const enabled = parseTicketSourcePolicy({
     ...policyDocument(),
-    delegation: { principalId: crypto.randomUUID(), githubActorIds: ["1001"] },
+    delegation: {
+      principalId: crypto.randomUUID(),
+      externalActorIds: ["1001"],
+    },
     automatic: { enabled: true, since: SINCE },
   });
   const cases: [string, boolean][] = [

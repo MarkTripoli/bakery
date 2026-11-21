@@ -53,7 +53,7 @@ function issueInput(
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: "owner/repo",
+    container: containerOf("owner/repo"),
     ...overrides,
   };
 }
@@ -65,8 +65,21 @@ function normalized(overrides: Partial<TicketSnapshotInput> = {}) {
   });
 }
 
+/** A container for a GitHub repository, the shape the contract stores. */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 function ref(number: number, repository = "owner/repo"): TicketIssueRef {
-  return { id: String(9000 + number), number, repositoryFullName: repository };
+  return {
+    id: String(9000 + number),
+    number,
+    container: containerOf(repository),
+  };
 }
 
 function satisfied(number: number): BlockerProofEntry {
@@ -306,7 +319,7 @@ Deno.test("issue 82 unit snapshot: the requirements digest ignores key order and
     "CR",
   );
   const reordered = TicketSnapshotInputSchema.parse({
-    repositoryFullName: "owner/repo",
+    container: containerOf("owner/repo"),
     locked: false,
     stateReason: null,
     state: "open",
@@ -526,11 +539,11 @@ Deno.test("issue 82 unit snapshot: issue references sort by repository, number, 
     ref(5, "owner/zeta"),
     ref(3),
     ref(2, "owner/alpha"),
-    { id: "1", number: 3, repositoryFullName: "owner/repo" },
+    { id: "1", number: 3, container: containerOf("owner/repo") },
   ]);
   assertEquals(
     sorted.map((entry) =>
-      `${entry.repositoryFullName}#${entry.number}:${entry.id}`
+      `${entry.container.displayName}#${entry.number}:${entry.id}`
     ),
     [
       "owner/alpha#2:9002",

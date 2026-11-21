@@ -44,7 +44,7 @@ Deno.test("a rate limit is only a countdown when the server said how long", () =
   });
   assertEquals(twoFactorFailure(providerError("RATE_LIMITED")), {
     kind: "notice",
-    messageKey: "auth.signIn.unavailable",
+    messageKey: "auth.signIn.rateLimitedNoWait",
     retryAfterSeconds: null,
   });
 });
