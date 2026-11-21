@@ -104,6 +104,7 @@ function fakeApi(
     },
     batches: {
       list: rejecting,
+      startable: rejecting,
       get: rejecting,
       create: rejecting,
       control: rejecting,

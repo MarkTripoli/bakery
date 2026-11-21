@@ -23,6 +23,7 @@ import type {
   BakeryApiClient,
   BatchListResponse,
   BatchResponse,
+  BatchStartableResponse,
   BrowserSessionList,
   CheckRunListResponse,
   ConnectedClientList,
@@ -3449,6 +3450,35 @@ export function batchesListQueryOptions(
       ),
     getNextPageParam: (last) => last.nextCursor,
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** How many startable issues the start page reads and lists; the design shows the first five. */
+export const STARTABLE_PAGE_SIZE = 5;
+
+/**
+ * The first page of the issues a batch in one repository would take now, with
+ * the smallest spend that can start one. Read again each time the page opens:
+ * it is a forecast from the last stored readiness check.
+ */
+export function batchStartableQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  repositoryId: string,
+) {
+  return queryOptions<BatchStartableResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "batches.startable", { repositoryId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.batches.startable({
+          organizationId: requireOrganization(scope),
+          repositoryId,
+          limit: STARTABLE_PAGE_SIZE,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && repositoryId !== "",
     retry: retryNetworkOnce,
   });
 }

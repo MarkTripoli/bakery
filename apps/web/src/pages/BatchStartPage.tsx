@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
+import { batchStartableQueryOptions } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
@@ -11,9 +12,12 @@ import {
   type ContinueMode,
   isDirty,
   planValues,
+  smallestSpend,
   START_DEFAULTS,
+  startableView,
   startBody,
   type StartForm,
+  timeAgo,
   validateStart,
 } from "./batches/batch-display.ts";
 import {
@@ -80,7 +84,16 @@ export function BatchStartPage() {
       }));
   }, [moveOn, left, navigate]);
 
-  const errors = validateStart(form);
+  // The issues a batch would take and the least it can spend, read for the chosen repository.
+  const startable = useQuery(
+    batchStartableQueryOptions(api, scope, form.repositoryId),
+  );
+  const smallest = smallestSpend(startable.data);
+  const view = startable.data === undefined
+    ? null
+    : startableView(startable.data);
+
+  const errors = validateStart(form, smallest);
   const shown = attempted ? errors : {};
   const change = (patch: Partial<StartForm>) => {
     setTyped((current) => ({ ...current, ...patch }));
@@ -110,7 +123,12 @@ export function BatchStartPage() {
       setLeft(true);
       setMoveOn({ batchId: batch.id });
     },
-    onError: (error) => setRefusal(createRefusal(error)),
+    onError: (error) => {
+      const refused = createRefusal(error);
+      setRefusal(refused);
+      // The server judged the amount against its own smallest: read that again.
+      if (refused === "spendLow") void startable.refetch();
+    },
   });
 
   /** The batch already running in the chosen repository is the newest one there. */
@@ -140,6 +158,23 @@ export function BatchStartPage() {
   );
   const refusalAtRepository = refusal !== null &&
     createRefusalPlace(refusal) === "repository";
+  const refusalAtSpend = refusal !== null &&
+    createRefusalPlace(refusal) === "spend";
+  /** The smallest spend when it is known, in the person's currency format. */
+  const smallestText = smallest === null ? null : lookups.money(smallest);
+  const spendProblem = shown.maxSpend !== undefined
+    ? translate(
+      shown.maxSpend as never,
+      { amount: smallestText ?? "" },
+    )
+    : refusalAtSpend
+    ? translate(
+      (smallestText === null
+        ? "batches.start.error.maxSpendLowNoAmount"
+        : "batches.start.error.maxSpendLow") as never,
+      { amount: smallestText ?? "" },
+    )
+    : undefined;
   const repositoryProblem = shown.repositoryId !== undefined
     ? translate(shown.repositoryId as never)
     : refusalAtRepository
@@ -196,6 +231,123 @@ export function BatchStartPage() {
     </UI.Field>
   );
 
+  /** "It would start with": the issues a batch would take now, or why none can (UX revision 3). */
+  const startableSection = (() => {
+    if (form.repositoryId === "") return null;
+    if (startable.isPending) {
+      return (
+        <UI.Stack
+          gap="tight"
+          aria-busy="true"
+          aria-label={translate("batches.start.startable.loading" as never)}
+          data-testid="batch-startable-loading"
+        >
+          <UI.Skeleton shape="row" />
+          <UI.Skeleton shape="row" />
+          <UI.Skeleton shape="row" />
+        </UI.Stack>
+      );
+    }
+    if (startable.isError) {
+      return (
+        <UI.Stack gap="tight" data-testid="batch-startable-failed">
+          <UI.Text variant="error" role="alert">
+            {translate("batches.start.startable.failed" as never)}
+          </UI.Text>
+          <UI.Inline gap="compact">
+            <UI.Button
+              variant="secondary"
+              onClick={() => void startable.refetch()}
+            >
+              {translate("batches.start.startable.retry" as never)}
+            </UI.Button>
+          </UI.Inline>
+        </UI.Stack>
+      );
+    }
+    if (view === null) return null;
+    if (view.issues.length === 0) {
+      return (
+        <UI.InlineNotice
+          tone="warning"
+          data-testid="batch-startable-nothing"
+        >
+          <UI.Stack gap="tight">
+            <UI.Text variant="strong">
+              {translate("batches.start.startable.nothing.title" as never, {
+                repository: repositoryName ?? "",
+              })}
+            </UI.Text>
+            <UI.Text>
+              {translate("batches.start.startable.nothing.body" as never)}
+            </UI.Text>
+            <UI.Link
+              href="/issues"
+              onClick={(event) => {
+                event.preventDefault();
+                void navigate({ to: "/issues", search: { choose: undefined } });
+              }}
+            >
+              {translate("batches.start.startable.nothing.link" as never, {
+                repository: repositoryName ?? "",
+              })}
+            </UI.Link>
+          </UI.Stack>
+        </UI.InlineNotice>
+      );
+    }
+    const checked = view.checkedAt === null
+      ? ""
+      : timeAgo(view.checkedAt, Date.now(), locale);
+    return (
+      <UI.Stack gap="tight" data-testid="batch-startable">
+        <UI.Text variant="strong" id="batch-startable-label">
+          {translate("batches.start.startable.label" as never)}
+        </UI.Text>
+        <UI.Stack
+          gap="tight"
+          role="list"
+          aria-labelledby="batch-startable-label"
+        >
+          {view.issues.map((issue, index) => (
+            <UI.Inline
+              key={issue.externalTicketId}
+              gap="compact"
+              role="listitem"
+            >
+              <UI.Text variant="muted">{index + 1}.</UI.Text>
+              <UI.Text truncate>
+                <UI.Link
+                  href={`/issues/${issue.externalTicketId}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void navigate({
+                      to: "/issues/$issueId",
+                      params: { issueId: issue.externalTicketId },
+                    });
+                  }}
+                >
+                  {`#${issue.number} ${
+                    issue.title ??
+                      translate("batches.start.startable.untitled" as never)
+                  }`}
+                </UI.Link>
+              </UI.Text>
+            </UI.Inline>
+          ))}
+        </UI.Stack>
+        <UI.Text variant="hint">
+          {translate(
+            (view.more
+              ? "batches.start.startable.more"
+              : "batches.start.startable.checked") as never,
+            { time: checked },
+          )}
+        </UI.Text>
+      </UI.Stack>
+    );
+  })();
+
   const modeOption = (
     value: ContinueMode,
     title: string,
@@ -236,9 +388,14 @@ export function BatchStartPage() {
                   {translate("batches.start.summary.title" as never)}
                 </UI.Heading>
                 <UI.Text>
-                  {translate("batches.start.summary.work" as never, {
-                    repository: plan.repository,
-                  })}
+                  {view !== null && view.issues[0] !== undefined
+                    ? translate("batches.start.summary.workFrom" as never, {
+                      repository: plan.repository,
+                      number: `#${view.issues[0].number}`,
+                    })
+                    : translate("batches.start.summary.work" as never, {
+                      repository: plan.repository,
+                    })}
                 </UI.Text>
                 <UI.Text>
                   {translate("batches.start.summary.stop" as never, {
@@ -339,6 +496,38 @@ export function BatchStartPage() {
                     {repositoryProblem ??
                       translate("batches.start.repository.help" as never)}
                   </UI.Text>
+                  {form.repositoryId !== "" && startable.isSuccess &&
+                      smallest === null
+                    ? (
+                      <UI.InlineNotice tone="warning">
+                        <UI.Stack gap="tight">
+                          <UI.Text variant="strong">
+                            {translate(
+                              "batches.start.spend.blocked.title" as never,
+                              { repository: repositoryName ?? "" },
+                            )}
+                          </UI.Text>
+                          <UI.Text>
+                            {translate(
+                              "batches.start.spend.blocked.body" as never,
+                            )}
+                          </UI.Text>
+                          <UI.Link
+                            href="/issues/settings"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              void navigate({ to: "/issues/settings" });
+                            }}
+                          >
+                            {translate(
+                              "batches.start.spend.blocked.link" as never,
+                            )}
+                          </UI.Link>
+                        </UI.Stack>
+                      </UI.InlineNotice>
+                    )
+                    : null}
+                  {startableSection}
                 </UI.Stack>
               )}
           </UI.Stack>
@@ -367,10 +556,13 @@ export function BatchStartPage() {
               <UI.Field
                 htmlFor="batch-maxSpend"
                 label={translate("batches.start.limits.spend" as never)}
-                hint={translate("batches.start.limits.spendHelp" as never)}
-                error={shown.maxSpend === undefined
-                  ? undefined
-                  : translate(shown.maxSpend as never)}
+                hint={smallestText === null
+                  ? translate("batches.start.limits.spendHelp" as never)
+                  : translate(
+                    "batches.start.limits.spendHelpFrom" as never,
+                    { amount: smallestText },
+                  )}
+                error={spendProblem}
               >
                 <UI.Inline gap="compact">
                   <UI.Text variant="muted">$</UI.Text>
@@ -380,13 +572,22 @@ export function BatchStartPage() {
                     name="maxSpend"
                     type="text"
                     inputMode="decimal"
-                    invalid={shown.maxSpend !== undefined}
+                    invalid={spendProblem !== undefined}
                     value={form.maxSpend}
                     onChange={(value) => change({ maxSpend: value })}
                   />
                 </UI.Inline>
               </UI.Field>
             </UI.Inline>
+            {smallestText === null || spendProblem !== undefined
+              ? null
+              : (
+                <UI.Text variant="hint">
+                  {translate("batches.start.limits.smallestNote" as never, {
+                    amount: smallestText,
+                  })}
+                </UI.Text>
+              )}
             <UI.Text variant="muted">
               {translate("batches.start.limits.note" as never)}
             </UI.Text>
@@ -420,7 +621,7 @@ export function BatchStartPage() {
                 </UI.Text>
               )}
           </UI.Stack>
-          {refusal !== null && !refusalAtRepository
+          {refusal !== null && !refusalAtRepository && !refusalAtSpend
             ? (
               <UI.InlineNotice
                 tone="error"
