@@ -344,6 +344,89 @@ Deno.test("an agent's put writes exactly one write-set row, and its version read
     assertEquals(versions.items[0].makerKind, "agent");
     assertEquals(versions.items[0].makerPrincipalId, fixture.principalId);
     assertEquals(versions.items[0].sessionId, row.agent_session_id);
+    // #448 S8a: the version itself recorded, at the write, the run, step,
+    // attempt and session that made it and the person the run acts for.
+    const origin = (await fixture.pgDatabase.query<{
+      run_id: string;
+      run_step_id: string;
+    }>(
+      "select step.run_id, job.run_step_id from bakery.job_attempts attempt" +
+        " join bakery.jobs job on job.organization_id = attempt.organization_id" +
+        " and job.id = attempt.job_id" +
+        " join bakery.run_steps step on step.organization_id = job.organization_id" +
+        " and step.id = job.run_step_id" +
+        " where attempt.organization_id = $1 and attempt.id = $2",
+      [fixture.organizationId, agent.attemptId],
+    )).rows[0];
+    const stored = (await fixture.pgDatabase.query<{
+      run_id: string | null;
+      run_step_id: string | null;
+      attempt_id: string | null;
+      agent_session_id: string | null;
+      acting_for_principal_id: string | null;
+    }>(
+      "select run_id, run_step_id, attempt_id, agent_session_id," +
+        " acting_for_principal_id from bakery.storage_file_versions" +
+        " where organization_id = $1 and id = $2",
+      [fixture.organizationId, written.currentVersionId],
+    )).rows[0];
+    assertEquals(stored, {
+      run_id: origin.run_id,
+      run_step_id: origin.run_step_id,
+      attempt_id: agent.attemptId,
+      agent_session_id: row.agent_session_id,
+      acting_for_principal_id: fixture.principalId,
+    });
+    const made = versions.items[0];
+    assertEquals(made.attemptId, agent.attemptId);
+    assertEquals(made.runId, origin.run_id);
+    assertEquals(made.stepId, origin.run_step_id);
+    assertEquals(made.actingForPrincipalId, fixture.principalId);
+    // A later session on the same step (a retry, a continuation) does not
+    // become the maker of the version the earlier one wrote.
+    await fixture.pgDatabase.query(
+      "insert into bakery.agent_sessions (organization_id, run_step_id," +
+        " conversation_id, agent_version_id, harness, status, created_at)" +
+        " select organization_id, run_step_id, conversation_id," +
+        " agent_version_id, harness, 'active', now() + interval '1 hour'" +
+        " from bakery.agent_sessions where organization_id = $1 and id = $2",
+      [fixture.organizationId, row.agent_session_id],
+    );
+    const again = await json(
+      await asPerson(
+        fixture,
+        "GET",
+        "/v1/storage/files/" + written.id + "/versions",
+      ),
+      200,
+    ) as { items: Json[] };
+    assertEquals(again.items[0].sessionId, row.agent_session_id);
+    assertEquals(again.items[0].attemptId, agent.attemptId);
+    // The search hit names the same maker.
+    const hits = await json(
+      await asPerson(fixture, "GET", "/v1/files/search?query=a.md"),
+      200,
+    ) as { items: Json[] };
+    const hit = hits.items.find((item) => item.entryId === written.id);
+    assert(hit, "the agent's file is a search hit");
+    assertEquals(hit.producerKind, "agent");
+    assertEquals(hit.producerSessionId, row.agent_session_id);
+    assertEquals(hit.producerAttemptId, agent.attemptId);
+    assertEquals(hit.producerRunId, origin.run_id);
+    assertEquals(hit.producerStepId, origin.run_step_id);
+    assertEquals(hit.producerActingForId, fixture.principalId);
+    // A person's own version records no provenance at all.
+    const own = await json(
+      await asPerson(fixture, "GET", "/v1/files/search?query=b.md"),
+      200,
+    ) as { items: Json[] };
+    const ownHit = own.items.find((item) =>
+      (item.path as string).endsWith("/agent-448-write-set/b.md")
+    );
+    assert(ownHit, "the person's file is a search hit");
+    assertEquals(ownHit.producerKind, "person");
+    assertEquals(ownHit.producerAttemptId, null);
+    assertEquals(ownHit.producerSessionId, null);
   }));
 
 Deno.test("the guard reads only the caller's organization: a foreign organization sees no folder", () =>
