@@ -152,7 +152,7 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
   const deps: RunnerDeps = {
     api,
     secrets,
-    backup: (signal, cutoff) =>
+    backup: (signal, cutoff, pointInTime) =>
       options.backup
         ? options.backup(signal, secrets, cutoff)
         : runBackupScript({
@@ -161,6 +161,7 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
           secrets,
           signal,
           cutoff,
+          pointInTime,
         }),
     offsite: (settings) =>
       offsiteFromSettings(settings, { allowLoopbackEndpoint: test }),
