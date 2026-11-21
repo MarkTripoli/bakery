@@ -4281,6 +4281,7 @@
   "library.evaluations.gate.show": "{count, plural, one {Show the # result} other {Show the # results}}",
   "library.evaluation.back": "Evaluations",
   "library.evaluation.measuredOn": "Measured on {set}",
+  "library.evaluation.measuredOnUnknownSet": "Measured on a set of test cases",
   "library.evaluation.loading": "Loading the run",
   "library.evaluation.error.title": "This run could not be loaded.",
   "library.evaluation.error.retry": "Try again",

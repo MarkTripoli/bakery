@@ -438,7 +438,11 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
           subtitle={
             <UI.Stack gap="compact">
               <UI.Text variant="muted">
-                {translate("library.evaluation.measuredOn", { set: setName })}
+                {dataset === undefined
+                  ? translate("library.evaluation.measuredOnUnknownSet")
+                  : translate("library.evaluation.measuredOn", {
+                    set: setName,
+                  })}
               </UI.Text>
               <UI.Inline gap="compact">
                 <UI.Badge tone={badge.tone}>{words(badge.words)}</UI.Badge>

@@ -470,6 +470,10 @@ for (
         ),
       ).toBeVisible();
       await expect(page.getByText(/test cases?, each by/)).toHaveCount(0);
+      await expect(
+        page.getByText("Measured on a set of test cases", { exact: true }),
+      )
+        .toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "evaluation-run-unknown-set");
       await page.goto(LIST);

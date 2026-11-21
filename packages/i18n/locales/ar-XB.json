@@ -5818,5 +5818,6 @@
   "library.evaluation.attempts.loading": "⟪Loading the attempts⟫",
   "library.evaluation.attempts.error": "⟪The attempts could not be loaded.⟫",
   "library.evaluation.attempts.line": "⟪Attempt {number} · {time} · {state}⟫",
-  "library.evaluation.attempts.hide": "⟪{count, plural, one {Hide # attempt} other {Hide # attempts}}⟫"
+  "library.evaluation.attempts.hide": "⟪{count, plural, one {Hide # attempt} other {Hide # attempts}}⟫",
+  "library.evaluation.measuredOnUnknownSet": "⟪Measured on a set of test cases⟫"
 }

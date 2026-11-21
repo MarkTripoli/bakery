@@ -5818,5 +5818,6 @@
   "library.evaluation.attempts.loading": "⟦Ļôàðïñĝ ŧĥë àŧŧëɱþŧš ŧëšŧ⟧",
   "library.evaluation.attempts.error": "⟦Ŧĥë àŧŧëɱþŧš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
   "library.evaluation.attempts.line": "⟦Àŧŧëɱþŧ {number} · {time} · {state} ŧëšŧ çôþÿŧ⟧",
-  "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
+  "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.evaluation.measuredOnUnknownSet": "⟦Ṁëàšûŕëð ôñ à šëŧ ôƒ ŧëšŧ çàšëš ŧëšŧ çôþ⟧"
 }
