@@ -78,6 +78,7 @@ function Attempts(
     <UI.Stack
       aria-label={translate("library.evaluation.attempts.label", { scorer })}
       gap="tight"
+      inset="indent"
       role="list"
     >
       {rows.map((attempt) => {
@@ -85,12 +86,11 @@ function Attempts(
         return (
           <div key={attempt.id} role="listitem">
             <UI.Text variant="caption">
-              {"\u2003" +
-                translate("library.evaluation.attempts.line", {
-                  number: attempt.attemptNo,
-                  time: time(attempt.startedAt ?? attempt.createdAt),
-                  state: translate(words.key, words.values),
-                })}
+              {translate("library.evaluation.attempts.line", {
+                number: attempt.attemptNo,
+                time: time(attempt.startedAt ?? attempt.createdAt),
+                state: translate(words.key, words.values),
+              })}
             </UI.Text>
           </div>
         );

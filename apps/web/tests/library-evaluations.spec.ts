@@ -189,8 +189,8 @@ for (
       const list = page.getByRole("list", { name: "Attempts at exact-answer" });
       await expect(list.getByRole("listitem")).toHaveCount(3);
       // Newest first: attempt 3 leads.
-      await expect(list.getByRole("listitem").first()).toContainText(
-        "Attempt 3",
+      await expect(list.getByRole("listitem").first()).toHaveText(
+        /^Attempt 3 · Nov 20, 2026, \d{1,2}:03 [AP]M · Passed$/,
       );
       await expect(list.getByRole("listitem").first()).toContainText("Passed");
       await expect(list.getByRole("listitem").nth(1)).toContainText(
