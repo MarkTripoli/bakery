@@ -44,12 +44,15 @@ impl Settings {
 }
 
 /// Which server the app uses: the one the person chose in the app, else `BAKERY_SERVER`, else this
-/// computer. A saved or configured value that is not a usable address is skipped, never trusted.
+/// computer. A value that is not a usable address is skipped, never trusted. What the person chose
+/// follows the chooser's rules (plain http only for this computer); `BAKERY_SERVER` is the
+/// operator's own setting and is only cleaned up, so a test or lab server on plain http still works.
 pub fn resolve_server(saved: Option<&str>, configured: Option<&str>) -> String {
-    for candidate in [saved, configured].into_iter().flatten() {
-        if let Ok(address) = parse_server_address(candidate) {
-            return address;
-        }
+    if let Some(address) = saved.and_then(|s| parse_server_address(s).ok()) {
+        return address;
+    }
+    if let Some(address) = configured.and_then(|c| crate::csp::server_origins(c.trim()).map(|(origin, _)| origin)) {
+        return address;
     }
     THIS_COMPUTER.to_string()
 }
@@ -106,8 +109,20 @@ mod tests {
         );
         assert_eq!(resolve_server(Some("http://bakery.example.com"), None), "http://127.0.0.1:8000");
         assert_eq!(resolve_server(Some(""), Some("")), "http://127.0.0.1:8000");
+        assert_eq!(resolve_server(None, Some("ftp://lab.example.com")), "http://127.0.0.1:8000");
         // What is kept is the address as the app writes it, whatever was typed into the file.
         assert_eq!(resolve_server(Some("bakery.example.com/tasks"), None), "https://bakery.example.com");
+    }
+
+    #[test]
+    fn the_operators_own_setting_may_use_plain_http_and_is_only_cleaned_up() {
+        assert_eq!(resolve_server(None, Some("http://192.168.1.5:8000/")), "http://192.168.1.5:8000");
+        assert_eq!(resolve_server(None, Some("HTTP://Lab.Example.com:8000")), "http://lab.example.com:8000");
+        // What the person chose in the app still follows the chooser's rule.
+        assert_eq!(
+            resolve_server(Some("http://192.168.1.5:8000"), Some("http://lab.example.com:8000")),
+            "http://lab.example.com:8000"
+        );
     }
 
     #[test]

@@ -1,5 +1,6 @@
 //! The Bakery desktop app's sign-in decisions (#77): everything that needs no window system.
 pub mod address;
+pub mod clock;
 pub mod compat;
 pub mod copy;
 pub mod csp;
