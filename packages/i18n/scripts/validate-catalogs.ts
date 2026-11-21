@@ -46,6 +46,8 @@ const namespacePrefixes = [
   "installation.",
   // The Delivery page: what was delivered and how long it took.
   "delivery.",
+  // Mentions: the picker, the notified line and the People added dialog.
+  "mentions.",
   // Batches (#58): the list, the start page and a batch's own page.
   "batches.",
   // Provider copy: `integrations.<slug>.*` is the one namespace where a provider's
@@ -82,6 +84,7 @@ const pseudoExpansionPrefixes = [
   "session.",
   "installation.",
   "delivery.",
+  "mentions.",
   "batches.",
 ] as const;
 
