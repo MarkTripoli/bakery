@@ -5322,6 +5322,8 @@
   "tasks.waiting.payment.subscription.inline": "⟦ŧĥë šûƀšçŕïþŧïôñ ôñ à ɱàçĥïñë ŧëšŧ çôþ⟧",
   "tasks.waiting.payment.api_metered.inline": "⟦àñ ÀÞÏ ķëÿ çĥàŕĝëð þëŕ ûšë ŧëšŧ çô⟧",
   "tasks.waiting.payment.local.inline": "⟦à ɱôðëļ ŕûññïñĝ ôñ à ɱàçĥïñë ŧëšŧ çô⟧",
+  "problems.INSTALLATION_QUIESCED.description": "⟦Ɓàķëŕÿ ïš ŧàķïñĝ à ƀàçķûþ àñð ïš ñôŧ àççëþŧïñĝ ñëŵ ŵôŕķ ƒôŕ à šĥôŕŧ ŵĥïļë. Ŧŕÿ àĝàïñ àƒŧëŕ ŧĥë ŧïɱë ïñ ŧĥë Ŕëŧŕÿ-Àƒŧëŕ ĥëàðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "problems.INSTALLATION_QUIESCED.title": "⟦Ïñšŧàļļàŧïôñ þàûšëð ƒôŕ à ƀàçķûþ ŧëšŧ çôþÿ⟧",
   "files.preview.facts.image": "⟦Ïɱàĝë⟧",
   "files.preview.facts.video": "⟦Ṽïðëô⟧",
   "files.preview.facts.audio": "⟦Àûðïô⟧",
