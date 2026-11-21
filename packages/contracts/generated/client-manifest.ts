@@ -15173,7 +15173,7 @@ export const clientManifest = {
           }
         },
         "accessLevel": {
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -30216,7 +30216,7 @@ export const clientManifest = {
           "description": "The person to give access to: an active human member of this organization."
         },
         "level": {
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
           "type": "string",
           "enum": [
             "read_comment",
@@ -101293,7 +101293,7 @@ export const clientManifest = {
             "read_comment",
             "edit"
           ],
-          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+          "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
         },
         "grantedById": {
           "type": "string",
@@ -101404,7 +101404,7 @@ export const clientManifest = {
                   "read_comment",
                   "edit"
                 ],
-                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
               },
               "grantedById": {
                 "type": "string",
