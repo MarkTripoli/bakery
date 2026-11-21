@@ -1,5 +1,9 @@
 import { redact, type Secrets } from "./redact.ts";
 import type { CutoffView } from "./cutoff.ts";
+import type {
+  DrillCheck,
+  DrillFailureCode,
+} from "../../../apps/server/src/modules/backups/drill-rules.ts";
 
 /** Failure causes the server accepts on a failed report (the closed set). */
 export type FailureCode =
@@ -104,6 +108,12 @@ export type RunnerApi = {
     leaseToken: string,
     signal?: AbortSignal,
   ): Promise<CutoffView>;
+  /**
+   * Reports one restore drill (backupRunner.drill). The drill id is chosen by
+   * the caller, so reporting the same drill again returns the stored record and
+   * a retry after a network error or 5xx is safe.
+   */
+  drill(report: DrillReport, signal?: AbortSignal): Promise<DrillView>;
   /** Sends one report; retries the SAME sequence and body on a network error or 5xx. */
   report(
     runId: string,
@@ -286,6 +296,30 @@ export function createRunnerApi(options: ApiOptions): RunnerApi {
       throw new ApiFatal(response.status, problem.code ?? "UNKNOWN");
     },
 
+    async drill(report, signal) {
+      let response: Response;
+      try {
+        response = await request(
+          "POST",
+          "/v1/backup-runner/drills",
+          report,
+          signal,
+        );
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        throw new ApiUnavailable("network");
+      }
+      if (response.ok) return await response.json() as DrillView;
+      const problem = await problemOf(response);
+      if (response.status >= 500 || response.status === 429) {
+        throw new ApiUnavailable(`status ${response.status}`);
+      }
+      // 409: the id was already reported with different content. 422: the
+      // report contradicted itself. Neither changes by asking again.
+      const reason = problem.reason ?? problem.code ?? "UNKNOWN";
+      throw new ApiFatal(response.status, reason);
+    },
+
     async report(runId, leaseToken, sequence, body, signal) {
       const payload = { leaseToken, sequence, ...body };
       for (let attempt = 0;; attempt++) {
@@ -322,3 +356,24 @@ export function createRunnerApi(options: ApiOptions): RunnerApi {
     },
   };
 }
+
+/** The body of backupRunner.drill: what the drill found, with the id it chose. */
+export type DrillReport = {
+  readonly drillId: string;
+  readonly backupName: string;
+  readonly startedAt: string;
+  readonly outcome: "passed" | "failed";
+  readonly failureCode: DrillFailureCode | null;
+  readonly detail: string | null;
+  readonly cutoffAt: string | null;
+  readonly rpoSeconds: number | null;
+  readonly rtoSeconds: number;
+  readonly checksPassed: readonly DrillCheck[];
+  readonly checksFailed: readonly DrillCheck[];
+};
+
+/** What the server answers: the stored record. */
+export type DrillView = Omit<DrillReport, "drillId"> & {
+  readonly id: string;
+  readonly recordedAt: string;
+};
