@@ -25,10 +25,28 @@ the app.
   signature; showing the person that an update exists, and replacing the running app, is a later piece
   with its own design.
 
+## Set up the build image and its caches (once)
+
+The checks run inside a Linux container, so they build the same way on any computer that has Docker.
+The container recipe is `apps/desktop/e2e/Dockerfile`. The caches are folders on your computer, so a
+second run does not download and compile everything again.
+
+```sh
+docker build -t bakery-spike77-linux apps/desktop/e2e
+export SPIKE_CACHE=$HOME/bakery-desktop-cache      # any folder you can write to
+mkdir -p "$SPIKE_CACHE"/{cli,registry,git,target-update}
+docker run --rm -v "$SPIKE_CACHE/cli:/cli" bakery-spike77-linux \
+  cargo install tauri-cli --version 2.12.6 --locked --root /cli
+```
+
+The scripts read the image name from `DESKTOP_IMAGE` (default `bakery-spike77-linux`) and the cache folder
+from `SPIKE_CACHE`. `registry` and `git` hold downloaded crates, `target-update` holds the compiled app,
+and `cli` holds the Tauri command line the scripts run inside the container. The image is for Linux on the
+processor of the computer that builds it: an arm64 computer makes an arm64 package.
+
 ## Build the unsigned package
 
-From `apps/desktop`, with the build image and its caches in place (see the spike notes in the #77
-thread):
+From `apps/desktop`:
 
 ```sh
 bash e2e/package.sh <output dir>
@@ -62,7 +80,7 @@ The test keys exist only inside that run. The release key plays no part in it.
    can read it.
 2. Put the public half in `plugins.updater.pubkey` of `apps/desktop/src-tauri/tauri.conf.json` in place of
    the placeholder, and the address the app should ask in `plugins.updater.endpoints`.
-3. Sign each release file with `cargo tauri signer sign`, and publish an `latest.json` that names the
+3. Sign each release file with `cargo tauri signer sign`, and publish a `latest.json` that names the
    version, the file's address and its signature.
 4. Run `e2e/update.sh` again, so the build with the real public key is checked to refuse a file signed by
    any other key.

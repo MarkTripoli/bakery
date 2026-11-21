@@ -30,7 +30,8 @@ pub async fn check_and_verify(app: &AppHandle, endpoint: &str) -> Value {
     let version = update.version.clone();
     match update.download(|_, _| {}, || {}).await {
         Ok(bytes) => json!({ "outcome": "verified", "version": version, "bytes": bytes.len() }),
-        Err(tauri_plugin_updater::Error::Minisign(_)) | Err(tauri_plugin_updater::Error::Base64(_)) => {
+        Err(tauri_plugin_updater::Error::Minisign(_))
+        | Err(tauri_plugin_updater::Error::Base64(_)) => {
             json!({ "outcome": "rejected", "version": version })
         }
         Err(_) => json!({ "outcome": "download_failed", "version": version }),
