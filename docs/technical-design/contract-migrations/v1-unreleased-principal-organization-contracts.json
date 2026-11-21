@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "35f272370446c45c9e1f79177a3836a7d1903a2b"
+    "8994fa256c92eb16bd74efe564e9c08a2a10c23b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:6be79e65f8d6390329197e6eeb666584a52b9104710badda9373f31cf33eb4ad",
-  "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 35f272370446c45c9e1f79177a3836a7d1903a2b: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. Main's own approval is displaced, kept unchanged.",
+  "targetCompatibilityDigest": "sha256:1cf004af3771a81ff0bf65260951658a68ad86256ac348a92f3a29fe91d3f759",
+  "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8994fa256c92eb16bd74efe564e9c08a2a10c23b: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. The digest follows the tree when main moved again (#808 merged); my previous approval on the earlier main is displaced, kept unchanged.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "35f272370446c45c9e1f79177a3836a7d1903a2b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6be79e65f8d6390329197e6eeb666584a52b9104710badda9373f31cf33eb4ad",
+      "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 35f272370446c45c9e1f79177a3836a7d1903a2b: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. Main's own approval is displaced, kept unchanged."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

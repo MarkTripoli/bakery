@@ -74802,7 +74802,7 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 2147483647,
-              "description": "Draft epoch observed with the source checkpoint; a suggestion from any other epoch is refused with reason draft_moved_on. DraftSuggestionCreate.epoch must be at least 1. DraftSuggestionCreate.epoch must be at most 2147483647."
+              "description": "Draft epoch observed with the source checkpoint. A suggestion from a closed epoch is recorded as no_longer_fits with reason draft_moved_on, so offline words are kept for a person to apply; one from an epoch that does not exist yet is refused with draft_moved_on. DraftSuggestionCreate.epoch must be at least 1. DraftSuggestionCreate.epoch must be at most 2147483647."
             },
             "sourceCheckpointId": {
               "type": "string",
@@ -264822,7 +264822,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6be79e65f8d6390329197e6eeb666584a52b9104710badda9373f31cf33eb4ad",
+  "compatibilityDigest": "sha256:1cf004af3771a81ff0bf65260951658a68ad86256ac348a92f3a29fe91d3f759",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -291887,7 +291887,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 2147483647,
-          "description": "Draft epoch observed with the source checkpoint; a suggestion from any other epoch is refused with reason draft_moved_on. DraftSuggestionCreate.epoch must be at least 1. DraftSuggestionCreate.epoch must be at most 2147483647."
+          "description": "Draft epoch observed with the source checkpoint. A suggestion from a closed epoch is recorded as no_longer_fits with reason draft_moved_on, so offline words are kept for a person to apply; one from an epoch that does not exist yet is refused with draft_moved_on. DraftSuggestionCreate.epoch must be at least 1. DraftSuggestionCreate.epoch must be at most 2147483647."
         },
         "sourceCheckpointId": {
           "type": "string",
