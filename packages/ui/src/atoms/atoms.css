@@ -176,6 +176,19 @@
   gap: var(--space-4);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+/* A list to pick from (12.5rem) beside what it picks, such as providers beside
+   their models; one column on phones. */
+.ui-inline--aside {
+  align-items: start;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 12.5rem minmax(0, 1fr);
+}
+@media (max-width: 743px) {
+  .ui-inline--aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .ui-inline--thirds {
   align-items: stretch;
   display: grid;
@@ -334,6 +347,11 @@
   inline-size: 100%;
 }
 /* In a heading the mark leads the name, on the name's own line. */
+/* A mark beside its name keeps to one line: the name wraps, never drops under
+   the mark. */
+.ui-inline:has(> .ui-provider-mark) {
+  flex-wrap: nowrap;
+}
 .ui-heading .ui-provider-mark {
   margin-inline-end: var(--space-3);
   vertical-align: middle;

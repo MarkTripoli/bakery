@@ -1762,6 +1762,9 @@
 .ui-data-table--ruled[data-inset="edge"] td:last-child {
   padding-inline-end: var(--space-6);
 }
+/* The row itself is tinted too, so on a phone, where the cells stack inside
+   the row's inset, the highlight spans the row as wide as its rule. */
+.ui-data-table--ruled tr[data-selected="true"],
 .ui-data-table--ruled tr[data-selected="true"] td {
   background: var(--color-surface-subtle);
 }
@@ -1797,6 +1800,10 @@
 }
 .ui-data-table__select > * {
   display: block;
+}
+/* A mark beside a name inside the row control stays a row. */
+.ui-data-table__select > .ui-inline {
+  display: flex;
 }
 
 @media (max-width: 743px) {
