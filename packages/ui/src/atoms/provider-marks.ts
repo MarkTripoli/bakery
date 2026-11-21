@@ -7,6 +7,10 @@ import github_black from "../../../../assets/provider-marks/github/github-black.
 import github_white from "../../../../assets/provider-marks/github/github-white.svg";
 import linear_dark from "../../../../assets/provider-marks/linear/linear-dark.svg";
 import linear_light from "../../../../assets/provider-marks/linear/linear-light.svg";
+import openai_black from "../../../../assets/provider-marks/openai/openai-black.svg";
+import openai_white from "../../../../assets/provider-marks/openai/openai-white.svg";
+import openrouter_cloud from "../../../../assets/provider-marks/openrouter/openrouter-cloud.svg";
+import openrouter_ink from "../../../../assets/provider-marks/openrouter/openrouter-ink.svg";
 import otel_color from "../../../../assets/provider-marks/opentelemetry/otel-color.svg";
 import otel_white from "../../../../assets/provider-marks/opentelemetry/otel-white.svg";
 import sentry_black from "../../../../assets/provider-marks/sentry/sentry-black.svg";
@@ -32,6 +36,9 @@ export type ProviderMarkFiles = {
 export const PROVIDER_MARKS: Readonly<Record<string, ProviderMarkFiles>> = {
   github: { light: github_black, dark: github_white },
   linear: { light: linear_dark, dark: linear_light },
+  // The vendors' own monochrome files, uncropped: shown whole in the slot.
+  openai: { light: openai_black, dark: openai_white },
+  openrouter: { light: openrouter_ink, dark: openrouter_cloud },
   opentelemetry: { light: otel_color, dark: otel_white },
   sentry: {
     light: sentry_black,

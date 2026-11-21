@@ -12,6 +12,8 @@ const PROVIDERS = [
   ["sentry", "Sentry"],
   ["github", "GitHub"],
   ["linear", "Linear"],
+  ["openai", "OpenAI"],
+  ["openrouter", "OpenRouter"],
   // No agreed mark yet: each gets the letter tile.
   ["grafana", "Grafana"],
   ["datadog", "Datadog"],
