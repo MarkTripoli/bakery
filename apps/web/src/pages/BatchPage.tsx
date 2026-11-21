@@ -504,7 +504,7 @@ export function BatchPage({ batchId }: { batchId: string }) {
           action={bannerButtons.length === 0
             ? undefined
             : (
-              <UI.Inline gap="compact" variant="actions">
+              <UI.Inline gap="compact">
                 {bannerButtons}
               </UI.Inline>
             )}

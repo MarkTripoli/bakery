@@ -367,6 +367,14 @@ for (
         "#412 is merged. Start the next issue?",
       );
       await expect(page.getByText(/asks before each next issue/)).toBeVisible();
+      // Both banner buttons keep one line: a wrapped label makes one taller than the other.
+      const finish = (await banner(page).getByRole("button", {
+        name: "Finish here",
+      }).boundingBox())!;
+      const next = (await banner(page).getByRole("button", {
+        name: "Start the next issue",
+      }).boundingBox())!;
+      expect(Math.abs(next.height - finish.height)).toBeLessThanOrEqual(1);
       await still(page, "batch-waiting");
       await banner(page).getByRole("button", { name: "Start the next issue" })
         .click();
