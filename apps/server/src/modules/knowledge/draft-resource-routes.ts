@@ -28,6 +28,7 @@ import type { z } from "zod";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
+import { auditAgentSessionId } from "../auth/application/agent-power-grants.ts";
 import type { ActionAttribution } from "../auth/application/action-attribution.ts";
 import type {
   AuthorizedActionContext,
@@ -1182,6 +1183,11 @@ export function createDraftResourceRoutes(
           attribution: attributeAction(context, principalId),
           requestId: context.requestId,
           traceId: context.traceId,
+          agentSessionId: await auditAgentSessionId(
+            transaction,
+            context,
+            organizationId,
+          ),
           create: input,
         };
         if (stage.commentRoot && stage.commentPosition) {
@@ -1268,6 +1274,11 @@ export function createDraftResourceRoutes(
             ),
             requestId: context.requestId,
             traceId: context.traceId,
+            agentSessionId: await auditAgentSessionId(
+              transaction,
+              context,
+              organizationId,
+            ),
             update: input,
           }),
         );

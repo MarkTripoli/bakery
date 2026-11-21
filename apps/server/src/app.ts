@@ -139,7 +139,10 @@ import {
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
 import { createBatchRoutes } from "./modules/work/batch-routes.ts";
-import { createMcpManagementRoutes } from "./modules/mcp/routes.ts";
+import {
+  createMcpActionRegistry,
+  createMcpManagementRoutes,
+} from "./modules/mcp/routes.ts";
 import {
   createGroupRoutes,
   createNotificationRoutes,
@@ -719,6 +722,12 @@ export function createApp(options: {
           artifactActions.registry,
           approvalRegistry,
           runControlRegistry,
+          // Connection drafts (#448 S9b): the same management registry the
+          // routes mount, so a draft runs the same handler and guard.
+          createMcpActionRegistry(options.pgDatabase, {
+            cursorSecret: options.config.auth.secret,
+            secretsKey: options.config.secretsKey,
+          }),
         ],
         offered: sessionOperationScopes(),
       }),
@@ -1163,6 +1172,7 @@ export function createApp(options: {
       cursorSecret: options.config.auth.secret,
       skillFileRoot: options.config.skillFileRoot?.root,
       skillFileStore,
+      sourceAdapter: skillSourceAdapter,
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
       registry: catalogRegistry,
     }),
