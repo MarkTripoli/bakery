@@ -1,5 +1,4 @@
 {
-  "revision": "09e95532a0fe458cc9370f3b9c8e20044e226683310efa210abebe28bd0737d8",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -24677,5 +24676,6 @@
         }
       ]
     }
-  ]
+  ],
+  "revision": "13e9717e15423d443b1ac023e3c8d841d39ed98905381c43b154aa68c19552a2"
 }
