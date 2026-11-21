@@ -5544,8 +5544,6 @@
   "library.evaluation.filter.chip": "⟦{state} {count} ŧëš⟧",
   "library.evaluation.state.passed": "⟦Þàššëð…⟧",
   "library.evaluation.state.failed": "⟦Ƒàïļëð…⟧",
-  "library.evaluation.state.error": "⟦Çôûļð ñôŧ ƀë šçôŕëð ŧëšŧ⟧",
-  "library.evaluation.state.unscored": "⟦Ñôŧ šçôŕëð ŧ⟧",
   "library.evaluation.state.missing": "⟦Ñôŧ ŕûñ…⟧",
   "library.evaluation.state.canceled": "⟦Šŧôþþëð…⟧",
   "library.evaluation.state.skipped": "⟦Šķïþþëð…⟧",
@@ -5569,5 +5567,6 @@
   "library.evaluation.attempts.error": "⟦Ŧĥë àŧŧëɱþŧš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
   "library.evaluation.attempts.rowTitle": "⟦Àŧŧëɱþŧ {number} ŧëš⟧",
   "library.evaluation.attempts.rowLine": "⟦{time} · {state} ŧëš⟧",
-  "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
+  "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.evaluation.state.notScored": "⟦Çôûļð ñôŧ ƀë šçôŕëð ŧëšŧ⟧"
 }

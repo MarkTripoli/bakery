@@ -5544,8 +5544,6 @@
   "library.evaluation.filter.chip": "⟪{state} {count}⟫",
   "library.evaluation.state.passed": "⟪Passed⟫",
   "library.evaluation.state.failed": "⟪Failed⟫",
-  "library.evaluation.state.error": "⟪Could not be scored⟫",
-  "library.evaluation.state.unscored": "⟪Not scored⟫",
   "library.evaluation.state.missing": "⟪Not run⟫",
   "library.evaluation.state.canceled": "⟪Stopped⟫",
   "library.evaluation.state.skipped": "⟪Skipped⟫",
@@ -5569,5 +5567,6 @@
   "library.evaluation.attempts.error": "⟪The attempts could not be loaded.⟫",
   "library.evaluation.attempts.rowTitle": "⟪Attempt {number}⟫",
   "library.evaluation.attempts.rowLine": "⟪{time} · {state}⟫",
-  "library.evaluation.attempts.hide": "⟪{count, plural, one {Hide # attempt} other {Hide # attempts}}⟫"
+  "library.evaluation.attempts.hide": "⟪{count, plural, one {Hide # attempt} other {Hide # attempts}}⟫",
+  "library.evaluation.state.notScored": "⟪Could not be scored⟫"
 }

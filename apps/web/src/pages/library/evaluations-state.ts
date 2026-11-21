@@ -19,7 +19,7 @@ export type Words = {
   readonly values?: Readonly<Record<string, string | number>>;
 };
 
-/** Every state a result can be in, in the order the chips list them. */
+/** Every state a result can be in. */
 export const RESULT_STATES: readonly EvaluationResultState[] = [
   "passed",
   "failed",
@@ -29,6 +29,44 @@ export const RESULT_STATES: readonly EvaluationResultState[] = [
   "canceled",
   "skipped",
 ];
+
+/**
+ * What the chips filter by. An error and a result never scored read the same
+ * to a person ("Could not be scored. This is not a score of zero."), so they
+ * share one chip, `notScored`, whose list is both states (design-ux #75).
+ */
+export type ResultFilter =
+  | "passed"
+  | "failed"
+  | "notScored"
+  | "missing"
+  | "canceled"
+  | "skipped";
+
+/** The chips in the order they are listed. */
+export const RESULT_FILTERS: readonly ResultFilter[] = [
+  "passed",
+  "failed",
+  "notScored",
+  "missing",
+  "canceled",
+  "skipped",
+];
+
+/** The server states one filter reads: `notScored` reads errors first, then results never scored. */
+export function statesOfFilter(
+  filter: ResultFilter,
+): readonly EvaluationResultState[] {
+  return filter === "notScored" ? ["error", "unscored"] : [filter];
+}
+
+/** How many results a filter holds: the two scoring states add up. */
+export function filterCount(
+  counts: EvaluationBatch["counts"],
+  filter: ResultFilter,
+): number {
+  return statesOfFilter(filter).reduce((sum, state) => sum + counts[state], 0);
+}
 
 /** The tab the Library opens for the runs (`?tab=evaluations`). */
 export const EVALUATIONS_TAB = "evaluations";
@@ -119,12 +157,14 @@ export function gateLine(
 /** What the gate card on a run's page says, and what its button shows. */
 export type GateCard = {
   readonly tone: "success" | "warning" | "neutral";
+  /** A glyph in place of the tone's own: a clock while the run is still going. */
+  readonly icon?: "clock";
   readonly title: Words;
   readonly body: Words;
   /** The results the button shows, and the state it filters to; null when nothing to show. */
   readonly show: {
     readonly count: number;
-    readonly state: EvaluationResultState;
+    readonly state: ResultFilter;
   } | null;
   /**
    * The unmeasured results when they sit in more than one state: there is no
@@ -132,18 +172,14 @@ export type GateCard = {
    * says where they are instead.
    */
   readonly spread:
-    | readonly {
-      readonly state: EvaluationResultState;
-      readonly count: number;
-    }[]
+    | readonly { readonly state: ResultFilter; readonly count: number }[]
     | null;
 };
 
-/** The states that are not a measured pass or fail, in the order the button prefers them. */
-const UNMEASURED: readonly EvaluationResultState[] = [
+/** The groups of results that are not a measured pass or fail, in the order the button prefers them. */
+const UNMEASURED: readonly ResultFilter[] = [
   "missing",
-  "error",
-  "unscored",
+  "notScored",
   "canceled",
   "skipped",
 ];
@@ -163,6 +199,7 @@ export function gateCard(
   if (isLiveRun(batch)) {
     return {
       tone: "neutral",
+      icon: "clock",
       title: { key: "library.evaluations.gate.pending.title" },
       body: { key: "library.evaluations.gate.pending.body", values: { rule } },
       show: null,
@@ -194,9 +231,10 @@ export function gateCard(
       spread: null,
     };
   }
-  const found = UNMEASURED.flatMap((state) =>
-    batch.counts[state] > 0 ? [{ state, count: batch.counts[state] }] : []
-  );
+  const found = UNMEASURED.flatMap((state) => {
+    const count = filterCount(batch.counts, state);
+    return count > 0 ? [{ state, count }] : [];
+  });
   const unmeasured = found.reduce((sum, entry) => sum + entry.count, 0);
   const several = found.length > 1;
   return {
@@ -368,18 +406,17 @@ export function groupByCase(
   return [...groups].map(([caseId, rows]) => ({ caseId, results: rows }));
 }
 
-/** The chips under the gate: All, then one per state that has results. */
+/** The chips under the gate: All, then one per kind of result that has any. */
 export function stateChips(
   counts: EvaluationBatch["counts"],
-): { readonly state: EvaluationResultState; readonly count: number }[] {
-  return RESULT_STATES.flatMap((state) =>
-    counts[state] > 0 ? [{ state, count: counts[state] }] : []
-  );
+): { readonly state: ResultFilter; readonly count: number }[] {
+  return RESULT_FILTERS.flatMap((state) => {
+    const count = filterCount(counts, state);
+    return count > 0 ? [{ state, count }] : [];
+  });
 }
 
-/** The state a `?state=` value names, or null for all results. */
-export function resultStateFilter(
-  value: unknown,
-): EvaluationResultState | null {
-  return RESULT_STATES.find((state) => state === value) ?? null;
+/** The filter a `?state=` value names, or null for all results. */
+export function resultStateFilter(value: unknown): ResultFilter | null {
+  return RESULT_FILTERS.find((filter) => filter === value) ?? null;
 }

@@ -7,11 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
-import type {
-  EvaluationBatch,
-  EvaluationBatchResult,
-  EvaluationResultState,
-} from "../api/client.ts";
+import type { EvaluationBatch, EvaluationBatchResult } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   effectiveAccessQueryOptions,
@@ -37,9 +33,11 @@ import {
   gateCard,
   groupByCase,
   pinTitle,
+  type ResultFilter,
   resultWords,
   runBadge,
   stateChips,
+  statesOfFilter,
   type Words,
 } from "./library/evaluations-state.ts";
 import { useEvaluationNames } from "./library/useEvaluationNames.ts";
@@ -120,7 +118,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const run = useQuery(evaluationBatchQueryOptions(api, scope, batchId));
   const batch = run.data;
   const live = batch !== undefined && evaluationBatchIsLive(batch.state);
-  const [filter, setFilter] = useState<EvaluationResultState | null>(null);
+  const [filter, setFilter] = useState<ResultFilter | null>(null);
   const [stopping, setStopping] = useState(false);
   const [stopFailure, setStopFailure] = useState<"changed" | "failed" | null>(
     null,
@@ -128,16 +126,39 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const [openAttempts, setOpenAttempts] = useState<ReadonlySet<string>>(
     new Set(),
   );
-  const results = useInfiniteQuery({
+  // One chip can hold two server states (a result that could not be scored
+  // is an error or was never scored): both are read, errors first, and shown
+  // as one list.
+  const wanted = filter === null ? [undefined] : statesOfFilter(filter);
+  const ready = Boolean(scope.organizationId) && batch !== undefined;
+  const firstRead = useInfiniteQuery({
+    ...evaluationResultsQueryOptions(api, scope, batchId, wanted[0], live),
+    enabled: ready,
+  });
+  const secondRead = useInfiniteQuery({
     ...evaluationResultsQueryOptions(
       api,
       scope,
       batchId,
-      filter ?? undefined,
+      wanted[1] ?? "unscored",
       live,
     ),
-    enabled: Boolean(scope.organizationId) && batch !== undefined,
+    enabled: ready && wanted.length > 1,
   });
+  const reads = wanted.length > 1 ? [firstRead, secondRead] : [firstRead];
+  const results = {
+    items: reads.flatMap((read) =>
+      read.data?.pages.flatMap((page) => page.items) ?? []
+    ),
+    isError: reads.some((read) => read.isError),
+    isPending: reads.some((read) => read.isPending),
+    hasNextPage: reads.some((read) => read.hasNextPage),
+    isFetchingNextPage: reads.some((read) => read.isFetchingNextPage),
+    fetchNextPage: () => {
+      const next = reads.find((read) => read.hasNextPage);
+      return next?.fetchNextPage();
+    },
+  };
   const names = useEvaluationNames({ cases: true });
   const organizationId = scope.organizationId as string;
 
@@ -270,9 +291,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const setName = dataset?.name ?? translate("library.evaluations.set.unknown");
   const lines = countLines(batch.counts);
   const chips = stateChips(batch.counts);
-  const groups = groupByCase(
-    results.data?.pages.flatMap((page) => page.items) ?? [],
-  );
+  const groups = groupByCase(results.items);
   const scorerName = (id: string) =>
     batch.scorers.find((scorer) => scorer.scorerId === id)?.slug ??
       id.slice(0, 8);
@@ -430,6 +449,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
         <UI.Stack gap="spacious">
           <UI.InlineNotice
             data-testid="evaluation-gate"
+            icon={gate.icon}
             tone={gate.tone}
             action={phone || gate.show === null ? undefined : showButton}
           >

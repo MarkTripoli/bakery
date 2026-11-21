@@ -221,8 +221,7 @@ for (
         const chip of [
           "Passed 3",
           "Failed 2",
-          "Could not be scored 1",
-          "Not scored 1",
+          "Could not be scored 2",
           "Not run 1",
           "Stopped 1",
           "Skipped 1",
@@ -232,6 +231,15 @@ for (
       }
       await expect(page.getByTestId("evaluation-gate").getByRole("button"))
         .toHaveCount(0);
+      // One chip holds both scoring states: the error rows come first.
+      await page.getByRole("radio", { name: "Could not be scored 2" }).check();
+      const scoring = page.getByText(/Could not be scored/);
+      await expect(
+        page.getByText("Could not be scored: The model did not answer in time.")
+          .first(),
+      ).toBeVisible();
+      await expect(page.getByText(/: Passed/)).toHaveCount(0);
+      await expect(scoring.first()).toBeVisible();
       await page.getByRole("radio", { name: "Skipped 1" }).check();
       await expect(
         page.getByText("Skipped: The test case needs a file that was removed.")

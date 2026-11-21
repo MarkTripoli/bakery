@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   candidatePin,
   countLines,
+  filterCount,
   gateCard,
   gateLine,
   groupByCase,
@@ -10,6 +11,7 @@ import {
   resultWords,
   runBadge,
   stateChips,
+  statesOfFilter,
 } from "../../apps/web/src/pages/library/evaluations-state.ts";
 import { libraryTab } from "../../apps/web/src/pages/library/library-state.ts";
 
@@ -92,6 +94,8 @@ Deno.test("the gate is judged when the run ends while it is live", () => {
     gateCard(batch("running", "cannot_be_judged")).title.key,
     "library.evaluations.gate.pending.title",
   );
+  assertEquals(gateCard(batch("running", "cannot_be_judged")).icon, "clock");
+  assertEquals(gateCard(batch("completed", "met")).icon, undefined);
 });
 
 Deno.test("a gate that cannot be judged is grey and says it is not a pass, and offers the unmeasured results", () => {
@@ -106,6 +110,16 @@ Deno.test("a gate that cannot be judged is grey and says it is not a pass, and o
     rule: "at least 80% pass",
   });
   assertEquals(card.show, { count: 3, state: "missing" });
+  assertEquals(card.spread, null);
+});
+
+Deno.test("an error and a result never scored are one group, so one state button names both", () => {
+  const card = gateCard(batch("completed_with_errors", "cannot_be_judged", {
+    passed: 7,
+    error: 1,
+    unscored: 2,
+  }, 7));
+  assertEquals(card.show, { count: 3, state: "notScored" });
   assertEquals(card.spread, null);
 });
 
@@ -170,14 +184,28 @@ Deno.test("the six counts always add up to the required count", () => {
   assertEquals(lines[2].count, 2);
 });
 
-Deno.test("only states that have results get a chip, in a fixed order", () => {
-  assertEquals(
-    stateChips({ ...COUNTS, failed: 2, missing: 1 }),
-    [{ state: "failed", count: 2 }, { state: "missing", count: 1 }],
-  );
-  assertEquals(resultStateFilter("failed"), "failed");
-  assertEquals(resultStateFilter("nonsense"), null);
-});
+Deno.test(
+  "only kinds of result that have any get a chip, in a fixed order; the two scoring states share one",
+  () => {
+    assertEquals(
+      stateChips({ ...COUNTS, failed: 2, missing: 1, error: 1, unscored: 2 }),
+      [
+        { state: "failed", count: 2 },
+        { state: "notScored", count: 3 },
+        { state: "missing", count: 1 },
+      ],
+    );
+    assertEquals(statesOfFilter("notScored"), ["error", "unscored"]);
+    assertEquals(statesOfFilter("failed"), ["failed"]);
+    assertEquals(
+      filterCount({ ...COUNTS, error: 1, unscored: 2 }, "notScored"),
+      3,
+    );
+    assertEquals(resultStateFilter("notScored"), "notScored");
+    assertEquals(resultStateFilter("error"), null);
+    assertEquals(resultStateFilter("nonsense"), null);
+  },
+);
 
 Deno.test("a pin is read as a kind, an id and a version, and anything else is other", () => {
   assertEquals(candidatePin({ kind: "agentVersion", id: "x", version: 2 }), {
