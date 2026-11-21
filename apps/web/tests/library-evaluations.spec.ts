@@ -427,6 +427,40 @@ for (
       );
     });
 
+    test("Not scored with no errors waits for the unscored read and never says there are no results", async ({ page }) => {
+      await evaluationsFixture(page, { manyErrors: true });
+      await page.route(
+        (url) =>
+          /^\/v1\/evaluation-batches\/[^/]+\/results$/.test(url.pathname),
+        async (route) => {
+          const state = new URL(route.request().url()).searchParams.get(
+            "state",
+          );
+          if (state === "error") {
+            return route.fulfill({
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify({ items: [], nextCursor: null }),
+            });
+          }
+          if (state === "unscored") {
+            await new Promise((resolve) => setTimeout(resolve, 2500));
+          }
+          return route.fallback();
+        },
+      );
+      await page.goto(run(IDS.manyErrors));
+      await page.getByRole("radio", { name: /65$/ }).check();
+      const empty = page.getByText("No results in this state.");
+      // While the unscored read is still in flight the page is loading, not empty.
+      await page.waitForTimeout(1200);
+      await expect(empty).toHaveCount(0);
+      // Then the unscored results land and the empty state never showed.
+      await expect(page.getByText(/polite-tone|exact-answer/).first())
+        .toBeVisible({ timeout: 10_000 });
+      await expect(empty).toHaveCount(0);
+    });
+
     test("a run whose set is not known gives no test case count", async ({ page }) => {
       await evaluationsFixture(page, { datasetsStatus: 503 });
       await page.goto(run(IDS.gaps));
@@ -436,11 +470,15 @@ for (
         ),
       ).toBeVisible();
       await expect(page.getByText(/test cases?, each by/)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-unknown-set");
       await page.goto(LIST);
       await expect(page.getByText(/A set of test cases · /).first())
         .toBeVisible();
       await expect(page.getByText(/A set of test cases, \d+ test case/))
         .toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "library-evaluations-unknown-set");
     });
 
     test("a running run reads again on its own and its counts change in place", async ({ page }) => {

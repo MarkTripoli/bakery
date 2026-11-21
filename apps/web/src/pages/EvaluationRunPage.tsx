@@ -149,13 +149,18 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
     enabled: ready && wanted.length > 1 && firstDone,
   });
   const reads = wanted.length > 1 ? [firstRead, secondRead] : [firstRead];
+  const items = reads.flatMap((read) =>
+    read.data?.pages.flatMap((page) => page.items) ?? []
+  );
   const results = {
-    items: reads.flatMap((read) =>
-      read.data?.pages.flatMap((page) => page.items) ?? []
-    ),
+    items,
     isError: reads.some((read) => read.isError),
-    // The second read waits on the first, so only the first can hold the page back.
-    isPending: firstRead.isPending,
+    // The second read waits on the first. While it loads and nothing is on
+    // screen yet, the page is still loading: it must not say "no results".
+    // Once rows are showing, they stay and the rest joins them.
+    isPending: firstRead.isPending ||
+      (wanted.length > 1 && firstDone && secondRead.isPending &&
+        items.length === 0),
     hasNextPage: reads.some((read) => read.hasNextPage),
     isFetchingNextPage: reads.some((read) => read.isFetchingNextPage),
     fetchNextPage: () => {
