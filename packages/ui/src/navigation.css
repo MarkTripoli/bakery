@@ -64,7 +64,7 @@
 .bakery-application-rail__group {
   display: grid;
   gap: var(--space-1);
-  padding-block-start: var(--space-3);
+  padding-block: var(--space-3);
 }
 
 .bakery-application-rail__heading {

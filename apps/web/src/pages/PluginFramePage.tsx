@@ -150,7 +150,6 @@ export function PluginFramePage(
           </UI.Text>
         )}
         description={translate("settings.plugins.frame.off.body")}
-        layout="centered"
         title={translate("settings.plugins.frame.off.title", { name })}
       />
     )
@@ -172,7 +171,6 @@ export function PluginFramePage(
           </UI.Button>
         }
         description={translate("settings.plugins.frame.gone.body")}
-        layout="centered"
         title={translate("settings.plugins.frame.gone.title")}
       />
     )

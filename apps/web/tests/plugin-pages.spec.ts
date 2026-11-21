@@ -225,6 +225,8 @@ test("a plugin page opens under Bakery's strip in a sealed frame that is told ho
     ),
   ).toBeVisible();
   expect(state.documents.length).toBeGreaterThan(0);
+  // The strip and frame as they are, with the phone drawer still closed.
+  await shot(page, "plugin-page");
   // The rail names the pages' owner: a Plugins group, after Settings.
   await openRail(page);
   const group = page.getByRole("group", { name: "Plugins" });
@@ -238,7 +240,7 @@ test("a plugin page opens under Bakery's strip in a sealed frame that is told ho
   expect(mine.y).toBeGreaterThan(settings.y);
   // Opening a page is not an update: no notice says the plugin changed.
   await expect(page.getByText(/was updated to/)).toHaveCount(0);
-  await shot(page, "plugin-page");
+  await shot(page, "plugin-page-rail");
 });
 
 test("a page that cannot be shown says why in place of the frame", async ({ page }) => {
