@@ -106,6 +106,7 @@ export type CatalogActionName =
   | "blobUploads.start"
   | "browserSessions.list"
   | "browserSessions.revoke"
+  | "browserSessions.revokeCurrent"
   | "browserSessions.revokeOthers"
   | "capabilityBindings.create"
   | "capabilityBindings.delete"
