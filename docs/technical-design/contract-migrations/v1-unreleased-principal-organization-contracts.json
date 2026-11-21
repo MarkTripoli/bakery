@@ -1,12 +1,13 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "bab18ab7ded93a5ea4b5ca7ebde825cee1971226"
+    "bab18ab7ded93a5ea4b5ca7ebde825cee1971226",
+    "46f1ca889f9500aec2e8f992d6de4847929427e7"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:2199a6ed830ff45d9b59b5fe83b40c9f92dd0b0594789e40e697003d74dce978",
-  "reason": "#25 maintenance (slices A, B1, B2, C) by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main bab18ab7ded93a5ea4b5ca7ebde825cee1971226: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Main's own approval is kept unchanged below, after this PR's previous one.",
+  "reason": "#25 maintenance (slices A, B1, B2, C) by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main bab18ab7ded93a5ea4b5ca7ebde825cee1971226 (kept on main 46f1ca889f9500aec2e8f992d6de4847929427e7, same digest): workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Main's own approval is kept unchanged below, after this PR's previous one.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
