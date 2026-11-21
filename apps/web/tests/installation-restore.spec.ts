@@ -450,6 +450,24 @@ test("every page carries the held banner, with the way to finish the restore for
   await expect(banner(page)).toHaveCount(0);
 });
 
+test("finishing the last step clears the held banner on the next page", async ({ page }) => {
+  await restoreWorld(page, { taken: 2 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(banner(page)).toBeVisible();
+  await banner(page).getByRole("link", { name: "Finish the restore" }).click();
+  await expect(page).toHaveURL(/\/installation\/restore$/);
+  await stepCard(page, "workers").getByRole("checkbox", {
+    name: "I have done this on the server.",
+  }).check();
+  await confirmField(page, "workers").fill(BACKUP);
+  await page.getByRole("button", { name: "Let machines take work" }).click();
+  await expect(page.getByText("Restore finished")).toBeVisible();
+  // The next page must not still say Bakery is held.
+  await page.getByRole("button", { name: "Open Machines" }).click();
+  await expect(page).toHaveURL(/\/machines$/);
+  await expect(banner(page)).toHaveCount(0);
+});
+
 test("everyone else sees the banner without a button, and who can finish the restore", async ({ page }) => {
   await restoreWorld(page, { readStatus: 403 });
   await page.goto("/", { waitUntil: "domcontentloaded" });

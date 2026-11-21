@@ -3,7 +3,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { InstallationRestoreStep } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
-import { installationRestoreQueryOptions } from "../api/query.ts";
+import {
+  installationHeldQueryOptions,
+  installationRestoreQueryOptions,
+} from "../api/query.ts";
 import { isForbiddenFailure } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import {
@@ -63,6 +66,12 @@ export function InstallationRestorePage() {
       attempt.current = null;
       // The answer is the restore as it now stands: show it without a second read.
       queryClient.setQueryData(options.queryKey, result.data);
+      // The last step ends the hold: the banner on every other page must go with it.
+      if (result.data.releasedAt !== null) {
+        void queryClient.invalidateQueries({
+          queryKey: installationHeldQueryOptions(api).queryKey,
+        });
+      }
       return;
     }
     const code = result.error.kind === "problem"
