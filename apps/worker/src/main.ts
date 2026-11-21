@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { MaintenanceExecutor, MaintenanceJournalStore } from "./maintenance.ts";
 import { WorkerApiClient } from "./client.ts";
 import {
   disabledMonitoring,
@@ -332,8 +333,18 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       new SkillCache(config.stateDir),
       client,
     );
+    // No Bakery-managed component adapter ships on hosts yet, so mutating
+    // verbs answer "unsupported"; the journal still recovers and fences.
+    const maintenance = new MaintenanceExecutor({
+      journal: await MaintenanceJournalStore.open(config.stateDir),
+      adapters: [],
+      report: async (operationId, body, idempotencyKey) => {
+        await client.reportMaintenance(operationId, body, idempotencyKey);
+      },
+    });
     const supervisor = new WorkerSupervisor({
       monitoring: options.monitoring,
+      maintenance,
       config,
       client,
       registrationStore,

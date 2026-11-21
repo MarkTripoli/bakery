@@ -175,6 +175,13 @@ export type WorkerHeartbeatResult = ContractValue<"WorkerHeartbeatResult">;
 export type WorkerInventoryReport = ContractValue<"WorkerInventoryReport">;
 export type WorkerInventoryCheck = ContractValue<"WorkerInventoryCheck">;
 export type WorkerInventoryReceipt = ContractValue<"WorkerInventoryReceipt">;
+export type WorkerMaintenanceAssignment = ContractValue<
+  "WorkerMaintenanceAssignment"
+>;
+export type WorkerMaintenanceReport = ContractValue<"WorkerMaintenanceReport">;
+export type WorkerMaintenanceOperation = ContractValue<
+  "WorkerMaintenanceOperation"
+>;
 export type WorkerHeartbeatResultWithReconciliation = WorkerHeartbeatResult & {
   reconciledAttemptIds?: string[];
 };
