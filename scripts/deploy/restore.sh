@@ -83,7 +83,8 @@ if ! bash "$root/deploy/restore-drill.sh" "$set_dir" "$identity" --no-report > /
 fi
 
 # 3. A backup of what is here now.
-if ! pre=$(bash "$root/deploy/backup.sh" 2> /dev/null | sed -n 's/^BACKUP_COMPLETED //p' | tail -n 1) || [[ -z "$pre" ]]; then
+# backup.sh's stderr goes through, so a refusal says why the backup failed.
+if ! pre=$(bash "$root/deploy/backup.sh" | sed -n 's/^BACKUP_COMPLETED //p' | tail -n 1) || [[ -z "$pre" ]]; then
   echo "RESTORE_REFUSED_NO_PRE_BACKUP: a backup of the current installation could not be taken first, so nothing was changed. Fix the backup and run this again." >&2
   exit 67
 fi

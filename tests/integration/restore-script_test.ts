@@ -98,7 +98,7 @@ async function withSandbox(
       join(opt, "deploy/backup.sh"),
       `echo "backup" >> "${log}"\n${
         options.backup
-          ? `exit ${options.backup}`
+          ? `echo "BACKUP_FAILED: the disk is full" >&2\nexit ${options.backup}`
           : "echo BACKUP_COMPLETED pre-restore-set"
       }`,
     );
@@ -257,6 +257,11 @@ Deno.test("with no pre-restore backup, it is refused before anything is stopped"
     const result = await s.run(s.set, identityOf(s.dir), "--confirm", SET_NAME);
     assertEquals(result.code, 67);
     assert(result.stderr.includes("RESTORE_REFUSED_NO_PRE_BACKUP"));
+    // The backup's own reason reaches the operator.
+    assert(
+      result.stderr.includes("BACKUP_FAILED: the disk is full"),
+      result.stderr,
+    );
     assertEquals((await s.calls()).map((call) => call.split(" ")[0]), [
       "drill",
       "backup",

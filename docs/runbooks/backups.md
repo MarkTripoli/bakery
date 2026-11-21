@@ -434,17 +434,20 @@ role can do it. Plan it as an incident: say who runs it, which set, and why.
 sudo bash /opt/bakery/deploy/restore.sh /var/lib/bakery/backups/<set> /path/to/identity --confirm <set>
 ```
 
-`--confirm` must be the set's own directory name. Without it the script exits
-65 and changes nothing.
+`--confirm` must be the set's own directory name. Without `--confirm` the
+script prints its usage line and exits 64; with another name it exits 65.
+Either way it changes nothing.
 
 **It refuses, and changes nothing, unless:**
 
 | exit | refusal | meaning |
 | ---- | ------- | ------- |
+| 64 | | bad arguments: the set or identity is missing, or `--confirm` is absent (the usage line is printed) |
 | 65 | `RESTORE_CONFIRMATION_REQUIRED` | the typed name is not the set's name |
 | 66 | `RESTORE_REFUSED_DRILL_FAILED` | `restore-drill.sh` of this set did not pass just now (the drill runs here and reports nothing, because the API may be the thing being replaced) |
 | 67 | `RESTORE_REFUSED_NO_PRE_BACKUP` | a backup of the installation as it is could not be taken first, so the restore could not be undone |
 | 70 | | Deno or the release checkout is missing |
+| 77 | | not run as root |
 
 **What it does, in order.**
 
