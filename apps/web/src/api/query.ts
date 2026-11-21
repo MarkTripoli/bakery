@@ -21,6 +21,8 @@ import type {
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
   BakeryApiClient,
+  BatchListResponse,
+  BatchResponse,
   BrowserSessionList,
   CheckRunListResponse,
   ConnectedClientList,
@@ -2014,6 +2016,39 @@ export function repositoriesListQueryOptions(
   });
 }
 
+/**
+ * Every repository of the organization, collected 100 at a time up to a bound (as the Projects
+ * lists do), for pages that must name any repository a record points at.
+ */
+export function repositoriesAllQueryOptions(
+  client: Pick<BakeryApiClient, "listRepositories">,
+  scope: ApiScope,
+) {
+  return queryOptions<RepositoryListResponse["items"], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "repositories.all", {}),
+    queryFn: async ({ signal }) => {
+      const items: RepositoryListResponse["items"] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < PROJECTS_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listRepositories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function repositoryQueryOptions(
   client: Pick<BakeryApiClient, "getRepository">,
   scope: ApiScope,
@@ -3288,6 +3323,71 @@ export function connectionRepositoriesQueryOptions(
       return { connections: usable, resources };
     },
     enabled: enabled && Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One page of batches, newest first; `repositoryId` narrows to one repository. */
+export function batchesListQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  filter: { readonly repositoryId: string | null; readonly limit: number },
+) {
+  return infiniteQueryOptions<
+    BatchListResponse,
+    ApiFailure,
+    { pages: BatchListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "batches.list", filter),
+    initialPageParam: null,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.batches.list({
+          organizationId: requireOrganization(scope),
+          ...(filter.repositoryId === null
+            ? {}
+            : { repositoryId: filter.repositoryId }),
+          cursor: pageParam ?? undefined,
+          limit: filter.limit,
+          signal,
+        }),
+      ),
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * One batch. While it is live and the tab is showing, it is read again every
+ * ten seconds so the page follows the supervisor; a finished batch is read once.
+ */
+export function batchQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<BatchResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "batches.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.batches.get({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      return state === undefined || state === "finished" ||
+          state === "stopped"
+        ? false
+        : 10_000;
+    },
+    refetchIntervalInBackground: false,
     retry: retryNetworkOnce,
   });
 }

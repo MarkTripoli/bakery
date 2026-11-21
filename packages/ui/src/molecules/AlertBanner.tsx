@@ -7,6 +7,11 @@ export type AlertBannerProps =
   & SemanticNativeProps<HTMLAttributes<HTMLDivElement>>
   & {
     action?: ReactNode;
+    /**
+     * `stretch`: on a phone the action buttons sit under the text, each the
+     * full width. Use it where the buttons are the banner's next step.
+     */
+    actionLayout?: "end" | "stretch";
     children: ReactNode;
     onDismiss?: () => void;
     state?: "default" | "recovering" | "dismissed";
@@ -24,6 +29,7 @@ const TONE_GLYPH = {
 export function AlertBanner(
   {
     action,
+    actionLayout = "end",
     children,
     onDismiss,
     state = "default",
@@ -52,6 +58,7 @@ export function AlertBanner(
       ).join(" ")}
       role={tone === "error" ? "alert" : "status"}
       {...props}
+      data-action-layout={actionLayout === "stretch" ? "stretch" : undefined}
       data-state={state}
       data-ui-component="alertBanner"
       data-variant={tone}
