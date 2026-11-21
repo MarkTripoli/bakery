@@ -111,13 +111,13 @@ export async function readSessionToken(
 }
 
 /** The provider's session cookie names; the secure one is read on HTTPS origins. */
-const SESSION_COOKIE_NAMES = [
+export const SESSION_COOKIE_NAMES = [
   "better-auth.session_token",
   "__Secure-better-auth.session_token",
 ] as const;
 
 /** HMAC-SHA256 signed cookie value, the provider's own format. */
-async function signSessionToken(token: string, secret: string) {
+export async function signSessionToken(token: string, secret: string) {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
