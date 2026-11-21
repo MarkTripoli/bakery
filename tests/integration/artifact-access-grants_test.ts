@@ -214,6 +214,14 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           ),
           422,
         );
+        // Someone whose role already reads and comments has nothing to be given.
+        const redundant = await as(writer, `/v1/artifacts/${artifact}/access`, {
+          method: "POST",
+          body: { principalId: dev2.principalId },
+        });
+        const redundantText = await redundant.text();
+        assertEquals(redundant.status, 422, redundantText);
+        assert(redundantText.includes("already_has_access"), redundantText);
         grant = await json<Grant>(
           await as(writer, `/v1/artifacts/${artifact}/access`, {
             method: "POST",
@@ -398,6 +406,19 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           path: `/files/versions/${version}`,
           anchor: `comment:${posted.id}`,
         });
+        // A plain comment notification for the same person and document is not a
+        // mention: it must survive the Undo.
+        const someEvent = (await db.query<{ id: string }>(
+          "select id from bakery.domain_events where organization_id = $1 limit 1",
+          [f.organizationId],
+        )).rows[0]!.id;
+        await db.query(
+          `insert into bakery.notifications
+           (organization_id, recipient_id, kind, target_kind, target_id,
+            source_event_id, source_version)
+         values ($1, $2, 'comment', 'comment', $3, $4, 2)`,
+          [f.organizationId, cy.principalId, posted.id, someEvent],
+        );
         // Undo: revoking withdraws the unread mention and ends the access.
         const stale = await as(
           writer,
@@ -418,14 +439,63 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           200,
         );
         assert(revoked.revokedAt !== null);
-        const after = await json<{ items: { id: string }[] }>(
+        const after = await json<{ items: { id: string; kind: string }[] }>(
           await as(cy, "/v1/notifications"),
           200,
         );
-        assertEquals(after.items.length, 0);
+        assertEquals(after.items.map((row) => row.kind), ["comment"]);
         assertDenied(
           await status(await as(cy, `/v1/artifacts/${artifact}`)),
         );
+      },
+    );
+
+    await t.step(
+      "a grantee whose role holds artifact:share still cannot reshare",
+      async () => {
+        // The role alone would allow sharing; a person acting on a grant never may.
+        const sharerRole = crypto.randomUUID();
+        await db.query(
+          `insert into bakery.organization_roles
+             (id, organization_id, key, name, permissions, created_by_principal_id)
+           values ($1, $2, 'sharer-only', 'Sharer only', $3::text[], $4)`,
+          [
+            sharerRole,
+            f.organizationId,
+            ["artifact:share", "notification:read"],
+            f.principalId,
+          ],
+        );
+        const dan = await person("Dan Share", "guest", sharerRole);
+        const eve = await person("Eve Chat", "guest", roleId);
+        await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: dan.principalId },
+          }),
+          200,
+        );
+        const refused = await as(
+          dan,
+          `/v1/artifact-versions/${version}/comments`,
+          {
+            method: "POST",
+            body: {
+              body: "Eve, please look",
+              mentions: [eve.principalId],
+              accessLevel: "read_comment",
+            },
+          },
+        );
+        const refusedText = await refused.text();
+        assertEquals(refused.status, 422, refusedText);
+        assert(refusedText.includes("mention_share_forbidden"), refusedText);
+        const none = await db.query<{ count: number }>(
+          `select count(*)::int as count from bakery.artifact_access_grants
+            where organization_id = $1 and principal_id = $2`,
+          [f.organizationId, eve.principalId],
+        );
+        assertEquals(none.rows[0]?.count, 0);
       },
     );
   } finally {

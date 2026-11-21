@@ -19,7 +19,11 @@ import {
 import { decodeCursor, encodeCursor } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { signalInboxChanged } from "../work/notification-signal.ts";
-import { ELIGIBLE_MEMBER_SQL, findSharers } from "../conversation/mentions.ts";
+import {
+  ELIGIBLE_MEMBER_SQL,
+  findSharers,
+  memberRoleHolds,
+} from "../conversation/mentions.ts";
 
 /** What a direct document grant lets a person do. */
 export type ArtifactAccessLevel = "read_comment" | "edit";
@@ -284,6 +288,27 @@ async function grantAccess(context: ActionContext, input: unknown) {
       },
     });
   }
+  // Someone whose role already reads and comments has nothing to be given; a
+  // grant row there would be a second, revocable-looking source of access.
+  if (
+    await memberRoleHolds(
+      transaction,
+      organizationId,
+      body.principalId,
+      "artifactComment:read",
+    )
+  ) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: {
+        issues: [{
+          path: ["principalId"],
+          code: "already_has_access",
+          message: "already has access",
+        }],
+      },
+    });
+  }
   const grant = await upsertArtifactGrant(context, transaction, {
     organizationId,
     artifact,
@@ -393,7 +418,8 @@ async function revokeAccess(context: ActionContext, input: unknown) {
   const withdrawn = await transaction.query(
     `delete from bakery.notifications as item
       where item.organization_id = $1 and item.recipient_id = $2
-        and item.read_at is null and item.target_kind = 'comment'
+        and item.read_at is null and item.kind = 'comment_mention'
+        and item.target_kind = 'comment'
         and exists (
           select 1 from bakery.artifact_comments as comment
             join bakery.artifact_versions as version
