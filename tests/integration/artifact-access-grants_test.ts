@@ -159,6 +159,12 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
     const guest = await person("Gus Guest", "guest");
     const artifact = f.artifactId;
     const version = f.versionId;
+    // The shared comment fixture names its artifact type "document", which the
+    // Artifact contract does not list; a plan reads back cleanly.
+    await db.query(
+      "update bakery.artifacts set artifact_type = 'plan' where id = $1",
+      [artifact],
+    );
 
     await t.step(
       "a viewer cannot read the document before access",

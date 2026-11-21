@@ -51,3 +51,8 @@ grant select, insert on bakery.artifact_access_grants to bakery_app;
 grant update (level, granted_by, source_comment_id, granted_at, revoked_at,
   revoked_by, version)
   on bakery.artifact_access_grants to bakery_app;
+
+-- Revoking a grant withdraws the person's unread mention notifications for that
+-- document, so the Undo leaves nothing in their inbox that points at it. That is
+-- a delete of unread rows by the revoke handler and nothing else.
+grant delete on bakery.notifications to bakery_app;
