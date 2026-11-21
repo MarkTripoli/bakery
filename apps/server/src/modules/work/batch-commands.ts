@@ -187,10 +187,75 @@ export async function loadBatch(
     elapsedSeconds: Number(row.elapsed_seconds),
     spentUsd: formatUsd(spent),
     issues: issues.map(toIssue),
+    waitingOn: await readWaitingOn(transaction, organizationId, id),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     version: row.version,
   } as Batch;
+}
+
+type WaitingRow = {
+  id: string;
+  kind: string;
+  task_id: string;
+  created_at: Date;
+  audience: { type?: string; principalIds?: string[] } | null;
+};
+
+/**
+ * What the issue being worked on is waiting for a person to do: its task's oldest
+ * open question or approval, read now. Null when no issue is being worked on or
+ * nothing is open. The question's text is not read here; the task page shows it.
+ */
+async function readWaitingOn(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  batchId: string,
+) {
+  const found = await transaction.query<WaitingRow>(
+    `select question.id, question.kind, question.task_id, question.created_at,
+            question.audience
+       from bakery.batch_issues as issue
+       join bakery.ticket_requests as request
+         on request.organization_id = issue.organization_id
+        and request.id = issue.ticket_request_id
+       join bakery.workflow_runs as run
+         on run.organization_id = request.organization_id
+        and run.id = request.workflow_run_id
+       join bakery.questions as question
+         on question.organization_id = run.organization_id
+        and question.task_id = run.task_id
+      where issue.organization_id = $1 and issue.batch_id = $2
+        and issue.state = 'started' and question.status = 'open'
+        and (question.run_id is null or question.run_id = run.id)
+      order by question.created_at, question.id
+      limit 1`,
+    [organizationId, batchId],
+  );
+  const row = found.rows[0];
+  if (!row) return null;
+  const named = row.audience?.type === "principals"
+    ? (row.audience.principalIds ?? []).slice(0, 3)
+    : [];
+  const people = named.length === 0 ? [] : (await transaction.query<
+    { principal_id: string; display_name: string }
+  >(
+    `select principal.id as principal_id, principal.display_name
+       from bakery.principals as principal
+      where principal.id = any($1::uuid[])
+      order by array_position($1::uuid[], principal.id)`,
+    [named],
+  )).rows;
+  return {
+    kind: row.kind,
+    questionId: row.id,
+    taskId: row.task_id,
+    since: row.created_at.toISOString(),
+    askedOf: people.map((person) => ({
+      principalId: person.principal_id,
+      displayName: person.display_name,
+    })),
+  };
 }
 
 function batchId(context: ActionContext): string {

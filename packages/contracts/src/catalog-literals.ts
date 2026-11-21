@@ -1293,6 +1293,8 @@ export type ContractOutputName =
   | "BatchIssue"
   | "BatchStartable"
   | "BatchStartableIssue"
+  | "BatchWaitingOn"
+  | "BatchWaitingPerson"
   | "BinaryArtifact"
   | "BinaryArtifactBytes"
   | "BinarySkillFile"

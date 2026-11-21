@@ -1112,3 +1112,64 @@ Deno.test("batches: the list filters by state, keeps its cursor to that filter, 
     assertEquals(loaded.issues[0].issueNumber, "4");
     assertEquals(loaded.issues[0].issueTitle, "Fourth");
   }));
+
+Deno.test("batches: a batch says what the issue being worked on waits for, and clears it when answered", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx, { maxIssues: 2 });
+    const { ports } = admittingPorts(fx, sourceId);
+    await superviseBatches(fx.runtime, ports);
+    const issues = await issueRows(fx, batchId);
+    assertEquals(issues.map((issue) => issue.state), ["started"]);
+    const runId = await runOf(fx, issues[0].ticket_request_id!);
+    const taskId = (await fx.owner.query<{ task_id: string }>(
+      `select task_id from bakery.workflow_runs
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, runId],
+    )).rows[0].task_id;
+    const read = async () =>
+      (await loadBatch(fx.runtime as never, fx.organizationId, batchId))
+        .waitingOn;
+
+    // Nothing is open: the batch is not waiting on anyone.
+    assertEquals(await read(), null);
+
+    // An approval put to one named person on this issue's task.
+    const questionId = crypto.randomUUID();
+    await insertWithoutForeignKeys(fx.owner, "questions", {
+      id: questionId,
+      organization_id: fx.organizationId,
+      task_id: taskId,
+      run_id: runId,
+      kind: "approval",
+      status: "open",
+      audience: JSON.stringify({
+        type: "principals",
+        principalIds: [fx.adminId],
+      }),
+    });
+    const waiting = await read();
+    assert(waiting !== null, "an open approval on the task is shown");
+    assertEquals(waiting.kind, "approval");
+    assertEquals(waiting.questionId, questionId);
+    assertEquals(waiting.taskId, taskId);
+    assertEquals(waiting.askedOf.map((person) => person.principalId), [
+      fx.adminId,
+    ]);
+    assert(waiting.since.endsWith("Z"), "it says since when");
+
+    // A question for the task's participants names nobody, and an answered one clears.
+    await fx.owner.query(
+      `update bakery.questions set audience = '{"type":"task_participants"}'::jsonb
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, questionId],
+    );
+    assertEquals((await read())?.askedOf, []);
+    await fx.owner.query(
+      `update bakery.questions set status = 'answered'
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, questionId],
+    );
+    assertEquals(await read(), null);
+  }));
