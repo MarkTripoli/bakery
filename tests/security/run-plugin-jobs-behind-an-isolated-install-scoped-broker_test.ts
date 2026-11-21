@@ -18,6 +18,7 @@ import {
  */
 
 const KEY = crypto.getRandomValues(new Uint8Array(32));
+const EPOCH = "boot-1";
 const ORG = "org-1";
 const INSTALL = "install-1";
 
@@ -45,12 +46,14 @@ function setup(
   };
   const broker = createPluginBroker({
     key: KEY,
+    epoch: EPOCH,
     authority: { load: () => Promise.resolve(authority()) },
     operations: [read, write],
     now: () => clock,
   });
   const mint = (installId = INSTALL, ttlMs = 60_000) =>
     mintBrokerToken(KEY, {
+      epoch: EPOCH,
       organizationId: ORG,
       installId,
       jobId: "job-1",
@@ -80,6 +83,7 @@ Deno.test("a token the broker did not sign is refused, and nothing runs", async 
   const t = setup();
   const other = crypto.getRandomValues(new Uint8Array(32));
   const { token } = await mintBrokerToken(other, {
+    epoch: EPOCH,
     organizationId: ORG,
     installId: INSTALL,
     jobId: "job-1",
@@ -350,4 +354,178 @@ Deno.test("the broker remembers a bounded number of request ids per token", asyn
     }),
     { ok: false, denial: "sequence_replayed" },
   );
+});
+
+function twoGranted() {
+  return setup(() => ({
+    status: "enabled",
+    grants: ["state.read", "state.write"],
+  }));
+}
+
+Deno.test("a request id cannot be reused for another operation, even when both are granted", async () => {
+  const t = twoGranted();
+  const { token } = await t.mint();
+  const requestId = "req-bound";
+  assertEquals(
+    (await t.broker.call({
+      token,
+      installId: INSTALL,
+      body: t.body({ requestId, sequence: 1, operation: "state.read" }),
+    })).ok,
+    true,
+  );
+  assertEquals(
+    await t.broker.call({
+      token,
+      installId: INSTALL,
+      body: t.body({ requestId, sequence: 2, operation: "state.write" }),
+    }),
+    { ok: false, denial: "request_malformed" },
+  );
+  assertEquals(t.ran, ["a"]);
+});
+
+Deno.test("one request id runs its effect once even while the first call is still running", async () => {
+  let runs = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const broker = createPluginBroker({
+    key: KEY,
+    epoch: EPOCH,
+    authority: {
+      load: () =>
+        Promise.resolve({ status: "enabled", grants: ["state.write"] }),
+    },
+    operations: [{
+      name: "state.write",
+      run: async () => {
+        runs++;
+        await gate;
+        return { done: true };
+      },
+    }],
+  });
+  const { token } = await mintBrokerToken(KEY, {
+    epoch: EPOCH,
+    organizationId: ORG,
+    installId: INSTALL,
+    jobId: "job-1",
+    now: Date.now(),
+    ttlMs: 60_000,
+  });
+  const body = (sequence: number) =>
+    JSON.stringify({
+      requestId: "r1",
+      sequence,
+      operation: "state.write",
+      args: {},
+    });
+  const first = broker.call({ token, installId: INSTALL, body: body(1) });
+  const second = broker.call({ token, installId: INSTALL, body: body(2) });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  release();
+  assertEquals(await first, {
+    ok: true,
+    result: { done: true },
+    replayed: false,
+  });
+  assertEquals(await second, {
+    ok: true,
+    result: { done: true },
+    replayed: true,
+  });
+  assertEquals(runs, 1);
+});
+
+Deno.test("an operation that throws gives the caller a typed denial and no raw error, and is not re-run", async () => {
+  let runs = 0;
+  const broker = createPluginBroker({
+    key: KEY,
+    epoch: EPOCH,
+    authority: {
+      load: () =>
+        Promise.resolve({ status: "enabled", grants: ["state.write"] }),
+    },
+    operations: [{
+      name: "state.write",
+      run: () => {
+        runs++;
+        return Promise.reject(new Error("db password is hunter2"));
+      },
+    }],
+  });
+  const { token } = await mintBrokerToken(KEY, {
+    epoch: EPOCH,
+    organizationId: ORG,
+    installId: INSTALL,
+    jobId: "job-1",
+    now: Date.now(),
+    ttlMs: 60_000,
+  });
+  const ask = (sequence: number, requestId: string) =>
+    broker.call({
+      token,
+      installId: INSTALL,
+      body: JSON.stringify({
+        requestId,
+        sequence,
+        operation: "state.write",
+        args: {},
+      }),
+    });
+  const first = await ask(1, "r1");
+  assertEquals(first, { ok: false, denial: "operation_failed" });
+  assert(!JSON.stringify(first).includes("hunter2"));
+  // A retry under the same id does not run a half-done effect again.
+  assertEquals(await ask(2, "r1"), { ok: false, denial: "operation_failed" });
+  assertEquals(runs, 1);
+  // A new id is a new request, and the broker is still usable.
+  assertEquals(await ask(3, "r2"), { ok: false, denial: "operation_failed" });
+  assertEquals(runs, 2);
+});
+
+Deno.test("a token from before a restart is refused, so a spent request cannot replay", async () => {
+  let runs = 0;
+  const build = (epoch: string) =>
+    createPluginBroker({
+      key: KEY,
+      epoch,
+      authority: {
+        load: () =>
+          Promise.resolve({ status: "enabled", grants: ["state.write"] }),
+      },
+      operations: [{
+        name: "state.write",
+        run: () => {
+          runs++;
+          return Promise.resolve({});
+        },
+      }],
+    });
+  const before = build("boot-1");
+  const { token } = await mintBrokerToken(KEY, {
+    epoch: "boot-1",
+    organizationId: ORG,
+    installId: INSTALL,
+    jobId: "job-1",
+    now: Date.now(),
+    ttlMs: 60_000,
+  });
+  const body = JSON.stringify({
+    requestId: "r1",
+    sequence: 1,
+    operation: "state.write",
+    args: {},
+  });
+  assertEquals(
+    (await before.call({ token, installId: INSTALL, body })).ok,
+    true,
+  );
+  const after = build("boot-2");
+  assertEquals(await after.call({ token, installId: INSTALL, body }), {
+    ok: false,
+    denial: "token_stale",
+  });
+  assertEquals(runs, 1);
 });

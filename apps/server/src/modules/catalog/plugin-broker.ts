@@ -36,6 +36,7 @@ const OPERATION = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*){1,3}$/;
 export type BrokerDenial =
   | "token_invalid"
   | "token_expired"
+  | "token_stale"
   | "install_mismatch"
   | "request_too_large"
   | "request_malformed"
@@ -44,7 +45,8 @@ export type BrokerDenial =
   | "install_off"
   | "install_gone"
   | "not_granted"
-  | "unknown_operation";
+  | "unknown_operation"
+  | "operation_failed";
 
 export type BrokerOutcome =
   | { ok: true; result: unknown; replayed: boolean }
@@ -54,6 +56,12 @@ export type BrokerClaims = Readonly<{
   organizationId: string;
   installId: string;
   jobId: string;
+  /**
+   * Names the broker run that issued the token. A restart starts a new run, so
+   * a token from before it is refused and the job must ask for a new one; its
+   * spent request ids were only ever remembered in memory.
+   */
+  epoch: string;
   /** Names this token for sequence, rate and replay bookkeeping. */
   tokenId: string;
   issuedAt: number;
@@ -86,6 +94,8 @@ export type BrokerOperation = Readonly<{
 export type BrokerOptions = Readonly<{
   /** HMAC key, at least 32 bytes, never given to a job. */
   key: Uint8Array;
+  /** Fresh for each start of the server, for example a random UUID. */
+  epoch: string;
   authority: InstallAuthorityPort;
   operations: readonly BrokerOperation[];
   now?: () => number;
@@ -130,7 +140,14 @@ export async function mintBrokerToken(
   },
 ): Promise<{ token: string; claims: BrokerClaims }> {
   if (key.byteLength < 32) throw new Error("BROKER_KEY_TOO_SHORT");
-  for (const value of [claims.organizationId, claims.installId, claims.jobId]) {
+  for (
+    const value of [
+      claims.organizationId,
+      claims.installId,
+      claims.jobId,
+      claims.epoch,
+    ]
+  ) {
     if (!ID.test(value)) throw new Error("BROKER_CLAIM_INVALID");
   }
   if (
@@ -141,6 +158,7 @@ export async function mintBrokerToken(
     organizationId: claims.organizationId,
     installId: claims.installId,
     jobId: claims.jobId,
+    epoch: claims.epoch,
     tokenId: crypto.randomUUID(),
     issuedAt: claims.now,
     expiresAt: claims.now + claims.ttlMs,
@@ -183,22 +201,39 @@ async function readClaims(
   } catch {
     return null;
   }
-  const { v, organizationId, installId, jobId, tokenId } = parsed;
+  const { v, organizationId, installId, jobId, tokenId, epoch } = parsed;
   const { issuedAt, expiresAt } = parsed;
   if (
     v !== TOKEN_VERSION || typeof organizationId !== "string" ||
     typeof installId !== "string" || typeof jobId !== "string" ||
+    typeof epoch !== "string" ||
     typeof tokenId !== "string" || typeof issuedAt !== "number" ||
     typeof expiresAt !== "number"
   ) return null;
-  return { organizationId, installId, jobId, tokenId, issuedAt, expiresAt };
+  return {
+    organizationId,
+    installId,
+    jobId,
+    epoch,
+    tokenId,
+    issuedAt,
+    expiresAt,
+  };
 }
 
 type TokenState = {
   expiresAt: number;
   lastSequence: number;
   calls: number[];
-  outcomes: Map<string, { operation: string; result: unknown }>;
+  /**
+   * Held from the moment an effect starts, not when it ends, so a second call
+   * with the same request id while the first still runs waits for it and does
+   * not start the effect again.
+   */
+  outcomes: Map<
+    string,
+    { operation: string; settled: Promise<{ ok: boolean; result?: unknown }> }
+  >;
 };
 
 export type PluginBroker = {
@@ -214,6 +249,7 @@ export type PluginBroker = {
 
 export function createPluginBroker(options: BrokerOptions): PluginBroker {
   if (options.key.byteLength < 32) throw new Error("BROKER_KEY_TOO_SHORT");
+  if (!ID.test(options.epoch)) throw new Error("BROKER_EPOCH_INVALID");
   const now = options.now ?? Date.now;
   const operations = new Map(options.operations.map((o) => [o.name, o]));
   for (const name of operations.keys()) {
@@ -227,6 +263,7 @@ export function createPluginBroker(options: BrokerOptions): PluginBroker {
     async call({ token, installId, body }) {
       const claims = await readClaims(options.key, token);
       if (claims === null) return deny("token_invalid");
+      if (claims.epoch !== options.epoch) return deny("token_stale");
       const at = now();
       // Bookkeeping for lapsed tokens goes with them, so a long-running server
       // does not keep one entry per job it has ever served.
@@ -299,21 +336,40 @@ export function createPluginBroker(options: BrokerOptions): PluginBroker {
         if (remembered.operation !== operation) {
           return deny("request_malformed");
         }
-        return { ok: true, result: remembered.result, replayed: true };
+        const earlier = await remembered.settled;
+        return earlier.ok
+          ? { ok: true, result: earlier.result, replayed: true }
+          : deny("operation_failed");
       }
       if (sequence <= state.lastSequence) return deny("sequence_replayed");
       state.lastSequence = sequence;
 
-      const result = await typed.run(
-        claims,
-        args as Readonly<Record<string, unknown>>,
-      );
+      // Recorded before the effect starts, with no await in between. A failure
+      // is recorded too: an effect that half ran must not run again under the
+      // same id, and the caller never sees the raw error, which may name
+      // internals or secrets.
+      const settled = (async () => {
+        try {
+          return {
+            ok: true,
+            result: await typed.run(
+              claims,
+              args as Readonly<Record<string, unknown>>,
+            ),
+          };
+        } catch {
+          return { ok: false };
+        }
+      })();
       if (state.outcomes.size >= BROKER_MAX_REMEMBERED_REQUESTS) {
         const oldest = state.outcomes.keys().next().value;
         if (oldest !== undefined) state.outcomes.delete(oldest);
       }
-      state.outcomes.set(requestId, { operation, result });
-      return { ok: true, result, replayed: false };
+      state.outcomes.set(requestId, { operation, settled });
+      const done = await settled;
+      return done.ok
+        ? { ok: true, result: done.result, replayed: false }
+        : deny("operation_failed");
     },
   };
 }

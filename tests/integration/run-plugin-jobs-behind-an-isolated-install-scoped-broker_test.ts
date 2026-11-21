@@ -21,6 +21,7 @@ import { createPostgresInstallAuthority } from "../../apps/server/src/modules/ca
  */
 
 const KEY = crypto.getRandomValues(new Uint8Array(32));
+const EPOCH = "boot-1";
 const PAGE = { id: "checklist", title: "Checklist", file: "checklist.html" };
 
 Deno.test("the broker follows the install: allowed while on, refused the moment it is off or removed", () =>
@@ -51,10 +52,12 @@ Deno.test("the broker follows the install: allowed while on, refused the moment 
     };
     const broker = createPluginBroker({
       key: KEY,
+      epoch: EPOCH,
       authority: createPostgresInstallAuthority(fixture.pgDatabase),
       operations: [read, write],
     });
     const { token } = await mintBrokerToken(KEY, {
+      epoch: EPOCH,
       organizationId: fixture.organizationId,
       installId,
       jobId: "job-1",
@@ -120,6 +123,7 @@ Deno.test("a token minted for another organization finds no install here", () =>
     const installId = await install(fixture, published);
     const broker = createPluginBroker({
       key: KEY,
+      epoch: EPOCH,
       authority: createPostgresInstallAuthority(fixture.pgDatabase),
       operations: [{
         name: "state.read",
@@ -127,6 +131,7 @@ Deno.test("a token minted for another organization finds no install here", () =>
       }],
     });
     const { token } = await mintBrokerToken(KEY, {
+      epoch: EPOCH,
       organizationId: crypto.randomUUID(),
       installId,
       jobId: "job-1",
