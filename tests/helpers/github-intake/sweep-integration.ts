@@ -3058,3 +3058,51 @@ Deno.test("issue 46 sweep: the line-count stream counts each merged pull request
     }
   });
 });
+
+Deno.test("issue 46 sweep: a merged pull request GitHub answers 404 for is counted as gone, gets no count, and the later rows are still counted", async () => {
+  await withFixture(async (f) => {
+    const s = await subjectOf(f);
+    const seed = await seedTaskAndRepository(f, s.resource);
+    try {
+      const heads = new Map([[1, SHA_A], [2, SHA_B], [3, SHA_C]]);
+      await trackPullRequests(s, seed, [1, 2, 3], heads);
+      // #1 is deleted on GitHub: its files route answers 404.
+      for (const number of [2, 3]) {
+        f.github.seedPullRequest(s.repositoryId, {
+          number,
+          headSha: heads.get(number),
+        });
+        f.github.seedPullRequestFiles(s.repositoryId, number, [
+          {
+            filename: `src/f${number}.ts`,
+            status: "modified",
+            additions: number,
+            deletions: 0,
+            patch: "@@",
+          },
+        ]);
+      }
+      await f.pgDatabase.query(
+        `update bakery.pull_requests set status = 'merged'
+          where provider_number in (1, 2, 3)`,
+      );
+      const result = await step(s, "line_counts");
+      assertEquals([result.status, result.code], ["idle", "completed"]);
+      assertEquals(
+        [result.tally.rows, result.tally.gone, result.tally.written],
+        [3, 1, 2],
+      );
+      assertEquals(
+        (await f.pgDatabase.query<{ provider_number: number }>(
+          `select pr.provider_number
+             from bakery.pull_request_line_counts c
+             join bakery.pull_requests pr on pr.id = c.pull_request_id
+            order by pr.provider_number`,
+        )).rows.map((row) => row.provider_number),
+        [2, 3],
+      );
+    } finally {
+      await removeSeed(f, seed);
+    }
+  });
+});

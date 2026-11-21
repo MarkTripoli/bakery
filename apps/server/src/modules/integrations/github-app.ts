@@ -1636,12 +1636,15 @@ export type GitHubAppClient = {
    * One page of 100 files of a pull request's diff
    * (`GET /repos/{owner}/{repo}/pulls/{number}/files`), with line totals and
    * whether GitHub sent a patch; the patch text is dropped. GitHub lists at
-   * most 3,000 files across pages.
+   * most 3,000 files across pages. 301 or 308 is `moved`, 404 or 410 is
+   * `gone`, with the same meaning as `readPullRequest`.
    */
   listPullRequestFiles(
     request: { token: string; fullName: string; number: number; page: number },
     signal: AbortSignal,
-  ): Promise<{ items: GitHubPullRequestFile[]; hasNext: boolean }>;
+  ): Promise<
+    { items: GitHubPullRequestFile[]; hasNext: boolean } | GitHubReadAbsent
+  >;
   /**
    * A user's calculated permission on a repository
    * (`GET /repos/{owner}/{repo}/collaborators/{login}/permission`). `login`
@@ -2466,18 +2469,20 @@ export function createFetchGitHubAppClient(
       const url = new URL(`${GITHUB_API_ORIGIN}${path}/pulls/${number}/files`);
       url.searchParams.set("per_page", String(GITHUB_LIST_PAGE_SIZE));
       url.searchParams.set("page", String(page));
-      const { body, link } = await readJson(
+      const { body, link, status } = await readJson(
         transport,
         url.href,
         {
           method: "GET",
           expectedStatus: 200,
+          absentStatuses: ABSENT_STATUSES,
           classify: "token",
           authorization,
           maxBytes: MAX_READ_PAGE_BYTES,
         },
         signal,
       );
+      if (status !== 200) return absent(status);
       return {
         items: parsed(GitHubPullRequestFilePageSchema, body),
         hasNext: hasNextPage(link),

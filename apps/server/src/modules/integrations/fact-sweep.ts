@@ -271,6 +271,11 @@ class Ineligible extends Error {
   }
 }
 
+/** The provider reads a step makes, through its one client. */
+function readsOf(step: Step) {
+  return step.dependencies.github;
+}
+
 /** GitHub answered 301 or 308 for a repository path: the repository moved. */
 class RepositoryMoved extends Error {
   constructor() {
@@ -529,7 +534,7 @@ async function issuesStep(step: Step, token: string): Promise<StepOutcome> {
     const next = issueRequest(cursor);
     // Taken before the request, so an item the page shows is never older than this.
     const observedStartedAt = new Date();
-    const page = await dependencies.github.listRepositoryIssues({
+    const page = await readsOf(step).listRepositoryIssues({
       token,
       fullName: authority.eligibility.displayName,
       state: next.state,
@@ -695,7 +700,7 @@ async function pullRequestsStep(
     const observedStartedAt = new Date();
     let read;
     try {
-      read = await dependencies.github.readPullRequest({
+      read = await readsOf(step).readPullRequest({
         token,
         fullName: authority.eligibility.displayName,
         number: row.providerNumber,
@@ -790,7 +795,7 @@ async function checksStep(
         const observedStartedAt = new Date();
         let result;
         try {
-          result = await dependencies.github.listCheckRuns({
+          result = await readsOf(step).listCheckRuns({
             token,
             fullName: authority.eligibility.displayName,
             headSha: row.headSha,
@@ -841,7 +846,8 @@ async function checksStep(
  * list of the diff (up to 30 pages of 100), counted by `countLines` and stored
  * once as that head's artifact. A list cut off at the page cap is stored as a
  * truncated count and counted as truncated; a pull request GitHub answers 404
- * or 410 for gets no count, and nothing is concluded from that.
+ * or 410 for is counted as gone and gets no count, nothing is concluded from
+ * that, and the rotation goes on to the next row.
  */
 async function lineCountsStep(
   step: Step,
@@ -855,11 +861,12 @@ async function lineCountsStep(
     step.tally.rows += 1;
     const files: DiffFile[] = [];
     let listCut = false;
+    let gone = false;
     for (let page = 1; page <= MAX_LINE_COUNT_PAGES; page++) {
       await assertEligible(step);
       let result;
       try {
-        result = await dependencies.github.listPullRequestFiles({
+        result = await readsOf(step).listPullRequestFiles({
           token,
           fullName: authority.eligibility.displayName,
           number: row.providerNumber,
@@ -870,9 +877,29 @@ async function lineCountsStep(
         throw error;
       }
       step.tally.requests += 1;
+      if ("kind" in result) {
+        if (result.kind === "moved") throw new RepositoryMoved();
+        gone = true;
+        break;
+      }
       files.push(...result.items);
       if (!result.hasNext) break;
       if (page === MAX_LINE_COUNT_PAGES) listCut = true;
+    }
+    if (gone) {
+      const write = rowWrite(step, rows, index);
+      try {
+        await withPgTransaction(dependencies.database, async (transaction) => {
+          await guardWrite(step, transaction);
+          step.tally.gone += 1;
+          await commit(step, transaction, write);
+        });
+      } catch (error) {
+        skipFailedRow(step, row, error);
+        throw error;
+      }
+      last = write;
+      continue;
     }
     const count = countLines(files, {
       expectedFiles: row.changedFiles,
