@@ -6000,5 +6000,6 @@
   "installation.restore.step.status.next": "⟪Next step⟫",
   "installation.restore.step.status.later": "⟪Not yet⟫",
   "installation.restore.step.dispatch.server": "⟪On the server, start the background services:⟫",
-  "installation.restore.confirm.nameLabel": "⟪Backup name⟫"
+  "installation.restore.confirm.nameLabel": "⟪Backup name⟫",
+  "installation.restore.record.workers.bodyFinished": "⟪Each must be enrolled again on its own computer.⟫"
 }

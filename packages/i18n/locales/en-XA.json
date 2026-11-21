@@ -6000,5 +6000,6 @@
   "installation.restore.step.status.next": "⟦Ñëẋŧ šŧëþ ŧ⟧",
   "installation.restore.step.status.later": "⟦Ñôŧ ÿëŧ…⟧",
   "installation.restore.step.dispatch.server": "⟦Ôñ ŧĥë šëŕṽëŕ, šŧàŕŧ ŧĥë ƀàçķĝŕôûñð šëŕṽïçëš: ŧëšŧ çôþÿ ŧëš⟧",
-  "installation.restore.confirm.nameLabel": "⟦Ɓàçķûþ ñàɱë ŧ⟧"
+  "installation.restore.confirm.nameLabel": "⟦Ɓàçķûþ ñàɱë ŧ⟧",
+  "installation.restore.record.workers.bodyFinished": "⟦Ëàçĥ ɱûšŧ ƀë ëñŕôļļëð àĝàïñ ôñ ïŧš ôŵñ çôɱþûŧëŕ. ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

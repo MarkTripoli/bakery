@@ -234,6 +234,13 @@ test("a name the server refuses says so under the field and changes nothing", as
     "data-restore-state",
     "next",
   );
+  // The still shows a name that is wrong beside the refusal, not the right one.
+  await confirmField(page, "intake").fill(`${BACKUP}-copy`);
+  await expect(
+    page.getByText(
+      "That is not the backup's name. Copy it from above. Nothing was changed.",
+    ),
+  ).toBeVisible();
   await page.mouse.move(700, 100);
   await still(page, "restore-mismatch");
 });

@@ -125,7 +125,8 @@ export function InstallationRestoreScreen(
           )
           : state === "forbidden"
           ? (
-            <UI.ErrorState
+            // Nothing failed: the person may read, not finish. The neutral box of "No restore is waiting".
+            <UI.EmptyState
               description={translate("installation.restore.forbidden.body")}
               title={translate("installation.restore.forbidden.title")}
             />
@@ -160,7 +161,9 @@ export function InstallationRestoreScreen(
                   </>
                 )
                 : undefined}
-              aside={<Record restore={restore} />}
+              aside={
+                <Record finished={state === "finished"} restore={restore} />
+              }
             >
               {state === "finished"
                 ? <Finished effectsHeld={restore.effectsHeld} />
@@ -361,11 +364,11 @@ function NextStepForm(
   const ready = confirmation === restore.backupName &&
     (!step.onServer || ticked);
   return (
-    <UI.Stack gap="tight">
+    <UI.Stack gap="comfortable">
       {step.onServer
         ? (
           <UI.InlineNotice tone="information">
-            <UI.Stack gap="tight">
+            <UI.Stack gap="compact">
               <UI.Text>
                 {translate(`installation.restore.step.${step.id}.server`)}
               </UI.Text>
@@ -432,7 +435,12 @@ function NextStepForm(
   );
 }
 
-function Record({ restore }: { readonly restore: InstallationRestore }) {
+function Record(
+  { finished, restore }: {
+    readonly finished: boolean;
+    readonly restore: InstallationRestore;
+  },
+) {
   const { translate, locale, timeZone } = useI18n();
   const when = (value: string) =>
     new Intl.DateTimeFormat(locale, {
@@ -469,6 +477,9 @@ function Record({ restore }: { readonly restore: InstallationRestore }) {
           <UI.DescriptionItem
             description={count === 0
               ? translate(`installation.restore.record.${key}.none`)
+              : key === "workers" && finished
+              // Step 3 is done: no "before step 3" any more.
+              ? translate("installation.restore.record.workers.bodyFinished")
               : translate(`installation.restore.record.${key}.body`)}
             key={key}
             title={count === 0

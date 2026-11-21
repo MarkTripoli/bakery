@@ -1696,6 +1696,8 @@ a.bakery-application-rail__link:hover {
       "actions aside";
     grid-template-columns: minmax(0, var(--layout-message))
       var(--layout-form-summary);
+    /* The aside spans both rows: spare height goes under the buttons, not between them and the form. */
+    grid-template-rows: auto 1fr;
     max-inline-size: none;
   }
   .ui-form-with-summary__form {
@@ -1710,6 +1712,13 @@ a.bakery-application-rail__link:hover {
   /* No buttons: the form is the whole left column, with no empty row under it. */
   .ui-form-with-summary[data-actions="absent"] {
     grid-template-areas: "form aside";
+    grid-template-rows: auto;
+  }
+}
+@media (max-width: 1279px) {
+  /* One column: the summary ends where the buttons' own rule begins, so its last row draws none. */
+  .ui-form-with-summary:not([data-actions="absent"]) .ui-form-with-summary__aside .ui-description-item:last-child {
+    border-block-end: var(--border-none);
   }
 }
 @media (max-width: 743px) {

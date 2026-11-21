@@ -2115,6 +2115,7 @@
   "installation.restore.record.jobs.none": "No jobs were stopped mid-run.",
   "installation.restore.record.workers.title": "{count, plural, one {# machine was disconnected} other {# machines were disconnected}}",
   "installation.restore.record.workers.body": "Each must be enrolled again on its own computer before step 3.",
+  "installation.restore.record.workers.bodyFinished": "Each must be enrolled again on its own computer.",
   "installation.restore.record.workers.none": "No machines were disconnected.",
   "installation.usage.title": "Usage",
   "installation.usage.description": "What agents on this installation used, from the records Bakery keeps.",
