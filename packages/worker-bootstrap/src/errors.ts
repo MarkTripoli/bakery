@@ -86,7 +86,7 @@ export const BOOTSTRAP_ERRORS = {
   SERVICE_SETTING_REFUSED:
     "A setting for the service is not allowed in a service definition: the setup code is never written there.",
   COMMAND_UNKNOWN:
-    "Unknown command or option. Use: setup --server URL --release VERSION, pair --server URL (each optionally with --root DIR and --token-file FILE or --token-fd N), status, doctor, drain, or plan (each optionally with --root DIR).",
+    "Unknown command or option. Use: link --server URL [--code CODE], setup --server URL --release VERSION, pair --server URL (each optionally with --root DIR and --token-file FILE or --token-fd N), status, doctor, drain, or plan (each optionally with --root DIR).",
   COMMAND_TOKEN_SHORTCUT:
     "The setup code is never taken from a flag or the environment. Enter it when asked, or use --token-file or --token-fd with a protected file or descriptor.",
   SERVICE_SYSTEM_MISMATCH:

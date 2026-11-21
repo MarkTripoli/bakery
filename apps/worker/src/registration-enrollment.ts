@@ -7,6 +7,8 @@ import {
 import { ensurePrivateDirectory } from "./storage.ts";
 import type { RegistrationState, WorkerRegistration } from "./types.ts";
 
+const LINK_CODE = /^[2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4}$/i;
+
 export async function ensureRegistration(
   config: WorkerConfig,
   store: RegistrationStore,
@@ -40,8 +42,11 @@ export async function ensureRegistration(
   if (!registrationIdempotencyKey) {
     throw new Error("WORKER_REGISTRATION_STATE_INVALID");
   }
+  // A one-paste link (#70) leaves its short link code where a setup code
+  // goes; the server takes it in its own field. A long token never matches.
+  const isLinkCode = LINK_CODE.test(enrollmentToken);
   const body: WorkerRegistration = {
-    enrollmentToken,
+    ...(isLinkCode ? { linkCode: enrollmentToken } : { enrollmentToken }),
     workerCredential: state.workerCredential,
     name: config.name,
     os: config.os,
