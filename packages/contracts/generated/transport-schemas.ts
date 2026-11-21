@@ -33576,6 +33576,7 @@ const transportSchemas = {
         "elapsedSeconds",
         "spentUsd",
         "issues",
+        "waitingOn",
         "createdAt",
         "updatedAt",
         "version"
@@ -33586,7 +33587,8 @@ const transportSchemas = {
         "pausedAt",
         "finishReason",
         "finishedAt",
-        "stoppedBy"
+        "stoppedBy",
+        "waitingOn"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -33609,6 +33611,7 @@ const transportSchemas = {
         "elapsedSeconds": "integer",
         "spentUsd": "decimal",
         "issues": "BatchIssue[]",
+        "waitingOn": "BatchWaitingOn",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
@@ -33635,10 +33638,58 @@ const transportSchemas = {
         "elapsedSeconds": "Seconds since startedAt (to finishedAt once ended), against maxHours.",
         "spentUsd": "Spend so far across the batch's issues, against maxSpendUsd.",
         "issues": "The issues it considered, in order.",
+        "waitingOn": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes.",
         "createdAt": "UTC timestamp when the batch was created.",
         "updatedAt": "UTC timestamp of the last change.",
         "version": "Optimistic-concurrency version."
       }
+    },
+    "BatchWaitingPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "A person the question or approval was put to.",
+        "displayName": "Their current display name; never an email address."
+      },
+      "description": "One person a waiting question or approval was put to by name."
+    },
+    "BatchWaitingOn": {
+      "fields": [
+        "kind",
+        "questionId",
+        "taskId",
+        "since",
+        "askedOf"
+      ],
+      "fieldTypes": {
+        "kind": "enum(question|approval)",
+        "questionId": "uuid",
+        "taskId": "uuid",
+        "since": "timestamp",
+        "askedOf": "BatchWaitingPerson[]"
+      },
+      "fieldDescriptions": {
+        "kind": "question when the work asked something, approval when it needs a yes before it goes on.",
+        "questionId": "The open question or approval; answer it through the questions actions.",
+        "taskId": "The task of the issue being worked on, where the person answers.",
+        "since": "UTC timestamp when it was put.",
+        "askedOf": "Up to three people it was put to by name; empty when it was put to the task's participants."
+      },
+      "rules": [
+        "Read live from the issue's task each time the batch is read, so it is gone once the question is answered, withdrawn or expired. The question's own text is not returned: the task page carries it."
+      ],
+      "description": "What the issue being worked on is waiting for a person to do: an open question or approval on its task, since when, and who it was put to."
     },
     "Page<Batch>": {
       "pageOf": "Batch",
