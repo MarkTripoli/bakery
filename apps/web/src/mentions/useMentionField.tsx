@@ -38,6 +38,7 @@ import {
   nameParts,
   needsSharer,
   offered,
+  onlyThese,
   reconcile,
   type RefusalCode,
   refusalsOf,
@@ -120,9 +121,9 @@ export function useMentionField(
     readonly { mention: Mention; code: RefusalCode }[]
   >([]);
   // The server said the writer may not share after all: the block says "Not sent.".
-  const [notSent, setNotSent] = useState(false);
+  const [notSentIds, setNotSentIds] = useState<readonly string[]>([]);
   // The server said a person has no access after all: the offer says "Not sent.".
-  const [offerNotSent, setOfferNotSent] = useState(false);
+  const [offerNotSentIds, setOfferNotSentIds] = useState<readonly string[]>([]);
   // What a send that gave access left behind: the line with its Undo, then its result.
   const [sent, setSent] = useState<
     {
@@ -289,6 +290,9 @@ export function useMentionField(
       mention.needsSharer && !refusedIds.has(mention.principalId)
     )
     : [];
+  // "Not sent." is true only while these are the very people a refusal marked.
+  const offerNotSent = onlyThese(offering, offerNotSentIds);
+  const notSent = onlyThese(blocking, notSentIds);
   const sharersRead = useQuery(
     conversationSharersQueryOptions(
       api,
@@ -325,8 +329,8 @@ export function useMentionField(
       )
     );
     setRefusals([]);
-    setNotSent(false);
-    setOfferNotSent(false);
+    setNotSentIds([]);
+    setOfferNotSentIds([]);
     onValue(appended.text);
     setCaret(appended.end);
     requestAnimationFrame(() => {
@@ -635,7 +639,7 @@ export function useMentionField(
             new Set(noShare.map((entry) => entry.mention.principalId)),
           )
         );
-        setNotSent(true);
+        setNotSentIds(noShare.map((entry) => entry.mention.principalId));
       }
       // A person has no access after all, in a conversation: the offer comes back,
       // starting "Not sent.", and the same Send gives the access. A comment never gives it.
@@ -649,7 +653,7 @@ export function useMentionField(
             new Set(lost.map((entry) => entry.mention.principalId)),
           )
         );
-        setOfferNotSent(true);
+        setOfferNotSentIds(lost.map((entry) => entry.mention.principalId));
       }
       setRefusals(
         found.filter((entry) =>
@@ -670,8 +674,8 @@ export function useMentionField(
       }
       setMentions([]);
       setRefusals([]);
-      setNotSent(false);
-      setOfferNotSent(false);
+      setNotSentIds([]);
+      setOfferNotSentIds([]);
     },
   };
 }

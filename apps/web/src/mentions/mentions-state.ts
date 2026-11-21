@@ -155,6 +155,19 @@ export function markNeedsSharer(
 }
 
 /**
+ * Whether these people are exactly the ones a server refusal marked. The
+ * "Not sent." wording is true only for them: once the writer swaps one of
+ * them for someone else, no send involving the new person has failed.
+ */
+export function onlyThese(
+  people: readonly Mention[],
+  principalIds: readonly string[],
+): boolean {
+  return people.length > 0 && people.length === principalIds.length &&
+    people.every((mention) => principalIds.includes(mention.principalId));
+}
+
+/**
  * The mentions with these people marked as gaining access on send, when the
  * server says they cannot see the conversation after all: the offer comes back
  * and the same Send gives the access.

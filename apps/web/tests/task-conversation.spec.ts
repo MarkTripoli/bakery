@@ -1537,8 +1537,16 @@ test.describe("route states", () => {
       });
     await open(page, state);
     await showPlan(page);
+    // Wait on state, not time: the plan is loaded when Approve is enabled, the
+    // server answered when the mock has seen the decision, and only then is the
+    // notice expected. A loaded host slows each step but cannot reorder them.
+    await expect(approve(page, 3)).toBeEnabled({ timeout: 15_000 });
     await approve(page, 3).click();
-    await expect(page.getByText("Nothing was decided")).toBeVisible();
+    await expect.poll(() => state.decisions.length, { timeout: 15_000 })
+      .toBe(1);
+    await expect(page.getByText("Nothing was decided")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("long copy wraps without horizontal scroll", async ({ page }) => {
@@ -3094,6 +3102,76 @@ test("a refusal that says the person has no access after all brings the offer ba
     .click();
   await expect.poll(() => state.sent.length).toBe(2);
   expect(state.sent[1].body).toMatchObject({ mentions: [ANA] });
+});
+
+test("the Not sent wording goes when the refused person is swapped for someone else", async ({ page }) => {
+  const state = world();
+  state.sendReply = (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: "application/problem+json",
+      json: refusal([{ index: 0, code: "mention_no_thread_access" }]),
+    });
+  await open(page, state);
+  const box = messageBox(page);
+  await box.fill("Hi @an");
+  await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Not sent. Ana Ruiz can't see this conversation. Give them access?",
+    ),
+  ).toBeVisible();
+  // Swap her for Sam, who also needs access: no send involving Sam has failed.
+  await page.getByRole("button", { name: "Remove mention of Ana Ruiz" })
+    .click();
+  await box.press("End");
+  await box.pressSequentially("@sa");
+  await page.getByRole("option", { name: "Sam Patel, no access yet" }).click();
+  await expect(
+    page.getByText("Sam Patel can't see this conversation. Give them access?", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText(/^Not sent\./)).toHaveCount(0);
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-swapped-offer");
+});
+
+test("the Not sent wording of the cannot-share block goes the same way", async ({ page }) => {
+  const state = world();
+  state.sendReply = (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: "application/problem+json",
+      json: refusal([{ index: 0, code: "mention_share_forbidden" }]),
+    });
+  await open(page, state);
+  const box = messageBox(page);
+  await box.fill("Hi @sa");
+  await page.getByRole("option", { name: "Sam Patel, no access yet" }).click();
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Not sent. Sam Patel can't see this conversation, and you can no longer give access to it.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Remove mention of Sam Patel" })
+    .click();
+  await box.press("End");
+  await box.pressSequentially("@sam");
+  await page.getByRole("option", { name: "Samir Okafor, no access yet" })
+    .click();
+  await expect(
+    page.getByText(
+      "Samir Okafor can't see this conversation, and you can't give access to it.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.getByText(/^Not sent\./)).toHaveCount(0);
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-swapped-block");
 });
 
 test("the other refusals use their own sentence, and several are counted", async ({ page }) => {

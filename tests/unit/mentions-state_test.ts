@@ -9,6 +9,7 @@ import {
   nameParts,
   needsSharer,
   offered,
+  onlyThese,
   reconcile,
   refusalsOf,
   refusedPeople,
@@ -212,4 +213,14 @@ Deno.test("a refusal that says a person has no access after all makes the offer 
   const marked = markGainsAccess([sam, ana], new Set(["p2"]));
   assertEquals(marked[0], sam);
   assertEquals(marked[1], { ...ana, gainsAccess: true, needsSharer: false });
+});
+
+Deno.test("the Not sent wording holds only for exactly the people a refusal marked", () => {
+  assertEquals(onlyThese([ana], ["p2"]), true);
+  // Swapped for someone else: no send involving the new person has failed.
+  assertEquals(onlyThese([sam], ["p2"]), false);
+  // The refused person plus another one: the wording would be half wrong.
+  assertEquals(onlyThese([ana, sam], ["p2"]), false);
+  assertEquals(onlyThese([], []), false);
+  assertEquals(onlyThese([ana], []), false);
 });
