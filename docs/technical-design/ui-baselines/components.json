@@ -1,5 +1,5 @@
 {
-  "revision": "80e6793cf36fcf3fefe5d5c061f43ac3ecb90f76c4480c3544cf2323b55a8616",
+  "revision": "30031c69a7433a7e025743798be202c763d88c282b9ea9a9503995f239da8444",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21257,7 +21257,7 @@
     {
       "id": "ui.mentionPicker",
       "name": "MentionPicker",
-      "description": "A listbox of the people a writer may mention, hung above a text field: quiet rows, a badge only for the exception, muted rows that cannot be chosen, and its loading, empty and failed states.",
+      "description": "A listbox of the people a writer may mention, hung above a text field: quiet rows, a badge only for the exception, and its loading, empty and failed states.",
       "level": "organism",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Organisms/MentionPicker",
@@ -21287,7 +21287,7 @@
         "keyboard": [
           "The text field keeps focus and owns the list: Up and Down move the highlight, Enter or Tab chooses, Escape closes and keeps the typed text."
         ],
-        "notes": "Each option's accessible name includes its state; a person who cannot be chosen is aria-disabled. The caller wires aria-controls and aria-activedescendant on the field."
+        "notes": "Each option's accessible name includes its state (\"Ana Ruiz, no access yet\"). The caller wires aria-controls and aria-activedescendant on the field."
       },
       "tokens": [
         "--border-default",

@@ -11,8 +11,8 @@ const noop = () => undefined;
 
 /**
  * Every body the list can show: a quiet row, one that wears the access badge,
- * one muted and unchoosable, then loading, no one found, a failed read with its
- * retry, and the limit of twenty.
+ * then loading, no one found, a failed read with its retry, and the limit of
+ * twenty.
  */
 export const Contract: StoryObj = {
   render: () => (
@@ -33,13 +33,6 @@ export const Contract: StoryObj = {
               label: "Sam Patel, no access yet",
               kind: "gains",
               note: "No access yet",
-            },
-            {
-              id: "samir",
-              name: "Samir Okafor",
-              label: "Samir Okafor, you can't add them here",
-              kind: "blocked",
-              note: "You can't add them here",
             },
           ]}
         />

@@ -291,10 +291,25 @@ export type ConversationAccessGrant = ConversationAccessPage["items"][number];
 /** Up to three people who may share one conversation, for a writer who may not. */
 export type ConversationSharers = ClientOutputMap["ConversationSharers"];
 export type ConversationSharer = ConversationSharers["items"][number];
-/** Where a mention is being written: a task's conversation, or a document's comment thread. */
+export type ArtifactAccessPage = ClientOutputMap["Page<ArtifactAccessGrant>"];
+export type ArtifactAccessGrant = ArtifactAccessPage["items"][number];
+/** Up to three people who may share one document, for a writer who may not. */
+export type ArtifactSharers = ClientOutputMap["ArtifactSharers"];
+export type ArtifactSharer = ArtifactSharers["items"][number];
+/**
+ * Where a mention is being written: a task's conversation, or a document's
+ * comment thread. A comment thread is read by version, but access is given to
+ * the document, so a comment source names both.
+ */
 export type MentionSource =
   | { readonly kind: "conversation"; readonly id: string }
-  | { readonly kind: "comment"; readonly id: string };
+  | {
+    readonly kind: "comment";
+    /** The document version the comment is on (the picker reads by version). */
+    readonly id: string;
+    /** The document the access is given to. */
+    readonly artifactId: string;
+  };
 
 export type EvaluationBatch = ClientOutputMap["EvaluationBatch"];
 export type EvaluationBatchPage = ClientOutputMap["Page<EvaluationBatch>"];
@@ -2289,6 +2304,29 @@ export type BakeryApiClient = {
     readonly conversationId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<ConversationSharers>>;
+  /** The people a document was opened to by a mention (and by hand), live grants. */
+  readonly listArtifactAccess: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactAccessPage>>;
+  /** Who can give access to a document: up to three people, the author first. It grants nothing. */
+  readonly listArtifactSharers: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactSharers>>;
+  /** Takes one person's direct access to a document back. `version` is the grant's own, sent as If-Match. */
+  readonly revokeArtifactAccess: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly principalId: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactAccessGrant>>;
   /** Takes one person's mention access back. `version` is the grant's own, sent as If-Match. */
   readonly revokeConversationAccess: (options: {
     readonly organizationId: string;
@@ -5269,6 +5307,59 @@ export function createBakeryApiClient({
         const data = await client.actions["conversationAccess.sharers"](
           { id: options.conversationId },
           { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listArtifactAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.list"](
+          {
+            id: options.artifactId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listArtifactSharers(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.sharers"](
+          { id: options.artifactId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async revokeArtifactAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.revoke"](
+          { id: options.artifactId, principalId: options.principalId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
         );
         return { ok: true, data };
       } catch (error) {

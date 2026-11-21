@@ -1,21 +1,59 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
-import type { ConversationAccessGrant } from "../../api/client.ts";
-import { useBakeryApi } from "../../api/context.tsx";
-import { conversationAccessQueryOptions } from "../../api/query.ts";
-import { failureStatus } from "../../app/async-state.ts";
-import { useProtectedScope } from "../../app/query-scope-context.tsx";
-import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { useBakeryApi } from "../api/context.tsx";
+import {
+  artifactAccessQueryOptions,
+  conversationAccessQueryOptions,
+} from "../api/query.ts";
+import { failureStatus } from "../app/async-state.ts";
+import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useI18n } from "../i18n/I18nProvider.tsx";
+
+/** What the people were added to: a task's conversation, or a document. */
+export type PeopleSubject = {
+  readonly kind: "conversation" | "document";
+  readonly id: string;
+};
+
+/** One live grant, the same whether it opens a conversation or a document. */
+type Grant = {
+  readonly id: string;
+  readonly principalId: string;
+  readonly displayName: string;
+  readonly grantedByName: string;
+  readonly grantedAt: string;
+  readonly version: number;
+  /** The message or comment that gave the access; null when it was given another way. */
+  readonly sourceId: string | null;
+};
+
+/** The words that differ between a conversation and a document. */
+const WORDS = {
+  conversation: {
+    title: "mentions.added.title",
+    description: "mentions.added.description",
+    show: "mentions.added.show",
+    confirmTitle: "mentions.added.confirmTitle",
+    confirmBody: "mentions.added.confirmBody",
+  },
+  document: {
+    title: "mentions.added.documentTitle",
+    description: "mentions.added.documentDescription",
+    show: "mentions.added.documentShow",
+    confirmTitle: "mentions.added.documentConfirmTitle",
+    confirmBody: "mentions.added.documentConfirmBody",
+  },
+} as const;
 
 /**
- * The people a conversation was opened to by a mention, for someone who may
- * share it (design-ux #73, section 4). Each row can take that access back;
- * the person's messages stay.
+ * The people a conversation or a document was opened to by a mention, for
+ * someone who may share it (design-ux #73, section 4). Each row can take that
+ * access back; what the person wrote stays.
  */
 export function PeopleAddedDialog(
-  { conversationId, open, onOpenChange }: {
-    readonly conversationId: string;
+  { subject, open, onOpenChange }: {
+    readonly subject: PeopleSubject;
     readonly open: boolean;
     readonly onOpenChange: (open: boolean) => void;
   },
@@ -24,28 +62,54 @@ export function PeopleAddedDialog(
   const scope = useProtectedScope();
   const queryClient = useQueryClient();
   const { translate, locale, timeZone } = useI18n();
-  const grants = useQuery({
-    ...conversationAccessQueryOptions(api, scope, conversationId),
-    enabled: open && Boolean(scope.organizationId),
+  const words = WORDS[subject.kind];
+  const isConversation = subject.kind === "conversation";
+  // Both reads exist so the hooks never change; only the subject's is on.
+  const conversationGrants = useQuery({
+    ...conversationAccessQueryOptions(
+      api,
+      scope,
+      isConversation ? subject.id : "",
+    ),
+    enabled: open && isConversation && Boolean(scope.organizationId),
   });
-  const [removing, setRemoving] = useState<ConversationAccessGrant | null>(
-    null,
-  );
+  const documentGrants = useQuery({
+    ...artifactAccessQueryOptions(api, scope, isConversation ? "" : subject.id),
+    enabled: open && !isConversation && Boolean(scope.organizationId),
+  });
+  const grants = isConversation ? conversationGrants : documentGrants;
+  const rows: readonly Grant[] | undefined = isConversation
+    ? conversationGrants.data?.map((grant) => ({
+      ...grant,
+      sourceId: grant.sourceMessageId,
+    }))
+    : documentGrants.data?.map((grant) => ({
+      ...grant,
+      sourceId: grant.sourceCommentId,
+    }));
+  const [removing, setRemoving] = useState<Grant | null>(null);
   const [outcome, setOutcome] = useState<
     | { readonly kind: "removed" | "changed"; readonly name: string }
-    | { readonly kind: "failed" }
+    | { readonly kind: "failed" | "notShown" }
     | null
   >(null);
   const revoke = useMutation({
-    mutationKey: ["conversationAccess.revoke"],
-    mutationFn: async (grant: ConversationAccessGrant) => {
-      const result = await api.revokeConversationAccess({
+    mutationKey: [
+      isConversation ? "conversationAccess.revoke" : "artifactAccess.revoke",
+    ],
+    mutationFn: async (grant: Grant) => {
+      const common = {
         organizationId: scope.organizationId as string,
-        conversationId,
         principalId: grant.principalId,
         version: grant.version,
         idempotencyKey: crypto.randomUUID(),
-      });
+      };
+      const result = isConversation
+        ? await api.revokeConversationAccess({
+          ...common,
+          conversationId: subject.id,
+        })
+        : await api.revokeArtifactAccess({ ...common, artifactId: subject.id });
       if (!result.ok) throw result.error;
       return result.data;
     },
@@ -55,7 +119,7 @@ export function PeopleAddedDialog(
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
       new Date(iso),
     );
-  const confirm = (grant: ConversationAccessGrant) => {
+  const confirm = (grant: Grant) => {
     revoke.mutateAsync(grant).then(
       () => {
         setOutcome({ kind: "removed", name: grant.displayName });
@@ -72,15 +136,21 @@ export function PeopleAddedDialog(
       },
     );
   };
-  const show = (grant: ConversationAccessGrant) => {
-    if (grant.sourceMessageId === null) return;
-    const target = document.querySelector(
-      `[data-message-id="${grant.sourceMessageId}"]`,
-    );
+  const show = (grant: Grant) => {
+    if (grant.sourceId === null) return;
+    const target = isConversation
+      ? document.querySelector(`[data-message-id="${grant.sourceId}"]`)
+      : document.getElementById(`comment-${grant.sourceId}`);
+    // A reply inside a thread that is closed is not on the page to scroll to.
+    if (target === null) {
+      setOutcome({ kind: "notShown" });
+      return;
+    }
     onOpenChange(false);
-    requestAnimationFrame(() =>
-      target?.scrollIntoView({ block: "center", behavior: "smooth" })
-    );
+    requestAnimationFrame(() => {
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (!isConversation && target instanceof HTMLElement) target.focus();
+    });
   };
 
   return (
@@ -92,12 +162,12 @@ export function PeopleAddedDialog(
           onOpenChange(next);
         }}
         open={open}
-        title={translate("mentions.added.title")}
+        title={translate(words.title)}
         variant="information"
       >
         <UI.Stack gap="standard">
           <UI.Text variant="muted">
-            {translate("mentions.added.description")}
+            {translate(words.description)}
           </UI.Text>
           {outcome !== null
             ? (
@@ -105,7 +175,7 @@ export function PeopleAddedDialog(
                 role={outcome.kind === "failed" ? "alert" : "status"}
                 tone={outcome.kind === "failed"
                   ? "error"
-                  : outcome.kind === "changed"
+                  : outcome.kind === "changed" || outcome.kind === "notShown"
                   ? "information"
                   : "success"}
               >
@@ -113,6 +183,8 @@ export function PeopleAddedDialog(
                   ? translate("mentions.added.removed", { name: outcome.name })
                   : outcome.kind === "changed"
                   ? translate("mentions.added.changed", { name: outcome.name })
+                  : outcome.kind === "notShown"
+                  ? translate("mentions.added.documentNotShown")
                   : translate("mentions.added.failed")}
               </UI.InlineNotice>
             )
@@ -127,7 +199,7 @@ export function PeopleAddedDialog(
                 <UI.Skeleton shape="row" />
               </UI.Stack>
             )
-            : grants.isError
+            : grants.isError || rows === undefined
             ? (
               <UI.InlineNotice
                 action={
@@ -143,7 +215,7 @@ export function PeopleAddedDialog(
                 {translate("mentions.failed")}
               </UI.InlineNotice>
             )
-            : grants.data.length === 0
+            : rows.length === 0
             ? (
               <UI.Text variant="muted">
                 {translate("mentions.added.empty")}
@@ -151,18 +223,18 @@ export function PeopleAddedDialog(
             )
             : (
               <UI.DescriptionList>
-                {grants.data.map((grant) => (
+                {rows.map((grant) => (
                   <UI.DescriptionItem
                     actionPlacement="below"
                     action={
                       <UI.Inline gap="compact">
-                        {grant.sourceMessageId !== null
+                        {grant.sourceId !== null
                           ? (
                             <UI.Button
                               onClick={() => show(grant)}
                               variant="text"
                             >
-                              {translate("mentions.added.show")}
+                              {translate(words.show)}
                             </UI.Button>
                           )
                           : null}
@@ -220,15 +292,13 @@ export function PeopleAddedDialog(
             }}
             open
             state={revoke.isPending ? "confirming" : "open"}
-            title={translate("mentions.added.confirmTitle", {
+            title={translate(words.confirmTitle, {
               name: removing.displayName,
             })}
             variant="destructive"
           >
             <UI.Text>
-              {translate("mentions.added.confirmBody", {
-                name: removing.displayName,
-              })}
+              {translate(words.confirmBody, { name: removing.displayName })}
             </UI.Text>
           </UI.AlertDialog>
         )
