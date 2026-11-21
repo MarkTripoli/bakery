@@ -167,6 +167,7 @@ pub const PREVIEWS: &[&str] = &[
     "choose-server-credentials",
     "choose-server-plain-http",
     "choose-server-no-answer",
+    "choose-server-signed-in-no-answer",
     "choose-server-not-bakery",
     "checking",
     "switched",
@@ -315,6 +316,22 @@ pub fn preview(name: &str) -> Option<Preview> {
                 },
             ],
         )),
+        "choose-server-signed-in-no-answer" => Preview {
+            session: run_on(
+                choose(signed_in_here(), true),
+                vec![
+                    typed(ServerChoice::Another, OTHER),
+                    Event::ServerChecked {
+                        address: OTHER.into(),
+                        answer: ServerAnswer::NoAnswer,
+                    },
+                ],
+            ),
+            facts: ViewFacts {
+                identity: Some(who()),
+                ..Default::default()
+            },
+        },
         "choose-server-not-bakery" => plain(run_on(
             choose(run(vec![]), true),
             vec![
@@ -478,6 +495,7 @@ mod tests {
             "choose-server-credentials",
             "choose-server-plain-http",
             "choose-server-no-answer",
+            "choose-server-signed-in-no-answer",
             "choose-server-not-bakery",
         ] {
             assert!(matches!(window(choose), Window::Choose { .. }), "{choose}");

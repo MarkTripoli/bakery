@@ -34,7 +34,9 @@ body {
   display: grid;
   /* One full-width column, so a panel narrower than the window centres in the window. */
   grid-template-columns: minmax(0, 1fr);
-  place-items: center;
+  /* The panel centres when it fits; taller than the window it starts at the top and the page scrolls. */
+  place-items: start center;
+  overflow-y: auto;
   background: var(--color-canvas);
   color: var(--color-fg);
   font: var(--type-body);
@@ -56,6 +58,7 @@ body {
 
 .panel {
   box-sizing: border-box;
+  margin-block: auto;
   inline-size: 420px;
   padding: var(--space-8);
   display: flex;
@@ -219,6 +222,11 @@ body {
 /* Addresses read in the web's data face, as the design's server box shows them. */
 .detail__value {
   overflow-wrap: anywhere;
+}
+
+/* An address on its own line reads in the data face; names and sentences stay in the body font. */
+.detail__value--address {
+  font: var(--type-data);
 }
 
 /* The server chooser (design-ux, #77 slice 4): two options in one bordered group. */

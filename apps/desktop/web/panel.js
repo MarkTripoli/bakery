@@ -22,13 +22,15 @@ function detailBox(detail) {
       const box = el("div", "detail");
       box.append(
         el("span", "detail__label", "Server"),
-        el("span", "detail__value", detail.address),
+        el("span", "detail__value detail__value--address", detail.address),
       );
       return box;
     }
     case "address": {
       const box = el("div", "detail");
-      box.append(el("span", "detail__value", detail.address));
+      box.append(
+        el("span", "detail__value detail__value--address", detail.address),
+      );
       return box;
     }
     case "waiting": {
@@ -80,7 +82,7 @@ function detailBox(detail) {
       const server = el("div", "detail");
       server.append(
         el("span", "detail__label", "Server"),
-        el("span", "detail__value", detail.address),
+        el("span", "detail__value detail__value--address", detail.address),
       );
       wrap.append(who, server);
       return wrap;
@@ -89,7 +91,7 @@ function detailBox(detail) {
       const box = el("div", "detail");
       box.append(
         el("span", "detail__label", "Server"),
-        el("span", "detail__value", detail.address),
+        el("span", "detail__value detail__value--address", detail.address),
         el(
           "span",
           "detail__label",
