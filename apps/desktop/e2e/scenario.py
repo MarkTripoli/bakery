@@ -701,12 +701,38 @@ def phase_web_pages():
     stop_app()
 
 
+def phase_web_download():
+    """Builder question 5 as an experiment, in a run of its own so it cannot disturb the others: does a
+    file the page offers to download get saved? The result is printed for the design, not judged."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        return
+    p = os.path.join(OUT, "n-download")
+    clear_store()
+    start_app(p, server=web)
+    url = sign_in_to_waiting(p, "[download]")
+    if not url:
+        return
+    deliver(confirm(request_id_of(url), session_cookie()))
+    if not wait_report(p, "server_page_opened", 1, timeout=40):
+        print("INFO download probe: no server page opened", flush=True)
+        return
+    time.sleep(3)
+    eval_in_window(p, "const a=document.createElement('a');a.href='/favicon.svg';a.download='bakery-probe.svg';"
+                      "document.body.appendChild(a);a.click()")
+    time.sleep(6)
+    found = subprocess.run("find / -xdev \\( -path /proc -o -path /sys \\) -prune -o -name 'bakery-probe*' -print 2>/dev/null | head -3",
+                           shell=True, capture_output=True, text=True).stdout.strip()
+    print("INFO download probe: " + (f"saved at {found}" if found else "nothing was saved"), flush=True)
+    stop_app()
+
+
 def main():
     print(f"server {SERVER}", flush=True)
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_web_pages):
+                  phase_open_links, phase_web_pages, phase_web_download):
         try:
             phase()
         except Exception as e:  # a phase that breaks is a failed check, not a silent skip
