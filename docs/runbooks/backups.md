@@ -305,6 +305,59 @@ to draining, then ask for another backup.
 and `backupRunner.maintenance.exit` with the runner credential's generation, the
 run id and the outcome, never a token or a key.
 
+## The cutoff: what may have happened after the backup
+
+A backup is a picture of one moment. If you restore it, things may already have
+happened **after** that moment that the backup knows nothing about: a pull request
+merged, a message posted. A restore must never do such a thing a second time, so
+every backup records its **cutoff**: when the picture was taken, and which external
+effects could still reach a provider at that moment.
+
+**Where it comes from.** Once the installation is held and quiet, and before any
+dump starts, the runner asks the server for the cutoff (`backupRunner.cutoff`). The
+server answers with its own **database clock** at that instant and a **census** of
+the effects still `prepared`, `submitted` or `uncertain` (effects already
+`confirmed` or `failed` are settled and are not counted). It records the answer
+once per run: asking again returns the same cutoff. The record is written before
+the dumps, so it is inside the dump it describes. The runner hands the same value to
+`backup.sh`, which writes it into `manifest.json` (format 2) as
+`cutoff: {at, source: "database", effects: {...}}`.
+
+**What the census holds.** Counts by status (`prepared`, `submitted`, `uncertain`),
+counts by operation name (a name the code did not define counts as `other`), and
+one SHA-256 over the sorted ids of those effects. It holds no id, no target and no
+argument: a restored database can be checked against it without the ids leaving it.
+
+**What the cutoff proves, and what it does not.** It proves the installation was
+held and quiet at `at`, so everything in the dumps was read at or after it and the
+effects counted were the ones unsettled then. It does not prove what any
+unsettled effect did at the provider: that is exactly what a restore must treat as
+unknown. The administrator's status shows `lastBackupCutoffAt`, the cutoff of the
+newest completed backup that recorded one.
+
+**A backup no runner took (the weaker cutoff).** The daily `bakery-backup.timer`,
+or `backup.sh` run by hand, has no quiet moment and no server to ask. Its manifest
+records the **host clock** when the script started, marked `source: "host-clock"`,
+with no census. The set is complete, but a restore that must know what may have
+happened afterwards refuses it (`verify --require-database-cutoff` reports
+`cutoff_not_database`). A set from before cutoffs (manifest format 1) is the same:
+readable, but with no cutoff at all.
+
+**When it goes wrong.** If the server cannot give the cutoff (it is no longer
+quiesced for this run, or it is unreachable), the runner reports `failed` with
+`runner_error` and takes no backup. If the finished set's manifest does not carry
+exactly the cutoff the server recorded, the runner reports `failed` with
+`incomplete_set`. A cutoff passed to `backup.sh` that is not valid fails the build
+with `BACKUP_INCOMPLETE` and nothing is moved into place.
+
+**What a restore will do with it (slice E).** Every effect still `prepared`,
+`submitted` or `uncertain` in the restored data is treated as having an unknown
+outcome and is blocked for reconciliation, never re-sent. The library function
+`unknownOutcomeEffects` (cutoff time plus the restored effect rows) lists them, and
+flags as an anomaly any effect changed after the cutoff, which a dump taken while
+quiet cannot contain. `compareCensus` checks a restored database against the census
+a backup recorded; the restore drill (slice D) uses it.
+
 ## What the runner does when something goes wrong
 
 The order of a pass is: claim, hold the installation, wait for quiet, read

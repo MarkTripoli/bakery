@@ -8648,6 +8648,31 @@ export const clientManifest = {
     },
     {
       "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/cutoff",
+      "action": "backupRunner.cutoff",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunCutoff",
+      "output": "BackupCutoff",
+      "event": "",
+      "mcp": "",
+      "idempotency": "safe to repeat: the first ask records the cutoff, later asks return the same one",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
       "method": "GET",
       "path": "/v1/backup-runner/settings",
       "action": "backupRunner.settings",
@@ -18479,6 +18504,7 @@ export const clientManifest = {
             "backupRunner.claim",
             "backupRunner.report",
             "backupRunner.maintain",
+            "backupRunner.cutoff",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -31098,6 +31124,23 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The runner asks to hold the installation for the backup it has claimed, and keeps asking until the installation is quiet. The first ask enters maintenance, which stops new work from being admitted; each later ask checks whether everything in flight has finished. Asking again while it holds is safe and changes nothing."
+    },
+    "BackupRunCutoff": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 128,
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT. BackupRunCutoff.leaseToken must contain at least 32 characters. BackupRunCutoff.leaseToken must contain at most 128 characters."
+        }
+      },
+      "required": [
+        "leaseToken"
+      ],
+      "additionalProperties": false,
+      "description": "The runner asks for the cutoff of the backup it has claimed: the database clock at the moment the installation is quiet, with a census of the external effects that could still reach a provider. It is only answered while the run holds the installation quiesced, otherwise 409 STATE_CONFLICT not_quiesced. Asking again for the same run returns the same cutoff."
     },
     "AlertChannelCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -45319,6 +45362,7 @@ export const clientManifest = {
                   "backupRunner.claim",
                   "backupRunner.report",
                   "backupRunner.maintain",
+                  "backupRunner.cutoff",
                   "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.get",
@@ -65786,6 +65830,7 @@ export const clientManifest = {
             "backupRunner.claim",
             "backupRunner.report",
             "backupRunner.maintain",
+            "backupRunner.cutoff",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -90570,6 +90615,21 @@ export const clientManifest = {
           ],
           "description": "BackupStatus.lastGoodBackupAt may be null in this transport value."
         },
+        "lastBackupCutoffAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff of the newest completed backup that recorded one: the moment its snapshot began, so a restore of it knows what may have happened afterwards; null when no completed backup has recorded a cutoff."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupStatus.lastBackupCutoffAt may be null in this transport value."
+        },
         "lastAttemptAt": {
           "anyOf": [
             {
@@ -90677,6 +90737,7 @@ export const clientManifest = {
       "required": [
         "state",
         "lastGoodBackupAt",
+        "lastBackupCutoffAt",
         "lastAttemptAt",
         "runningRunId",
         "runningProgressPercent",
@@ -108199,6 +108260,91 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Where the installation stands for the backup run that holds it: draining while work already in flight finishes, quiesced once nothing is left and the snapshot may be taken. The counts are everything the check can see and nothing more."
+    },
+    "BackupCutoff": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The backup run this cutoff belongs to."
+        },
+        "cutoffAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "The database clock at the moment the installation was quiet and the snapshot began. Everything after it is not in the backup."
+        },
+        "effectsTotal": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "External effects still prepared, submitted or uncertain at the cutoff; effects already confirmed or failed are not counted."
+        },
+        "effectsPrepared": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Effects committed locally that may or may not have been sent at the cutoff."
+        },
+        "effectsSubmitted": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Effects sent to a provider whose answer was not yet known at the cutoff."
+        },
+        "effectsUncertain": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Effects whose outcome was lost and awaited reconciliation at the cutoff."
+        },
+        "effectsByOperation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The operation name the code defines for the effect, such as an integration action; other when the stored name is not of that shape."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Effects with that operation name that were prepared, submitted or uncertain at the cutoff."
+              }
+            },
+            "required": [
+              "operation",
+              "count"
+            ],
+            "additionalProperties": false,
+            "description": "The same effects counted by operation name, sorted by name; a name outside the code-defined shape counts as other. Each array item follows this format."
+          },
+          "description": "The same effects counted by operation name, sorted by name; a name outside the code-defined shape counts as other."
+        },
+        "effectsDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 hex of the sorted ids of those effects, one per line, so a restored database can be checked against the cutoff without the ids leaving it."
+        }
+      },
+      "required": [
+        "runId",
+        "cutoffAt",
+        "effectsTotal",
+        "effectsPrepared",
+        "effectsSubmitted",
+        "effectsUncertain",
+        "effectsByOperation",
+        "effectsDigest"
+      ],
+      "additionalProperties": false,
+      "description": "When the snapshot of a backup run began, taken from the database clock while the installation was quiet, and how many external effects could still reach a provider at that moment. Counts and a digest only: nothing about any effect's content."
     },
     "AlertChannel": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

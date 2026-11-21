@@ -520,6 +520,8 @@ Deno.test("the status schema accepts the not_copied word and still refuses unkno
   const status = {
     state: "not_copied",
     lastGoodBackupAt: "2026-11-20T11:59:59.000Z",
+    // The cutoff of the newest completed backup that recorded one (slice C).
+    lastBackupCutoffAt: "2026-11-20T11:58:00.000Z",
     lastAttemptAt: "2026-11-20T11:59:59.000Z",
     runningRunId: null,
     runningProgressPercent: null,
@@ -530,6 +532,20 @@ Deno.test("the status schema accepts the not_copied word and still refuses unkno
     maintenanceSince: null,
   };
   assertEquals(contractSchemas.BackupStatus.parse(status).state, "not_copied");
+  // The cutoff may be absent (no completed backup recorded one), never a non-time.
+  assert(
+    contractSchemas.BackupStatus.safeParse({
+      ...status,
+      lastBackupCutoffAt: null,
+    })
+      .success,
+  );
+  assert(
+    !contractSchemas.BackupStatus.safeParse({
+      ...status,
+      lastBackupCutoffAt: "soon",
+    }).success,
+  );
   assert(
     !contractSchemas.BackupStatus.safeParse({ ...status, state: "amber" })
       .success,
