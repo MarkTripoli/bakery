@@ -34,6 +34,8 @@ Deno.test("the draft shows saved limits in whole gigabytes and plain counts", ()
     projectQuotaBytes: "50",
     personalQuotaBytes: "10",
     maxFileBytes: "5",
+    stepWriteBytes: "2048",
+    stepWriteFiles: "2000",
     workingVersionsKept: "20",
     trashRetentionDays: "30",
     scratchRetentionDays: "30",
@@ -47,6 +49,8 @@ Deno.test("Bakery's defaults are the design's numbers", () => {
     projectQuotaBytes: "50",
     personalQuotaBytes: "10",
     maxFileBytes: "5",
+    stepWriteBytes: "2048",
+    stepWriteFiles: "2000",
     workingVersionsKept: "20",
     trashRetentionDays: "30",
     scratchRetentionDays: "30",
@@ -77,6 +81,32 @@ Deno.test("a save carries every limit in bytes, and an untouched one as it was s
   assertEquals(put.stepWriteBytes, 2 * GIGABYTE);
   assertEquals(put.stepWriteFiles, 2000);
   assertEquals(fieldProblem("projectQuotaBytes", "12.5", odd), null);
+});
+
+Deno.test("the agent step limits take megabytes and a file count, and an empty box is the default", () => {
+  assertEquals(fieldProblem("stepWriteBytes", "0", SAVED), "whole");
+  assertEquals(fieldProblem("stepWriteBytes", "1048577", SAVED), "tooLarge");
+  assertEquals(fieldProblem("stepWriteBytes", "512", SAVED), null);
+  assertEquals(fieldProblem("stepWriteFiles", "1000001", SAVED), "tooLarge");
+  assertEquals(fieldProblem("stepWriteFiles", "x", SAVED), "whole");
+  // Empty is allowed for these two and saves Bakery's default.
+  assertEquals(fieldProblem("stepWriteFiles", "", SAVED), null);
+  assertEquals(fieldProblem("stepWriteBytes", "", SAVED), null);
+  assertEquals(fieldProblem("stepWriteBytes", "  ", SAVED), null);
+  assertEquals(fieldProblem("maxFileBytes", "", SAVED), "whole");
+  const put = putOf(
+    { ...draftOf(SAVED), stepWriteBytes: "512", stepWriteFiles: "" },
+    SAVED,
+  );
+  assertEquals(put.stepWriteBytes, 512 * 1024 * 1024);
+  assertEquals(put.stepWriteFiles, 2000);
+  // The megabytes box emptied saves 2 GB, and both emptied save both defaults.
+  const emptied = putOf(
+    { ...draftOf(SAVED), stepWriteBytes: "", stepWriteFiles: "" },
+    SAVED,
+  );
+  assertEquals(emptied.stepWriteBytes, 2 * GIGABYTE);
+  assertEquals(emptied.stepWriteFiles, 2000);
 });
 
 Deno.test("a quota below what is stored is flagged, not refused", () => {

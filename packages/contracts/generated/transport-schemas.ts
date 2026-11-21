@@ -13762,6 +13762,22 @@ const transportSchemas = {
       "rules": [],
       "description": "The runner asks to hold the installation for the backup it has claimed, and keeps asking until the installation is quiet. The first ask enters maintenance, which stops new work from being admitted; each later ask checks whether everything in flight has finished. Asking again while it holds is safe and changes nothing."
     },
+    "BackupRunCutoff": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 32,
+            "maxLength": 128
+          },
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT."
+        }
+      ],
+      "rules": [],
+      "description": "The runner asks for the cutoff of the backup it has claimed: the database clock at the moment the installation is quiet, with a census of the external effects that could still reach a provider. It is only answered while the run holds the installation quiesced, otherwise 409 STATE_CONFLICT not_quiesced. Asking again for the same run returns the same cutoff."
+    },
     "AlertChannelCreate": {
       "fields": [
         {
@@ -13922,6 +13938,31 @@ const transportSchemas = {
         "A step with nothing left to revert answers 200 with reverted 0; an undone write is never undone twice."
       ],
       "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
+    },
+    "ArtifactProbeAnswer": {
+      "description": "Ask for the measured facts about one stored file's bytes. Address the bytes by the version's id in the path; nothing else is needed, because the id already names one immutable set of bytes. The answer may be that nobody has asked yet, in which case read it again later rather than treating the file as unreadable.",
+      "fields": []
+    },
+    "StorageFileProbeQuery": {
+      "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing.",
+      "fields": [
+        {
+          "name": "revision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 999999999
+          },
+          "description": "Which version's bytes to describe, by its revision number from storageFileVersions.list; omit it for the file's current version. Use it to ask about a version a link pinned, so the answer describes the bytes that link will show rather than whatever is current now."
+        },
+        {
+          "name": "organizationId",
+          "type": "uuid",
+          "required": true,
+          "description": "The organization whose storage tree holds the file. A caller must send the organization it is already acting in; it is stated rather than inferred so a file id from elsewhere cannot be probed by accident."
+        }
+      ]
     }
   },
   "projections": {
@@ -30276,6 +30317,7 @@ const transportSchemas = {
       "fields": [
         "state",
         "lastGoodBackupAt",
+        "lastBackupCutoffAt",
         "lastAttemptAt",
         "runningRunId",
         "runningProgressPercent",
@@ -30288,6 +30330,7 @@ const transportSchemas = {
       "fieldTypes": {
         "state": "enum(protected|running|not_copied|stale|failed)",
         "lastGoodBackupAt": "timestamp|null",
+        "lastBackupCutoffAt": "timestamp|null",
         "lastAttemptAt": "timestamp|null",
         "runningRunId": "uuid|null",
         "runningProgressPercent": "integer|null",
@@ -30299,6 +30342,7 @@ const transportSchemas = {
       },
       "nullableFields": [
         "lastGoodBackupAt",
+        "lastBackupCutoffAt",
         "lastAttemptAt",
         "runningRunId",
         "runningProgressPercent",
@@ -30310,6 +30354,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; not_copied when the newest finished attempt took the backup on the host but could not copy it off-site (a later good full backup replaces it); stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise.",
         "lastGoodBackupAt": "When the newest completed backup finished, or null when none has completed. A backup taken on the host but not copied off-site counts: the local copy exists.",
+        "lastBackupCutoffAt": "The database-clock cutoff of the newest completed backup that recorded one: the moment its snapshot began, so a restore of it knows what may have happened afterwards; null when no completed backup has recorded a cutoff.",
         "lastAttemptAt": "When the newest finished attempt ended, completed or failed, or null when none has finished.",
         "runningRunId": "Run the runner currently holds, or null.",
         "runningProgressPercent": "Latest progress of the held run, or null.",
@@ -34711,6 +34756,54 @@ const transportSchemas = {
         "retryAfterSeconds": "Whole seconds to wait before asking again; 0 when quiesced."
       }
     },
+    "BackupCutoff": {
+      "fields": [
+        "runId",
+        "cutoffAt",
+        "effectsTotal",
+        "effectsPrepared",
+        "effectsSubmitted",
+        "effectsUncertain",
+        "effectsByOperation",
+        "effectsDigest"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "cutoffAt": "timestamp",
+        "effectsTotal": "integer",
+        "effectsPrepared": "integer",
+        "effectsSubmitted": "integer",
+        "effectsUncertain": "integer",
+        "effectsByOperation": "BackupCutoffOperation[]",
+        "effectsDigest": "string"
+      },
+      "description": "When the snapshot of a backup run began, taken from the database clock while the installation was quiet, and how many external effects could still reach a provider at that moment. Counts and a digest only: nothing about any effect's content.",
+      "fieldDescriptions": {
+        "runId": "The backup run this cutoff belongs to.",
+        "cutoffAt": "The database clock at the moment the installation was quiet and the snapshot began. Everything after it is not in the backup.",
+        "effectsTotal": "External effects still prepared, submitted or uncertain at the cutoff; effects already confirmed or failed are not counted.",
+        "effectsPrepared": "Effects committed locally that may or may not have been sent at the cutoff.",
+        "effectsSubmitted": "Effects sent to a provider whose answer was not yet known at the cutoff.",
+        "effectsUncertain": "Effects whose outcome was lost and awaited reconciliation at the cutoff.",
+        "effectsByOperation": "The same effects counted by operation name, sorted by name; a name outside the code-defined shape counts as other.",
+        "effectsDigest": "SHA-256 hex of the sorted ids of those effects, one per line, so a restored database can be checked against the cutoff without the ids leaving it."
+      }
+    },
+    "BackupCutoffOperation": {
+      "fields": [
+        "operation",
+        "count"
+      ],
+      "fieldTypes": {
+        "operation": "string",
+        "count": "integer"
+      },
+      "description": "How many unsettled external effects at a backup's cutoff carry one operation name.",
+      "fieldDescriptions": {
+        "operation": "The operation name the code defines for the effect, such as an integration action; other when the stored name is not of that shape.",
+        "count": "Effects with that operation name that were prepared, submitted or uncertain at the cutoff."
+      }
+    },
     "AlertChannel": {
       "fields": [
         "id",
@@ -34984,6 +35077,51 @@ const transportSchemas = {
         "stepKey": "Key of the run step whose writes were reverted.",
         "reverted": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing.",
         "entries": "How many distinct files and folders those writes touched."
+      }
+    },
+    "ArtifactProbeAnswer": {
+      "description": "What a sandboxed probe learned about one stored file's bytes, or that nobody has asked yet. `status` says which: `described` means a probe read the bytes and every field below is what it found, `refused` means a probe read enough to say why it will not describe them, and no answer at all means the file has never been probed, which a client must show as unchecked rather than as unreadable. Every field that a given kind does not have is null rather than zero: a PNG has no duration, and calling that zero seconds would be a lie about the file.",
+      "fields": [
+        "status",
+        "kind",
+        "mediaType",
+        "byteLength",
+        "width",
+        "height",
+        "durationMs",
+        "lineCount",
+        "utf8",
+        "code",
+        "limit",
+        "probedAt"
+      ],
+      "fieldTypes": {
+        "status": "enum(described|refused)|null",
+        "kind": "string|null",
+        "mediaType": "string|null",
+        "byteLength": "integer|null",
+        "width": "integer|null",
+        "height": "integer|null",
+        "durationMs": "integer|null",
+        "lineCount": "integer|null",
+        "utf8": "boolean|null",
+        "code": "string|null",
+        "limit": "integer|null",
+        "probedAt": "string|null"
+      },
+      "fieldDescriptions": {
+        "status": "Whether a probe described these bytes, refused to, or nobody has asked. Null is the third case and is not a refusal: a client that reads null must say the file has not been checked and must not warn about it.",
+        "kind": "What the bytes are, judged from their signature rather than from the file's name or declared type: image, video, audio, pdf, text, archive, or unknown when nothing was recognised. Unknown is honest; it is not the same as a file that failed to parse.",
+        "mediaType": "The media type the bytes themselves support, which can differ from the type recorded at write time. When it does, this one is what the bytes are, and a client deciding how to render should use it.",
+        "byteLength": "The number of bytes the probe measured, which is what the content route checks stored bytes against before serving them. A disagreement is reported as a mismatch, never as a shorter or longer file.",
+        "width": "Image width in pixels, when the probe can read the format. Null for everything that is not an image.",
+        "height": "Image height in pixels, on the same terms as width. Together with width it lets a page reserve the right space before the image arrives, so nothing shifts when it does.",
+        "durationMs": "How long audio or video plays, in whole milliseconds, when the container states it. A browser reports zero until it has loaded the media, so this is the only honest length a player can show beforehand. Null means either not measured or not that kind of file, so do not present it as zero seconds.",
+        "lineCount": "Lines in a text file, counted from the bytes. A file with no line breaks counts as one line; null means the file is not text or the probe did not measure it.",
+        "utf8": "Whether a text file decodes as strict UTF-8. False means the bytes are text of some other encoding, which a reader must not render as an empty or ruined file.",
+        "code": "Why a probe refused to describe the bytes, in words a reader can act on: too large, timed out, ran out of memory, unreadable, malformed, or the sandbox was unavailable. The last two are limits of this probe rather than defects in the file. Null when a description exists.",
+        "limit": "The byte limit the probe hit, when the code names one, so a reader can say how far over the file is instead of merely that it is too large.",
+        "probedAt": "When the answer was recorded, so a reader can say how fresh it is. Null when nobody has probed the file."
       }
     }
   },

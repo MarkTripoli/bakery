@@ -1,5 +1,5 @@
 {
-  "revision": "a206c582fc608f83b2eebabaf5ce7aa803077cd07fed890e629f9263af434acf",
+  "revision": "c47890ab1c7c5960c05a7b447002e6040c5c0d4602d058f8d30cde33fdb5e26b",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -1780,6 +1780,130 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.providerMark",
+      "name": "ProviderMark",
+      "description": "A provider's own mark in a fixed square slot, or a letter tile when it has none.",
+      "level": "atom",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Atoms/ProviderMark",
+      "usage": {
+        "whenToUse": "Show which provider a destination or an integration belongs to, beside the provider's name.",
+        "whenNotToUse": "Do not link it, enlarge it past Bakery's own mark, recolour it, or use it where the provider has not agreed: such a provider gets the letter tile.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "atom",
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "img",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "Beside the provider's name the mark is hidden from assistive technology; where it stands alone, its accessible name is the provider's name."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-surface-subtle",
+        "--radius-control",
+        "--space-0-5",
+        "--space-5",
+        "--space-6",
+        "--space-8",
+        "--type-label"
+      ],
+      "variants": [
+        "row",
+        "header"
+      ],
+      "states": [
+        "mark",
+        "tile"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A provider's mark in a row and a header slot, light and dark, and the letter tile.",
+          "variants": [
+            "row",
+            "header"
+          ],
+          "states": [
+            "mark",
+            "tile"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.providerMark.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.providerMark.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.providerMark.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 739 (revision 4), not in Paper; the Paper manifests have no provider marks."
     },
     {
       "id": "ui.themeProvider",

@@ -87,6 +87,8 @@ import {
 import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
+import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
+import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
 import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
@@ -622,6 +624,24 @@ export const routeCoverage = [
       "conflict",
       "forbidden",
     ],
+  },
+  {
+    id: "installation-monitoring-new",
+    path: "/installation/monitoring/new",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "installation-monitoring-destination",
+    path: "/installation/monitoring/$destinationId",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden", "unavailable"],
+  },
+  {
+    id: "installation-monitoring",
+    path: "/installation/monitoring",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
     id: "installation-usage",
@@ -1670,6 +1690,39 @@ const installationIntegrationsRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const installationMonitoringRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="shell.navigation.monitoring">
+      <InstallationMonitoringPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring/new",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringDestinationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring/$destinationId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
+  errorComponent: ProtectedRouteError,
+});
+
 const installationUsageRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/usage",
@@ -2524,6 +2577,9 @@ const routeTree = rootRoute.addChildren([
   organizationSettingsRoute,
   organizationStorageRoute,
   installationSettingsRoute,
+  installationMonitoringRoute,
+  installationMonitoringNewRoute,
+  installationMonitoringDestinationRoute,
   installationUsageRoute,
   deliveryRoute,
   installationAuditRoute,
