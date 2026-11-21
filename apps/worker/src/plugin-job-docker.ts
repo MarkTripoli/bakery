@@ -174,7 +174,7 @@ export function createDockerRuntime(
       return { supported: true, runtime: "docker" };
     },
 
-    start(spec: PluginJobSpec): Promise<RunningPluginJob> {
+    async start(spec: PluginJobSpec): Promise<RunningPluginJob> {
       // The name a caller gives is a label for people. The container gets a
       // name nobody else holds, so this attempt can neither remove another's
       // container nor be removed by one, and `docker run` cannot collide.
@@ -183,20 +183,29 @@ export function createDockerRuntime(
       const name = `bakery-plugin-${
         spec.name.replace(/[^A-Za-z0-9_.-]/g, "-").slice(0, 60)
       }-${crypto.randomUUID().slice(0, 8)}`;
+      // Create, wait for it, then start. A single `docker run` creates and starts
+      // in one step, so a kill that lands while the daemon is still creating
+      // finds nothing to remove and the container appears afterwards and stays.
+      // Awaiting the create means a kill always has a container to remove.
+      const created = await docker(bin, [
+        "create",
+        "-i",
+        ...harden(name, spec.limits),
+        "--volume",
+        `${spec.codeDir}:/code:ro`,
+        "--workdir",
+        "/code",
+        "--entrypoint",
+        spec.command[0] ?? "",
+        image,
+        ...spec.command.slice(1),
+      ]).catch(() => null);
+      if (created === null || created.code !== 0) {
+        await docker(bin, ["rm", "-fv", name]).catch(() => undefined);
+        throw new Error("PLUGIN_JOB_CREATE_FAILED");
+      }
       const child = new Deno.Command(bin, {
-        args: [
-          "run",
-          "-i",
-          ...harden(name, spec.limits),
-          "--volume",
-          `${spec.codeDir}:/code:ro`,
-          "--workdir",
-          "/code",
-          "--entrypoint",
-          spec.command[0] ?? "",
-          image,
-          ...spec.command.slice(1),
-        ],
+        args: ["start", "-a", "-i", name],
         stdin: "piped",
         stdout: "piped",
         stderr: "null",
@@ -255,7 +264,7 @@ export function createDockerRuntime(
         }
         if (pending.length > 0) yield pending;
       }
-      return Promise.resolve({
+      return {
         write: async (line) => {
           try {
             await writer.write(encoder.encode(`${line}\n`));
@@ -270,7 +279,7 @@ export function createDockerRuntime(
           return { code: status.code, oomKilled };
         })(),
         kill,
-      });
+      };
     },
   };
 }

@@ -542,6 +542,122 @@ dockerTest(
   },
 );
 
+async function countNamed(prefix: string): Promise<number> {
+  const out = await new Deno.Command("docker", {
+    args: ["ps", "-a", "--filter", `name=${prefix}`, "--format", "{{.Names}}"],
+    stdout: "piped",
+  }).output();
+  return new TextDecoder().decode(out.stdout).split("\n").filter((n) =>
+    n.length > 0
+  ).length;
+}
+
+async function settledCount(prefix: string): Promise<number> {
+  // Containers a daemon was still creating appear late, so wait until the
+  // count has stopped changing before trusting it.
+  let last = -1;
+  let steady = 0;
+  for (let waited = 0; waited < 60 && steady < 3; waited++) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const now = await countNamed(prefix);
+    steady = now === last ? steady + 1 : 0;
+    last = now;
+  }
+  return last;
+}
+
+dockerTest(
+  "a kill while the daemon is still creating leaves no container",
+  async () => {
+    // A `docker` that is slow to create, and whose run outlives its client the
+    // way a daemon's in-flight create does.
+    const dir = await Deno.makeTempDir({ prefix: "slow-docker-" });
+    const wrapper = `${dir}/docker`;
+    await Deno.writeTextFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        'case "$1" in',
+        '  create) sleep 1; exec docker "$@";;',
+        '  run) ( sleep 1; exec docker "$@" </dev/null ) & wait $!; exit;;',
+        '  *) exec docker "$@";;',
+        "esac",
+      ].join("\n") + "\n",
+    );
+    await Deno.chmod(wrapper, 0o755);
+    const code = await job(`sleep 30`);
+    const runtime = createDockerRuntime({
+      env: ENV,
+      image: IMAGE,
+      docker: wrapper,
+    });
+    const started = runtime.start({
+      name: "slowcreate",
+      codeDir: code,
+      command: ["sh", "/code/main.sh"],
+      limits: LIMITS,
+    });
+    // Kill as soon as the caller has a handle: with `docker run` that is while
+    // the create is still pending, and the container appears after the removal.
+    const handle = await Promise.race([
+      started,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 200)),
+    ]);
+    if (handle !== null) await handle.kill();
+    else await (await started).kill();
+    assertEquals(await settledCount("bakery-plugin-slowcreate-"), 0);
+  },
+);
+
+dockerTest(
+  "many jobs killed at random moments while their containers are being created leave none",
+  async () => {
+    const dir = await job(`sleep 30`);
+    const runtime = createDockerRuntime({ env: ENV, image: IMAGE });
+    await Promise.all(
+      Array.from({ length: 80 }, async (_, i) => {
+        const handle = await runtime.start({
+          name: `stress-${i}`,
+          codeDir: dir,
+          command: ["sh", "/code/main.sh"],
+          limits: LIMITS,
+        });
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.floor(Math.random() * 400))
+        );
+        await handle.kill();
+      }),
+    );
+    assertEquals(await settledCount("bakery-plugin-stress-"), 0);
+  },
+);
+
+dockerTest(
+  "a create that fails ends the job as start_failed and leaves nothing",
+  async () => {
+    const code = await job(`echo '{"result":1}'`);
+    const end = await runPluginJob({
+      runtime: createDockerRuntime({
+        env: ENV,
+        // The image exists for the probe but the job asks for an entrypoint
+        // that cannot be created: an empty command.
+        image: IMAGE,
+      }),
+      spec: {
+        name: "badcreate",
+        codeDir: code,
+        command: [],
+        limits: { ...LIMITS, memoryBytes: 1 },
+      },
+      relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+      identity: "i:j:1",
+      sink: memoryResultSink(),
+    });
+    assertEquals(end.kind, "start_failed");
+    assertEquals(await countNamed("bakery-plugin-badcreate-"), 0);
+  },
+);
+
 Deno.test("the identity of one piece of work is install, job and fence", () => {
   assertEquals(
     effectIdentity({ installId: "i", jobId: "j", fence: 3 }),

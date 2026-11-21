@@ -89,6 +89,7 @@ export type PluginJobEnd =
     recorded: boolean;
   }>
   | Readonly<{ kind: "aborted" }>
+  | Readonly<{ kind: "start_failed" }>
   | Readonly<{ kind: "unsupported"; reason: string }>
   | Readonly<{ kind: "timeout" }>
   | Readonly<{ kind: "output_limit" }>
@@ -142,7 +143,13 @@ export async function runPluginJob(
   const probe = await input.runtime.probe();
   if (!probe.supported) return { kind: "unsupported", reason: probe.reason };
 
-  const job = await input.runtime.start(input.spec);
+  let job: RunningPluginJob;
+  try {
+    job = await input.runtime.start(input.spec);
+  } catch {
+    // The runtime removed anything it half-made before throwing.
+    return { kind: "start_failed" };
+  }
   const { limits } = input.spec;
   let timedOut = false;
   let aborted = false;
