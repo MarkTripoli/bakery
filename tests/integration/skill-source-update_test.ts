@@ -379,21 +379,21 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
     const auditsBefore = await auditCount();
     const checkedBefore = await checkedAt();
     source.state.files = { ...SKILL_V1 };
-    // The result is checked after the call: an error thrown inside the adapter
-    // would be read as an unreachable source and hide the real failure.
-    let published = { status: 0, text: "not run" };
+    // The active version moves away while the source is being read (set by
+    // SQL: a local version cannot be published to a skill whose source is a
+    // Git one). An error thrown inside the adapter would be read as an
+    // unreachable source, so a failed move is checked after the call.
+    let versionMoves = -1;
     source.during.run = async () => {
-      const next = await f.post(
-        f.ownerCookie,
-        `/v1/skills/${skill.id}/versions`,
-        await upload({ "SKILL.md": "# Guide, second version\n" }, 2),
-        "publish-guide-2",
-      );
-      published = { status: next.status, text: await next.text() };
+      versionMoves = (await db.query(
+        `update bakery.skills set active_version_id = null
+          where organization_id = $1 and id = $2 and active_version_id = $3`,
+        [f.organizationId, skill.id, version.id],
+      )).rowCount ?? 0;
     };
     const raced = await owner("POST", path);
     source.during.run = null;
-    assertEquals(published.status, 201, published.text);
+    assertEquals(versionMoves, 1, "the active version moved during the check");
     const racedText = await raced.text();
     assertEquals(raced.status, 409, racedText);
     assertEquals(
@@ -402,6 +402,12 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
     );
     assertEquals(await checkedAt(), checkedBefore);
     assertEquals(await auditCount(), auditsBefore);
+    // Put the skill back as it was for what follows.
+    await db.query(
+      `update bakery.skills set active_version_id = $3
+        where organization_id = $1 and id = $2`,
+      [f.organizationId, skill.id, version.id],
+    );
 
     // An unknown skill is not found; so is another person's private skill.
     const missing = await owner(
