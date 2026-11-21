@@ -653,10 +653,14 @@ for (
           batch({
             id: batchId(1),
             issues,
+            elapsedSeconds: 3 * 3600 + 41 * 60,
+            spentUsd: "22.4000",
             waitingOn: { kind: "approval", askedOf: asked },
           }),
           batch({
             id: batchId(2),
+            elapsedSeconds: 3 * 3600 + 41 * 60,
+            spentUsd: "22.4000",
             state: "paused",
             pauseReason: "paused_by_person",
             pausedBy: ANA,
@@ -682,6 +686,7 @@ for (
       await expect(page.getByRole("heading", { level: 1 })).toContainText(
         "Paused",
       );
+      await still(page, "batch-paused-waiting");
     });
 
     test("a finished batch over its spend limit says so, shows the bar full and offers another batch", async ({ page }) => {
