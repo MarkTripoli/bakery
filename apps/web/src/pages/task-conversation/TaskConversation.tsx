@@ -17,10 +17,12 @@ import { useBakeryApi } from "../../api/context.tsx";
 import {
   applicationQueryOptions,
   approvalsQueryOptions,
+  conversationAccessQueryOptions,
   conversationMessagesQueryOptions,
   conversationParticipantsQueryOptions,
   conversationTurnsQueryOptions,
   coordinationPlansQueryOptions,
+  effectiveAccessQueryOptions,
   planRevisionsQueryOptions,
   questionsQueryOptions,
   repositoryQueryOptions,
@@ -39,6 +41,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { TaskFromIssue } from "../TaskFromIssue.tsx";
 import { useMentionField } from "../../mentions/useMentionField.tsx";
 import { Composer } from "./Composer.tsx";
+import { PeopleAddedDialog } from "./PeopleAddedDialog.tsx";
 import {
   browserDraftStore,
   type Draft,
@@ -206,6 +209,15 @@ export function TaskConversation(
     offline: !online,
     disabled: sendPhase === "sending" || sendPhase === "unknown",
   });
+  // The link to the people a mention added is for someone who may share the conversation.
+  const access = useQuery(effectiveAccessQueryOptions(api, scope));
+  const canShare = access.data?.capabilities.includes("conversation:share") ===
+    true;
+  const added = useQuery({
+    ...conversationAccessQueryOptions(api, scope, conversationId),
+    enabled: canShare && Boolean(scope.organizationId),
+  });
+  const [addedOpen, setAddedOpen] = useState(false);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -826,6 +838,25 @@ export function TaskConversation(
               onSend={() => void send()}
               onRetry={() => void send()}
             />
+            {canShare && (added.data?.length ?? 0) > 0
+              ? (
+                <>
+                  <UI.Button
+                    onClick={() => setAddedOpen(true)}
+                    variant="text"
+                  >
+                    {t("mentions.added.link", {
+                      count: added.data?.length ?? 0,
+                    })}
+                  </UI.Button>
+                  <PeopleAddedDialog
+                    conversationId={conversationId}
+                    onOpenChange={setAddedOpen}
+                    open={addedOpen}
+                  />
+                </>
+              )
+              : null}
           </>
         }
       >
