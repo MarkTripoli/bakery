@@ -41,7 +41,9 @@ export const initializeInstallationSettings: DataMigration = {
         throw new Error("INSTALLATION_SETTINGS_SINGLETON_INVALID");
       }
       const { id: _id, ...stored } = rows[0];
-      InstallationSettingsSchema.parse({
+      // The shape this migration wrote: later columns (the update policy, 0315)
+      // are not part of what it checks.
+      InstallationSettingsSchema.omit({ updateFailurePolicy: true }).parse({
         ...stored,
         updatedAt: stored.updatedAt.toISOString(),
       });

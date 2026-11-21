@@ -1,15 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  askLines,
   completionLines,
+  decisionLines,
   failedStepLine,
   failureLines,
+  isRefusal,
+  policyWords,
   statusLines,
   STEP_LABELS,
   stepLine,
   unsureLines,
 } from "./release-messages.mjs";
-import { recover, transition } from "./release.mjs";
+import { PassThrough } from "node:stream";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  askAtTerminal,
+  recover,
+  resendEvents,
+  transition,
+} from "./release.mjs";
 
 const blue = "a".repeat(40), green = "b".repeat(40), hash = "c".repeat(64);
 const migration = "apps/server/src/platform/migrations/001.sql";
@@ -127,17 +140,30 @@ test("status prints the same labelled lines whether idle, waiting or interrupted
     questions: 2,
     outsideActionsUnsure: 0,
   };
-  assert.deepEqual(statusLines(committed, counts), [
-    `Running          ${blue} (blue)`,
-    `Can go back to   ${green}`,
-    "Work             3 tasks, 1 approval, 2 open questions",
-    "State            Ready.",
-  ]);
+  assert.deepEqual(
+    statusLines(committed, counts, { onFailure: "ask" }),
+    [
+      `Running          ${blue} (blue)`,
+      `Can go back to   ${green}`,
+      "Work             3 tasks, 1 approval, 2 open questions",
+      "Update policy    ask before going back",
+      "State            Ready.",
+    ],
+  );
+  assert.equal(
+    statusLines(committed, counts, { onFailure: "go_back" })[3],
+    "Update policy    go back by itself",
+  );
+  assert.equal(
+    statusLines(committed, counts, null)[3],
+    "Update policy    not available just now",
+  );
   assert.match(
     statusLines({ ...committed, previous: null }, counts)[1],
     /No earlier version is kept\./,
   );
   assert.match(statusLines(committed, null)[2], /database did not answer/);
+  assert.equal(policyWords(undefined), "nothing is installed yet");
   assert.match(statusLines(null)[0], /nothing is installed yet/);
   const interrupted = statusLines({
     ...committed,
@@ -206,7 +232,20 @@ test("completion lines name what was carried over, the kept version and the exac
   );
 });
 
-function harness(initial, { fail, pause, resumeFails } = {}) {
+function harness(
+  initial,
+  {
+    fail,
+    failGreen,
+    pause,
+    resumeFails,
+    policy,
+    answer,
+    recordResult,
+    events,
+    marker,
+  } = {},
+) {
   let state = structuredClone(initial);
   // `true` fails every resume; a number fails that many resumes, then works.
   let resumesToFail = resumeFails === true ? Infinity : resumeFails ?? 0;
@@ -245,7 +284,10 @@ function harness(initial, { fail, pause, resumeFails } = {}) {
     services: noop,
     nativeProbe: noop,
     startApi: noop,
-    greenSmoke: noop,
+    greenSmoke: () =>
+      failGreen
+        ? Promise.reject(new Error("SMOKE_RELEASE_NOT_READY"))
+        : Promise.resolve(),
     switchProxy: noop,
     background: noop,
     backgroundSmoke: noop,
@@ -277,6 +319,37 @@ function harness(initial, { fail, pause, resumeFails } = {}) {
       },
     }),
   };
+  if (policy !== undefined) {
+    operations.policy = (sha) => {
+      calls.push(`policy ${sha === green ? "green" : "other"}`);
+      return policy instanceof Error
+        ? Promise.reject(policy)
+        : Promise.resolve({ onFailure: policy });
+    };
+    operations.ask = (context) => {
+      calls.push(
+        `ask ${context.from === green ? "green" : "?"}->${
+          context.to === blue ? "blue" : "?"
+        }`,
+      );
+      return Promise.resolve(answer ?? null);
+    };
+  }
+  if (policy !== undefined || events) {
+    operations.who = () => "mark";
+    operations.record = (event) => {
+      calls.push(`record ${event.kind}`);
+      return recordResult instanceof Error
+        ? Promise.reject(recordResult)
+        : Promise.resolve(recordResult ?? { kept: true, inBakery: true });
+    };
+  }
+  if (marker) {
+    operations.marker = (on) => {
+      calls.push(on ? "marker on" : "marker off");
+      return Promise.resolve();
+    };
+  }
   return { store, operations, state: () => state, calls };
 }
 
@@ -435,4 +508,311 @@ test("recover on an untouched journal never calls the database", async () => {
   const h = harness(committed, { pause: null });
   await recover(h.store, h.operations);
   assert.deepEqual(h.calls, []);
+});
+
+const ask = { policy: "ask", pause: null };
+
+test("policy go_back undoes an unhealthy update by itself and never asks", async () => {
+  const h = harness(committed, { fail: true, policy: "go_back", pause: null });
+  await assert.rejects(run(h, () => {}), /SMOKE_RELEASE_NOT_READY/);
+  assert.equal(h.state().phase, "committed");
+  assert.equal(h.state().active.sha, blue);
+  assert.ok(!h.calls.some((c) => c.startsWith("ask")));
+  assert.deepEqual(
+    h.calls.filter((c) => c.startsWith("record")),
+    ["record went_back"],
+    "Bakery went back by itself: one event, no decision",
+  );
+});
+
+test("policy ask: a yes goes back, resumes work and records who answered", async () => {
+  const h = harness(committed, { ...ask, fail: true, answer: "go_back" });
+  const events = [];
+  await assert.rejects(
+    run(h, (e) => events.push(e)),
+    /SMOKE_RELEASE_NOT_READY/,
+  );
+  assert.equal(h.state().phase, "committed");
+  assert.equal(h.state().active.sha, blue);
+  assert.deepEqual(h.calls, [
+    "pause green",
+    "backup",
+    "policy green",
+    "ask green->blue",
+    "resume green",
+    "record decided_go_back",
+  ]);
+  const { recorded } = events.find((e) => "recorded" in e);
+  assert.equal(recorded.kind, "decided_go_back");
+  assert.equal(recorded.by, "mark");
+  assert.equal(recorded.fromRelease, green);
+  assert.equal(recorded.toRelease, blue);
+  assert.equal(recorded.inBakery, true);
+});
+
+test("policy ask: a no leaves the release in place, work paused, and records the answer", async () => {
+  const h = harness(committed, { ...ask, fail: true, answer: "stay" });
+  const events = [];
+  await assert.rejects(run(h, (e) => events.push(e)), /UPDATE_LEFT_UNHEALTHY/);
+  assert.notEqual(h.state().phase, "committed", "recover can still go back");
+  assert.ok(!h.calls.includes("resume green"), "work is not resumed on it");
+  assert.ok(h.calls.includes("record decided_stay"));
+  assert.equal(
+    events.find((e) => "recorded" in e).recorded.kind,
+    "decided_stay",
+  );
+});
+
+test("policy ask with nobody to ask changes nothing and records nothing", async () => {
+  const h = harness(committed, { ...ask, fail: true, answer: null });
+  await assert.rejects(run(h, () => {}), /UPDATE_LEFT_UNHEALTHY/);
+  assert.notEqual(h.state().phase, "committed");
+  assert.ok(!h.calls.some((c) => c.startsWith("record")));
+});
+
+test("an unreadable policy goes back, because the database may be what is down", async () => {
+  const h = harness(committed, {
+    fail: true,
+    policy: new Error("DEPLOY_UPDATE_FAILED:1"),
+    answer: "stay",
+    pause: null,
+  });
+  await assert.rejects(run(h, () => {}), /SMOKE_RELEASE_NOT_READY/);
+  assert.equal(h.state().phase, "committed");
+  assert.ok(!h.calls.some((c) => c.startsWith("ask")));
+});
+
+test("policy ask does not ask when the failure came before the switch", async () => {
+  const h = harness(committed, { ...ask, failGreen: true, answer: "stay" });
+  await assert.rejects(run(h, () => {}), /SMOKE_RELEASE_NOT_READY/);
+  assert.equal(h.state().phase, "committed");
+  assert.ok(!h.calls.some((c) => c.startsWith("ask")));
+});
+
+test("a rollback is never asked about, even under policy ask", async () => {
+  const h = harness({
+    ...committed,
+    active: { sha: green, slot: "green" },
+    previous: { sha: blue, slot: "blue" },
+    migrations: { [migration]: hash, [addition]: hash },
+  }, { ...ask, answer: "stay" });
+  await run(h, () => {}, blue, true);
+  assert.ok(!h.calls.some((c) => c.startsWith("ask")));
+});
+
+test("an answer that could be recorded nowhere is reported as such, and going back still happened", async () => {
+  const h = harness(committed, {
+    ...ask,
+    fail: true,
+    answer: "go_back",
+    recordResult: new Error("DISK_FULL"),
+  });
+  const events = [];
+  await assert.rejects(
+    run(h, (e) => events.push(e)),
+    /SMOKE_RELEASE_NOT_READY/,
+  );
+  assert.equal(h.state().active.sha, blue);
+  const { recorded } = events.find((e) => "recorded" in e);
+  assert.equal(recorded.kept, false);
+  assert.match(decisionLines(recorded).join(" "), /could not be recorded/);
+});
+
+test("the question and the recorded answer are plain words, within 80 columns", () => {
+  const asked = askLines({ from: green, to: blue });
+  assert.match(asked[0], /^Bakery is not healthy on bbbbbbbb\.$/);
+  assert.ok(asked.some((l) => l.startsWith("Update policy    ask before")));
+  const goBack = {
+    kind: "decided_go_back",
+    by: "mark",
+    at: "2026-11-21T14:11:09.000Z",
+    fromRelease: green,
+    toRelease: blue,
+    kept: true,
+    inBakery: true,
+  };
+  assert.deepEqual(decisionLines(goBack), [
+    "Decision recorded: gone back by mark at 14:11 UTC, from the server.",
+  ]);
+  const stay = decisionLines({
+    ...goBack,
+    kind: "decided_stay",
+    inBakery: false,
+  });
+  assert.match(stay[0], /kept bbbbbbbb by mark at 14:11 UTC, from the server/);
+  assert.equal(stay[1], "To go back: bakery-release recover");
+  assert.match(stay.join(" "), /Bakery's history does not have it yet/);
+  assert.deepEqual(decisionLines(undefined), []);
+  assert.ok(wide(asked) && wide(stay));
+  const kept = failureLines(new Error("UPDATE_LEFT_UNHEALTHY"), {
+    requested: green,
+    active: blue,
+    phase: "switching",
+  });
+  assert.match(kept[0], /not healthy on bbbbbbbb and was left as it is/);
+  assert.equal(kept.at(-1), "[UPDATE_LEFT_UNHEALTHY]");
+  assert.ok(wide(kept));
+});
+
+function terminal(answer, isTTY = true) {
+  const input = new PassThrough();
+  input.isTTY = isTTY;
+  const output = new PassThrough();
+  let text = "";
+  output.on("data", (chunk) => text += chunk);
+  if (answer !== undefined) setTimeout(() => input.write(`${answer}\n`), 5);
+  return { input, output, text: () => text };
+}
+
+test("the prompt goes back only on an explicit yes; Enter and anything else keep it", async () => {
+  const context = { from: green, to: blue };
+  for (
+    const [typed, expected] of [
+      ["y", "go_back"],
+      ["YES", "go_back"],
+      ["", "stay"],
+      ["n", "stay"],
+      ["maybe", "stay"],
+    ]
+  ) {
+    const t = terminal(typed);
+    assert.equal(await askAtTerminal(context, t), expected, typed);
+    assert.match(t.text(), /Bakery is not healthy on bbbbbbbb\./);
+    assert.match(
+      t.text(),
+      /Go back to aaaaaaaa now\? Work resumes afterwards\. \[y\/N\]/,
+    );
+  }
+});
+
+test("with no terminal nobody is asked, and only --yes answers for a script", async () => {
+  const context = { from: green, to: blue };
+  assert.equal(await askAtTerminal(context, terminal(undefined, false)), null);
+  assert.equal(
+    await askAtTerminal(context, { ...terminal(undefined, false), yes: true }),
+    "go_back",
+  );
+});
+
+test("kept events are sent again, only the latest few, and a failure leaves the rest", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "decisions-"));
+  const path = join(dir, "decisions.jsonl");
+  const rows = [1, 2, 3, 4].map((n) => ({ id: `id-${n}` }));
+  await writeFile(path, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  const seen = [];
+  const sent = await resendEvents(
+    (row) => {
+      seen.push(row.id);
+      if (row.id === "id-3") throw new Error("DB_DOWN");
+      return Promise.resolve(true);
+    },
+    3,
+    path,
+  );
+  assert.deepEqual(seen, ["id-2", "id-3", "id-4"]);
+  assert.equal(sent, 2);
+  assert.equal(
+    await resendEvents(() => Promise.resolve(true), 3, join(dir, "none")),
+    0,
+  );
+});
+
+test("an update marks itself for the proxy, records what happened and clears the mark", async () => {
+  const h = harness(committed, { pause: null, events: true, marker: true });
+  const events = [];
+  await run(h, (e) => events.push(e));
+  assert.deepEqual(h.calls, [
+    "pause green",
+    "marker on",
+    "backup",
+    "resume green",
+    "record updated",
+    "marker off",
+  ]);
+  const { recorded } = events.find((e) => "recorded" in e);
+  assert.equal(recorded.kind, "updated");
+  assert.equal(recorded.fromRelease, blue);
+  assert.equal(recorded.toRelease, green);
+  assert.equal(recorded.by, "mark");
+  assert.match(recorded.id, /^[0-9a-f-]{36}$/);
+});
+
+test("the mark is cleared when the update fails too, and Bakery's own going back names no one", async () => {
+  const h = harness(committed, {
+    fail: true,
+    pause: null,
+    events: true,
+    marker: true,
+  });
+  const events = [];
+  await assert.rejects(
+    run(h, (e) => events.push(e)),
+    /SMOKE_RELEASE_NOT_READY/,
+  );
+  assert.deepEqual(
+    h.calls.filter((c) => c.startsWith("marker") || c.startsWith("record")),
+    ["marker on", "record went_back", "marker off"],
+  );
+  const { recorded } = events.find((e) => "recorded" in e);
+  assert.equal(recorded.by, null);
+  assert.equal(
+    recorded.fromRelease,
+    green,
+    "the update that did not become ready",
+  );
+  assert.equal(recorded.toRelease, blue, "the version Bakery returned to");
+});
+
+test("a refused pause leaves no mark and no event: nothing started", async () => {
+  const h = harness(committed, {
+    pause: new Error("INSTALLATION_RESTORING"),
+    events: true,
+    marker: true,
+  });
+  await assert.rejects(run(h, () => {}), /INSTALLATION_RESTORING/);
+  assert.ok(
+    !h.calls.some((c) => c.startsWith("marker") || c.startsWith("record")),
+  );
+});
+
+test("a first install and a rollback are recorded, and neither marks the proxy", async () => {
+  const first = harness({
+    format: 1,
+    phase: "committed",
+    active: null,
+    previous: null,
+    migrations: {},
+  }, { pause: null, events: true, marker: true });
+  await run(first, () => {}, blue, false, true);
+  assert.deepEqual(
+    first.calls.filter((c) => c.startsWith("marker") || c.startsWith("record")),
+    ["record installed"],
+  );
+  const back = harness({
+    ...committed,
+    active: { sha: green, slot: "green" },
+    previous: { sha: blue, slot: "blue" },
+    migrations: { [migration]: hash, [addition]: hash },
+  }, { pause: null, events: true, marker: true });
+  await run(back, () => {}, blue, true);
+  assert.deepEqual(
+    back.calls.filter((c) => c.startsWith("marker") || c.startsWith("record")),
+    ["record rolled_back"],
+  );
+});
+
+test("a marker or a history that cannot be written never stops an update", async () => {
+  const h = harness(committed, { pause: null, events: true, marker: true });
+  h.operations.marker = () => Promise.reject(new Error("READ_ONLY"));
+  h.operations.record = () => Promise.reject(new Error("DISK_FULL"));
+  const state = await run(h, () => {});
+  assert.equal(state.active.sha, green);
+});
+
+test("only a refused update is a refusal: a wrong user or command is not an update", () => {
+  assert.equal(isRefusal("MIGRATION_COMPATIBILITY_REVIEW_REQUIRED"), true);
+  assert.equal(isRefusal("INSTALLATION_RESTORING"), true);
+  assert.equal(isRefusal("ROOT_REQUIRED"), false);
+  assert.equal(isRefusal("EXPECTED_DEPLOY_ROLLBACK_RECOVER_RENDER"), false);
+  assert.equal(isRefusal("SMOKE_RELEASE_NOT_READY"), false);
 });

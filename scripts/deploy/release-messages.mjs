@@ -44,6 +44,26 @@ const NOTHING_CHANGED = new Set([
   "EXPECTED_DEPLOY_ROLLBACK_RECOVER_RENDER",
 ]);
 
+/** The installation's choice, in the words the Updates page uses. */
+export function policyWords(policy) {
+  if (policy === undefined) return "nothing is installed yet";
+  if (policy === null) return "not available just now";
+  return policy.onFailure === "ask"
+    ? "ask before going back"
+    : "go back by itself";
+}
+
+// Failures that mean "this update was refused": the host is exactly as it was
+// and the history says why. A wrong user or command is not an update at all.
+const NOT_AN_UPDATE = new Set([
+  "ROOT_REQUIRED",
+  "EXPECTED_DEPLOY_ROLLBACK_RECOVER_RENDER",
+]);
+
+export function isRefusal(code) {
+  return NOTHING_CHANGED.has(code) && !NOT_AN_UPDATE.has(code);
+}
+
 const short = (sha) => (typeof sha === "string" ? sha.slice(0, 8) : "none");
 
 export function failureCode(error) {
@@ -153,6 +173,14 @@ export function failureLines(error, context = {}) {
       return lines(
         "The version to go back to is not the one that was kept. Nothing was changed.",
         `Check what is running: ${COMMAND} status`,
+      );
+    case "UPDATE_LEFT_UNHEALTHY":
+      return lines(
+        `Bakery is not healthy on ${
+          short(context.requested)
+        } and was left as it is.`,
+        "Work stays paused. It starts again by itself within 35 minutes.",
+        `To go back to ${current} now: ${COMMAND} recover`,
       );
     case "BOOTSTRAP_ALREADY_INITIALIZED":
       return lines(
@@ -270,6 +298,48 @@ export function completionLines(command, state, before, resumed) {
   return lines;
 }
 
+/** What the person sees before being asked whether to go back. */
+export function askLines({ from, to }) {
+  return [
+    `Bakery is not healthy on ${short(from)}.`,
+    "",
+    row("Running", from),
+    row("Can go back to", to),
+    row("Update policy", policyWords({ onFailure: "ask" })),
+    "",
+  ];
+}
+
+const clock = (iso) => iso.slice(11, 16);
+
+/**
+ * The line that says an answer was kept: who, when, and that it was given at
+ * the server. Nothing when no one was asked. `decision` is the recorded event
+ * of kind decided_go_back or decided_stay, with whether this host and Bakery
+ * have it.
+ */
+export function decisionLines(decision) {
+  if (!decision) return [];
+  const who = `by ${decision.by} at ${
+    clock(decision.at)
+  } UTC, from the server.`;
+  const lines = decision.kind === "decided_go_back"
+    ? [`Decision recorded: gone back ${who}`]
+    : [
+      `Decision recorded: kept ${short(decision.fromRelease)} ${who}`,
+      `To go back: ${COMMAND} recover`,
+    ];
+  if (!decision.inBakery && decision.kept) {
+    lines.push(
+      "Bakery's history does not have it yet. It is sent the next time you run:",
+      `  ${COMMAND} recover`,
+    );
+  } else if (!decision.inBakery) {
+    lines.push("It could not be recorded, on this server or in Bakery.");
+  }
+  return lines;
+}
+
 function row(label, value) {
   return `${label.padEnd(16)} ${value}`;
 }
@@ -292,12 +362,13 @@ function workRow(counts) {
 }
 
 /** The lines `status` prints. state is the parsed journal, or null. */
-export function statusLines(state, counts) {
+export function statusLines(state, counts, policy) {
   if (!state || (!state.active && !state.desired)) {
     return [
       row("Running", "nothing is installed yet"),
       row("Can go back to", "No earlier version is kept."),
       workRow(undefined),
+      row("Update policy", policyWords(undefined)),
       row("State", "Ready for the first install."),
     ];
   }
@@ -308,6 +379,7 @@ export function statusLines(state, counts) {
       row("Running", `${state.active.sha} (${state.active.slot})`),
       row("Can go back to", back),
       workRow(counts),
+      row("Update policy", policyWords(policy ?? null)),
       row("State", "Ready."),
       ...unsure,
     ];
@@ -317,6 +389,7 @@ export function statusLines(state, counts) {
       row("Running", `${state.desired.sha} (${state.desired.slot})`),
       row("Can go back to", back),
       workRow(counts),
+      row("Update policy", policyWords(policy ?? null)),
       row("State", "Waiting for the first worker to enroll."),
       ...unsure,
     ];
@@ -329,6 +402,7 @@ export function statusLines(state, counts) {
     ),
     row("Can go back to", back),
     workRow(counts),
+    row("Update policy", policyWords(policy ?? null)),
     row("State", `A switch to ${short(state.desired?.sha)} did not finish.`),
     `Run: ${COMMAND} recover`,
   ];
