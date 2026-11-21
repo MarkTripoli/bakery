@@ -151,6 +151,49 @@ Deno.test("a disabled install still pins the archive, because it may be re-enabl
   });
 });
 
+/** A snapshot of `installId` taken as it left `fromVersionId` (#34). */
+async function snapshot(
+  fixture: Fixture,
+  installId: string,
+  fromVersionId: string,
+): Promise<void> {
+  await fixture.pgDatabase.query(
+    `insert into bakery.plugin_install_snapshots
+       (organization_id, plugin_install_id, from_plugin_version_id,
+        from_state_schema_version, state_row_count)
+     values ($1, $2, $3, 1, 0)`,
+    [fixture.organizationId, installId, fromVersionId],
+  );
+}
+
+Deno.test("a version only a snapshot names keeps its archive, because a rollback restores it", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const left = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    const current = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    const installId = await install(fixture, current);
+    await snapshot(fixture, installId, left.versionId);
+    const store = trackingStore();
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, left.versionId),
+      false,
+      "the install can still be moved back to the version it left",
+    );
+    assertEquals(store.deleted, []);
+
+    // Once the install is finished nothing can move back, and the bytes go.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_installs set status = 'uninstalled'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, installId],
+    );
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, left.versionId),
+      true,
+    );
+    assertEquals(store.deleted, [left.objectRef]);
+  });
+});
+
 Deno.test("a withdrawn package with no install releases its archive", async () => {
   await withWorkerFixture(async (fixture) => {
     const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });

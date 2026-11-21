@@ -26219,10 +26219,32 @@ export const clientManifest = {
         "dismissUpdateFailure": {
           "description": "True to clear the install's recorded last update failure without changing its version or status.",
           "type": "boolean"
+        },
+        "approveCapabilities": {
+          "description": "The capabilities the new version asks for that the version this install pins now did not, approved by the caller for this move: exactly those and no others. Without them, a version that asks for more is not activated and the install stays as it is. Only meaningful with a versionId that differs from the pinned one. PluginInstallUpdate.approveCapabilities must contain at most 7 items.",
+          "maxItems": 7,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the new version asks for that the version this install pins now did not, approved by the caller for this move: exactly those and no others. Without them, a version that asks for more is not activated and the install stays as it is. Only meaningful with a versionId that differs from the pinned one. Each array item follows this format."
+          }
+        },
+        "restoreState": {
+          "description": "True to move back to a version the install left by restoring the state as that version left it, discarding what was saved since. Only the version the install's snapshot was taken from can be restored, and only when it can read that state; only meaningful with a versionId that differs from the pinned one.",
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
-      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active; added capabilities need the caller's approval, and incompatible state blocks the move unless a restore is asked for. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -85002,7 +85024,7 @@ export const clientManifest = {
                   "description": "JSON object value."
                 }
               ],
-              "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+              "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
             },
             {
               "type": "null",
@@ -85304,7 +85326,7 @@ export const clientManifest = {
                         "description": "JSON object value."
                       }
                     ],
-                    "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+                    "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
                   },
                   {
                     "type": "null",
