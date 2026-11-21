@@ -860,7 +860,6 @@ export function createNormalizedCommandMetadata(
     | "naturalIdempotency"
     | "naturalIdempotencyInputField"
     | "explicitIdempotency"
-    | "policy"
   >,
   request: Request,
   params: Readonly<Record<string, string>>,
@@ -877,9 +876,6 @@ export function createNormalizedCommandMetadata(
     }`
     : parseIdempotencyKey(suppliedKey);
   const method = action.method.toUpperCase();
-  // A command whose action declares `conditional` requires If-Match even when the
-  // caller omitted it, so the handler's own refusal is the one a person sees. The
-  // Slack app's check is registered that way.
   const conditionalPostActions: ReadonlySet<ActionDefinition["name"]> = new Set(
     [
       "artifactVersions.import",
@@ -919,8 +915,7 @@ export function createNormalizedCommandMetadata(
   const expectedVersion = patchNeedsIfMatch || deleteNeedsIfMatch ||
       (method === "DELETE" && action.naturalIdempotency) ||
       (method === "POST" && conditionalPostActions.has(action.name) &&
-        (request.headers.has("if-match") ||
-          action.policy.conditional === true)) ||
+        request.headers.has("if-match")) ||
       (method === "PUT" && conditionalPutActions.has(action.name) &&
         request.headers.has("if-match"))
     ? parseStrongIfMatch(request.headers.get("if-match"))

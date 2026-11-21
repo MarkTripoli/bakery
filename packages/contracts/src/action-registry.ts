@@ -96,12 +96,6 @@ export type ActionPolicy = {
    * the request was authenticated by an access token.
    */
   sessionOnly?: boolean;
-  /**
-   * The command requires an `If-Match` version even when the caller sent none, so
-   * normalizing its request names the missing precondition instead of reading the
-   * command as unconditional.
-   */
-  conditional?: boolean;
   authorize?: (
     context: ActionContext,
     input: unknown,

@@ -423,8 +423,6 @@ export function registerSlackAppCheck(
       ...policy,
       type: ActionKind.Command,
       sessionOnly: true,
-      // `If-Match` is required: the answer names the version it is about.
-      conditional: true,
     },
     handler: (context, input) => checkSlackApp(context, input, dependencies),
   });
