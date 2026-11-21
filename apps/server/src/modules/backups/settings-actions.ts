@@ -33,6 +33,7 @@ import {
   upsertBackupSchedule,
   writeBackupSecretVersion,
 } from "./settings.ts";
+import { readPointInTime } from "./point-in-time.ts";
 import {
   isTimeOfDayUtc,
   MAX_DAYS_TO_KEEP,
@@ -757,6 +758,7 @@ export async function releaseRunnerSettings(
 ): Promise<RunnerSettings> {
   const schedule = await readBackupSchedule(transaction);
   const offsite = await readBackupOffsite(transaction);
+  const pointInTime = await readPointInTime(transaction);
   // The destination the host check judged must still be the saved one.
   if (
     (offsite?.version ?? 0) !== (prepared.offsite?.version ?? 0) ||
@@ -819,5 +821,6 @@ export async function releaseRunnerSettings(
     offsiteSecretAccessKey: credentials?.secretAccessKey ?? null,
     offsiteRefusal: refusal,
     offsiteVersion: offsite?.version ?? 0,
+    pointInTimeEnabled: pointInTime?.enabled ?? false,
   });
 }

@@ -54,6 +54,11 @@ import {
   recordVerification,
   releaseRunnerSettings,
 } from "./settings-actions.ts";
+import {
+  getPointInTime,
+  putPointInTime,
+  recordWalReport,
+} from "./point-in-time.ts";
 
 type Run = z.output<typeof contractSchemas.BackupRun>;
 type Status = z.output<typeof contractSchemas.BackupStatus>;
@@ -175,6 +180,8 @@ const ADMIN_ACTIONS = [
   Action.BackupRunnerCredentialIssue,
   Action.BackupScheduleGet,
   Action.BackupSchedulePut,
+  Action.BackupPointInTimeGet,
+  Action.BackupPointInTimePut,
   Action.BackupOffsiteGet,
   Action.BackupOffsitePut,
   Action.BackupOffsiteVerify,
@@ -282,6 +289,24 @@ export function createBackupActionRegistry(
     explicitIdempotency: "key",
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: putSchedule,
+  }).register({
+    name: Action.BackupPointInTimeGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/backup-point-in-time",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BackupPointInTime,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getPointInTime,
+  }).register({
+    name: Action.BackupPointInTimePut,
+    method: HttpMethod.Put,
+    path: "/v1/installation/backup-point-in-time",
+    input: contractSchemas.BackupPointInTimePut,
+    output: contractSchemas.BackupPointInTime,
+    // Like the schedule: Idempotency-Key required, If-Match once it exists.
+    explicitIdempotency: "key",
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: putPointInTime,
   }).register({
     name: Action.BackupOffsiteGet,
     method: HttpMethod.Get,
@@ -510,6 +535,26 @@ export function createBackupRunnerRoutes(
       });
     }),
   );
+  // The restorable window the runner holds off-site: the oldest kept base
+  // backup and the newest archived WAL segment. No WAL bytes, no key.
+  app.post(
+    "/v1/backup-runner/wal",
+    guarded(async (context) => {
+      await withPgTransaction(
+        options.database,
+        (transaction) =>
+          authenticateRunner(transaction, context.req.raw.headers),
+      );
+      const input = await parseContract(
+        context,
+        contractSchemas.BackupWalReport,
+      );
+      return withPgTransaction(options.database, async (transaction) => {
+        await authenticateRunner(transaction, context.req.raw.headers);
+        return noStoreJson(await recordWalReport(transaction, input), 200);
+      });
+    }),
+  );
   // One restore drill the runner ran on the host: a backup set restored into an
   // isolated, throwaway database and checked there. The runner chooses the id,
   // so reporting it again returns the stored record.
@@ -548,6 +593,7 @@ export function createBackupRoutes(options: BackupRouteOptions) {
   app.use("/v1/installation/backups", options.browserSession);
   app.use("/v1/installation/backups/*", options.browserSession);
   app.use("/v1/installation/backup-schedule", options.browserSession);
+  app.use("/v1/installation/backup-point-in-time", options.browserSession);
   app.use("/v1/installation/backup-offsite", options.browserSession);
   app.use("/v1/installation/backup-offsite/*", options.browserSession);
   app.use("/v1/installation/backup-runner/*", options.browserSession);
