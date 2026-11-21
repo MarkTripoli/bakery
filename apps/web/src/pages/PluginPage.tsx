@@ -8,6 +8,7 @@ import {
   organizationQueryOptions,
   pluginInstallsQueryOptions,
   pluginPackagesQueryOptions,
+  pluginPagesQueryOptions,
   pluginVersionsQueryOptions,
 } from "../api/query.ts";
 import {
@@ -29,6 +30,7 @@ import { SETTINGS_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { CopyValueButton } from "./CopyValueButton.tsx";
 import { OriginDialog } from "./plugins/PluginOrigin.tsx";
+import { PagesItAdds } from "./plugins/PagesItAdds.tsx";
 import { SavedData } from "./plugins/SavedData.tsx";
 import {
   CapabilityList,
@@ -72,6 +74,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
   const organization = useQuery(organizationQueryOptions(api, scope));
   const packages = useQuery(pluginPackagesQueryOptions(api, scope));
   const installs = useQuery(pluginInstallsQueryOptions(api, scope));
+  const pageList = useQuery(pluginPagesQueryOptions(api, scope));
   const install = installs.data?.items.find((item) => item.id === installId);
   const versionRead = useQuery({
     ...pluginVersionsQueryOptions(api, scope, install?.pluginPackageId ?? ""),
@@ -412,6 +415,15 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     </>
                   )}
               </UI.Stack>
+
+              <PagesItAdds
+                installId={installId}
+                on={row.state === "on"}
+                pages={(pageList.data?.items ?? []).filter((page) =>
+                  page.installId === installId
+                )}
+                phone={phone}
+              />
 
               <SavedData installId={installId} name={name} phone={phone} />
 

@@ -33855,9 +33855,14 @@
                   "prs.turnaroundHours",
                   "prs.changedLines",
                   "loc.changedLines",
-                  "tasks.leadTimeHours"
+                  "tasks.leadTimeHours",
+                  "delivery.deploymentFrequency",
+                  "delivery.changeLeadTimeHours",
+                  "delivery.changeFailRate",
+                  "delivery.failedDeploymentRecoveryHours",
+                  "delivery.deploymentReworkRate"
                 ],
-                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
               }
             },
             {
@@ -33965,9 +33970,14 @@
                   "prs.turnaroundHours",
                   "prs.changedLines",
                   "loc.changedLines",
-                  "tasks.leadTimeHours"
+                  "tasks.leadTimeHours",
+                  "delivery.deploymentFrequency",
+                  "delivery.changeLeadTimeHours",
+                  "delivery.changeFailRate",
+                  "delivery.failedDeploymentRecoveryHours",
+                  "delivery.deploymentReworkRate"
                 ],
-                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
               }
             },
             {
@@ -56086,9 +56096,14 @@
                 "prs.turnaroundHours",
                 "prs.changedLines",
                 "loc.changedLines",
-                "tasks.leadTimeHours"
+                "tasks.leadTimeHours",
+                "delivery.deploymentFrequency",
+                "delivery.changeLeadTimeHours",
+                "delivery.changeFailRate",
+                "delivery.failedDeploymentRecoveryHours",
+                "delivery.deploymentReworkRate"
               ],
-              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
             },
             "from": {
               "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -70000,7 +70015,7 @@
               "description": "Immutable identifier of the external container this source observes (for example, the GitHub repository's stable ID); only one authoritative source per external container is permitted within an organization. TicketSourceCreate.externalContainerId must contain at most 200 characters."
             },
             "policy": {
-              "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options and plan approval; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
+              "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -70170,7 +70185,7 @@
               "type": "boolean"
             },
             "policy": {
-              "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
+              "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -70329,7 +70344,7 @@
           "type": "object",
           "properties": {
             "policy": {
-              "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
+              "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -79123,9 +79138,14 @@
                 "prs.turnaroundHours",
                 "prs.changedLines",
                 "loc.changedLines",
-                "tasks.leadTimeHours"
+                "tasks.leadTimeHours",
+                "delivery.deploymentFrequency",
+                "delivery.changeLeadTimeHours",
+                "delivery.changeFailRate",
+                "delivery.failedDeploymentRecoveryHours",
+                "delivery.deploymentReworkRate"
               ],
-              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
             },
             "from": {
               "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -172996,9 +173016,10 @@
                         "type": "string",
                         "enum": [
                           "no_records",
-                          "no_known_values"
+                          "no_known_values",
+                          "no_deploy_evidence"
                         ],
-                        "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+                        "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
                       },
                       {
                         "type": "null",
@@ -220495,9 +220516,10 @@
                   "type": "string",
                   "enum": [
                     "no_records",
-                    "no_known_values"
+                    "no_known_values",
+                    "no_deploy_evidence"
                   ],
-                  "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+                  "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
                 },
                 {
                   "type": "null",
@@ -269478,7 +269500,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:08456576b9f646e56b336a778feb45005e9a0b7547ddcec3558677d58a945ee5",
+  "compatibilityDigest": "sha256:52ff3c067322295e9ed48ad2ebf3ea97dfcdaab7c8e3f7a374b78b1fb2f906c4",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -276626,9 +276648,14 @@
             "prs.turnaroundHours",
             "prs.changedLines",
             "loc.changedLines",
-            "tasks.leadTimeHours"
+            "tasks.leadTimeHours",
+            "delivery.deploymentFrequency",
+            "delivery.changeLeadTimeHours",
+            "delivery.changeFailRate",
+            "delivery.failedDeploymentRecoveryHours",
+            "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -290580,7 +290607,7 @@
           "description": "Immutable identifier of the external container this source observes (for example, the GitHub repository's stable ID); only one authoritative source per external container is permitted within an organization. TicketSourceCreate.externalContainerId must contain at most 200 characters."
         },
         "policy": {
-          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options and plan approval; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -290752,7 +290779,7 @@
           "type": "boolean"
         },
         "policy": {
-          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -290913,7 +290940,7 @@
       "type": "object",
       "properties": {
         "policy": {
-          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -299731,9 +299758,14 @@
             "prs.turnaroundHours",
             "prs.changedLines",
             "loc.changedLines",
-            "tasks.leadTimeHours"
+            "tasks.leadTimeHours",
+            "delivery.deploymentFrequency",
+            "delivery.changeLeadTimeHours",
+            "delivery.changeFailRate",
+            "delivery.failedDeploymentRecoveryHours",
+            "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -393892,9 +393924,10 @@
                     "type": "string",
                     "enum": [
                       "no_records",
-                      "no_known_values"
+                      "no_known_values",
+                      "no_deploy_evidence"
                     ],
-                    "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+                    "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
                   },
                   {
                     "type": "null",
@@ -441429,9 +441462,10 @@
               "type": "string",
               "enum": [
                 "no_records",
-                "no_known_values"
+                "no_known_values",
+                "no_deploy_evidence"
               ],
-              "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+              "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
             },
             {
               "type": "null",
