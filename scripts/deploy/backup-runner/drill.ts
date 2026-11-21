@@ -10,6 +10,7 @@ import {
   type EffectRow,
 } from "../../../apps/server/src/modules/backups/cutoff-rules.ts";
 import {
+  DRILL_CHECKS,
   type DrillCheck,
   type DrillFailureCode,
   drillProblems,
@@ -136,6 +137,8 @@ export function defaultExec(): Exec {
 }
 
 const DATABASES = ["bakery", "inngest"] as const;
+/** Every database call goes here, never to the unix socket (see waitReady). */
+const LOOPBACK = "127.0.0.1";
 const READY_ATTEMPTS = 30;
 
 /** The image a compose file pins for a service, so the drill restores into what production runs. */
@@ -189,11 +192,17 @@ async function waitReady(
   container: string,
 ): Promise<boolean> {
   for (let attempt = 0; attempt < READY_ATTEMPTS; attempt += 1) {
+    // Over loopback, not the unix socket: the official image starts a temporary
+    // server on the socket during its init phase, answers there, and then
+    // restarts. That server does not listen on TCP, so a TCP answer means the
+    // real one is up. Loopback exists in a container with no network.
     const ready = await context.exec([
       "docker",
       "exec",
       container,
       "pg_isready",
+      "-h",
+      LOOPBACK,
       "-U",
       "postgres",
     ]);
@@ -214,6 +223,8 @@ async function psql(
     "exec",
     container,
     "psql",
+    "-h",
+    LOOPBACK,
     "-U",
     "postgres",
     "-d",
@@ -227,6 +238,47 @@ async function psql(
     sql,
   ]);
 }
+
+/**
+ * Like `psql`, for a query that takes one value from outside. The value goes in
+ * as a psql variable and the SQL comes in on stdin and names it as :'name', so
+ * psql quotes it as a literal; the value is never part of the SQL text. psql
+ * does not expand variables in a `-c` string, which is why this reads stdin.
+ */
+async function psqlWithVariable(
+  context: Context,
+  container: string,
+  database: string,
+  sql: string,
+  name: string,
+  value: string,
+): Promise<ExecResult> {
+  return await context.exec([
+    "docker",
+    "exec",
+    "-i",
+    container,
+    "psql",
+    "-h",
+    LOOPBACK,
+    "-U",
+    "postgres",
+    "-d",
+    database,
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-v",
+    `${name}=${value}`,
+    "-Atq",
+    "-F",
+    "|",
+    "-f",
+    "-",
+  ], { stdin: sql });
+}
+
+/** A UTC instant exactly as the manifest records it. */
+const CUTOFF_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$/;
 
 /** Restores both databases into one isolated Postgres; returns its container. */
 async function restoreDatabases(
@@ -272,6 +324,8 @@ async function restoreDatabases(
       "exec",
       container,
       "createdb",
+      "-h",
+      LOOPBACK,
       "-U",
       "postgres",
       database,
@@ -280,7 +334,7 @@ async function restoreDatabases(
       return fail(`The ${database} database could not be created.`);
     }
     const restored = await context.exec(pipeline(
-      'age --decrypt --identity "$1" "$2" | docker exec -i "$3" pg_restore -U postgres --dbname "$4" --no-owner --no-acl --exit-on-error',
+      'age --decrypt --identity "$1" "$2" | docker exec -i "$3" pg_restore -h 127.0.0.1 -U postgres --dbname "$4" --no-owner --no-acl --exit-on-error',
       identityFile,
       join(directory, `${database}.dump.age`),
       container,
@@ -523,12 +577,19 @@ async function checkCutoff(
       "This set has no database cutoff (a backup the timer took, not the runner); a restore that must not replay effects needs one.",
     );
   }
-  const stored = await psql(
+  // The manifest is read from the set on disk, so its text is not trusted:
+  // check it is a plain UTC instant, then hand it over as a variable.
+  if (!CUTOFF_INSTANT.test(cutoff.at)) {
+    return fail("The set's cutoff time is not a valid UTC instant.");
+  }
+  const stored = await psqlWithVariable(
     context,
     container,
     "bakery",
     `select effects_digest from bakery.backup_cutoffs
-      where date_trunc('milliseconds', cutoff_at) = '${cutoff.at}'::timestamptz`,
+      where date_trunc('milliseconds', cutoff_at) = :'at'::timestamptz;`,
+    "at",
+    cutoff.at,
   );
   if (stored.code !== 0 || stored.stdout.trim() === "") {
     return fail(
@@ -714,8 +775,11 @@ export async function runDrill(options: DrillOptions): Promise<DrillOutcome> {
     pass("cutoff");
     return await finish();
   } catch (error) {
+    // An unexpected error belongs to the check that was running: the first one
+    // that had not passed. Naming a check that already passed would make the
+    // report contradict itself.
     stop({
-      check: passed.length === 0 ? "manifest" : "postgres",
+      check: DRILL_CHECKS.find((name) => !passed.includes(name)) ?? "cutoff",
       code: "drill_error",
       detail: `The drill stopped unexpectedly (${
         error instanceof Error ? error.name : "error"
@@ -748,12 +812,38 @@ export async function runDrill(options: DrillOptions): Promise<DrillOutcome> {
       checksPassed: passed,
       checksFailed: failed === null ? [] : [failed.check],
     };
-    const problem = drillProblems(outcome)[0];
-    if (problem !== undefined) {
-      throw new Error(`DRILL_REPORT_INCOHERENT ${problem.reason}`);
-    }
-    return outcome;
+    return ensureCoherent(outcome);
   }
+}
+
+/**
+ * The drill's own report must never be the thing that crashes the command: with
+ * no report and no result line the operator learns nothing. If an outcome ever
+ * contradicts itself, say so as a coherent failed drill (the first check that
+ * had not passed is the one that failed) instead of throwing.
+ */
+export function ensureCoherent(outcome: DrillOutcome): DrillOutcome {
+  if (drillProblems(outcome).length === 0) return outcome;
+  // The check that failed is the one the report already names; only when it
+  // names none is it the first check that had not passed.
+  const stuck =
+    outcome.checksFailed.find((name) =>
+      (DRILL_CHECKS as readonly string[]).includes(name)
+    ) ?? DRILL_CHECKS.find((name) => !outcome.checksPassed.includes(name)) ??
+      "cutoff";
+  const fallback: DrillOutcome = {
+    ...outcome,
+    outcome: "failed",
+    failureCode: "drill_error",
+    detail:
+      "The drill's own report was inconsistent, so it is reported as failed; see the host's log.",
+    checksPassed: outcome.checksPassed.filter((name) => name !== stuck),
+    checksFailed: [stuck],
+    // The age and the cutoff come as a pair, or not at all.
+    cutoffAt: outcome.rpoSeconds === null ? null : outcome.cutoffAt,
+    rpoSeconds: outcome.cutoffAt === null ? null : outcome.rpoSeconds,
+  };
+  return fallback;
 }
 
 export { readKeyFingerprint };

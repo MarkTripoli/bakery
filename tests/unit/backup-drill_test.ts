@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { join } from "node:path";
 import {
+  ensureCoherent,
   type Exec,
   type ExecResult,
   imageOf,
@@ -67,6 +68,8 @@ type Fixture = {
   readonly release: string;
   readonly keyFile: string;
   readonly calls: string[];
+  /** What each call wrote to a process's stdin, in order. */
+  readonly stdins: string[];
   readonly run: (
     overrides?: { script?: Script; keyFile?: string | null; now?: () => Date },
   ) => ReturnType<typeof runDrill>;
@@ -146,6 +149,7 @@ async function withFixture(
       "-- sql",
     );
     const calls: string[] = [];
+    const stdins: string[] = [];
     const references = JSON.stringify({
       format: 1,
       storageBackend: options.storageBackend ?? "filesystem",
@@ -181,11 +185,15 @@ async function withFixture(
       release,
       keyFile,
       calls,
+      stdins,
       run: (overrides = {}) => {
         const script = { ...base, ...(overrides.script ?? {}) };
-        const exec: Exec = (command) => {
-          const text = command.join(" ");
+        const exec: Exec = (command, execOptions) => {
+          const stdin = execOptions?.stdin ?? "";
+          const text = command.join(" ") +
+            (stdin === "" ? "" : ` <<< ${stdin}`);
           calls.push(text);
+          if (stdin !== "") stdins.push(stdin);
           // The most specific key wins: the longest matching substring.
           const key = Object.keys(script).filter((k) => text.includes(k))
             .sort((a, b) => b.length - a.length)[0];
@@ -200,8 +208,8 @@ async function withFixture(
           // The files archive extracts into the drill's scratch directory: put
           // the skill file there the way tar would.
           const original = exec;
-          const wrapped: Exec = async (command) => {
-            const result = await original(command);
+          const wrapped: Exec = async (command, execOptions) => {
+            const result = await original(command, execOptions);
             const text = command.join(" ");
             if (text.includes("tar -xzf") && result.code === 0) {
               const root = command[command.indexOf("drill") + 3];
@@ -540,5 +548,82 @@ Deno.test("the release's migrations are the platform's and each module's bakery 
     });
     assertEquals(result.checksFailed, ["migrations"]);
     assert(result.detail!.includes("0004_provider_only"));
+  });
+});
+
+Deno.test("an unexpected error after postgres passed is reported against the check that was running, coherently", async () => {
+  await withFixture({}, async (f) => {
+    // The release has no server tree, so reading its migrations throws.
+    await Deno.remove(join(f.release, "apps"), { recursive: true });
+    const result = await f.run();
+    assertEquals(result.outcome, "failed");
+    assertEquals(result.failureCode, "drill_error");
+    assertEquals(result.checksFailed, ["migrations"]);
+    assert(result.checksPassed.includes("postgres"));
+    assert(!result.checksPassed.includes("migrations"));
+    assertEquals(drillProblems(result), []);
+    // It still cleaned up everything it made.
+    assertEquals(removed(f.calls).length, 1);
+    assertEquals([...Deno.readDirSync(join(f.dir, "scratch"))].length, 0);
+    assert(!result.detail!.includes("ENOENT"), "no raw error text");
+  });
+});
+
+Deno.test("a report that contradicts itself is turned into a coherent failure, never thrown", () => {
+  const incoherent = {
+    backupName: "set-1",
+    startedAt: "2026-11-21T04:00:00.000Z",
+    outcome: "failed" as const,
+    failureCode: "drill_error" as const,
+    detail: "x",
+    cutoffAt: null,
+    rpoSeconds: 5,
+    rtoSeconds: 3,
+    // postgres is in both lists: the contradiction the reviewer found.
+    checksPassed: ["manifest", "checksums", "key", "postgres"] as const,
+    checksFailed: ["postgres"] as const,
+  };
+  const fixed = ensureCoherent({
+    ...incoherent,
+    checksPassed: [...incoherent.checksPassed],
+    checksFailed: [...incoherent.checksFailed],
+  });
+  assertEquals(drillProblems(fixed), []);
+  assertEquals(fixed.outcome, "failed");
+  assertEquals(fixed.checksFailed, ["postgres"]);
+  assertEquals(fixed.checksPassed, ["manifest", "checksums", "key"]);
+  assertEquals(fixed.rpoSeconds, null, "an age without a cutoff is dropped");
+  // A coherent outcome is returned as it is.
+  const fine = {
+    ...fixed,
+    rpoSeconds: null,
+  };
+  assertEquals(ensureCoherent(fine), fine);
+});
+
+Deno.test("every database call goes over loopback, never the unix socket the init server answers on", async () => {
+  await withFixture({}, async (f) => {
+    await f.run();
+    const databaseCalls = f.calls.filter((call) =>
+      /\b(pg_isready|psql|createdb|pg_restore)\b/.test(call) &&
+      call.includes("docker")
+    );
+    assert(databaseCalls.length >= 6, String(databaseCalls.length));
+    for (const call of databaseCalls) {
+      assert(call.includes("-h 127.0.0.1"), `no loopback host: ${call}`);
+    }
+  });
+});
+
+Deno.test("the cutoff time reaches psql as a variable on stdin, never inside the SQL text", async () => {
+  await withFixture({}, async (f) => {
+    const result = await f.run();
+    assertEquals(result.outcome, "passed", JSON.stringify(result));
+    const query = f.stdins.find((sql) => sql.includes("backup_cutoffs"))!;
+    assert(query.includes(":'at'::timestamptz"), query);
+    assert(!query.includes(CUTOFF_AT), "the time is not in the SQL text");
+    const call = f.calls.find((c) => c.includes("backup_cutoffs"))!;
+    assert(call.includes(`-v at=${CUTOFF_AT}`), call);
+    assert(call.includes("-f -"), call);
   });
 });
