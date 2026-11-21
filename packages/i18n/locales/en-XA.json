@@ -5972,5 +5972,10 @@
   "installation.restore.record.jobs.none": "⟦Ñô ĵôƀš ŵëŕë šŧôþþëð ɱïð-ŕûñ. ŧëšŧ çôþ⟧",
   "installation.restore.record.workers.title": "⟦{count, plural, one {# machine was disconnected} other {# machines were disconnected}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.restore.record.workers.body": "⟦Ëàçĥ ɱûšŧ ƀë ëñŕôļļëð àĝàïñ ôñ ïŧš ôŵñ çôɱþûŧëŕ ƀëƒôŕë šŧëþ 3. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "installation.restore.record.workers.none": "⟦Ñô ɱàçĥïñëš ŵëŕë ðïšçôññëçŧëð. ŧëšŧ çôþ⟧"
+  "installation.restore.record.workers.none": "⟦Ñô ɱàçĥïñëš ŵëŕë ðïšçôññëçŧëð. ŧëšŧ çôþ⟧",
+  "installation.restore.step.doneBy": "⟦Ŧûŕñëð ôñ {when} ƀÿ {name}. ŧëšŧ çô⟧",
+  "shell.states.heldTitle": "⟦Ɓàķëŕÿ ïš ĥëļð àƒŧëŕ à ŕëšŧôŕë. ŧëšŧ çôþ⟧",
+  "shell.states.heldAdministrator": "⟦Ñôƀôðÿ çàñ šŧàŕŧ ôŕ çĥàñĝë ŵôŕķ ûñŧïļ ÿôû ƒïñïšĥ ŧĥë ŕëšŧôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "shell.states.heldMember": "⟦Ÿôû çàñ ŕëàð ëṽëŕÿŧĥïñĝ, ƀûŧ ñôƀôðÿ çàñ šŧàŕŧ ôŕ çĥàñĝë ŵôŕķ ÿëŧ. Àñ ïñšŧàļļàŧïôñ àðɱïñïšŧŕàŧôŕ ĥàš ŧô ƒïñïšĥ ŧĥë ŕëšŧôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "shell.states.heldAction": "⟦Ƒïñïšĥ ŧĥë ŕëšŧôŕë ŧëšŧ⟧"
 }

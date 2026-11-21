@@ -36,6 +36,7 @@ import {
   INSTALLATION_INTEGRATIONS_PATH,
   InstallationSettingsNavigation,
 } from "./InstallationSettingsNavigation.tsx";
+import { HeldBanner } from "./HeldBanner.tsx";
 import { OrganizationSettingsNavigation } from "./OrganizationSettingsNavigation.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import {
@@ -905,6 +906,7 @@ function ShellFrame() {
       )}
       variant={shellVariant}
     >
+      <HeldBanner pathname={pathname} />
       <StartupGate
         enabled={needsOrganization}
         failure={restore.failure}

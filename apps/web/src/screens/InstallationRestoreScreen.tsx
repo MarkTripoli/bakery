@@ -13,10 +13,27 @@ export const RESTORE_STEPS: readonly {
   /** The step turns on something Bakery cannot see on the server, so the person confirms it. */
   readonly onServer: boolean;
   readonly doneAt: "intakeEnabledAt" | "dispatchEnabledAt" | "workersEnabledAt";
+  /** Who took the step, once the server says. */
+  readonly doneBy: "intakeEnabledBy" | "dispatchEnabledBy" | "workersEnabledBy";
 }[] = [
-  { id: "intake", onServer: false, doneAt: "intakeEnabledAt" },
-  { id: "dispatch", onServer: true, doneAt: "dispatchEnabledAt" },
-  { id: "workers", onServer: true, doneAt: "workersEnabledAt" },
+  {
+    id: "intake",
+    onServer: false,
+    doneAt: "intakeEnabledAt",
+    doneBy: "intakeEnabledBy",
+  },
+  {
+    id: "dispatch",
+    onServer: true,
+    doneAt: "dispatchEnabledAt",
+    doneBy: "dispatchEnabledBy",
+  },
+  {
+    id: "workers",
+    onServer: true,
+    doneAt: "workersEnabledAt",
+    doneBy: "workersEnabledBy",
+  },
 ];
 
 /** Where the runbook's "After a restore" section lives. */
@@ -211,9 +228,14 @@ function Steps(
             {doneAt !== null
               ? (
                 <UI.Text>
-                  {translate("installation.restore.step.done", {
-                    when: when(doneAt),
-                  })}
+                  {restore[step.doneBy] === null
+                    ? translate("installation.restore.step.done", {
+                      when: when(doneAt),
+                    })
+                    : translate("installation.restore.step.doneBy", {
+                      when: when(doneAt),
+                      name: restore[step.doneBy]!.displayName,
+                    })}
                 </UI.Text>
               )
               : !isNext

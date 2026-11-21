@@ -5972,5 +5972,10 @@
   "installation.restore.record.jobs.none": "⟪No jobs were stopped mid-run.⟫",
   "installation.restore.record.workers.title": "⟪{count, plural, one {# machine was disconnected} other {# machines were disconnected}}⟫",
   "installation.restore.record.workers.body": "⟪Each must be enrolled again on its own computer before step 3.⟫",
-  "installation.restore.record.workers.none": "⟪No machines were disconnected.⟫"
+  "installation.restore.record.workers.none": "⟪No machines were disconnected.⟫",
+  "installation.restore.step.doneBy": "⟪Turned on {when} by {name}.⟫",
+  "shell.states.heldTitle": "⟪Bakery is held after a restore.⟫",
+  "shell.states.heldAdministrator": "⟪Nobody can start or change work until you finish the restore.⟫",
+  "shell.states.heldMember": "⟪You can read everything, but nobody can start or change work yet. An installation administrator has to finish the restore.⟫",
+  "shell.states.heldAction": "⟪Finish the restore⟫"
 }

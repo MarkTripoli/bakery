@@ -18,6 +18,11 @@ const BACKUP = "bakery-backup-2026-11-20T03-00-00Z-full-stack-9f3c1a7e";
 const STEPS = ["intake", "dispatch", "workers"] as const;
 type Step = typeof STEPS[number];
 
+const ADA = {
+  principalId: "00000000-0000-4000-8000-000000000001",
+  displayName: "Ada Lee",
+};
+
 const record = (taken: number) => ({
   id: "00000000-0000-4000-8000-000000000901",
   backupName: BACKUP,
@@ -28,8 +33,11 @@ const record = (taken: number) => ({
   jobsAwaitingReconciliation: 3,
   workersRevoked: 4,
   intakeEnabledAt: taken >= 1 ? "2026-11-21T09:22:00.000Z" : null,
+  intakeEnabledBy: taken >= 1 ? ADA : null,
   dispatchEnabledAt: taken >= 2 ? "2026-11-21T09:40:00.000Z" : null,
+  dispatchEnabledBy: taken >= 2 ? ADA : null,
   workersEnabledAt: taken >= 3 ? "2026-11-21T10:05:00.000Z" : null,
+  workersEnabledBy: taken >= 3 ? ADA : null,
   releasedAt: taken >= 3 ? "2026-11-21T10:05:00.000Z" : null,
   nextStep: STEPS[taken] ?? null,
 });
@@ -64,6 +72,14 @@ async function restoreWorld(
 ): Promise<World> {
   const state: World = { taken: 0, readStatus: 200, steps: [], ...overrides };
   await mockAuthenticatedSession(page);
+  // The public status says whether an unfinished restore holds Bakery.
+  await page.route("**/v1/installation/status", (route) =>
+    route.fulfill({
+      json: {
+        bootstrapped: true,
+        restoreHeld: state.taken !== null && state.taken < 3,
+      },
+    }));
   await page.route("**/v1/installation/restore", (route) => {
     if (state.readStatus !== 200 || state.taken === null) {
       const status = state.taken === null && state.readStatus === 200
@@ -149,6 +165,8 @@ test("the button turns on only when the typed name matches, and a step sends the
   expect(state.steps[0].key).toMatch(/^[0-9a-f-]{36}$/);
   // The page moves on: step 1 is On with its time, step 2 is next.
   await expect(stepCard(page, "intake")).toContainText("Turned on");
+  // The server says who took it.
+  await expect(stepCard(page, "intake")).toContainText("by Ada Lee.");
   await expect(stepCard(page, "intake")).toHaveAttribute(
     "data-restore-state",
     "done",
@@ -309,20 +327,67 @@ test("a read that failed says so and can be tried again", async ({ page }) => {
   await expect(page.getByTestId("restore-record")).toBeVisible();
 });
 
-test("the Installation navigation shows Restore while a restore holds Bakery, and not when none exists", async ({ page }) => {
-  await restoreWorld(page);
+test("the Installation navigation shows Restore while a restore holds Bakery and after it, and not when none ever did", async ({ page }) => {
+  const state = await restoreWorld(page);
   await open(page);
   const nav = page.getByRole("navigation", { name: "Installation" });
   const item = nav.getByRole("link", { name: /Restore/ });
   await expect(item).toBeVisible();
   await expect(item.getByText("Held")).toBeVisible();
-  // Nothing held and nothing ever restored: no item.
-  await page.unrouteAll({ behavior: "ignoreErrors" });
-  await restoreWorld(page, { taken: null });
+  // After the last step the record stays, so the item stays, without the mark.
+  state.taken = 3;
   await page.goto("/installation/settings", { waitUntil: "domcontentloaded" });
-  await expect(
-    page.getByRole("navigation", { name: "Installation" })
-      .getByRole("link", { name: "Settings" }),
-  ).toBeVisible();
+  await expect(nav.getByRole("link", { name: /Restore/ })).toBeVisible();
+  await expect(nav.getByRole("link", { name: /Restore/ }).getByText("Held"))
+    .toHaveCount(0);
+  // No restore ever: no item.
+  state.taken = null;
+  await page.goto("/installation/usage", { waitUntil: "domcontentloaded" });
+  await expect(nav.getByRole("link", { name: "Usage" })).toBeVisible();
   await expect(nav.getByRole("link", { name: /Restore/ })).toHaveCount(0);
+});
+
+const banner = (page: Page) => page.locator('[data-ui-region="restore-held"]');
+
+test("every page carries the held banner, with the way to finish the restore for an administrator", async ({ page }) => {
+  await restoreWorld(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(banner(page).getByText("Bakery is held after a restore."))
+    .toBeVisible();
+  await expect(
+    banner(page).getByText(
+      "Nobody can start or change work until you finish the restore.",
+    ),
+  ).toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "restore-banner-admin");
+  await banner(page).getByRole("button", { name: "Finish the restore" })
+    .click();
+  await expect(page).toHaveURL(/\/installation\/restore$/);
+  // The page that finishes the restore says it in full: no second banner.
+  await expect(banner(page)).toHaveCount(0);
+});
+
+test("everyone else sees the banner without a button, and who can finish the restore", async ({ page }) => {
+  await restoreWorld(page, { readStatus: 403 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(
+    banner(page).getByText(
+      "You can read everything, but nobody can start or change work yet. An installation administrator has to finish the restore.",
+    ),
+  ).toBeVisible();
+  await expect(banner(page).getByRole("button")).toHaveCount(0);
+  await page.mouse.move(700, 100);
+  await still(page, "restore-banner-member");
+});
+
+test("no banner when no restore holds Bakery, or once the last step is taken", async ({ page }) => {
+  const state = await restoreWorld(page, { taken: null });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("navigation").first()).toBeVisible();
+  await expect(banner(page)).toHaveCount(0);
+  state.taken = 3;
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("navigation").first()).toBeVisible();
+  await expect(banner(page)).toHaveCount(0);
 });
