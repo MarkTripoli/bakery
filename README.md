@@ -1,187 +1,77 @@
-<div align="center">
+# Stills for the Slack app section (#415)
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo/png/lockup-color-dark-h256.png">
-  <img alt="Bakery" src="assets/brand/logo/png/lockup-color-light-h256.png" height="128">
-</picture>
+Head: `14f063eb` — the commit the stills were taken at.
 
-### The self-hosted software factory for coding agents
+Twelve stills: three states (not set up, set up and accepted, sign-in refused),
+two themes, two viewports. Each is the Slack section of
+`/settings/installation/integrations`, clipped with padding around it.
 
-Track the work, run Claude Code, Codex and Pi on machines you own,<br> check
-every result against your rules, and review it all in one place.
+How they were made: `apps/web/tests/slack-app-stills.spec.ts` at that head, run
+from `apps/web` with
 
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-f4a340?style=flat-square)](LICENSE)
-[![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-c4552d?style=flat-square)](#status)
-[![Deno 2.9](https://img.shields.io/badge/deno-2.9-000000?style=flat-square&logo=deno)](https://deno.com)
-[![Node 22](https://img.shields.io/badge/node-22-5fa04e?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
-[![PostgreSQL](https://img.shields.io/badge/postgres-4169e1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-5b3a29?style=flat-square)](CONTRIBUTING.md)
-
-[Quickstart](#quickstart) · [Features](#features) ·
-[Architecture](#architecture) · [Contributing](CONTRIBUTING.md) ·
-[Design docs](docs/technical-design/README.md)
-
-<br>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/scenes/sign-in-hero/sign-in-hero-dark.png">
-  <img alt="Bakery's mascot sliding fresh loaves along a conveyor" src="assets/brand/scenes/sign-in-hero/sign-in-hero-light.png" width="520">
-</picture>
-
-</div>
-
-## Why Bakery
-
-Coding agents are good at writing code and bad at being managed. Bakery is the
-kitchen around them: it turns tickets into tasks, hands each task to an agent
-running on a worker you control, holds the output to your repository's rules,
-and keeps a reviewable record of every plan, run, artifact and approval.
-
-- **Model-agnostic.** Claude Code, Codex, Pi or a scripted harness, side by
-  side.
-- **Self-hosted.** Your code, secrets and agent output stay on your machines.
-- **Everything included.** SSO, SCIM, custom roles and audit are open source and
-  always on. There is no paid edition.
-
-<a id="status"></a>
-
-> [!WARNING]
-> **Early, pre-1.0.** Interfaces, database schema and configuration change
-> without deprecation periods. Expect rough edges and breaking changes.
-
-## Features
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-**🎫 Projects, tickets and tasks**<br> Ticket intake from GitHub through a
-GitHub App, readiness and admission policy, dependencies, budgets and
-multi-stage workflow presets.
-
-</td>
-<td width="50%" valign="top">
-
-**🤖 Agents on your machines**<br> Workers enroll, claim work and run a harness
-in a repository checkout, isolated with cgroups, with heartbeats, recovery and
-archived output.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**✅ Delivery checks**<br> Repository rules, quality checks bound to the
-candidate commit, pull request metadata checks, independent review and recorded
-verdicts.
-
-</td>
-<td valign="top">
-
-**📄 Artifacts and conversations**<br> Versioned task artifacts with comments,
-previews and imports; task conversations with questions and approval requests.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**🔐 Secrets and integrations**<br> Encrypted secrets with a broker and output
-redaction; integrations declared through a typed manifest
-(`packages/integration-sdk`).
-
-</td>
-<td valign="top">
-
-**🏢 Access and governance**<br> Passkeys, TOTP, organizations and invitations,
-OAuth clients, an MCP server with scoped tools, SSO (OIDC, SAML), SCIM, custom
-roles and audit export.
-
-</td>
-</tr>
-</table>
-
-## Architecture
-
-```mermaid
-flowchart TB
-  web["Web client<br/>React + Vite"] --> api
-  mcp["MCP / API clients"] --> api
-  api["apps/server<br/>Deno + Hono + Better Auth"] --> pg[("PostgreSQL<br/>state + outbox")]
-  api --> inngest["Inngest<br/>durable workflows"]
-  api --> dispatch["Outbox dispatcher"]
-  worker["apps/worker<br/>runs agent harnesses"] -- "claim · heartbeat · results" --> api
+```
+BAKERY_EVIDENCE_DIR=/tmp/stills-415c pnpm exec playwright test \
+  tests/slack-app-stills.spec.ts --project=desktop --workers=1 --retries=1
 ```
 
-| Path                     | Contents                                               |
-| ------------------------ | ------------------------------------------------------ |
-| `apps/server`            | API, migrations, workflows and MCP server              |
-| `apps/worker`            | Worker that runs agent harnesses against repositories  |
-| `apps/web`               | React web client                                       |
-| `packages/`              | Shared contracts, config, persistence, i18n, UI, SDKs  |
-| `infra/`                 | Compose stack for local development, deployment images |
-| `docs/technical-design/` | System design records and interface references         |
-| `learnings/`             | Engineering corrections, indexed by `index.xml`        |
-| `assets/`, `brand/`      | Brand assets ([usage rules](assets/brand/README.md))   |
+It reuses the screen's own fixtures (`tests/helpers/installation-integrations-fixtures.ts`),
+so a still shows a state `installation-integrations.spec.ts` also asserts. Every
+still is written only after the section says what the design promises, so a
+blank page or a spinner cannot pass as evidence.
 
-## Quickstart
+What these stills do not prove: that Slack answers a real request. No Slack call
+is made; the two status rows show the words the design specifies for each answer,
+from the fixture, not from an answer.
 
-You need Docker with Compose and the toolchain pinned in `.tool-versions` (Deno,
-Node.js, pnpm).
+Missing states: the Remove dialog and the "details were removed" banner are not
+here. The design specifies both; the dialog and the banner are covered by tests
+in the same spec, and no still of them was taken before the head.
 
-```sh
-pnpm install --frozen-lockfile
+### unset, light, desktop-1440x900
 
-export BAKERY_ENV=development
-export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
-export INNGEST_EVENT_KEY=local-event-key   # matches the compose Inngest default
+![unset light desktop-1440x900](../../stills/415-slack/unset--light--desktop-1440x900.png)
 
-# Start Postgres, Redis and Inngest on free ports; writes .env.local-dev
-scripts/dev/compose-up.sh local-dev postgres redis inngest
-set -a; . ./.env.local-dev; set +a
+### unset, light, phone-390x844
 
-pnpm migrate
-pnpm createsuperuser
-pnpm dev
-```
+![unset light phone-390x844](../../stills/415-slack/unset--light--phone-390x844.png)
 
-`pnpm dev` runs the API and the web dev server and prints the web URL when it is
-ready. Set `BAKERY_WORKER_PROFILE=worker` to also run a local worker, or use
-`pnpm start` to serve the production web build. Stop the containers with
-`scripts/dev/compose-down.sh local-dev`.
+### unset, dark, desktop-1440x900
 
-To use your own Postgres and Inngest, start from [`.env.example`](.env.example)
-and export the values (for example `set -a; . ./.env; set +a`).
+![unset dark desktop-1440x900](../../stills/415-slack/unset--dark--desktop-1440x900.png)
 
-## Development
+### unset, dark, phone-390x844
 
-```sh
-pnpm fmt
-pnpm lint
-pnpm typecheck
-pnpm test:unit        # also: test:rails, test:integration, test:security, ...
-```
+![unset dark phone-390x844](../../stills/415-slack/unset--dark--phone-390x844.png)
 
-Lanes that need a database take `DATABASE_URL` and `BAKERY_APP_DATABASE_URL` per
-command; run `pnpm test:rails` with neither set.
+### set, light, desktop-1440x900
 
-## Contributing
+![set light desktop-1440x900](../../stills/415-slack/set--light--desktop-1440x900.png)
 
-Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); rules
-for human and agent contributors are in [AGENTS.md](AGENTS.md) and
-[docs/engineering-rules.md](docs/engineering-rules.md). Participation is
-governed by the [code of conduct](CODE_OF_CONDUCT.md).
+### set, light, phone-390x844
 
-Report security issues privately; see [SECURITY.md](SECURITY.md).
+![set light phone-390x844](../../stills/415-slack/set--light--phone-390x844.png)
 
-## License
+### set, dark, desktop-1440x900
 
-Bakery is released under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE)
-for attributions.
+![set dark desktop-1440x900](../../stills/415-slack/set--dark--desktop-1440x900.png)
 
-<div align="center">
-<br>
-<img alt="" src="assets/brand/scenes/success/success-light-600.webp" width="160">
-<br>
-<sub>Baked with care. Fresh out of the oven.</sub>
-</div>
+### set, dark, phone-390x844
+
+![set dark phone-390x844](../../stills/415-slack/set--dark--phone-390x844.png)
+
+### refused-check, light, desktop-1440x900
+
+![refused-check light desktop-1440x900](../../stills/415-slack/refused-check--light--desktop-1440x900.png)
+
+### refused-check, light, phone-390x844
+
+![refused-check light phone-390x844](../../stills/415-slack/refused-check--light--phone-390x844.png)
+
+### refused-check, dark, desktop-1440x900
+
+![refused-check dark desktop-1440x900](../../stills/415-slack/refused-check--dark--desktop-1440x900.png)
+
+### refused-check, dark, phone-390x844
+
+![refused-check dark phone-390x844](../../stills/415-slack/refused-check--dark--phone-390x844.png)
+
