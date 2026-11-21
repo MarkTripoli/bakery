@@ -1243,7 +1243,7 @@ export async function importArtifactVersion(
   proof: ArtifactVersionImportProof,
 ): Promise<ArtifactVersionImportOutput> {
   // A backup holds the installation: no import is committed until it lets go.
-  await assertNotQuiesced(transaction);
+  await assertNotQuiesced(transaction, "intake");
   validateImportContext(context);
   const organizationId = context.organizationId.toLowerCase();
   const principalId = context.principalId.toLowerCase();
