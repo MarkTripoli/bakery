@@ -88,6 +88,10 @@ export const FAULTS = {
   // admitted until the lease on the maintenance switch ends. Retry-After says
   // when to ask again.
   INSTALLATION_QUIESCED: [503, true, "installation-quiesced"],
+  // A restore replaced the installation's state (#64 slice E). The fence has
+  // run and every door stays closed until an administrator completes the
+  // ordered steps. Asking again does not help, so it is not retryable.
+  INSTALLATION_RESTORING: [503, false, "installation-restoring"],
   SNAPSHOT_SCOPE_TOO_LARGE: [413, false, "snapshot-scope-too-large"],
   AUTH_INVALID: [401, false, "auth-invalid"],
   AUTH_EXPIRED: [401, false, "auth-expired"],
