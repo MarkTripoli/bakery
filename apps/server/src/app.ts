@@ -907,6 +907,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      budget: options.config.budget,
     }),
   );
   app.route(

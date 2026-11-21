@@ -17,8 +17,14 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { PgDatabase } from "../../packages/persistence/src/postgres.ts";
 import {
   createBatchesListHandler,
+  createBatchHandler,
   loadBatch,
 } from "../../apps/server/src/modules/work/batch-commands.ts";
+import {
+  createBatchStartableHandler,
+  smallestBatchSpend,
+} from "../../apps/server/src/modules/work/batch-startable.ts";
+import { presetBudgetPolicy } from "../helpers/fixed-coding-preset.ts";
 import { createBatchStartPort } from "../../apps/server/src/modules/work/batch-start-port.ts";
 import {
   type BatchPorts,
@@ -27,9 +33,12 @@ import {
 } from "../../apps/server/src/modules/work/batch-tick.ts";
 import { admitTicket } from "../../apps/server/src/modules/work/ticket-admission.ts";
 import {
+  ACCEPTANCE_BODY,
   AFTER_SINCE,
   automaticPolicy,
   EXECUTE_LABEL,
+  HOLD_LABEL,
+  recordOpenIssues,
   seedLabeler,
   type TicketFixture,
   withTicketFixture,
@@ -894,4 +903,212 @@ Deno.test("batches: a request a person made for the issue is not taken, only pas
       (await batchRow(fx, batchId)).finish_reason,
       "nothing_eligible",
     );
+  }));
+
+/** The context an action handler reads: the real transaction and the caller's authority. */
+function actionContext(fx: TicketFixture, principalId = fx.adminId) {
+  const context = {
+    transaction: fx.runtime,
+    params: {},
+    principal: { principalId },
+    requestId: "startable-test",
+    traceId: "startable-test",
+    authority: {
+      organizationId: fx.organizationId,
+      role: "developer",
+      capabilities: [],
+      subject: { principalId, principalType: "human" },
+    },
+    commandMetadata: {
+      operation: "batches.create",
+      idempotencyKey: crypto.randomUUID(),
+      target: fx.repositoryId,
+    },
+  };
+  return context as never;
+}
+
+Deno.test("batches: the startable list is what a batch would take, lowest number first, and pages by keyset", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    // 3 and 7 carry no request label: a batch starts an issue as a manual request, so the
+    // label check does not keep them out. 5 is held. 9 has a request open already.
+    fx.reader.setIssue({ number: 7, title: "Seventh", body: ACCEPTANCE_BODY });
+    fx.reader.setIssue({ number: 3, title: "Third", body: ACCEPTANCE_BODY });
+    fx.reader.setIssue({
+      number: 5,
+      title: "Held",
+      body: ACCEPTANCE_BODY,
+      labels: [HOLD_LABEL],
+    });
+    fx.reader.setIssue({
+      number: 9,
+      title: "Taken",
+      body: ACCEPTANCE_BODY,
+      labels: [EXECUTE_LABEL],
+    });
+    fx.reader.setLabelApplied(9, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
+    const taken = await fx.admit(sourceId, {
+      number: 9,
+      origin: "manual",
+      intent: "start",
+      deps: fx.automationDeps(),
+    });
+    assert(taken.request, "issue 9 has an open request");
+    await recordOpenIssues(fx, sourceId);
+
+    const startable = createBatchStartableHandler({
+      cursorSecret: "test-secret",
+      budget: presetBudgetPolicy,
+    });
+    const all = await startable(actionContext(fx), {
+      repositoryId: fx.repositoryId,
+    } as never);
+    assertEquals(all.items.map((item) => item.number), ["3", "7"]);
+    assertEquals(all.items.map((item) => item.title), ["Third", "Seventh"]);
+    assertEquals(all.nextCursor, null);
+    for (const item of all.items) assert(item.checkedAt.endsWith("Z"));
+
+    // One at a time: the cursor resumes after the last number, and is the end after 7.
+    const first = await startable(actionContext(fx), {
+      repositoryId: fx.repositoryId,
+      limit: 1,
+    } as never);
+    assertEquals(first.items.map((item) => item.number), ["3"]);
+    assert(first.nextCursor !== null);
+    const second = await startable(actionContext(fx), {
+      repositoryId: fx.repositoryId,
+      limit: 1,
+      cursor: first.nextCursor,
+    } as never);
+    assertEquals(second.items.map((item) => item.number), ["7"]);
+    assertEquals(second.nextCursor, null);
+
+    // Another organization cannot read this repository's issues.
+    const stranger = await assertRejects(() =>
+      startable(
+        {
+          ...(actionContext(fx) as Record<string, unknown>),
+          authority: {
+            organizationId: crypto.randomUUID(),
+            role: "developer",
+            capabilities: [],
+            subject: { principalId: fx.adminId, principalType: "human" },
+          },
+        } as never,
+        { repositoryId: fx.repositoryId } as never,
+      )
+    );
+    assertEquals((stranger as { code?: string }).code, "RESOURCE_NOT_FOUND");
+  }));
+
+Deno.test("batches: the smallest spend is the preset's minimum, and a start below it is refused", () =>
+  withBatches(async (fx) => {
+    await fx.insertSource({ policy: automaticPolicy(fx) });
+    const smallest = await smallestBatchSpend(
+      fx.runtime,
+      fx.organizationId,
+      fx.repositoryId,
+      presetBudgetPolicy,
+    );
+    assert(smallest !== null, "the funded fixture repository can run work");
+    const listed = await createBatchStartableHandler({
+      cursorSecret: "test-secret",
+      budget: presetBudgetPolicy,
+    })(actionContext(fx), { repositoryId: fx.repositoryId } as never);
+    assertEquals(listed.smallestSpendUsd, smallest);
+
+    const create = (maxSpendUsd: string) =>
+      createBatchHandler({ budget: presetBudgetPolicy })(actionContext(fx), {
+        repositoryId: fx.repositoryId,
+        maxIssues: 2,
+        maxHours: 8,
+        maxSpendUsd,
+        continueMode: "carry_on",
+      } as never);
+    const below = (Number(smallest) - 0.01).toFixed(2);
+    const refused = await assertRejects(() => create(below));
+    assertEquals((refused as { code?: string }).code, "UNPROCESSABLE");
+    assertEquals(
+      (refused as { params?: { issues?: { code: string }[] } }).params
+        ?.issues?.[0]?.code,
+      "max_spend_below_smallest",
+    );
+    assertEquals(
+      (await fx.owner.query(
+        "select 1 from bakery.batches where organization_id = $1",
+        [fx.organizationId],
+      )).rows.length,
+      0,
+      "a refused start stores nothing",
+    );
+    const accepted = await create(smallest);
+    assertEquals(accepted.state, "running");
+  }));
+
+Deno.test("batches: the list filters by state, keeps its cursor to that filter, and each issue names its ticket", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const finished = await insertBatch(fx, { state: "finished" });
+    const stopped = await insertBatch(fx, { state: "stopped" });
+    const live = await insertBatch(fx, { state: "running" });
+    const list = createBatchesListHandler("test-secret");
+    const ids = async (query: Record<string, unknown>) =>
+      (await list(actionContext(fx), query as never)).items.map((batch) =>
+        batch.id
+      );
+    assertEquals(await ids({ state: "finished" }), [finished]);
+    assertEquals(await ids({ state: "stopped" }), [stopped]);
+    assertEquals(await ids({ state: "running" }), [live]);
+    assertEquals(await ids({ state: "paused" }), []);
+    assertEquals((await ids({})).sort(), [finished, stopped, live].sort());
+
+    // A cursor belongs to the filter it came from.
+    const page = await list(actionContext(fx), {
+      limit: 1,
+      state: "finished",
+    } as never);
+    assertEquals(page.items.length, 1);
+    const twoFinished = await insertBatch(fx, { state: "finished" });
+    const firstPage = await list(actionContext(fx), {
+      limit: 1,
+      state: "finished",
+    } as never);
+    assert(firstPage.nextCursor !== null);
+    const crossed = await assertRejects(() =>
+      list(actionContext(fx), {
+        limit: 1,
+        state: "stopped",
+        cursor: firstPage.nextCursor,
+      } as never)
+    );
+    assertEquals((crossed as { code?: string }).code, "INVALID_CURSOR");
+    assertEquals(
+      (await ids({ state: "finished", limit: 5 })).sort(),
+      [finished, twoFinished].sort(),
+    );
+
+    // An issue of a batch carries its ticket's number and title as last stored.
+    fx.reader.setIssue({ number: 4, title: "Fourth", body: ACCEPTANCE_BODY });
+    await recordOpenIssues(fx, sourceId);
+    const ticket = (await fx.owner.query<{ id: string }>(
+      `select id from bakery.external_tickets
+        where organization_id = $1 and number = '4'`,
+      [fx.organizationId],
+    )).rows[0];
+    await fx.runtime.query(
+      `insert into bakery.batch_issues (
+         organization_id, batch_id, position, external_ticket_id, state
+       ) values ($1, $2, 1, $3, 'passed_over')`,
+      [fx.organizationId, live, ticket.id],
+    );
+    const loaded = await loadBatch(
+      fx.runtime as never,
+      fx.organizationId,
+      live,
+    );
+    assertEquals(loaded.issues[0].issueNumber, "4");
+    assertEquals(loaded.issues[0].issueTitle, "Fourth");
   }));
