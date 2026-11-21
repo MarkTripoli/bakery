@@ -688,6 +688,9 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         updatedAt: stamp,
         version: 1,
         runId: null,
+        mayMerge: false,
+        mergeMethod: "squash",
+        targetBranch: "main",
       }));
       return route.fulfill({
         status: 200,
