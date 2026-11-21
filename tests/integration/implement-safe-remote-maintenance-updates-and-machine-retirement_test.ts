@@ -1,6 +1,8 @@
 // Remote maintenance integration suite (issue #25, slice A). AC1: given busy
 // hosts, duplicate requests or concurrent Admin intent, requesting maintenance
 // never silently kills an active job or applies a conflicting update.
+// Slice B1 adds delivery: heartbeat assignments under a per-host fence and
+// the fenced, sequenced worker report route.
 import { assert, assertEquals } from "@std/assert";
 import {
   problemCode,
@@ -16,9 +18,13 @@ import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-jo
 import {
   cancelMaintenance,
   createMaintenance,
+  expireMaintenanceClock,
+  heartbeatAssignments,
   type MaintenanceOperation,
+  maintenancePhase,
   readMaintenance,
   reportMaintenanceInventory,
+  sendMaintenanceReport,
   setFixtureRole,
 } from "../helpers/worker-maintenance.ts";
 
@@ -386,4 +392,272 @@ Deno.test("a revoked machine refuses maintenance", () =>
     });
     assertEquals(refused.status, 409);
     assertEquals(await problemCode(refused), "STATE_CONFLICT");
+  }));
+
+const TARGET_DIGEST = "a".repeat(64);
+
+async function queuedUpdate(
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  hostId: string,
+): Promise<MaintenanceOperation> {
+  const created = await createMaintenance(fixture, hostId, {
+    verb: "update_component",
+    componentKey: "harness.bakery",
+    targetVersion: "1.1",
+    targetDigest: TARGET_DIGEST,
+  });
+  assertEquals(created.status, 201);
+  return await created.json() as MaintenanceOperation;
+}
+
+Deno.test("a heartbeat hands the queued operation to the idle machine under a fence", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-assign" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+
+    const key = crypto.randomUUID();
+    const assignments = await heartbeatAssignments(fixture, worker, key);
+    assertEquals(assignments.length, 1);
+    const assignment = assignments[0]!;
+    assertEquals(assignment.operationId, operation.id);
+    assertEquals(assignment.workerHostId, hostId);
+    assertEquals(assignment.verb, "update_component");
+    assertEquals(assignment.targetDigest, TARGET_DIGEST);
+    assertEquals(assignment.fence, "1");
+    assert(Date.parse(assignment.deadlineAt) > Date.now());
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "assigned",
+    );
+
+    // A duplicate delivery replays the same assignment; it is not reissued.
+    assertEquals(await heartbeatAssignments(fixture, worker, key), assignments);
+    // A later heartbeat keeps reporting the same fence until it finishes.
+    const again = await heartbeatAssignments(fixture, worker);
+    assertEquals(again.map((item) => item.fence), ["1"]);
+    const events = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.domain_events
+        where event_type = 'worker.maintenance_updated' and aggregate_id = $1`,
+      [operation.id],
+    );
+    assertEquals(events.rows[0]?.count, "2");
+  }));
+
+Deno.test("a busy machine is not assigned maintenance until it is idle", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, {
+      name: "issue25-idlewait",
+    });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const attempt = await claimAssignment(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    assertEquals(operation.phase, "waiting_for_idle");
+    assertEquals(
+      await heartbeatAssignments(fixture, worker, crypto.randomUUID(), [
+        attempt.attemptId,
+      ]),
+      [],
+    );
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "waiting_for_idle",
+    );
+    // The attempt finishes; the next heartbeat assigns the operation.
+    await fixture.pgDatabase.query(
+      `update bakery.job_attempts set status = 'completed',
+         ended_at = clock_timestamp() where id = $1`,
+      [attempt.attemptId],
+    );
+    const assignments = await heartbeatAssignments(fixture, worker);
+    assertEquals(assignments.map((item) => item.operationId), [operation.id]);
+  }));
+
+Deno.test("waiting past the idle deadline needs attention and leaves work alone", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-attn" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const attempt = await claimAssignment(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    await expireMaintenanceClock(fixture, operation.id);
+    assertEquals(
+      await heartbeatAssignments(fixture, worker, crypto.randomUUID(), [
+        attempt.attemptId,
+      ]),
+      [],
+    );
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "needs_attention",
+    );
+    const status = await fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.job_attempts where id = $1`,
+      [attempt.attemptId],
+    );
+    assert(["leased", "running"].includes(status.rows[0]?.status ?? ""));
+  }));
+
+Deno.test("each new operation gets a strictly greater fence on the machine", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-fence" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const first = await queuedUpdate(fixture, hostId);
+    const [one] = await heartbeatAssignments(fixture, worker);
+    assertEquals(one?.operationId, first.id);
+    const done = await sendMaintenanceReport(fixture, worker, first.id, {
+      fence: one!.fence,
+      sequence: 1,
+      phase: "succeeded",
+      installedDigest: TARGET_DIGEST,
+      installedVersion: "1.1",
+    });
+    assertEquals(done.status, 200);
+    assertEquals(
+      (await done.json() as MaintenanceOperation).phase,
+      "succeeded",
+    );
+    const second = await queuedUpdate(fixture, hostId);
+    const verify = await createMaintenance(fixture, hostId, { verb: "verify" });
+    assertEquals(verify.status, 201);
+    await verify.body?.cancel();
+    const next = await heartbeatAssignments(fixture, worker);
+    assertEquals(next.length, 2);
+    assertEquals(next[0]?.operationId, second.id);
+    const fences = next.map((item) => BigInt(item.fence));
+    assert(fences.every((fence) => fence > BigInt(one!.fence)));
+    assert(fences[1]! > fences[0]!);
+
+    // A report carrying the earlier operation's fence is refused.
+    const stale = await sendMaintenanceReport(fixture, worker, second.id, {
+      fence: one!.fence,
+      sequence: 1,
+      phase: "applying",
+    });
+    assertEquals(stale.status, 403);
+    assertEquals(await problemCode(stale), "AUTH_FORBIDDEN");
+  }));
+
+Deno.test("reports replay exactly, refuse changed duplicates and sequence gaps", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-seq" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    const [assignment] = await heartbeatAssignments(fixture, worker);
+    const applying = {
+      fence: assignment!.fence,
+      sequence: 1,
+      phase: "applying",
+    };
+    const first = await sendMaintenanceReport(
+      fixture,
+      worker,
+      operation.id,
+      applying,
+    );
+    assertEquals(first.status, 200);
+    const original = await first.json() as MaintenanceOperation;
+    assertEquals(original.phase, "applying");
+
+    const replay = await sendMaintenanceReport(
+      fixture,
+      worker,
+      operation.id,
+      applying,
+    );
+    assertEquals(replay.status, 200);
+    assertEquals(replay.headers.get("Idempotent-Replayed"), "true");
+    assertEquals(await replay.json(), original);
+
+    const changed = await sendMaintenanceReport(fixture, worker, operation.id, {
+      ...applying,
+      phase: "reconciling",
+    });
+    assertEquals(changed.status, 422);
+    assertEquals(await problemCode(changed), "IDEMPOTENCY_PAYLOAD_MISMATCH");
+
+    const gap = await sendMaintenanceReport(fixture, worker, operation.id, {
+      fence: assignment!.fence,
+      sequence: 3,
+      phase: "succeeded",
+      installedDigest: TARGET_DIGEST,
+    });
+    assertEquals(gap.status, 409);
+    assertEquals(await problemCode(gap), "STATE_CONFLICT");
+
+    const done = await sendMaintenanceReport(fixture, worker, operation.id, {
+      fence: assignment!.fence,
+      sequence: 2,
+      phase: "succeeded",
+      installedDigest: TARGET_DIGEST,
+    });
+    assertEquals(done.status, 200);
+    // A finished operation refuses anything but exact replays.
+    const late = await sendMaintenanceReport(fixture, worker, operation.id, {
+      fence: assignment!.fence,
+      sequence: 3,
+      phase: "failed",
+    });
+    assertEquals(late.status, 409);
+    assertEquals(await problemCode(late), "STATE_CONFLICT");
+    const receipts = await fixture.pgDatabase.query<{ sequence: number }>(
+      `select sequence from bakery.worker_maintenance_receipts
+        where operation_id = $1 order by sequence`,
+      [operation.id],
+    );
+    assertEquals(receipts.rows.map((row) => row.sequence), [1, 2]);
+    // The claim gate reopened with the operation finished.
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const claimed = await claimAssignment(fixture, worker);
+    assert(claimed.attemptId.length > 0);
+  }));
+
+Deno.test("an offline request that expired is never assigned", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-expired" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    await expireMaintenanceClock(fixture, operation.id, "expires_at");
+    assertEquals(await heartbeatAssignments(fixture, worker), []);
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "expired",
+    );
+    assertEquals(await claimStatus(fixture, worker), 204);
+  }));
+
+Deno.test("a requester who is no longer an Admin fails the operation unassigned", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-authz" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    await setFixtureRole(fixture, "developer");
+    try {
+      assertEquals(await heartbeatAssignments(fixture, worker), []);
+    } finally {
+      await setFixtureRole(fixture, "admin");
+    }
+    const after = await maintenancePhase(fixture, operation.id);
+    assertEquals(after.phase, "failed");
+    assertEquals(after.result, { reason: "authority_revoked" });
   }));

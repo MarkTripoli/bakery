@@ -2,6 +2,10 @@
 import { assertEquals } from "@std/assert";
 import { authTestOrigin } from "./auth.ts";
 import {
+  heartbeatRequest,
+  type RegisteredWorker,
+} from "./worker-execution/scenarios.ts";
+import {
   adminRequest,
   type WorkerFixture,
   workerRequest,
@@ -126,3 +130,85 @@ export type MaintenanceOperation = {
   version: number;
   componentKey: string | null;
 };
+
+export type MaintenanceAssignment = {
+  operationId: string;
+  workerHostId: string;
+  credentialGeneration: number;
+  verb: string;
+  fence: string;
+  deadlineAt: string;
+  targetDigest: string | null;
+};
+
+type MaintenanceWorker = {
+  credential: string;
+  registration: { workerHostId: string };
+};
+
+/** One heartbeat; returns the maintenance assignments it carried. */
+export async function heartbeatAssignments(
+  fixture: WorkerFixture,
+  worker: RegisteredWorker,
+  idempotencyKey: string = crypto.randomUUID(),
+  activeAttemptIds: string[] = [],
+): Promise<MaintenanceAssignment[]> {
+  const response = await heartbeatRequest(fixture, worker, {
+    idempotencyKey,
+    activeAttemptIds,
+  });
+  assertEquals(response.status, 200, await response.clone().text());
+  const body = await response.json() as {
+    maintenanceAssignments?: MaintenanceAssignment[];
+  };
+  return body.maintenanceAssignments ?? [];
+}
+
+/** POST /v1/worker/maintenance/{operationId}/reports. */
+export async function sendMaintenanceReport(
+  fixture: WorkerFixture,
+  worker: MaintenanceWorker,
+  operationId: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return await workerRequest(
+    fixture,
+    worker.credential,
+    `/v1/worker/maintenance/${operationId}/reports`,
+    body,
+    {
+      headers: { "X-Bakery-Worker-Protocol-Version": "2" },
+      idempotencyKey: crypto.randomUUID(),
+    },
+  );
+}
+
+/** Moves an operation's deadline (and optionally expiry) into the past. */
+export async function expireMaintenanceClock(
+  fixture: WorkerFixture,
+  operationId: string,
+  column: "deadline_at" | "expires_at" = "deadline_at",
+): Promise<void> {
+  await fixture.pgDatabase.query(
+    `update bakery.worker_maintenance_operations
+        set ${column} = clock_timestamp() - interval '1 minute'
+      where id = $1`,
+    [operationId],
+  );
+}
+
+export async function maintenancePhase(
+  fixture: WorkerFixture,
+  operationId: string,
+): Promise<{ phase: string; result: unknown }> {
+  const rows = await fixture.pgDatabase.query<
+    { phase: string; result: unknown }
+  >(
+    `select phase, result from bakery.worker_maintenance_operations
+      where id = $1`,
+    [operationId],
+  );
+  const row = rows.rows[0];
+  if (!row) throw new Error("maintenance operation missing");
+  return row;
+}

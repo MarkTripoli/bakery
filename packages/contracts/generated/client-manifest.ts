@@ -6120,6 +6120,30 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/maintenance/{operationId}/reports",
+      "action": "worker.reportMaintenance",
+      "access": "Worker",
+      "permission": null,
+      "input": "WorkerMaintenanceReport",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; the per-operation sequence replays exactly",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
       "group": "Workers",
       "method": "PATCH",
       "path": "/v1/workers/{id}",
@@ -18969,6 +18993,7 @@ export const clientManifest = {
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -22431,6 +22456,61 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
+    "WorkerMaintenanceReport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "fence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        "installedDigest": {
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "installedVersion": {
+          "description": "Version string actually installed now, as the host adapter reports it. WorkerMaintenanceReport.installedVersion must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "reason": {
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone. WorkerMaintenanceReport.reason must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "diagnostic": {
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it. WorkerMaintenanceReport.diagnostic must contain at most 8192 characters.",
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "fence",
+        "sequence",
+        "phase"
+      ],
+      "additionalProperties": false,
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
     },
     "WorkerProviderBindingUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46547,6 +46627,7 @@ export const clientManifest = {
                   "workerProviderAuth.get",
                   "workerProviderAuth.cancel",
                   "worker.reportProviderAuth",
+                  "worker.reportMaintenance",
                   "workers.update",
                   "jobs.list",
                   "jobAttempts.list",
@@ -67755,6 +67836,7 @@ export const clientManifest = {
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",

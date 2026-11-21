@@ -159,6 +159,7 @@ export const MachineImplementedAction = Object.freeze(
     WorkerProviderAuthGet: "workerProviderAuth.get",
     WorkerProviderAuthCancel: "workerProviderAuth.cancel",
     WorkerReportProviderAuth: "worker.reportProviderAuth",
+    WorkerReportMaintenance: "worker.reportMaintenance",
     WorkersUpdate: "workers.update",
   } as const satisfies Record<string, CatalogActionName>,
 );

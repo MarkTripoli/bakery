@@ -5587,6 +5587,77 @@ const transportSchemas = {
       ],
       "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
     },
+    "WorkerMaintenanceReport": {
+      "fields": [
+        {
+          "name": "fence",
+          "type": "decimalString",
+          "required": true,
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        {
+          "name": "phase",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        {
+          "name": "installedDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest."
+        },
+        {
+          "name": "installedVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Version string actually installed now, as the host adapter reports it."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone."
+        },
+        {
+          "name": "diagnostic",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 8192
+          },
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it."
+        }
+      ],
+      "rules": [
+        "The operation must belong to the calling machine at its current credential generation.",
+        "Reports are accepted only while the operation is assigned, applying or reconciling; a finished operation refuses new reports with STATE_CONFLICT except exact replays.",
+        "A reconciling operation reaches succeeded or failed only from a report that carries installedDigest, or for remove_component a report without it whose reason is removed."
+      ],
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
+    },
     "WorkerProviderBindingUpdate": {
       "fields": [
         {
@@ -25434,13 +25505,15 @@ const transportSchemas = {
         "workerSessionId",
         "workerSessionGeneration",
         "serverTime",
-        "inventoryRevision"
+        "inventoryRevision",
+        "maintenanceAssignments"
       ],
       "optionalFields": [
         "reconciledAttemptIds",
         "workerSessionId",
         "workerSessionGeneration",
-        "serverTime"
+        "serverTime",
+        "maintenanceAssignments"
       ],
       "fieldTypes": {
         "workerHostId": "uuid",
@@ -25452,9 +25525,11 @@ const transportSchemas = {
         "workerSessionId": "uuid",
         "workerSessionGeneration": "decimalString",
         "serverTime": "timestamp",
-        "inventoryRevision": "integer"
+        "inventoryRevision": "integer",
+        "maintenanceAssignments": "WorkerMaintenanceAssignment[]"
       },
       "bounds": {
+        "maintenanceAssignmentsMaxItems": 20,
         "pendingCommandsMaxItems": 100,
         "commandAcksMaxItems": 100,
         "reconciledAttemptIdsMaxItems": 100
@@ -25470,7 +25545,8 @@ const transportSchemas = {
         "workerSessionId": "Server-issued session identifier for the worker process.",
         "workerSessionGeneration": "Monotonic server fence for the worker process session.",
         "serverTime": "PostgreSQL-authoritative receipt time for deriving monotonic client deadlines.",
-        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response."
+        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response.",
+        "maintenanceAssignments": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list."
       }
     },
     "WorkerCommand": {
@@ -25522,6 +25598,50 @@ const transportSchemas = {
         "commandId": "Stable UUID linking this record to the related command entity.",
         "status": "Current lifecycle status of the record.",
         "acknowledgedAt": "Timestamp recorded by PostgreSQL when the terminal outcome was committed."
+      }
+    },
+    "WorkerMaintenanceAssignment": {
+      "fields": [
+        "operationId",
+        "workerHostId",
+        "credentialGeneration",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "expectedInventoryRevision",
+        "fence",
+        "deadlineAt"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest"
+      ],
+      "fieldTypes": {
+        "operationId": "uuid",
+        "workerHostId": "uuid",
+        "credentialGeneration": "integer",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "expectedInventoryRevision": "integer",
+        "fence": "decimalString",
+        "deadlineAt": "timestamp"
+      },
+      "description": "One maintenance operation handed to the machine in a heartbeat response. It binds the operation to this host, its credential generation and a fence; a duplicate delivery repeats the same assignment and never asks the host to run it twice.",
+      "fieldDescriptions": {
+        "operationId": "Maintenance operation the machine must run and report on.",
+        "workerHostId": "Machine the assignment is bound to.",
+        "credentialGeneration": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it.",
+        "verb": "Typed maintenance verb the host adapter maps to fixed executables.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version to install, update or roll back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the installed result must match, or null.",
+        "expectedInventoryRevision": "Inventory revision the operation was requested against; the host must not apply it to different inventory.",
+        "fence": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it.",
+        "deadlineAt": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
       }
     },
     "WorkerRegistrationResult": {

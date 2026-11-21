@@ -29,6 +29,7 @@ import {
   getWorkerMaintenance,
   listWorkerMaintenance,
 } from "./maintenance.ts";
+import { reportMaintenance } from "./maintenance-delivery.ts";
 import {
   cancelProviderAuthAttempt,
   createProviderAuthAttempt,
@@ -342,6 +343,13 @@ export function createExecutionRoutes(
     workerRouteHandler(
       options,
       (context) => reportProviderAuth(context, options),
+    ),
+  );
+  app.post(
+    "/v1/worker/maintenance/:operationId/reports",
+    workerRouteHandler(
+      options,
+      (context) => reportMaintenance(context, options),
     ),
   );
   app.post(

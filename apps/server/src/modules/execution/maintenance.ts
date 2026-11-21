@@ -35,12 +35,12 @@ import {
  */
 
 /** Verbs that only read the host and leave the claim gate open. */
-const READ_ONLY_VERBS: ReadonlySet<string> = new Set([
+export const READ_ONLY_VERBS: ReadonlySet<string> = new Set([
   "refresh_inventory",
   "verify",
 ]);
 /** Phases after which the operation can never change again. */
-const TERMINAL_PHASES: ReadonlySet<string> = new Set([
+export const TERMINAL_PHASES: ReadonlySet<string> = new Set([
   "succeeded",
   "failed",
   "canceled",
@@ -53,13 +53,13 @@ const CANCELABLE_PHASES: ReadonlySet<string> = new Set([
   "assigned",
 ]);
 /** A busy host waits this long before the operation needs attention. */
-const IDLE_WAIT_SECONDS = 30 * 60;
+export const IDLE_WAIT_SECONDS = 30 * 60;
 /** A request that never reaches the host expires instead of running late. */
 const OFFLINE_EXPIRY_SECONDS = 24 * 60 * 60;
 /** Attempt statuses that still hold a slot on the host. */
-const ACTIVE_ATTEMPT_STATUSES = ["leased", "running", "canceling"];
+export const ACTIVE_ATTEMPT_STATUSES = ["leased", "running", "canceling"];
 
-type OperationRow = {
+export type OperationRow = {
   id: string;
   worker_host_id: string;
   verb: string;
@@ -80,12 +80,12 @@ type OperationRow = {
   version: number;
 };
 
-const OPERATION_COLUMNS = `id, worker_host_id, verb, component_key,
+export const OPERATION_COLUMNS = `id, worker_host_id, verb, component_key,
   target_version, target_digest, requested_by, expected_inventory_revision,
   expected_credential_generation, captured_desired_mode, phase, deadline_at,
   expires_at, request_digest, result, created_at, updated_at, version`;
 
-function projection(row: OperationRow) {
+export function projection(row: OperationRow) {
   return contractSchemas.WorkerMaintenanceOperation.parse({
     id: row.id,
     workerHostId: row.worker_host_id,
@@ -107,7 +107,7 @@ function projection(row: OperationRow) {
   });
 }
 
-function isMutating(verb: string): boolean {
+export function isMutating(verb: string): boolean {
   return !READ_ONLY_VERBS.has(verb);
 }
 

@@ -6329,6 +6329,30 @@
       "implemented": true
     },
     {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/maintenance/{operationId}/reports",
+      "action": "worker.reportMaintenance",
+      "access": "Worker",
+      "permission": null,
+      "input": "WorkerMaintenanceReport",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; the per-operation sequence replays exactly",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
       "group": "Workers",
       "method": "PATCH",
       "path": "/v1/workers/{id}",
@@ -14301,6 +14325,7 @@
     "workerProviderAuth.get",
     "workerProviderAuth.cancel",
     "worker.reportProviderAuth",
+    "worker.reportMaintenance",
     "workers.update",
     "messages.list",
     "messages.create",
@@ -30465,6 +30490,58 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkerProviderAuthAttemptReport"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/worker/maintenance/{operationId}/reports": {
+        "post": {
+          "operationId": "worker.reportMaintenance",
+          "parameters": [
+            {
+              "name": "operationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkerMaintenanceOperation"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerMaintenanceReport"
                 }
               }
             }
@@ -57404,6 +57481,7 @@
                 "workerProviderAuth.get",
                 "workerProviderAuth.cancel",
                 "worker.reportProviderAuth",
+                "worker.reportMaintenance",
                 "workers.update",
                 "jobs.list",
                 "jobAttempts.list",
@@ -63484,6 +63562,61 @@
           ],
           "additionalProperties": false,
           "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+        },
+        "WorkerMaintenanceReport": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "fence": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+            },
+            "phase": {
+              "type": "string",
+              "enum": [
+                "applying",
+                "succeeded",
+                "failed",
+                "reconciling",
+                "rolled_back"
+              ],
+              "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+            },
+            "installedDigest": {
+              "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest.",
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "installedVersion": {
+              "description": "Version string actually installed now, as the host adapter reports it. WorkerMaintenanceReport.installedVersion must contain at most 128 characters.",
+              "type": "string",
+              "maxLength": 128
+            },
+            "reason": {
+              "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone. WorkerMaintenanceReport.reason must contain at most 64 characters.",
+              "type": "string",
+              "maxLength": 64
+            },
+            "diagnostic": {
+              "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it. WorkerMaintenanceReport.diagnostic must contain at most 8192 characters.",
+              "type": "string",
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "fence",
+            "sequence",
+            "phase"
+          ],
+          "additionalProperties": false,
+          "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
         },
         "WorkerProviderBindingUpdate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -108037,6 +108170,7 @@
                 "workerProviderAuth.get",
                 "workerProviderAuth.cancel",
                 "worker.reportProviderAuth",
+                "worker.reportMaintenance",
                 "workers.update",
                 "jobs.list",
                 "jobAttempts.list",
@@ -108709,6 +108843,7 @@
                 "workerProviderAuth.get",
                 "workerProviderAuth.cancel",
                 "worker.reportProviderAuth",
+                "worker.reportMaintenance",
                 "workers.update",
                 "jobs.list",
                 "jobAttempts.list",
@@ -109381,6 +109516,7 @@
                 "workerProviderAuth.get",
                 "workerProviderAuth.cancel",
                 "worker.reportProviderAuth",
+                "worker.reportMaintenance",
                 "workers.update",
                 "jobs.list",
                 "jobAttempts.list",
@@ -154983,6 +155119,7 @@
                       "workerProviderAuth.get",
                       "workerProviderAuth.cancel",
                       "worker.reportProviderAuth",
+                      "worker.reportMaintenance",
                       "workers.update",
                       "jobs.list",
                       "jobAttempts.list",
@@ -178639,6 +178776,119 @@
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response."
+            },
+            "maintenanceAssignments": {
+              "description": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list. WorkerHeartbeatResult.maintenanceAssignments must contain at most 20 items.",
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "operationId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Maintenance operation the machine must run and report on."
+                  },
+                  "workerHostId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Machine the assignment is bound to."
+                  },
+                  "credentialGeneration": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it."
+                  },
+                  "verb": {
+                    "type": "string",
+                    "enum": [
+                      "refresh_inventory",
+                      "verify",
+                      "install_component",
+                      "update_component",
+                      "rollback_component",
+                      "remove_component"
+                    ],
+                    "description": "Typed maintenance verb the host adapter maps to fixed executables."
+                  },
+                  "componentKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerMaintenanceAssignment.componentKey may be null in the safe projection."
+                  },
+                  "targetVersion": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Exact version to install, update or roll back to, or null."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerMaintenanceAssignment.targetVersion may be null in the safe projection."
+                  },
+                  "targetDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "SHA-256 of the release manifest the installed result must match, or null."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerMaintenanceAssignment.targetDigest may be null in the safe projection."
+                  },
+                  "expectedInventoryRevision": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Inventory revision the operation was requested against; the host must not apply it to different inventory."
+                  },
+                  "fence": {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it."
+                  },
+                  "deadlineAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "workerHostId",
+                  "credentialGeneration",
+                  "verb",
+                  "componentKey",
+                  "targetVersion",
+                  "targetDigest",
+                  "expectedInventoryRevision",
+                  "fence",
+                  "deadlineAt"
+                ],
+                "additionalProperties": false,
+                "description": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list. Each array item follows this format."
+              }
             }
           },
           "required": [
@@ -179016,6 +179266,115 @@
           ],
           "additionalProperties": false,
           "description": "A typed terminal outcome for one delivered WorkerCommand. The retained row allows a lost-response acknowledgement to replay deterministically."
+        },
+        "WorkerMaintenanceAssignment": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "operationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Maintenance operation the machine must run and report on."
+            },
+            "workerHostId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Machine the assignment is bound to."
+            },
+            "credentialGeneration": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it."
+            },
+            "verb": {
+              "type": "string",
+              "enum": [
+                "refresh_inventory",
+                "verify",
+                "install_component",
+                "update_component",
+                "rollback_component",
+                "remove_component"
+              ],
+              "description": "Typed maintenance verb the host adapter maps to fixed executables."
+            },
+            "componentKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "WorkerMaintenanceAssignment.componentKey may be null in the safe projection."
+            },
+            "targetVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Exact version to install, update or roll back to, or null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "WorkerMaintenanceAssignment.targetVersion may be null in the safe projection."
+            },
+            "targetDigest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$",
+                  "description": "SHA-256 of the release manifest the installed result must match, or null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "WorkerMaintenanceAssignment.targetDigest may be null in the safe projection."
+            },
+            "expectedInventoryRevision": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Inventory revision the operation was requested against; the host must not apply it to different inventory."
+            },
+            "fence": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it."
+            },
+            "deadlineAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
+            }
+          },
+          "required": [
+            "operationId",
+            "workerHostId",
+            "credentialGeneration",
+            "verb",
+            "componentKey",
+            "targetVersion",
+            "targetDigest",
+            "expectedInventoryRevision",
+            "fence",
+            "deadlineAt"
+          ],
+          "additionalProperties": false,
+          "description": "One maintenance operation handed to the machine in a heartbeat response. It binds the operation to this host, its credential generation and a fence; a duplicate delivery repeats the same assignment and never asks the host to run it twice."
         },
         "WorkerRegistrationResult": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -272068,7 +272427,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6814ff0204a02b2eb41326fb2ddde20c642d584daf3c53e049d43bbcd73c8e10",
+  "compatibilityDigest": "sha256:6de61ca87dda1932b54ce27ed82acb7a901ee7224232a32227dcfc421a3a51af",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -279602,6 +279961,7 @@
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -285702,6 +286062,61 @@
       ],
       "additionalProperties": false,
       "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
+    "WorkerMaintenanceReport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "fence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        "installedDigest": {
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "installedVersion": {
+          "description": "Version string actually installed now, as the host adapter reports it. WorkerMaintenanceReport.installedVersion must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "reason": {
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone. WorkerMaintenanceReport.reason must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "diagnostic": {
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it. WorkerMaintenanceReport.diagnostic must contain at most 8192 characters.",
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "fence",
+        "sequence",
+        "phase"
+      ],
+      "additionalProperties": false,
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
     },
     "WorkerProviderBindingUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -330409,6 +330824,7 @@
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -331081,6 +331497,7 @@
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -331753,6 +332170,7 @@
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -377505,6 +377923,7 @@
                   "workerProviderAuth.get",
                   "workerProviderAuth.cancel",
                   "worker.reportProviderAuth",
+                  "worker.reportMaintenance",
                   "workers.update",
                   "jobs.list",
                   "jobAttempts.list",
@@ -401209,6 +401628,119 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response."
+        },
+        "maintenanceAssignments": {
+          "description": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list. WorkerHeartbeatResult.maintenanceAssignments must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Maintenance operation the machine must run and report on."
+              },
+              "workerHostId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Machine the assignment is bound to."
+              },
+              "credentialGeneration": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it."
+              },
+              "verb": {
+                "type": "string",
+                "enum": [
+                  "refresh_inventory",
+                  "verify",
+                  "install_component",
+                  "update_component",
+                  "rollback_component",
+                  "remove_component"
+                ],
+                "description": "Typed maintenance verb the host adapter maps to fixed executables."
+              },
+              "componentKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceAssignment.componentKey may be null in the safe projection."
+              },
+              "targetVersion": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Exact version to install, update or roll back to, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceAssignment.targetVersion may be null in the safe projection."
+              },
+              "targetDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "SHA-256 of the release manifest the installed result must match, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceAssignment.targetDigest may be null in the safe projection."
+              },
+              "expectedInventoryRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Inventory revision the operation was requested against; the host must not apply it to different inventory."
+              },
+              "fence": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]*)$",
+                "description": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it."
+              },
+              "deadlineAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
+              }
+            },
+            "required": [
+              "operationId",
+              "workerHostId",
+              "credentialGeneration",
+              "verb",
+              "componentKey",
+              "targetVersion",
+              "targetDigest",
+              "expectedInventoryRevision",
+              "fence",
+              "deadlineAt"
+            ],
+            "additionalProperties": false,
+            "description": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -401590,6 +402122,115 @@
       ],
       "additionalProperties": false,
       "description": "A typed terminal outcome for one delivered WorkerCommand. The retained row allows a lost-response acknowledgement to replay deterministically."
+    },
+    "WorkerMaintenanceAssignment": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Maintenance operation the machine must run and report on."
+        },
+        "workerHostId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Machine the assignment is bound to."
+        },
+        "credentialGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it."
+        },
+        "verb": {
+          "type": "string",
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb the host adapter maps to fixed executables."
+        },
+        "componentKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceAssignment.componentKey may be null in the safe projection."
+        },
+        "targetVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Exact version to install, update or roll back to, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceAssignment.targetVersion may be null in the safe projection."
+        },
+        "targetDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the release manifest the installed result must match, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceAssignment.targetDigest may be null in the safe projection."
+        },
+        "expectedInventoryRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Inventory revision the operation was requested against; the host must not apply it to different inventory."
+        },
+        "fence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it."
+        },
+        "deadlineAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
+        }
+      },
+      "required": [
+        "operationId",
+        "workerHostId",
+        "credentialGeneration",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "expectedInventoryRevision",
+        "fence",
+        "deadlineAt"
+      ],
+      "additionalProperties": false,
+      "description": "One maintenance operation handed to the machine in a heartbeat response. It binds the operation to this host, its credential generation and a fence; a duplicate delivery repeats the same assignment and never asks the host to run it twice."
     },
     "WorkerRegistrationResult": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
