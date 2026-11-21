@@ -26,9 +26,12 @@ const JOBS_GRANT = "jobs.schedule";
 
 type InstallRow = {
   status: string;
-  bundle_object_ref: string;
-  bundle_digest: string;
+  /** Null when the pinned version is not a version of this install's package. */
+  bundle_object_ref: string | null;
+  bundle_digest: string | null;
   granted: boolean;
+  /** Whether the pinned version's manifest asked for the jobs capability. */
+  asked: boolean;
 };
 
 function toBase64(bytes: Uint8Array): string {
@@ -57,6 +60,7 @@ export async function pluginJobFilesRoute(
 
   const found = await options.database.query<InstallRow>(
     `select i.status, v.bundle_object_ref, v.bundle_digest,
+            coalesce(v.manifest->'requestedCapabilities' ? $3, false) as asked,
             exists (
               select 1 from bakery.plugin_install_grants g
                where g.organization_id = i.organization_id
@@ -64,33 +68,41 @@ export async function pluginJobFilesRoute(
                  and g.capability = $3
             ) as granted
        from bakery.plugin_installs i
-       join bakery.plugin_versions v
+       left join bakery.plugin_versions v
          on v.organization_id = i.organization_id
-        and v.id = i.plugin_version_id
+        and v.plugin_package_id = i.plugin_package_id
+        and v.id = $4
       where i.organization_id = $1 and i.id = $2`,
-    [attempt.organizationId, attempt.installId, JOBS_GRANT],
+    [attempt.organizationId, attempt.installId, JOBS_GRANT, attempt.versionId],
   );
   const row = found.rows[0];
   if (row === undefined || row.status === "uninstalled") {
     throw refusal("plugin_install_gone");
   }
   if (row.status !== "enabled") throw refusal("plugin_install_off");
-  if (!row.granted) throw refusal("plugin_job_not_granted");
+  // The install must still hold the capability, and the version the job was
+  // admitted with must have asked for it: the install may have been widened
+  // since, and that widening is not the job's.
+  if (!row.granted || !row.asked) throw refusal("plugin_job_not_granted");
+  if (row.bundle_object_ref === null || row.bundle_digest === null) {
+    throw refusal("plugin_job_version_gone");
+  }
+  const bundleDigest = row.bundle_digest;
   if (attempt.entry === null) throw refusal("plugin_job_entry_missing");
   // The stored ref is recomputed rather than trusted, as at publication.
   if (
     row.bundle_object_ref !==
-      blobObjectKey(attempt.organizationId, row.bundle_digest)
+      blobObjectKey(attempt.organizationId, bundleDigest)
   ) throw refusal("plugin_bundle_missing");
 
   let files: Map<string, Uint8Array>;
   try {
-    const stat = await bundles.stat(attempt.organizationId, row.bundle_digest);
+    const stat = await bundles.stat(attempt.organizationId, bundleDigest);
     if (stat === null) throw refusal("plugin_bundle_missing");
     files = await bundleFiles(
       await bundles.read(
         attempt.organizationId,
-        row.bundle_digest,
+        bundleDigest,
         stat.sizeBytes,
       ),
     );
@@ -112,7 +124,7 @@ export async function pluginJobFilesRoute(
     throw refusal("plugin_bundle_too_large");
   }
   return jsonResponse({
-    bundleDigest: row.bundle_digest,
+    bundleDigest: bundleDigest,
     entry: attempt.entry,
     files: [...files].map(([path, content]) => ({
       path,

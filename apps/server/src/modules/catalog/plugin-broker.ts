@@ -66,6 +66,14 @@ export type BrokerClaims = Readonly<{
   tokenId: string;
   issuedAt: number;
   expiresAt: number;
+  /**
+   * The version of the install the job was admitted with (#34). When set, the
+   * job may use only what that version's manifest asked for, whatever the
+   * install holds now: an update that widened the install does not widen a job
+   * already running under the version before it. Absent on a token a job asks
+   * for itself, which names no version.
+   */
+  versionId?: string;
 }>;
 
 /** What the broker needs to know about an install, read fresh on every call. */
@@ -78,6 +86,8 @@ export type InstallAuthorityPort = {
   load(
     organizationId: string,
     installId: string,
+    /** When given, grants are limited to what this version's manifest asked for. */
+    versionId?: string,
   ): Promise<InstallAuthority | null>;
 };
 
@@ -329,6 +339,7 @@ export function createPluginBroker(options: BrokerOptions): PluginBroker {
     const authority = await options.authority.load(
       claims.organizationId,
       claims.installId,
+      claims.versionId,
     );
     if (authority === null || authority.status === "uninstalled") {
       return deny("install_gone");

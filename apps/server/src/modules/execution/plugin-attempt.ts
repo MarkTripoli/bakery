@@ -33,6 +33,12 @@ export type PluginAttempt = Readonly<{
   installId: string;
   /** The `entry` the job was admitted with: a path inside the install's bundle. */
   entry: string | null;
+  /**
+   * The version of the install the job was admitted with. The job runs that
+   * version's code with that version's authority, whatever the install pins by
+   * the time it runs (#34).
+   */
+  versionId: string;
   jobId: string;
   leaseExpiresAt: number;
 }>;
@@ -82,17 +88,28 @@ export async function authorizePluginAttempt(
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
       const input = found.input as
-        | { installId?: unknown; entry?: unknown }
+        | { installId?: unknown; entry?: unknown; versionId?: unknown }
         | null;
       const installId = input?.installId;
       if (typeof installId !== "string" || !UUID.test(installId)) {
         throw new StandardError({ code: "STATE_CONFLICT" });
+      }
+      // A job that names no version cannot be pinned, so it is not run: falling
+      // back to the install's current version would be the very thing a pin
+      // exists to prevent.
+      const versionId = input?.versionId;
+      if (typeof versionId !== "string" || !UUID.test(versionId)) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "plugin_job_version_missing" },
+        });
       }
       return {
         attemptId,
         fence,
         organizationId: row.organization_id,
         installId,
+        versionId,
         entry: typeof input?.entry === "string" ? input.entry : null,
         jobId: row.job_id,
         leaseExpiresAt: Date.parse(String(row.lease_expires_at)),

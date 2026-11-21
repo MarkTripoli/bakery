@@ -42,6 +42,7 @@ export async function pluginBrokerRelayRoute(
     claims: {
       organizationId: attempt.organizationId,
       installId: attempt.installId,
+      versionId: attempt.versionId,
       jobId: attempt.jobId,
       // Stable for the attempt and fence, so sequence, rate and replay state
       // persist across its calls and a new fence starts clean.

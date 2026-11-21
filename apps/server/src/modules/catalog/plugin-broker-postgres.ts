@@ -16,7 +16,11 @@ export function createPostgresInstallAuthority(
   database: Reader,
 ): InstallAuthorityPort {
   return {
-    async load(organizationId, installId): Promise<InstallAuthority | null> {
+    async load(
+      organizationId,
+      installId,
+      versionId,
+    ): Promise<InstallAuthority | null> {
       const installs = await database.query<{ status: string }>(
         `select status from bakery.plugin_installs
           where organization_id = $1 and id = $2`,
@@ -33,9 +37,29 @@ export function createPostgresInstallAuthority(
           where organization_id = $1 and plugin_install_id = $2`,
         [organizationId, installId],
       );
+      const held = grants.rows.map((grant) => grant.capability);
+      if (versionId === undefined) return { status: row.status, grants: held };
+      // A job pinned to a version holds only what that version asked for, and
+      // only while the install still holds it: the narrower of the two, so
+      // revocation still stops it at once and a later widening never reaches it.
+      // A version that is not this install's package's, or is gone, asked for
+      // nothing.
+      const asked = await database.query<{ manifest: unknown }>(
+        `select v.manifest
+           from bakery.plugin_versions v
+           join bakery.plugin_installs i
+             on i.organization_id = v.organization_id
+            and i.plugin_package_id = v.plugin_package_id
+          where v.organization_id = $1 and v.id = $2 and i.id = $3`,
+        [organizationId, versionId, installId],
+      );
+      const requested = (asked.rows[0]?.manifest as
+        | { requestedCapabilities?: unknown }
+        | undefined)?.requestedCapabilities;
+      const allowed = Array.isArray(requested) ? requested : [];
       return {
         status: row.status,
-        grants: grants.rows.map((grant) => grant.capability),
+        grants: held.filter((capability) => allowed.includes(capability)),
       };
     },
   };
