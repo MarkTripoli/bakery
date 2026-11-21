@@ -12444,7 +12444,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -14362,6 +14362,7 @@
     "ticketSources.sync",
     "ticketRoutingRules.get",
     "ticketRoutingRules.replace",
+    "externalTickets.create",
     "externalTickets.list",
     "externalTickets.get",
     "ticketReadiness.create",
@@ -271187,7 +271188,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e1fdc43b8423fdb006122ba5d7e90f28064957ddd86f4f51de12220924bd9ade",
+  "compatibilityDigest": "sha256:5dc2c61e686ac8085c96decf85c409151156899804ac96cdd55561268eaeb5c2",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
