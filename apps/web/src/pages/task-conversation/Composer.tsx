@@ -183,7 +183,14 @@ export function Composer(
       footnote={
         <>
           {mentionField.sendReason !== null
-            ? <span id={reasonId} role="status">{mentionField.sendReason}</span>
+            ? (
+              <>
+                <span id={reasonId} role="status">
+                  {mentionField.sendReason}
+                </span>
+                <br />
+              </>
+            )
             : null}
           {tooLong
             ? (
