@@ -218,6 +218,8 @@ test("a plugin page opens under Bakery's strip in a sealed frame that is told ho
     ),
   ).toBeVisible();
   expect(state.documents.length).toBeGreaterThan(0);
+  // Opening a page is not an update: no notice says the plugin changed.
+  await expect(page.getByText(/was updated to/)).toHaveCount(0);
   await shot(page, "plugin-page");
 });
 

@@ -76,14 +76,20 @@ export function PluginFramePage(
     principalId: session.identity?.principalId ?? null,
   });
   const name = row?.name ?? "";
-  const title = read.data?.title ?? pageId;
+  // A page that is off or gone has no title to show: the plugin's name stands in.
+  const title = read.data?.title ?? (name === "" ? pageId : name);
 
   // The version the page was opened on, to say when it was updated meanwhile.
   const opened = useRef<string | null>(null);
-  if (opened.current === null && row !== undefined) {
+  // Only once the versions are read, so the version is a real name and not a blank.
+  if (
+    opened.current === null && row !== undefined &&
+    versions.data !== undefined && row.versionName !== ""
+  ) {
     opened.current = row.versionName;
   }
   const updatedTo = row !== undefined && opened.current !== null &&
+      versions.data !== undefined &&
       row.versionName !== opened.current
     ? row.versionName
     : null;
