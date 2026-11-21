@@ -242,18 +242,28 @@ Deno.test("duplicate sends racing one mention commit the same rows as one send",
     const raced = await w.conversation(writer);
     const sameKey = crypto.randomUUID();
     const clientMessageId = crypto.randomUUID();
+    const startedAt = performance.now();
+    const timings: string[] = [];
+    const timed = async (pending: Response | Promise<Response>) => {
+      const response = await pending;
+      timings.push(
+        `${response.status}@${Math.round(performance.now() - startedAt)}ms`,
+      );
+      return response;
+    };
     const responses = await Promise.all([
       ...[0, 1, 2].map(() =>
-        w.send(writer, raced, { mentions, clientMessageId }, sameKey)
+        timed(w.send(writer, raced, { mentions, clientMessageId }, sameKey))
       ),
       ...[0, 1, 2].map(() =>
-        w.send(writer, raced, { mentions, clientMessageId })
+        timed(w.send(writer, raced, { mentions, clientMessageId }))
       ),
     ]);
     const statuses = responses.map((response) => response.status);
+    console.log("mention race timings:", timings.join(" "));
     assert(
       statuses.includes(201),
-      "one request is committed: " + JSON.stringify(statuses),
+      "one request is committed: " + JSON.stringify(timings),
     );
     for (const response of responses) {
       assert(
