@@ -5922,7 +5922,6 @@
   "batches.start.startable.label": "⟦Ïŧ ŵôûļð šŧàŕŧ ŵïŧĥ ŧëšŧ⟧",
   "batches.start.startable.checked": "⟦Çĥëçķëð {time}: Ɓàķëŕÿ ŕëàðš ĜïŧĤûƀ àĝàïñ ƀëƒôŕë ëàçĥ ïššûë, šô ŧĥë ôŕðëŕ çàñ çĥàñĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "batches.start.startable.more": "⟦Ṁôŕë çàñ šŧàŕŧ àƒŧëŕ ŧĥëšë. Çĥëçķëð {time}: Ɓàķëŕÿ ŕëàðš ĜïŧĤûƀ àĝàïñ ƀëƒôŕë ëàçĥ ïššûë, šô ŧĥë ôŕðëŕ çàñ çĥàñĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "batches.start.startable.item": "⟦{position}. {number} {title} ŧëšŧ çô⟧",
   "batches.start.startable.untitled": "⟦(ñô ŧïŧļë) ŧ⟧",
   "batches.start.startable.nothing.title": "⟦Ñôŧĥïñĝ ïñ {repository} çàñ šŧàŕŧ ŕïĝĥŧ ñôŵ ŧëšŧ çôþÿ ŧëš⟧",
   "batches.start.startable.nothing.body": "⟦À ƀàŧçĥ šŧàŕŧëð ñôŵ ŵôûļð ëñð àŧ ôñçë ûñļëšš àñ ïššûë ƀëçôɱëš ŕëàðÿ ƒïŕšŧ. Ëàçĥ ïššûë šàÿš ŵĥàŧ ïŧ ïš ŵàïŧïñĝ ƒôŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",

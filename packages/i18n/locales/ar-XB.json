@@ -5922,7 +5922,6 @@
   "batches.start.startable.label": "⟪It would start with⟫",
   "batches.start.startable.checked": "⟪Checked {time}: Bakery reads GitHub again before each issue, so the order can change.⟫",
   "batches.start.startable.more": "⟪More can start after these. Checked {time}: Bakery reads GitHub again before each issue, so the order can change.⟫",
-  "batches.start.startable.item": "⟪{position}. {number} {title}⟫",
   "batches.start.startable.untitled": "⟪(no title)⟫",
   "batches.start.startable.nothing.title": "⟪Nothing in {repository} can start right now⟫",
   "batches.start.startable.nothing.body": "⟪A batch started now would end at once unless an issue becomes ready first. Each issue says what it is waiting for.⟫",

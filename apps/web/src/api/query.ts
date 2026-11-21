@@ -3405,7 +3405,7 @@ export function batchesListQueryOptions(
   });
 }
 
-/** How many startable issues the start page lists; the design shows the first five. */
+/** How many startable issues the start page reads and lists; the design shows the first five. */
 export const STARTABLE_PAGE_SIZE = 5;
 
 /**

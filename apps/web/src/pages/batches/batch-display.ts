@@ -5,6 +5,7 @@
  * be tested without a browser, and none returns a sentence: they return
  * catalogue keys with their values, and the page owns the words.
  */
+import { STARTABLE_PAGE_SIZE } from "../../api/query.ts";
 import type {
   BatchIssueResponse,
   BatchResponse,
@@ -591,9 +592,6 @@ export function planValues(
 
 // ---- the start page's list and smallest spend (UX revision 3, slice 3a) ----
 
-/** How many startable issues the page lists; the rest are named by one sentence. */
-export const STARTABLE_SHOWN = 5;
-
 export type StartableView = Readonly<{
   /** The first issues a batch would take, in the server's order. */
   issues: BatchStartableResponse["items"];
@@ -605,7 +603,9 @@ export type StartableView = Readonly<{
 
 /** What the "It would start with" list shows of one page of the server's answer. */
 export function startableView(data: BatchStartableResponse): StartableView {
-  const issues = data.items.slice(0, STARTABLE_SHOWN);
+  // The read asks for one page of STARTABLE_PAGE_SIZE; the slice and the
+  // length check guard a server that sends more than it was asked for.
+  const issues = data.items.slice(0, STARTABLE_PAGE_SIZE);
   let checkedAt: string | null = null;
   for (const issue of issues) {
     if (
@@ -615,7 +615,7 @@ export function startableView(data: BatchStartableResponse): StartableView {
   }
   return {
     issues,
-    more: data.nextCursor !== null || data.items.length > STARTABLE_SHOWN,
+    more: data.nextCursor !== null || data.items.length > STARTABLE_PAGE_SIZE,
     checkedAt,
   };
 }
