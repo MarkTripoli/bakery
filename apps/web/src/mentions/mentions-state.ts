@@ -1,4 +1,3 @@
-import type { MessageKey } from "@bakery/i18n";
 import type {
   ApiFailure,
   MentionCandidate,
@@ -90,6 +89,17 @@ export function withoutMention(text: string, mention: Mention): string {
   return text.slice(0, at) + text.slice(text[end] === " " ? end + 1 : end);
 }
 
+/**
+ * The text with only the `@` taken off a person's `@Name`, so the name stays as
+ * words ("Hi @Sam Patel" becomes "Hi Sam Patel"). It is for "Don't mention":
+ * the chip's own remove button cuts the whole word instead.
+ */
+export function withoutAtSign(text: string, mention: Mention): string {
+  const at = find(text, mention);
+  if (at < 0) return text;
+  return text.slice(0, at) + text.slice(at + 1);
+}
+
 /** Adds a person once: choosing the same person again keeps one chip. */
 export function addMention(
   mentions: readonly Mention[],
@@ -125,35 +135,6 @@ export function offered(
 ): MentionCandidate[] {
   const taken = new Set(mentions.map((mention) => mention.principalId));
   return candidates.filter((candidate) => !taken.has(candidate.principalId));
-}
-
-/** The names for the access sentence: one, "A and B", or "A, B and n others". */
-export type AccessNames = {
-  readonly key: MessageKey;
-  readonly values: Readonly<Record<string, string | number>>;
-};
-
-/** Words for the line under the chips; null when no chip would gain access. */
-export function accessNames(
-  mentions: readonly Mention[],
-): AccessNames | null {
-  const names = mentions.filter((mention) => mention.gainsAccess).map((
-    mention,
-  ) => mention.name);
-  if (names.length === 0) return null;
-  if (names.length === 1) {
-    return { key: "mentions.access.names.one", values: { first: names[0] } };
-  }
-  if (names.length === 2) {
-    return {
-      key: "mentions.access.names.two",
-      values: { first: names[0], second: names[1] },
-    };
-  }
-  return {
-    key: "mentions.access.names.many",
-    values: { first: names[0], second: names[1], count: names.length - 2 },
-  };
 }
 
 /** Why the server refused one mention, as the issue code names it. */
