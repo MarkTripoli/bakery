@@ -38,6 +38,7 @@ import {
   listSpool,
   shipWal,
   WAL_SPOOL,
+  walUnbrokenSince,
 } from "./backup-runner/wal.ts";
 
 /** The operator's public age recipient, from the file backup.sh reads. */
@@ -235,7 +236,10 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
         connection,
         encrypt,
         report: (window) => api.reportWal(window),
-        earliestBaseBackupAt: await earliestBaseBackup(root),
+        earliestBaseBackupAt: await earliestBaseBackup(
+          root,
+          await walUnbrokenSince(spool),
+        ),
       });
       if (shipped.shipped > 0) {
         log(`restore to any minute: shipped ${shipped.shipped} WAL file(s)`);

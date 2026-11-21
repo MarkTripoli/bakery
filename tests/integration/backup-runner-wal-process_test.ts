@@ -222,7 +222,7 @@ Deno.test("switch off, under the shipped flags: the spool is only pruned, nothin
   try {
     const r = await runRunnerProcess(w, api.url);
     assertEquals(r.code, 0, r.text);
-    assertEquals(await left(w.spool), []);
+    assertEquals(await left(w.spool), [".wal-unbroken-since"]);
     assertEquals(receiver.signedRequests, []);
     assertEquals(api.seen.wal.length, 0);
     assertEquals(
