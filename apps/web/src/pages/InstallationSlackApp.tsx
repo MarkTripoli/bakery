@@ -122,6 +122,10 @@ export function InstallationSlackApp() {
         signingSecret: "",
       }));
       setStatus("idle");
+      // The design promises one check after every save: the details are only
+      // worth writing if Slack accepts them, and a saved-but-refused app must
+      // say so without the person pressing anything.
+      void check();
       return;
     }
     if (isForbiddenFailure(result.error)) {
