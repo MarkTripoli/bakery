@@ -364,3 +364,69 @@ Deno.test("AC3: unknown and unrun stay apart from zero, a duplicate completion i
       "failed",
     ]);
   }));
+
+Deno.test("AC3: a model attempt that ends with no ledger receipt is an unknown cost, never free, and a duplicate completion is one record", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const batch = await ok(
+      await admitWith(fixture, w, {
+        scorerIds: [w.schema.id, w.rubric.id],
+        budgetLimitUsd: "0.10",
+      }),
+      201,
+    );
+    assertEquals(batch.budget, {
+      limitUsd: "0.100000",
+      settledUsd: "0.000000",
+      unknownCount: 0,
+      status: "within",
+    });
+    const rows = await results(fixture, batch.id);
+    const model = rows.filter((r) => r.scorerId === w.rubric.id);
+    const check = rows.find((r) => r.scorerId === w.schema.id)!;
+    // The deterministic check costs nothing: it is not in the budget at all.
+    await record(fixture, check.id, "passed", 1);
+    let read = await ok(
+      await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+    );
+    assertEquals((read.budget as Json).unknownCount, 0);
+    assertEquals((read.budget as Json).status, "within");
+    // The provider failed before any receipt: the attempt costs an unknown
+    // amount. The same delivery twice is still one attempt, so one unknown.
+    const key = crypto.randomUUID();
+    assertEquals(
+      await record(fixture, model[0].id, "error", null, key),
+      "recorded",
+    );
+    assertEquals(
+      await record(fixture, model[0].id, "error", null, key),
+      "duplicate",
+    );
+    read = await ok(
+      await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+    );
+    assertEquals(read.budget, {
+      limitUsd: "0.100000",
+      settledUsd: "0.000000",
+      unknownCount: 1,
+      status: "unsettled",
+    });
+    const attempts = await ok(
+      await call(
+        fixture,
+        "GET",
+        "/v1/evaluation-results/" + model[0].id + "/attempts",
+      ),
+    );
+    assertEquals((attempts.items as Json[]).map((a) => a.usage), [
+      { measurement: "unknown", costUsd: null },
+    ]);
+    const checkAttempts = await ok(
+      await call(
+        fixture,
+        "GET",
+        "/v1/evaluation-results/" + check.id + "/attempts",
+      ),
+    );
+    assertEquals((checkAttempts.items as Json[]).map((a) => a.usage), [null]);
+  }));

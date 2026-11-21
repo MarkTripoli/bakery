@@ -8,11 +8,16 @@
 
 import { assertEquals } from "@std/assert";
 import {
+  budgetReport,
   corpusReport,
+  formatMicroUsd,
+  modelAttemptAllowed,
   optionalScorerProblem,
   pinSpec,
   type ReportFact,
   resultStateOfAttempt,
+  toMicroUsd,
+  usageGroupOf,
   validatePin,
 } from "../../apps/server/src/modules/evaluations/domain.ts";
 import { canonical } from "../../apps/server/src/modules/evaluations/store.ts";
@@ -221,4 +226,101 @@ Deno.test("an interrupted attempt leaves its result an error; every other state 
   ) {
     assertEquals(resultStateOfAttempt(state), state);
   }
+});
+
+Deno.test("AC3: a cost is whole micro-dollars and survives a round trip, and a bad amount is not a number", () => {
+  assertEquals(toMicroUsd("0.030000"), 30_000);
+  assertEquals(toMicroUsd("12"), 12_000_000);
+  assertEquals(toMicroUsd(" 1.5 "), 1_500_000);
+  assertEquals(toMicroUsd(null), null);
+  for (const bad of ["", "-1", "1e3", "abc", "1.", ".5"]) {
+    assertEquals(toMicroUsd(bad), null, bad);
+  }
+  assertEquals(formatMicroUsd(30_000), "0.030000");
+  assertEquals(formatMicroUsd(toMicroUsd("199.999999")!), "199.999999");
+});
+
+Deno.test("AC3: unknown cost is not zero: it counts on its own and keeps the batch from saying it is within its limit", () => {
+  const none = budgetReport(null, [
+    { measurement: "reported", count: 2, costUsd: "0.300000" },
+  ]);
+  assertEquals(none, {
+    limitUsd: null,
+    settledUsd: "0.300000",
+    unknownCount: 0,
+    status: "none",
+  });
+  const within = budgetReport("1", [
+    { measurement: "reported", count: 2, costUsd: "0.300000" },
+    { measurement: "estimated", count: 1, costUsd: "0.100000" },
+  ]);
+  assertEquals([within.settledUsd, within.status, within.unknownCount], [
+    "0.400000",
+    "within",
+    0,
+  ]);
+  // One unknown: settled is unchanged (not zero-filled), and the status is unsettled.
+  const unsettled = budgetReport("1", [
+    { measurement: "reported", count: 1, costUsd: "0.400000" },
+    { measurement: "unknown", count: 1, costUsd: null },
+  ]);
+  assertEquals(
+    [unsettled.settledUsd, unsettled.unknownCount, unsettled.status],
+    [
+      "0.400000",
+      1,
+      "unsettled",
+    ],
+  );
+  // Over the limit wins over unknown; exactly at the limit is exhausted.
+  assertEquals(
+    budgetReport("0.4", [
+      { measurement: "reported", count: 1, costUsd: "0.400000" },
+      { measurement: "unknown", count: 3, costUsd: null },
+    ]).status,
+    "exhausted",
+  );
+  // Nothing spent and nothing unknown is within, not unsettled.
+  assertEquals(budgetReport("5", []).status, "within");
+});
+
+Deno.test("AC2: another model attempt starts only while the batch is provably within its limit", () => {
+  const allowed = (
+    limit: string | null,
+    groups: Parameters<typeof budgetReport>[1],
+  ) => modelAttemptAllowed(budgetReport(limit, groups));
+  assertEquals(allowed(null, []), true);
+  assertEquals(allowed("1", []), true);
+  assertEquals(
+    allowed("1", [{ measurement: "reported", count: 1, costUsd: "0.5" }]),
+    true,
+  );
+  assertEquals(
+    allowed("1", [{ measurement: "reported", count: 1, costUsd: "1" }]),
+    false,
+  );
+  assertEquals(
+    allowed("1", [{ measurement: "unknown", count: 1, costUsd: null }]),
+    false,
+  );
+  // A batch with no limit is not stopped by an unknown cost.
+  assertEquals(
+    allowed(null, [{ measurement: "unknown", count: 1, costUsd: null }]),
+    true,
+  );
+});
+
+Deno.test("AC3: a deterministic check has no usage; a model attempt with no ledger row is unknown, never free", () => {
+  assertEquals(usageGroupOf("deterministic", null), null);
+  assertEquals(usageGroupOf("model", null), {
+    measurement: "unknown",
+    costUsd: null,
+  });
+  assertEquals(
+    usageGroupOf("model", { measurement: "reported", costUsd: "0.01" }),
+    {
+      measurement: "reported",
+      costUsd: "0.01",
+    },
+  );
 });

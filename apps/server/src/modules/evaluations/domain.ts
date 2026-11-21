@@ -539,3 +539,109 @@ export function resultStateOfAttempt(
 ): ResultState {
   return state === "interrupted" ? ResultState.Error : state;
 }
+
+// ----------------------------------------- the model-evaluation budget (#41)
+
+/** How a model call's cost is known, as the usage ledger records it. */
+export type UsageMeasurement = "reported" | "estimated" | "unknown";
+
+/**
+ * What the usage ledger says about the attempts of one scorer: how many
+ * attempts have this measurement and, for reported and estimated, their total
+ * cost as a decimal string. An unknown cost carries none: it is not zero.
+ */
+export type UsageGroup = Readonly<{
+  measurement: UsageMeasurement;
+  count: number;
+  costUsd: string | null;
+}>;
+
+export type BudgetStatus = "none" | "within" | "exhausted" | "unsettled";
+
+export type BudgetReport = Readonly<{
+  limitUsd: string | null;
+  /** Reported and estimated cost so far. Unknown costs are not in it. */
+  settledUsd: string;
+  /** Model attempts whose cost is not known: provider failure, timeout or no receipt. */
+  unknownCount: number;
+  status: BudgetStatus;
+}>;
+
+const MICRO = 1_000_000;
+
+/** A decimal USD string as whole micro-dollars; null when it is not one. */
+export function toMicroUsd(value: string | number | null): number | null {
+  if (value === null) return null;
+  const text = String(value).trim();
+  const match = /^(\d+)(?:\.(\d{1,6})\d*)?$/.exec(text);
+  if (match === null) return null;
+  const whole = Number(match[1]);
+  const fraction = Number((match[2] ?? "").padEnd(6, "0"));
+  const micro = whole * MICRO + fraction;
+  return Number.isSafeInteger(micro) ? micro : null;
+}
+
+export function formatMicroUsd(micro: number): string {
+  const whole = Math.floor(micro / MICRO);
+  return whole + "." + String(micro - whole * MICRO).padStart(6, "0");
+}
+
+/**
+ * The budget of a batch's model evaluation, separate from any run's budget:
+ * the limit, what was settled, and how many attempts cost an unknown amount.
+ * Unknown cost is never zero and never releases the budget: with one in the
+ * set the batch cannot say it is within its limit, so it is unsettled until
+ * the ledger reconciles it. Exhausted wins: a settled total at or over the
+ * limit is over it whatever else is unknown.
+ */
+export function budgetReport(
+  limitUsd: string | null,
+  groups: readonly UsageGroup[],
+): BudgetReport {
+  let settled = 0;
+  let unknown = 0;
+  for (const g of groups) {
+    if (g.measurement === "unknown") {
+      unknown += g.count;
+      continue;
+    }
+    settled += toMicroUsd(g.costUsd) ?? 0;
+  }
+  const limit = toMicroUsd(limitUsd);
+  const status: BudgetStatus = limit === null
+    ? "none"
+    : settled >= limit
+    ? "exhausted"
+    : unknown > 0
+    ? "unsettled"
+    : "within";
+  return {
+    limitUsd: limit === null ? null : formatMicroUsd(limit),
+    settledUsd: formatMicroUsd(settled),
+    unknownCount: unknown,
+    status,
+  };
+}
+
+/**
+ * Whether another model attempt may start: not past the limit and not with an
+ * unknown cost outstanding, since the batch could not show it stayed within.
+ * A batch with no limit is not stopped by the budget.
+ */
+export function modelAttemptAllowed(report: BudgetReport): boolean {
+  return report.status === "none" || report.status === "within";
+}
+
+/**
+ * The usage group of an attempt's ledger row. A model attempt with no row at
+ * all is unknown, never free; a deterministic check has no cost and no group.
+ */
+export function usageGroupOf(
+  evaluatorType: string,
+  row:
+    | Readonly<{ measurement: UsageMeasurement; costUsd: string | null }>
+    | null,
+): { measurement: UsageMeasurement; costUsd: string | null } | null {
+  if (evaluatorType === "deterministic") return null;
+  return row ?? { measurement: "unknown", costUsd: null };
+}

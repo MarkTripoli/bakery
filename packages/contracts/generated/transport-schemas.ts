@@ -35558,6 +35558,48 @@ const transportSchemas = {
         "required": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
       }
     },
+    "EvaluationBudget": {
+      "fields": [
+        "limitUsd",
+        "settledUsd",
+        "unknownCount",
+        "status"
+      ],
+      "fieldTypes": {
+        "limitUsd": "decimal|null",
+        "settledUsd": "decimal",
+        "unknownCount": "integer",
+        "status": "enum(none|within|exhausted|unsettled)"
+      },
+      "nullableFields": [
+        "limitUsd"
+      ],
+      "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount.",
+      "fieldDescriptions": {
+        "limitUsd": "The most the batch may spend, in USD; null when it was admitted without a limit.",
+        "settledUsd": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero.",
+        "unknownCount": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt.",
+        "status": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+      }
+    },
+    "EvaluationAttemptUsage": {
+      "fields": [
+        "measurement",
+        "costUsd"
+      ],
+      "fieldTypes": {
+        "measurement": "enum(reported|estimated|unknown)",
+        "costUsd": "decimal|null"
+      },
+      "nullableFields": [
+        "costUsd"
+      ],
+      "description": "What one model attempt cost, as the usage ledger records it.",
+      "fieldDescriptions": {
+        "measurement": "reported by the provider, estimated by Bakery, or unknown.",
+        "costUsd": "Cost in USD; null when unknown. Never zero for an unknown cost."
+      }
+    },
     "EvaluationCorpusReport": {
       "fields": [
         "total",
@@ -35707,6 +35749,7 @@ const transportSchemas = {
         "counts",
         "report",
         "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -35733,6 +35776,7 @@ const transportSchemas = {
         "counts": "EvaluationStateCounts",
         "report": "EvaluationCorpusReport",
         "optionalReport": "EvaluationCorpusReport|null",
+        "budget": "EvaluationBudget",
         "gate": "EvaluationGate",
         "hiddenCount": "integer",
         "canceledAt": "timestamp|null",
@@ -35769,6 +35813,7 @@ const transportSchemas = {
         "counts": "Required candidate results per state.",
         "report": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those.",
         "optionalReport": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer.",
+        "budget": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it.",
         "gate": "The gate's answer.",
         "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
         "canceledAt": "When it was canceled.",
@@ -35860,6 +35905,7 @@ const transportSchemas = {
         "startedAt",
         "endedAt",
         "traceRef",
+        "usage",
         "createdAt"
       ],
       "fieldTypes": {
@@ -35872,6 +35918,7 @@ const transportSchemas = {
         "startedAt": "timestamp|null",
         "endedAt": "timestamp|null",
         "traceRef": "string|null",
+        "usage": "EvaluationAttemptUsage|null",
         "createdAt": "timestamp"
       },
       "nullableFields": [
@@ -35879,7 +35926,8 @@ const transportSchemas = {
         "score",
         "startedAt",
         "endedAt",
-        "traceRef"
+        "traceRef",
+        "usage"
       ],
       "description": "One append-only attempt at a result.",
       "fieldDescriptions": {
@@ -35892,6 +35940,7 @@ const transportSchemas = {
         "startedAt": "When it started.",
         "endedAt": "When it ended.",
         "traceRef": "Link to the trace; null when none.",
+        "usage": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free.",
         "createdAt": "When it was recorded."
       }
     },

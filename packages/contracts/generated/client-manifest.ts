@@ -110156,6 +110156,54 @@ export const clientManifest = {
           ],
           "description": "EvaluationBatch.optionalReport may be null in this transport value."
         },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "limitUsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                  "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.limitUsd may be null in this transport value."
+            },
+            "settledUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+            },
+            "unknownCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "none",
+                "within",
+                "exhausted",
+                "unsettled"
+              ],
+              "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+            }
+          },
+          "required": [
+            "limitUsd",
+            "settledUsd",
+            "unknownCount",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
+        },
         "gate": {
           "type": "object",
           "properties": {
@@ -110310,6 +110358,7 @@ export const clientManifest = {
         "counts",
         "report",
         "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -111102,6 +111151,54 @@ export const clientManifest = {
                 ],
                 "description": "EvaluationBatch.optionalReport may be null in this transport value."
               },
+              "budget": {
+                "type": "object",
+                "properties": {
+                  "limitUsd": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                        "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.limitUsd may be null in this transport value."
+                  },
+                  "settledUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+                  },
+                  "unknownCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "within",
+                      "exhausted",
+                      "unsettled"
+                    ],
+                    "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                  }
+                },
+                "required": [
+                  "limitUsd",
+                  "settledUsd",
+                  "unknownCount",
+                  "status"
+                ],
+                "additionalProperties": false,
+                "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
+              },
               "gate": {
                 "type": "object",
                 "properties": {
@@ -111256,6 +111353,7 @@ export const clientManifest = {
               "counts",
               "report",
               "optionalReport",
+              "budget",
               "gate",
               "hiddenCount",
               "canceledAt",
@@ -111871,6 +111969,49 @@ export const clientManifest = {
                 ],
                 "description": "EvaluationAttempt.traceRef may be null in this transport value."
               },
+              "usage": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "measurement": {
+                        "type": "string",
+                        "enum": [
+                          "reported",
+                          "estimated",
+                          "unknown"
+                        ],
+                        "description": "reported by the provider, estimated by Bakery, or unknown."
+                      },
+                      "costUsd": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                            "description": "Cost in USD; null when unknown. Never zero for an unknown cost."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationAttemptUsage.costUsd may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "measurement",
+                      "costUsd"
+                    ],
+                    "additionalProperties": false,
+                    "description": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.usage may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -111888,6 +112029,7 @@ export const clientManifest = {
               "startedAt",
               "endedAt",
               "traceRef",
+              "usage",
               "createdAt"
             ],
             "additionalProperties": false,

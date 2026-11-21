@@ -17,6 +17,7 @@ import {
 } from "../../platform/cursor.ts";
 import {
   batchStateOf,
+  budgetReport,
   compareBatches,
   compatibility,
   corpusReport,
@@ -34,6 +35,9 @@ import {
   ResultState as State,
   resultStateOfAttempt,
   type Role,
+  type UsageGroup,
+  usageGroupOf,
+  type UsageMeasurement,
   validatePin,
 } from "./domain.ts";
 
@@ -677,6 +681,48 @@ async function viewOf(
       count: Number(h.n),
     }));
   const optionalFacts = factsOf(false);
+  // What the model attempts cost, from the usage ledger: each attempt's
+  // worker attempt id is its delivery key, which the ledger rows carry too.
+  const spent = await tx.query<
+    {
+      evaluator_type: string;
+      measurement: UsageMeasurement | null;
+      n: string;
+      cost: string | null;
+    }
+  >(
+    `select d.evaluator_type, u.measurement, count(*)::text as n,
+            sum(u.cost_usd)::text as cost
+       from bakery.evaluation_attempts a
+       join bakery.evaluation_results r
+         on r.organization_id = a.organization_id and r.id = a.result_id
+       join bakery.evaluation_definitions d
+         on d.organization_id = r.organization_id and d.id = r.scorer_id
+       left join bakery.usage_records u
+         on u.organization_id = a.organization_id
+        and u.attempt_id::text = a.delivery_key
+      where a.organization_id = $1 and r.batch_id = $2
+      group by 1, 2`,
+    [organizationId, row.id],
+  );
+  const usageGroups: UsageGroup[] = [];
+  for (const g of spent.rows) {
+    const group = usageGroupOf(
+      g.evaluator_type,
+      g.measurement === null
+        ? null
+        : { measurement: g.measurement, costUsd: g.cost },
+    );
+    if (group !== null) {
+      usageGroups.push({
+        ...group,
+        count: Number(g.n),
+        costUsd: group.costUsd,
+      });
+    }
+  }
+  const limitUsd = (row.limits as { budgetLimitUsd?: unknown } | null)
+    ?.budgetLimitUsd;
   const scorers = row.scorers.map((s) => ({
     ...s,
     required: s.required ?? true,
@@ -708,6 +754,10 @@ async function viewOf(
     requiredCount: required,
     measuredCount: counts.passed + counts.failed,
     counts,
+    budget: budgetReport(
+      typeof limitUsd === "string" ? limitUsd : null,
+      usageGroups,
+    ),
     report: corpusReport(factsOf(true)),
     optionalReport: optionalFacts.length === 0
       ? null
@@ -933,6 +983,9 @@ type AttemptRow = {
   ended_at: Date | null;
   trace_ref: string | null;
   created_at: Date;
+  evaluator_type: string;
+  usage_measurement: UsageMeasurement | null;
+  usage_cost: string | null;
 };
 
 export function createAttemptLister(secret: string) {
@@ -959,10 +1012,26 @@ export function createAttemptLister(secret: string) {
     };
     const position = await decodeCursor(secret, input.cursor, binding);
     const found = await tx.query<AttemptRow>(
-      `select * from bakery.evaluation_attempts
-        where organization_id = $1 and result_id = $2
-          and ($3::integer is null or attempt_no > $3)
-        order by attempt_no limit $4`,
+      `select a.*, d.evaluator_type, u.measurement as usage_measurement,
+              u.cost as usage_cost
+         from bakery.evaluation_attempts a
+         join bakery.evaluation_results r
+           on r.organization_id = a.organization_id and r.id = a.result_id
+         join bakery.evaluation_definitions d
+           on d.organization_id = r.organization_id and d.id = r.scorer_id
+         left join lateral (
+           select case when count(*) = 0 then null
+                       when bool_or(x.measurement = 'unknown') then 'unknown'
+                       when bool_or(x.measurement = 'estimated') then 'estimated'
+                       else 'reported' end as measurement,
+                  sum(x.cost_usd)::text as cost
+             from bakery.usage_records x
+            where x.organization_id = a.organization_id
+              and x.attempt_id::text = a.delivery_key
+         ) u on true
+        where a.organization_id = $1 and a.result_id = $2
+          and ($3::integer is null or a.attempt_no > $3)
+        order by a.attempt_no limit $4`,
       [organizationId, resultId, position?.position ?? null, limit + 1],
     );
     const visible = found.rows.slice(0, limit);
@@ -978,6 +1047,12 @@ export function createAttemptLister(secret: string) {
         startedAt: row.started_at ? iso(row.started_at) : null,
         endedAt: row.ended_at ? iso(row.ended_at) : null,
         traceRef: row.trace_ref,
+        usage: usageGroupOf(
+          row.evaluator_type,
+          row.usage_measurement === null
+            ? null
+            : { measurement: row.usage_measurement, costUsd: row.usage_cost },
+        ),
         createdAt: iso(row.created_at),
       })),
       nextCursor: found.rows.length > limit && last
