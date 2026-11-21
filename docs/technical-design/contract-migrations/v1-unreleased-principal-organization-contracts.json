@@ -1,14 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "d5b78073a25b16722e2b68bda86d9e170c977106",
-    "2b80e3defdbf4e8c8cda6a23ce6383f7dfd11bee"
+    "ad5241ce6670eff3c31661b68d533e613cbccf0b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:da92d61ec30ee51d5af5b216449f1be52859fd22b13f921b6d078680cdc62bcb",
-  "reason": "#75 evaluation names rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main d5b78073a25b16722e2b68bda86d9e170c977106: EvaluationBatch gains datasetName, candidateDefinition, baselineDefinition and canceledBy, and EvaluationBatchResult gains caseName, all required in the answer (read joins, nothing stored); EvaluationPinDefinition is new. Main's approval is displaced, kept unchanged.",
+  "targetCompatibilityDigest": "sha256:1c141ac78d679b2bc98ce7f6ce69d5aa91aeed6c893e5f18fa8e264b319de2c3",
+  "reason": "#76 plugin pages main-merge rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main ad5241ce6670eff3c31661b68d533e613cbccf0b: the #76 server half (plugin pages served sealed) re-bound after a conflict-only merge of main. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d5b78073a25b16722e2b68bda86d9e170c977106",
+        "2b80e3defdbf4e8c8cda6a23ce6383f7dfd11bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:da92d61ec30ee51d5af5b216449f1be52859fd22b13f921b6d078680cdc62bcb",
+      "reason": "#75 evaluation names rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main d5b78073a25b16722e2b68bda86d9e170c977106: EvaluationBatch gains datasetName, candidateDefinition, baselineDefinition and canceledBy, and EvaluationBatchResult gains caseName, all required in the answer (read joins, nothing stored); EvaluationPinDefinition is new. Main's approval is displaced, kept unchanged."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
