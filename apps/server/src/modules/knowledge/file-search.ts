@@ -13,6 +13,7 @@ import {
   StorageNameError,
   storageQueryOf,
 } from "./storage-tree.ts";
+import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
 
 /**
  * File search and the read-only library mirror (chapter 25 section 17, #453).
@@ -644,7 +645,18 @@ export function createFileSearchHandler(
        order by created_at desc, sort_id desc
        limit ${p(limit + 1)}`;
     const result = await transaction.query<HitRow>(sql, params);
-    const visible = result.rows.slice(0, limit);
+    const page = result.rows.slice(0, limit);
+    // A reviewer's search leaves out the files it may not read (O47); the
+    // cursor follows the unfiltered page.
+    const hidden = await hiddenEntryIds(
+      transaction,
+      await reviewerIsolationOf(transaction, context, organizationId),
+      organizationId,
+      page.filter((row) => row.source === "files").map((row) => row.sort_id),
+    );
+    const visible = page.filter((row) =>
+      row.source !== "files" || !hidden.has(row.sort_id)
+    );
 
     // Paths of the tree hits, in one query: each entry's ancestors, joined.
     const treeIds = visible.filter((row) => row.source === "files").map((row) =>
@@ -670,7 +682,7 @@ export function createFileSearchHandler(
       for (const row of found.rows) paths.set(row.leaf, row.path);
     }
 
-    const last = visible.at(-1);
+    const last = page.at(-1);
     return {
       items: visible.map((row) => {
         const match = nameMatch(row.name, input.query);

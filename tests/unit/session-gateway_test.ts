@@ -20,13 +20,14 @@ Deno.test("every typed refusal is recorded as a denial, not a shrug", () => {
   // The list is asserted as data rather than described, because "the typed
   // refusals" is how one gets missed - and one was: SESSION_CREDENTIAL_INVALID
   // is raised by resolution rather than by an explicit check, so it is the
-  // easiest to overlook and the most security-relevant of the six.
+  // easiest to overlook and the most security-relevant of them.
   assertEquals(sessionPolicyRefusalCodes(), [
     "SESSION_CREDENTIAL_EXPIRED",
     "SESSION_CREDENTIAL_FENCE_STALE",
     "SESSION_CREDENTIAL_INVALID",
     "SESSION_SCOPE_DENIED",
     "SESSION_TOOL_DENIED",
+    "SESSION_TOOL_PEOPLE_ONLY",
     "SESSION_TOOL_UNKNOWN",
   ]);
 });
