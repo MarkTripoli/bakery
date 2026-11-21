@@ -474,6 +474,7 @@ const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
   "messages.create",
   "conversationParticipants.list",
   "conversations.mentionCandidates",
+  "conversationAccess.sharers",
 ]);
 
 /**

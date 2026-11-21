@@ -8442,6 +8442,28 @@
     },
     {
       "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/access/sharers",
+      "action": "conversationAccess.sharers",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "IdPath",
+      "output": "ConversationSharers",
+      "event": "",
+      "mcp": "bakery_conversationAccess_sharers",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
       "method": "POST",
       "path": "/v1/conversations/{id}/access/{principalId}/revoke",
       "action": "conversationAccess.revoke",
@@ -13970,6 +13992,7 @@
     "conversations.mentionCandidates",
     "conversationAccess.list",
     "conversationAccess.revoke",
+    "conversationAccess.sharers",
     "planRevisions.list",
     "planRevisions.get",
     "approvals.list",
@@ -35876,6 +35899,60 @@
           }
         }
       },
+      "/v1/conversations/{id}/access/sharers": {
+        "get": {
+          "operationId": "conversationAccess.sharers",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationSharers"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/conversations/{id}/access/{principalId}/revoke": {
         "post": {
           "operationId": "conversationAccess.revoke",
@@ -56346,6 +56423,7 @@
                 "conversationParticipants.list",
                 "conversations.mentionCandidates",
                 "conversationAccess.list",
+                "conversationAccess.sharers",
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
@@ -106767,6 +106845,7 @@
                 "conversationParticipants.list",
                 "conversations.mentionCandidates",
                 "conversationAccess.list",
+                "conversationAccess.sharers",
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
@@ -107425,6 +107504,7 @@
                 "conversationParticipants.list",
                 "conversations.mentionCandidates",
                 "conversationAccess.list",
+                "conversationAccess.sharers",
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
@@ -108083,6 +108163,7 @@
                 "conversationParticipants.list",
                 "conversations.mentionCandidates",
                 "conversationAccess.list",
+                "conversationAccess.sharers",
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
@@ -153671,6 +153752,7 @@
                       "conversationParticipants.list",
                       "conversations.mentionCandidates",
                       "conversationAccess.list",
+                      "conversationAccess.sharers",
                       "conversationAccess.revoke",
                       "conversationTurns.get",
                       "conversationTurns.cancel",
@@ -252282,6 +252364,66 @@
           "additionalProperties": false,
           "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
         },
+        "ConversationSharer": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "principalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The person who may give access."
+            },
+            "displayName": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Their current display name; never an email address. ConversationSharer.displayName must contain at most 200 characters."
+            }
+          },
+          "required": [
+            "principalId",
+            "displayName"
+          ],
+          "additionalProperties": false,
+          "description": "One person who may give someone access to a conversation or a document."
+        },
+        "ConversationSharers": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "principalId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The person who may give access."
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Their current display name; never an email address. ConversationSharer.displayName must contain at most 200 characters."
+                  }
+                },
+                "required": [
+                  "principalId",
+                  "displayName"
+                ],
+                "additionalProperties": false,
+                "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may. Each array item follows this format."
+              },
+              "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may."
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
+        },
         "Page<ConversationAccessGrant>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -269059,7 +269201,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:71bc250189578cfeece5980204cfc98891c4bf339d107c17d8ab0eec98345069",
+  "compatibilityDigest": "sha256:842c0e2a2eb34897173002f40a5726c709aab3bee47de06fd1349cfdae06c986",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -276668,6 +276810,7 @@
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -327263,6 +327406,7 @@
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -327921,6 +328065,7 @@
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -328579,6 +328724,7 @@
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -374317,6 +374463,7 @@
                   "conversationParticipants.list",
                   "conversations.mentionCandidates",
                   "conversationAccess.list",
+                  "conversationAccess.sharers",
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
@@ -473061,6 +473208,66 @@
       ],
       "additionalProperties": false,
       "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
+    },
+    "ConversationSharer": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person who may give access."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Their current display name; never an email address. ConversationSharer.displayName must contain at most 200 characters."
+        }
+      },
+      "required": [
+        "principalId",
+        "displayName"
+      ],
+      "additionalProperties": false,
+      "description": "One person who may give someone access to a conversation or a document."
+    },
+    "ConversationSharers": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person who may give access."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Their current display name; never an email address. ConversationSharer.displayName must contain at most 200 characters."
+              }
+            },
+            "required": [
+              "principalId",
+              "displayName"
+            ],
+            "additionalProperties": false,
+            "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may. Each array item follows this format."
+          },
+          "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
     },
     "Page<ConversationAccessGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
