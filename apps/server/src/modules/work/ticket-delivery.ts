@@ -20,11 +20,28 @@ export type TicketDeliveryEvidence = {
   pullRequests: readonly { status: "open" | "closed" | "merged" }[];
   /** The latest release health recorded for the work, or null when none is. */
   deployment: { healthy: boolean } | null;
+  /**
+   * Seconds since the latest run of the work finished; null when no run did
+   * (a task closed by hand). A run can end before the step that registers its
+   * pull request, so a run with no pull request yet is held for
+   * `NO_PULL_REQUEST_GRACE_SECONDS` before it counts as having none.
+   */
+  finishedSecondsAgo: number | null;
 };
+
+/**
+ * How long a finished run with no registered pull request waits before
+ * `merged` treats it as work that opens none. A terminal request never
+ * reopens, so delivering before a late registration would be final; the
+ * recheck that follows reads the pull request once it exists. Ten minutes is
+ * two recheck passes.
+ */
+export const NO_PULL_REQUEST_GRACE_SECONDS = 600;
 
 /** What a delivered ticket's progress still waits for. */
 export type TicketDeliveryWait =
   | "work"
+  | "pull_request"
   | "merge"
   | "deployment";
 
@@ -72,10 +89,14 @@ export function ticketDeliveryVerdict(
   if (policy === "task") return { delivered: true };
   // Under `merged`, a run that registered no pull request at all had no code
   // to merge (a docs or ops task, or a run that found nothing to change), so
-  // finished is delivered. An open pull request, or one closed unmerged, still
-  // holds it: that is code that was proposed and not taken.
+  // finished is delivered, once the run has been over long enough that its
+  // pull request would have registered. An open pull request, or one closed
+  // unmerged, still holds it: that is code that was proposed and not taken.
   if (policy === "merged" && evidence.pullRequests.length === 0) {
-    return { delivered: true };
+    return evidence.finishedSecondsAgo !== null &&
+        evidence.finishedSecondsAgo < NO_PULL_REQUEST_GRACE_SECONDS
+      ? waiting("pull_request")
+      : { delivered: true };
   }
   const merge = mergeState(evidence.pullRequests);
   if (!merge.merged) return waiting("merge", merge.closedUnmerged);

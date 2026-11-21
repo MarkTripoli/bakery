@@ -1,13 +1,33 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "f5ec00f7de45132935cf369a5841a7b710f99c61"
+    "77dc67ce584a210f1c1f54b2c588ef1d6349232f"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:72801058163e0c9d7f8eefb0fbabdc15b7fc436355124e42ab17b78394aac147",
-  "reason": "#80 point-in-time P1a by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main f5ec00f7de45132935cf369a5841a7b710f99c61: backupPointInTime.get/put, the runner's WAL report, and BackupRunnerSettings gains a required pointInTimeEnabled. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:342031789a41b0d6954e7d86e02bf0427dfe01e81fe8b20108e71c4f5e36f370",
+  "reason": "#64 E4 server by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 77dc67ce584a210f1c1f54b2c588ef1d6349232f: installationStatus gains restoreHeld, and installationRestore gains who took each step (InstallationRestoreActor). Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "aa871531a3328a642137a85b370e51973391b6a6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:512ee3f1b960b1871b2f3dad5ce2e26e387d318f82e0553bc8da73b9731a6914",
+      "reason": "#64 E4 server by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main aa871531a3328a642137a85b370e51973391b6a6: installationStatus gains restoreHeld, and installationRestore gains who took each step (InstallationRestoreActor). Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f5ec00f7de45132935cf369a5841a7b710f99c61"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:72801058163e0c9d7f8eefb0fbabdc15b7fc436355124e42ab17b78394aac147",
+      "reason": "#80 point-in-time P1a by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main f5ec00f7de45132935cf369a5841a7b710f99c61: backupPointInTime.get/put, the runner's WAL report, and BackupRunnerSettings gains a required pointInTimeEnabled. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
