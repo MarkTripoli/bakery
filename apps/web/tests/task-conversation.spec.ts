@@ -3100,6 +3100,11 @@ for (const count of [3, 6]) {
       hasText: "Give them access?",
     });
     await expect(offer.getByRole("button")).toHaveCount(0);
+    // The draft field grows with its text: nothing of it is cut off.
+    const clipped = await box.evaluate((el) =>
+      el.scrollHeight - el.clientHeight
+    );
+    expect(clipped, "the draft field clips its text").toBeLessThanOrEqual(1);
     await page.mouse.move(700, 100);
     await still(page, `mentions-several${count}`);
   });
