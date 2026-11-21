@@ -25963,16 +25963,19 @@
     "InstallationStatus": {
       "fields": [
         "bootstrapped",
-        "restoreHeld"
+        "restoreHeld",
+        "updatePaused"
       ],
       "fieldTypes": {
         "bootstrapped": "boolean",
-        "restoreHeld": "boolean"
+        "restoreHeld": "boolean",
+        "updatePaused": "boolean"
       },
-      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity.",
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity.",
       "fieldDescriptions": {
         "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
-        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action.",
+        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
       }
     },
     "BrowserSession": {
@@ -36427,6 +36430,39 @@
       "fieldDescriptions": {
         "principalId": "Principal id of the administrator who took the step.",
         "displayName": "Their current display name."
+      }
+    },
+    "UncertainActionKind": {
+      "fields": [
+        "operation",
+        "count",
+        "since"
+      ],
+      "fieldTypes": {
+        "operation": "string",
+        "count": "integer",
+        "since": "timestamp"
+      },
+      "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried.",
+      "fieldDescriptions": {
+        "operation": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind.",
+        "count": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first.",
+        "since": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+      }
+    },
+    "InstallationUncertainActions": {
+      "fields": [
+        "kinds",
+        "total"
+      ],
+      "fieldTypes": {
+        "kinds": "UncertainActionKind[]",
+        "total": "integer"
+      },
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only.",
+      "fieldDescriptions": {
+        "kinds": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain.",
+        "total": "How many actions are uncertain in all, counting kinds beyond the ones listed."
       }
     },
     "BackupDrill": {

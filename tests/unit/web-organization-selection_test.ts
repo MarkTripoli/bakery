@@ -165,6 +165,7 @@ function fakeApi(
       remove: rejecting,
       test: rejecting,
     },
+    installationRestore: { get: rejecting, step: rejecting },
     installationSettings: { get: rejecting, update: rejecting },
     storageSettings: { get: rejecting, put: rejecting },
     usage: { list: rejecting },
