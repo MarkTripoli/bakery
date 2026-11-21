@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "da781d1c4ed17e5ddc8bc250e5ddba46952e7177"
+    "d5b78073a25b16722e2b68bda86d9e170c977106"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:aed5864d9b02e07f9042e5cac373c0beaa11ea7830f3923e65d579fd6c73e078",
-  "reason": "#76 plugin pages main-merge rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main da781d1c4ed17e5ddc8bc250e5ddba46952e7177: the #76 server half (plugin pages served sealed) re-bound after a conflict-only merge of main. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:7560fa7ee7bf8b65610a5e2104260e78af34a24200e3d59e0ce10ad90a613e04",
+  "reason": "#76 plugin pages main-merge rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main d5b78073a25b16722e2b68bda86d9e170c977106: the #76 server half (plugin pages served sealed) re-bound after a conflict-only merge of main (#821 merged). Main's own approval is kept unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
