@@ -20,6 +20,7 @@ import {
 } from "../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { attributeAction } from "../auth/application/action-attribution.ts";
 import { encryptMcpCredential, loadSecretKey } from "../secrets/crypto.ts";
 import { compileConfigSchema } from "./server-commands.ts";
 
@@ -71,6 +72,32 @@ const COLUMNS = `connection.id, connection.server_id,
   connection.secret_id, connection.enabled_capabilities, connection.status,
   connection.current_snapshot_id, connection.created_at, connection.updated_at,
   connection.version`;
+
+/**
+ * What an agent may not do to a connection (chapter 25 section 18.3, O51): it
+ * prepares the connection and a person completes it, because a secret must never
+ * enter model context and consent binds a person's identity.
+ */
+export const AgentConnectionRefusal = Object.freeze(
+  {
+    /** An agent cannot attach or change a secret. */
+    Secret: "agent_connection_secret_stays_with_people",
+    /** An agent drafts a personal connection, which its person then completes. */
+    Personal: "agent_connection_draft_is_personal",
+    /** An agent cannot switch a connection on; a person reviews the draft first. */
+    Enable: "agent_connection_enable_stays_with_people",
+    /**
+     * An agent edits only its person's own disabled draft with no secret, and
+     * never revokes: a live or organization connection is a person's to change.
+     */
+    NotDraft: "agent_connection_edits_only_its_draft",
+  } as const,
+);
+
+/** An agent's refusal names the field and the rule, as an issue a client can show. */
+function refuseAgent(field: string, reason: string) {
+  return unprocessable([field], reason);
+}
 
 /** Statuses a person may set. `degraded` is the system's finding, never a choice. */
 const SETTABLE_STATUSES = new Set(["enabled", "disabled", "revoked"]);
@@ -413,6 +440,15 @@ export function createMcpConnectionCreator(
     if (!personal && !isAdmin(context)) {
       throw new StandardError({ code: "AUTH_FORBIDDEN" });
     }
+    // An agent's connection is a draft: personal, with no secret, and off until
+    // the person it acts for completes and enables it.
+    const draft = attributeAction(context, principalId).actorKind === "agent";
+    if (draft && input.secret != null) {
+      throw refuseAgent("secret", AgentConnectionRefusal.Secret);
+    }
+    if (draft && !personal) {
+      throw refuseAgent("scope", AgentConnectionRefusal.Personal);
+    }
     if (input.workerHostId != null) {
       throw unprocessable(["workerHostId"], "worker_host_not_for_remote");
     }
@@ -457,8 +493,8 @@ export function createMcpConnectionCreator(
     await transaction.query(
       `insert into bakery.mcp_connections (
          id, organization_id, server_id, owner_principal_id, label, config,
-         secret_id, enabled_capabilities
-       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, '[]'::jsonb)`,
+         secret_id, enabled_capabilities, status
+       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, '[]'::jsonb, $8)`,
       [
         id,
         organizationId,
@@ -467,6 +503,7 @@ export function createMcpConnectionCreator(
         input.label,
         JSON.stringify(input.config),
         sealed?.secretId ?? null,
+        draft ? "disabled" : "enabled",
       ],
     );
     const created = toConnection(
@@ -482,6 +519,7 @@ export function createMcpConnectionCreator(
       {
         scope: personal ? "personal" : "organization",
         serverId: input.serverId,
+        draft,
         credential: sealed ? "set" : "none",
         ...(sealed ? { secretRevision: sealed.revision } : {}),
       },
@@ -518,6 +556,14 @@ export function createMcpConnectionUpdater(
     if (input.status !== undefined && !SETTABLE_STATUSES.has(input.status)) {
       throw unprocessable(["status"], "status_not_settable");
     }
+    if (attributeAction(context, principalId).actorKind === "agent") {
+      if (input.secret !== undefined) {
+        throw refuseAgent("secret", AgentConnectionRefusal.Secret);
+      }
+      if (input.status === "enabled") {
+        throw refuseAgent("status", AgentConnectionRefusal.Enable);
+      }
+    }
     const id = connectionId(context);
     const current = await loadVisible(
       transaction,
@@ -526,6 +572,15 @@ export function createMcpConnectionUpdater(
       { lock: true },
     );
     requireMayChange(context, current);
+    if (attributeAction(context, principalId).actorKind === "agent") {
+      if (
+        current.owner_principal_id !== principalId ||
+        current.status !== "disabled" || current.secret_id !== null
+      ) throw refuseAgent("id", AgentConnectionRefusal.NotDraft);
+      if (input.status === "revoked") {
+        throw refuseAgent("status", AgentConnectionRefusal.NotDraft);
+      }
+    }
     if (current.version !== expectedVersion) {
       throw new StandardError({ code: "PRECONDITION_FAILED" });
     }

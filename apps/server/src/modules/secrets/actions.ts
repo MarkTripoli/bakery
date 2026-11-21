@@ -53,13 +53,16 @@ export function createSecretsActionRegistry(
     policy,
     handler: getSecret,
   });
+  // Secrets stay with people (chapter 25 section 18.3, O51): every write needs
+  // a signed-in browser session, so a token, an MCP client or an agent's
+  // session call is refused before the handler runs.
   registry.register({
     name: SecretsImplementedAction.Create,
     method: HttpMethod.Post,
     path: "/v1/secrets",
     input: contractSchemas.SecretCreate,
     output: contractSchemas.SecretMetadata,
-    policy: { ...policy, type: ActionKind.Command },
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: createSecret,
   });
   registry.register({
@@ -68,7 +71,7 @@ export function createSecretsActionRegistry(
     path: "/v1/secrets/:id/versions",
     input: contractSchemas.SecretRotation,
     output: contractSchemas.SecretMetadata,
-    policy: { ...policy, type: ActionKind.Command },
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: rotateSecret,
   });
   registry.register({
@@ -77,7 +80,7 @@ export function createSecretsActionRegistry(
     path: "/v1/secrets/:id",
     input: contractSchemas.SecretPolicyUpdate,
     output: contractSchemas.SecretMetadata,
-    policy: { ...policy, type: ActionKind.Command },
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: updateSecretPolicy,
   });
   registry.register({
@@ -86,7 +89,7 @@ export function createSecretsActionRegistry(
     path: "/v1/secrets/:id",
     input: contractSchemas.SecretRevoke,
     output: contractSchemas.NoContent,
-    policy: { ...policy, type: ActionKind.Command },
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     naturalIdempotency: true,
     handler: revokeSecret,
   });

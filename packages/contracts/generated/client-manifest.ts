@@ -29437,9 +29437,12 @@ export const clientManifest = {
             "run_control",
             "run_start",
             "steer",
-            "steer_reviewer"
+            "steer_reviewer",
+            "comment",
+            "edit_work",
+            "draft_connection"
           ],
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) or steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
         },
         "workflowId": {
           "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -99147,9 +99150,12 @@ export const clientManifest = {
             "run_control",
             "run_start",
             "steer",
-            "steer_reviewer"
+            "steer_reviewer",
+            "comment",
+            "edit_work",
+            "draft_connection"
           ],
-          "description": "The power granted: decide, run_control, run_start, steer or steer_reviewer."
+          "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection."
         },
         "workflowId": {
           "anyOf": [
