@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   call,
   CHECKLIST_HTML,
@@ -262,3 +262,51 @@ Deno.test("with no operations registered every request is refused as unknown", (
       { ok: false, result: null, replayed: null, denial: "unknown_operation" },
     );
   }));
+
+Deno.test("a chunked body with no declared length is cut off at the cap, not buffered whole", () => {
+  const rec = recorder();
+  return withPluginFixture(async (fixture, store) => {
+    const { worker, assignment } = await setup(fixture, store);
+    const host = await fixture.pgDatabase.query<{ version: number }>(
+      `select protocol_version as version from bakery.worker_hosts where id = $1`,
+      [worker.registration.workerHostId],
+    );
+    // A producer that would send 100 MiB if asked, and counts what was asked.
+    const CHUNK = 16 * 1024;
+    const TOTAL_CHUNKS = 6_400;
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= TOTAL_CHUNKS) return controller.close();
+        pulled++;
+        controller.enqueue(new Uint8Array(CHUNK).fill(0x61));
+      },
+    });
+    const response = await fixture.app.fetch(
+      new Request(
+        `${fixture.config.publicBaseUrl}/v1/worker/attempts/${assignment.attemptId}/plugin-broker`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${worker.credential}`,
+            "Content-Type": "application/json",
+            "X-Bakery-Worker-Protocol-Version": String(host.rows[0].version),
+            "X-Worker-Lease-Token": String(assignment.leaseToken),
+            "X-Worker-Fence": String(assignment.fence),
+            "X-Worker-Session-Id": worker.registration.workerSessionId,
+            "X-Worker-Session-Generation":
+              worker.registration.workerSessionGeneration,
+          },
+          body,
+          // A streamed request body must say it is half-duplex.
+          duplex: "half",
+        } as RequestInit & { duplex: "half" },
+      ),
+    );
+    assertEquals(response.status, 413);
+    assertEquals(await problemCode(response), "BODY_TOO_LARGE");
+    // 64 KiB is four chunks; a few more may be in flight. Nowhere near 100 MiB.
+    assert(pulled <= 16, `the server pulled ${pulled} chunks before refusing`);
+    assertEquals(rec.seen, []);
+  }, { pluginBrokerOperations: [rec.operation] });
+});

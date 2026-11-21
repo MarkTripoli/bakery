@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { StandardError } from "@bakery/contracts/http";
 import { BROKER_MAX_REQUEST_BYTES } from "../catalog/plugin-broker.ts";
-import { jsonResponse } from "./http.ts";
+import { jsonResponse, readBoundedText } from "./http.ts";
 import { type ExecutionRouteOptions } from "./shared.ts";
 import { authorizePluginAttempt } from "./plugin-attempt.ts";
 
@@ -34,11 +34,9 @@ export async function pluginBrokerRelayRoute(
     (!/^\d+$/.test(declared) || Number(declared) > BROKER_MAX_REQUEST_BYTES)
   ) throw new StandardError({ code: "BODY_TOO_LARGE" });
   const attempt = await authorizePluginAttempt(context, options);
-  // Read bounded: the declared length can lie, so the text is measured too.
-  const body = await context.req.text();
-  if (new TextEncoder().encode(body).byteLength > BROKER_MAX_REQUEST_BYTES) {
-    throw new StandardError({ code: "BODY_TOO_LARGE" });
-  }
+  // Streamed with a cap, so a chunked body with no declared length is cut off
+  // at the limit instead of being buffered whole and measured afterwards.
+  const body = await readBoundedText(context, BROKER_MAX_REQUEST_BYTES);
 
   const outcome = await broker.callAs({
     claims: {
