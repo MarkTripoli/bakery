@@ -71,6 +71,7 @@ import {
   workerSkillVersionRoute,
 } from "../catalog/worker-reads.ts";
 import { WORKER_SKILL_READ_HEADERS } from "@bakery/contracts/worker-skill-read";
+import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 
 export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   inngest?: InngestRuntimeConfig;
@@ -81,6 +82,8 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
     processHooks?: SkillImportProcessHooks;
   }>;
   integrations?: IntegrationsBackgroundDependencies;
+  /** Writes Bakery's status note on a ticket; the ticket poll keeps it current. Absent: the poll writes none. */
+  ticketNoteWriter?: TicketNoteWriter;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -191,6 +194,7 @@ export function createExecutionRoutes(
       budget: options.budget,
       skillImport: options.skillImport,
       integrations: options.integrations,
+      ticketNoteWriter: options.ticketNoteWriter,
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);

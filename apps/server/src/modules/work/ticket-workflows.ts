@@ -12,7 +12,12 @@ import {
   type RecheckAction,
   recheckTicket,
 } from "./ticket-admission.ts";
+import type { TicketNoteWriter } from "./ticket-notes.ts";
 import { requestedIntentFromLabels } from "./ticket-policy.ts";
+import {
+  type ProgressSyncResult,
+  syncSourceProgress,
+} from "./ticket-progress-sync.ts";
 import { prefetchTicketReads } from "./ticket-prefetch.ts";
 import type {
   TicketFactIndex,
@@ -65,6 +70,8 @@ export type TicketWorkflowDeps = {
   factIndex: TicketFactIndex;
   /** Server budget policy; the fixed preset's availability reads it, so without it no ticket is ready. */
   budget: BudgetRuntimeConfig | undefined;
+  /** Writes Bakery's status note after a poll step; without it the poll writes no note. */
+  noteWriter?: TicketNoteWriter;
 };
 
 /** What the intake function did for one source of the delivery's repository. */
@@ -310,11 +317,42 @@ export type TicketPollOutcome = {
   candidates: number;
   admitted: number;
   rechecked: number;
+  /** What the status-note sync wrote after the step; absent when no writer is wired or the sync itself failed. */
+  progress?: ProgressSyncResult;
   /** Class name of the unexpected error the step died on, recorded as `internal`; absent otherwise. */
   errorName?: string;
   /** Issue number of the candidate that error came from, a fixed integer; absent when it came from no candidate. */
   candidateNumber?: number;
 };
+
+/**
+ * Brings the status notes of a source's tickets up to date after its step. A
+ * failure here is logged by class name only and never fails the step: the
+ * step's admissions and rechecks are already committed, and the note is
+ * retried on the next poll.
+ */
+async function syncProgress(
+  database: PgDatabase,
+  writer: TicketNoteWriter,
+  source: PollSource,
+  signal: AbortSignal,
+): Promise<ProgressSyncResult | undefined> {
+  try {
+    return await syncSourceProgress({ database, writer }, {
+      organizationId: source.organizationId,
+      sourceId: source.sourceId,
+      signal,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({
+      component: "work",
+      event: "ticket_progress_sync_failed",
+      sourceId: source.sourceId,
+      errorName: error instanceof Error ? error.name : typeof error,
+    }));
+    return undefined;
+  }
+}
 
 /**
  * Runs one bounded sync step for one source, reading with no transaction open.
@@ -353,6 +391,9 @@ export async function pollTicketSource(
         signal,
       },
     );
+    const progress = deps.noteWriter === undefined
+      ? undefined
+      : await syncProgress(deps.database, deps.noteWriter, source, signal);
     return {
       sourceId: source.sourceId,
       outcome: step.outcome,
@@ -363,6 +404,7 @@ export async function pollTicketSource(
         .length,
       rechecked: step.results.filter((entry) => entry.action === "recheck")
         .length,
+      ...(progress === undefined ? {} : { progress }),
     };
   } catch (error) {
     const failed = {

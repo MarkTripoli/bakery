@@ -336,6 +336,21 @@ export function createApp(options: {
         ),
     },
   });
+  // The composition root names the provider whose comment action writes
+  // the note, as it names the webhook ingress below. The ticket routes and the
+  // background poll share the one writer.
+  const ticketNoteWriter = options.ticketNoteWriter ??
+    createGateTicketNoteWriter({
+      database: options.pgDatabase,
+      registry: integrationRegistry,
+      providerRequests,
+      noteActions: {
+        github: {
+          create: TICKET_NOTE_ACTION,
+          update: TICKET_NOTE_UPDATE_ACTION,
+        },
+      },
+    });
   const integrations = {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
@@ -720,6 +735,7 @@ export function createApp(options: {
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
+      ticketNoteWriter,
       // The tool gateway's operations: whatever these registries already
       // implement, narrowed to the operation map a session is defined by.
       // Composed rather than re-registered so a session calls the same handler
@@ -953,19 +969,7 @@ export function createApp(options: {
       ),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
-      // The composition root names the provider whose comment action writes
-      // the note, as it names the webhook ingress below.
-      noteWriter: options.ticketNoteWriter ?? createGateTicketNoteWriter({
-        database: options.pgDatabase,
-        registry: integrationRegistry,
-        providerRequests,
-        noteActions: {
-          github: {
-            create: TICKET_NOTE_ACTION,
-            update: TICKET_NOTE_UPDATE_ACTION,
-          },
-        },
-      }),
+      noteWriter: ticketNoteWriter,
     }),
   );
   app.route(

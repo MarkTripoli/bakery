@@ -43,6 +43,7 @@ import {
 import { createBatchSupervisorWorkflow } from "../work/batch-tick.ts";
 import { createBatchCancelPort } from "../work/batch-cancel-port.ts";
 import { createBatchStartPort } from "../work/batch-start-port.ts";
+import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
 import { GITHUB_PROVIDER } from "../integrations/registry.ts";
 import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
@@ -88,6 +89,8 @@ function createTicketAutomation(options: {
   database: PgDatabase;
   budget?: BudgetRuntimeConfig;
   integrations: IntegrationsBackgroundDependencies;
+  /** Writes the ticket status note; without it the poll keeps none. */
+  noteWriter?: TicketNoteWriter;
 }) {
   const deps = {
     client: options.client,
@@ -107,6 +110,7 @@ function createTicketAutomation(options: {
     ),
     factIndex: createTicketFactIndex(),
     budget: options.budget,
+    noteWriter: options.noteWriter,
   };
   return [createTicketIntakeWorkflow(deps), createTicketPollWorkflow(deps)];
 }
@@ -119,6 +123,8 @@ export function createDefaultInngestFunctions(options: {
   skillImport?: SkillImportDependencies;
   /** GitHub integration lifecycle and intake; their functions register only when present. */
   integrations?: IntegrationsBackgroundDependencies;
+  /** Writes the ticket status note on each poll; absent, the poll keeps none. */
+  ticketNoteWriter?: TicketNoteWriter;
   /** Coordinator executor override; default is the worker executor outside the test environment (see `readCoordinatorExecutor`). */
   coordinatorExecutor?: CoordinatorTurnExecutor;
 }): readonly unknown[] {
@@ -229,6 +235,7 @@ export function createDefaultInngestFunctions(options: {
           database: options.database,
           budget: options.budget,
           integrations: options.integrations,
+          noteWriter: options.ticketNoteWriter,
         }),
       ]
       : []),
@@ -329,6 +336,7 @@ export function createInngestHttpHandler(options: {
   budget?: BudgetRuntimeConfig;
   skillImport?: SkillImportDependencies;
   integrations?: IntegrationsBackgroundDependencies;
+  ticketNoteWriter?: TicketNoteWriter;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -346,6 +354,7 @@ export function createInngestHttpHandler(options: {
         budget: options.budget,
         skillImport: options.skillImport,
         integrations: options.integrations,
+        ticketNoteWriter: options.ticketNoteWriter,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

@@ -1291,3 +1291,30 @@ Deno.test("issue 82 automation: no backend sits idle in a transaction while the 
     });
     assert(control.samples.some((sample) => sample.idle > 0));
   }));
+
+Deno.test("issue 32 automation: the poll writes the status note after its step when a writer is wired, and writes none without one", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
+    await fx.insertSource({ policy: automaticPolicy(fx) });
+    a.seedLabeler();
+    await admitted(a, 31);
+
+    // No writer: the step is as before and carries no progress result.
+    const bare = await a.poll();
+    assertEquals(bare.outcomes[0].progress, undefined);
+    assertEquals(fx.notes.posts.length, 0);
+
+    const written = await a.poll({ noteWriter: fx.notes });
+    assertEquals(written.outcomes[0].progress, {
+      posted: 1,
+      failed: 0,
+      skipped: 0,
+    });
+    assertEquals(fx.notes.posts.length, 1);
+    assertEquals(fx.notes.posts[0].issueNumber, 31);
+
+    // The phase has not changed: the next poll writes nothing more.
+    const again = await a.poll({ noteWriter: fx.notes });
+    assertEquals(again.outcomes[0].progress?.posted, 0);
+    assertEquals(fx.notes.posts.length, 1);
+  }));
