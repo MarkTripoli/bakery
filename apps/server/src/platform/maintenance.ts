@@ -132,15 +132,38 @@ async function activeSwitch(
 }
 
 /**
+ * Whether a restore holds the installation (#64 slice E): a restore record that
+ * has not been released. Unlike the backup switch it has no lease, because
+ * nothing renews it and nothing may let it lapse: it ends only when an
+ * administrator completes the ordered re-enable steps and the record is
+ * released.
+ */
+async function restoreHeld(
+  transaction: Pick<PgTransactionClient, "query">,
+): Promise<boolean> {
+  const result = await transaction.query<{ held: boolean }>(
+    `select exists (
+       select 1 from bakery.installation_restores where released_at is null
+     ) as held`,
+  );
+  return result.rows[0]?.held === true;
+}
+
+/**
  * The shared guard. Call it first in the transaction of every entry point that
- * starts or changes work; it reads the switch with the database clock and, when
- * the installation is held, throws a retryable 503 INSTALLATION_QUIESCED with a
- * Retry-After hint before anything is written. It reads and writes nothing
- * else, so a refused call commits nothing.
+ * starts or changes work. A restore hold refuses with a 503
+ * INSTALLATION_RESTORING that is not retryable (asking again does not help). A
+ * backup hold refuses with a retryable 503 INSTALLATION_QUIESCED and a
+ * Retry-After hint. Either way it happens before anything is written; the guard
+ * reads the switch with the database clock and writes nothing, so a refused
+ * call commits nothing.
  */
 export async function assertNotQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
 ): Promise<void> {
+  if (await restoreHeld(transaction)) {
+    throw new StandardError({ code: "INSTALLATION_RESTORING" });
+  }
   const row = await activeSwitch(transaction);
   if (row === null) return;
   throw new StandardError({
@@ -150,12 +173,14 @@ export async function assertNotQuiesced(
 }
 
 /**
- * Whether the installation is held right now. For a background consumer that
- * must not count a refusal as an attempt: it leaves the work exactly as it is
- * and lets a later pass pick it up, instead of throwing. Reads only.
+ * Whether the installation is held right now, by a backup or by a restore. For
+ * a background consumer that must not count a refusal as an attempt: it leaves
+ * the work exactly as it is and lets a later pass pick it up, instead of
+ * throwing. Reads only.
  */
 export async function isQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
 ): Promise<boolean> {
-  return (await activeSwitch(transaction)) !== null;
+  return (await restoreHeld(transaction)) ||
+    (await activeSwitch(transaction)) !== null;
 }

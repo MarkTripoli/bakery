@@ -798,7 +798,8 @@
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2715,7 +2716,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2864,7 +2866,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -6442,7 +6445,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "none",
       "implemented": false
@@ -6969,7 +6973,8 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -266921,7 +266926,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:764063203eaeef017cba3b3910e8e10406159e0a877ec74a075b2f449ae2bcda",
+  "compatibilityDigest": "sha256:81a68b432c019060761eaa609170e93ed5d0d6583d2d3c6ba4f26c18a8adf626",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
