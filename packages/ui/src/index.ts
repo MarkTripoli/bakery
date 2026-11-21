@@ -6,6 +6,7 @@ import "./feedback.css";
 import "./collaboration.css";
 import "./navigation.css";
 
+export * from "./organisms/AccessOffer.tsx";
 export * from "./organisms/MentionPicker.tsx";
 export * from "./organisms/MessageComposer.tsx";
 export * from "./organisms/RunIdentity.tsx";
