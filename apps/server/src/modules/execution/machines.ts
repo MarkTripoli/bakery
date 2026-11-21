@@ -194,6 +194,14 @@ async function safeWorkerProjection(
      where worker_host_id = $1`,
     [host.id],
   );
+  // Work this machine has not finished with: running, being stopped, or of
+  // unknown outcome. A machine finishing its work is done when this is zero.
+  const unsettled = await transaction.query<{ count: number }>(
+    `select count(*)::int as count from bakery.job_attempts
+      where organization_id = $1 and worker_host_id = $2
+        and status in ('leased', 'running', 'canceling', 'quarantined')`,
+    [host.organization_id, host.id],
+  );
   // Same database clock the heartbeat writes, so skew cannot flip stale.
   const now = host.now;
   const connectivity = connectivityState(host.last_heartbeat_at, now);
@@ -228,6 +236,7 @@ async function safeWorkerProjection(
     readiness: readiness.state,
     readinessReason: readiness.reason,
     failedCheckIds: readiness.failedCheckIds,
+    unsettledAttemptCount: unsettled.rows[0]?.count ?? 0,
     lastHeartbeatAt: host.last_heartbeat_at
       ? iso(host.last_heartbeat_at)
       : null,
