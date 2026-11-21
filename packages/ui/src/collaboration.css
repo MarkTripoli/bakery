@@ -1216,9 +1216,11 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* The help keeps room for about two lines (14rem): a long button, such as the
+   retry of a failed send, drops to its own line instead of squeezing it. */
 .ui-message-composer__hint {
   color: var(--color-fg-muted);
-  flex: 1 1 0%;
+  flex: 1 1 14rem;
   font: var(--type-caption);
   min-inline-size: 0;
 }
@@ -2812,6 +2814,14 @@ button.ui-activity-line__row:hover {
   font: var(--type-caption);
   margin: var(--space-0);
   overflow-wrap: anywhere;
+}
+.ui-access-offer[data-tone="success"] {
+  background: var(--color-status-success-surface);
+}
+.ui-access-offer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .ui-access-offer[data-state="busy"] {
   opacity: 0.8;

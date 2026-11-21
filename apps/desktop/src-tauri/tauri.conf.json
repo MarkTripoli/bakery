@@ -39,6 +39,10 @@
     }
   },
   "plugins": {
+    "updater": {
+      "pubkey": "UNSET: the release public key is held by the owner, so no update verifies until it is set",
+      "endpoints": []
+    },
     "deep-link": {
       "desktop": {
         "schemes": [

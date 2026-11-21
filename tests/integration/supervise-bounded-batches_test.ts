@@ -18,6 +18,7 @@ import type { PgDatabase } from "../../packages/persistence/src/postgres.ts";
 import {
   createBatchesListHandler,
   createBatchHandler,
+  getBatch,
   loadBatch,
 } from "../../apps/server/src/modules/work/batch-commands.ts";
 import {
@@ -1111,4 +1112,315 @@ Deno.test("batches: the list filters by state, keeps its cursor to that filter, 
     );
     assertEquals(loaded.issues[0].issueNumber, "4");
     assertEquals(loaded.issues[0].issueTitle, "Fourth");
+  }));
+
+Deno.test("batches: a batch says what the issue being worked on waits for, and clears it when answered", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx, { maxIssues: 2 });
+    const { ports } = admittingPorts(fx, sourceId);
+    await superviseBatches(fx.runtime, ports);
+    const issues = await issueRows(fx, batchId);
+    assertEquals(issues.map((issue) => issue.state), ["started"]);
+    const runId = await runOf(fx, issues[0].ticket_request_id!);
+    const taskId = (await fx.owner.query<{ task_id: string }>(
+      `select task_id from bakery.workflow_runs
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, runId],
+    )).rows[0].task_id;
+    const readAs = async (viewerPrincipalId?: string) =>
+      (await loadBatch(fx.runtime as never, fx.organizationId, batchId, {
+        viewerPrincipalId,
+      })).waitingOn;
+    const read = () => readAs(fx.adminId);
+
+    // Nothing is open: the batch is not waiting on anyone.
+    assertEquals(await read(), null);
+
+    // An approval put to one named person on this issue's task.
+    const questionId = crypto.randomUUID();
+    await insertWithoutForeignKeys(fx.owner, "questions", {
+      id: questionId,
+      organization_id: fx.organizationId,
+      task_id: taskId,
+      run_id: runId,
+      kind: "approval",
+      status: "open",
+      audience: JSON.stringify({
+        type: "principals",
+        principalIds: [fx.adminId],
+      }),
+    });
+    const waiting = await read();
+    assert(waiting !== null, "an open approval on the task is shown");
+    assertEquals(waiting.kind, "approval");
+    assertEquals(waiting.questionId, questionId);
+    assertEquals(waiting.taskId, taskId);
+    assertEquals(waiting.askedOf.map((person) => person.principalId), [
+      fx.adminId,
+    ]);
+    assert(waiting.since.endsWith("Z"), "it says since when");
+
+    // A question for the task's participants names nobody, and an answered one clears.
+    await fx.owner.query(
+      `update bakery.questions set audience = '{"type":"task_participants"}'::jsonb
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, questionId],
+    );
+    assertEquals((await read())?.askedOf, []);
+
+    // A read with no viewer shows nothing, and an item private to someone else
+    // does not exist for this viewer: the next one they may see is shown instead.
+    assertEquals(await readAs(undefined), null);
+    const privateId = crypto.randomUUID();
+    await insertWithoutForeignKeys(fx.owner, "questions", {
+      id: privateId,
+      organization_id: fx.organizationId,
+      task_id: taskId,
+      run_id: runId,
+      kind: "question",
+      status: "open",
+      created_at: "2000-01-01T00:00:00Z",
+      audience: JSON.stringify({
+        type: "principals",
+        principalIds: [crypto.randomUUID()],
+      }),
+    });
+    assertEquals(
+      (await read())?.questionId,
+      questionId,
+      "the older private question is hidden from a caller outside its audience",
+    );
+    await fx.owner.query(
+      `update bakery.questions set status = 'answered'
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, privateId],
+    );
+    await fx.owner.query(
+      `update bakery.questions set status = 'answered'
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, questionId],
+    );
+    assertEquals(await read(), null);
+  }));
+
+// ---- what the batch waits for, through its handlers (#58 item 3) ----
+
+const hoursAgo = (hours: number) =>
+  new Date(Date.now() - hours * 3_600_000).toISOString();
+
+/** A batch with its first issue started: the run and task its open questions belong to. */
+async function startedIssue(fx: TicketFixture) {
+  const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+  seedLabeler(fx);
+  const batchId = await insertBatch(fx, { maxIssues: 2 });
+  const { ports } = admittingPorts(fx, sourceId);
+  await superviseBatches(fx.runtime, ports);
+  const issues = await issueRows(fx, batchId);
+  const runId = await runOf(fx, issues[0].ticket_request_id!);
+  const taskId = (await fx.owner.query<{ task_id: string }>(
+    `select task_id from bakery.workflow_runs
+      where organization_id = $1 and id = $2`,
+    [fx.organizationId, runId],
+  )).rows[0].task_id;
+  return { batchId, runId, taskId, ports };
+}
+
+const PROMPT_TEXT = "the question text a batch read must never carry";
+
+/** An open approval on a task, for everyone on it unless `over` narrows it. */
+async function openQuestion(
+  fx: TicketFixture,
+  taskId: string,
+  runId: string | null,
+  over: Record<string, unknown> = {},
+) {
+  const id = crypto.randomUUID();
+  await insertWithoutForeignKeys(fx.owner, "questions", {
+    id,
+    organization_id: fx.organizationId,
+    task_id: taskId,
+    run_id: runId,
+    kind: "approval",
+    status: "open",
+    prompt: PROMPT_TEXT,
+    audience: JSON.stringify({ type: "task_participants" }),
+    ...over,
+  });
+  return id;
+}
+
+/** `batches.get` as one caller, whole. */
+async function getBatchAs(
+  fx: TicketFixture,
+  batchId: string,
+  principalId: string,
+) {
+  const context = actionContext(fx, principalId) as unknown as {
+    params: Record<string, string>;
+  };
+  context.params = { id: batchId };
+  return await getBatch(context as never);
+}
+
+Deno.test("batches: get and list show a private question only to the people it was put to", () =>
+  withBatches(async (fx) => {
+    const { batchId, runId, taskId } = await startedIssue(fx);
+    const outsider = crypto.randomUUID();
+    const list = createBatchesListHandler("test-secret");
+    const listedAs = async (who: string) =>
+      (await list(actionContext(fx, who), {} as never)).items.find((item) =>
+        item.id === batchId
+      )?.waitingOn ?? null;
+    const getAs = async (who: string) =>
+      (await getBatchAs(fx, batchId, who)).waitingOn;
+
+    const privateId = await openQuestion(fx, taskId, runId, {
+      created_at: hoursAgo(3),
+      audience: JSON.stringify({
+        type: "principals",
+        principalIds: [fx.adminId],
+      }),
+    });
+    assertEquals(
+      (await getAs(fx.adminId))?.questionId,
+      privateId,
+      "the person it was put to sees it through get",
+    );
+    assertEquals(
+      (await listedAs(fx.adminId))?.questionId,
+      privateId,
+      "and through list",
+    );
+    assertEquals(
+      await getAs(outsider),
+      null,
+      "someone else cannot tell it exists, through get",
+    );
+    assertEquals(await listedAs(outsider), null, "or through list");
+
+    // The next item the outsider may see wins; the audience still sees the older one first.
+    const publicId = await openQuestion(fx, taskId, runId, {
+      created_at: hoursAgo(1),
+    });
+    assertEquals((await getAs(outsider))?.questionId, publicId);
+    assertEquals((await listedAs(outsider))?.questionId, publicId);
+    assertEquals((await getAs(fx.adminId))?.questionId, privateId);
+  }));
+
+Deno.test("batches: the batch waits for the oldest open question of this issue's task and run, names three people, and stops when the issue ends", () =>
+  withBatches(async (fx) => {
+    const { batchId, runId, taskId, ports } = await startedIssue(fx);
+    const reader = fx.adminId;
+    const people = Array.from({ length: 4 }, () => crypto.randomUUID());
+    const waiting = async () =>
+      (await getBatchAs(fx, batchId, reader)).waitingOn;
+    try {
+      for (const [index, id] of people.entries()) {
+        await fx.owner.query(
+          `insert into bakery.principals (id, display_name, principal_type)
+           values ($1, $2, 'service')`,
+          [id, `Waiting person ${index}`],
+        );
+      }
+      // Another task's question, and another run's question on this task, are not this issue's.
+      await openQuestion(fx, crypto.randomUUID(), runId, {
+        created_at: hoursAgo(6),
+      });
+      await openQuestion(fx, taskId, crypto.randomUUID(), {
+        created_at: hoursAgo(5),
+      });
+      assertEquals(await waiting(), null);
+
+      const newer = await openQuestion(fx, taskId, runId, {
+        created_at: hoursAgo(1),
+      });
+      // Put to four people: only the first three are named, in the order given.
+      const older = await openQuestion(fx, taskId, null, {
+        created_at: hoursAgo(3),
+        audience: JSON.stringify({
+          type: "principals",
+          principalIds: [...people, reader],
+        }),
+      });
+      const first = await waiting();
+      assertEquals(first?.questionId, older, "the oldest open one comes first");
+      assertEquals(
+        first?.askedOf.map((person) => person.displayName),
+        ["Waiting person 0", "Waiting person 1", "Waiting person 2"],
+      );
+      assert(
+        !JSON.stringify(await getBatchAs(fx, batchId, reader)).includes(
+          PROMPT_TEXT,
+        ),
+        "the question's text is not part of a batch",
+      );
+
+      await fx.owner.query(
+        `update bakery.questions set status = 'answered' where id = $1`,
+        [older],
+      );
+      assertEquals(
+        (await waiting())?.questionId,
+        newer,
+        "the next one once answered",
+      );
+
+      // The issue ends: its open question is no longer what the batch waits for.
+      await mergeIssue(fx, runId);
+      await setRunStatus(fx, runId, "completed" as never);
+      await superviseBatches(fx.runtime, ports);
+      const states = (await issueRows(fx, batchId)).map((issue) => issue.state);
+      assert(states[0] !== "started", "the first issue is no longer started");
+      assertEquals(await waiting(), null);
+    } finally {
+      await fx.owner.query(
+        `delete from bakery.questions where organization_id = $1 and prompt = $2`,
+        [fx.organizationId, PROMPT_TEXT],
+      );
+      await fx.owner.query(
+        `delete from bakery.principals where id = any($1::uuid[])`,
+        [people],
+      );
+    }
+  }));
+
+Deno.test("batches: an item the viewer may see is found behind more than a page of older private ones", () =>
+  withBatches(async (fx) => {
+    const { batchId, runId, taskId } = await startedIssue(fx);
+    const outsider = crypto.randomUUID();
+    const someoneElse = JSON.stringify({
+      type: "principals",
+      principalIds: [crypto.randomUUID()],
+    });
+    try {
+      // 55 older questions private to someone else: more than one page of candidates.
+      for (let index = 0; index < 55; index++) {
+        await openQuestion(fx, taskId, runId, {
+          created_at: new Date(Date.now() - (200 - index) * 60_000)
+            .toISOString(),
+          audience: someoneElse,
+        });
+      }
+      const visible = await openQuestion(fx, taskId, runId, {
+        created_at: hoursAgo(1),
+      });
+      assertEquals(
+        (await getBatchAs(fx, batchId, outsider)).waitingOn?.questionId,
+        visible,
+        "the 56th item is found, not hidden behind the first 50",
+      );
+      // And a viewer who may see none of them is told nothing.
+      await fx.owner.query(
+        `update bakery.questions set status = 'answered' where id = $1`,
+        [visible],
+      );
+      assertEquals((await getBatchAs(fx, batchId, outsider)).waitingOn, null);
+    } finally {
+      await fx.owner.query(
+        `delete from bakery.questions where organization_id = $1 and prompt = $2`,
+        [fx.organizationId, PROMPT_TEXT],
+      );
+    }
   }));

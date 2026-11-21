@@ -4342,6 +4342,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-handoffs",
+      "action": "desktopHandoffs.create",
+      "access": "Authenticated",
+      "permission": "browserSession:write",
+      "input": "DesktopHandoffCreate",
+      "output": "DesktopHandoff",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; every call issues a new 30-second one-use code",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "UNPROCESSABLE",
+        "VALIDATION_FAILED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "authenticated_principal_scope",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
@@ -6253,6 +6279,101 @@ export const clientManifest = {
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
+      "method": "POST",
+      "path": "/v1/artifacts/{id}/access",
+      "action": "artifactAccess.grant",
+      "access": "Developer",
+      "permission": "artifact:share",
+      "input": "ArtifactAccessGrantCreate",
+      "output": "ArtifactAccessGrant",
+      "event": "artifacts.access_changed",
+      "mcp": "bakery_artifactAccess_grant",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "MALFORMED_REQUEST",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifacts/{id}/access",
+      "action": "artifactAccess.list",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "ArtifactAccessQuery",
+      "output": "Page<ArtifactAccessGrant>",
+      "event": "",
+      "mcp": "bakery_artifactAccess_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
+      "method": "POST",
+      "path": "/v1/artifacts/{id}/access/revoke",
+      "action": "artifactAccess.revoke",
+      "access": "Developer",
+      "permission": "artifact:share",
+      "input": "ArtifactAccessRevoke",
+      "output": "ArtifactAccessGrant",
+      "event": "artifacts.access_changed",
+      "mcp": "bakery_artifactAccess_revoke",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifacts/{id}/access/sharers",
+      "action": "artifactAccess.sharers",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "IdPath",
+      "output": "ArtifactSharers",
+      "event": "",
+      "mcp": "bakery_artifactAccess_sharers",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -15041,15 +15162,23 @@ export const clientManifest = {
           ]
         },
         "mentions": {
-          "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. A comment never widens access: someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index, and nothing is written. ArtifactCommentCreate.mentions must contain at most 20 items.",
+          "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. Someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index and nothing is written, unless accessLevel is sent and the writer may share. ArtifactCommentCreate.mentions must contain at most 20 items.",
           "maxItems": 20,
           "type": "array",
           "items": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. A comment never widens access: someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index, and nothing is written. Each array item follows this format."
+            "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. Someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index and nothing is written, unless accessLevel is sent and the writer may share. Each array item follows this format."
           }
+        },
+        "accessLevel": {
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "type": "string",
+          "enum": [
+            "read_comment",
+            "edit"
+          ]
         }
       },
       "required": [
@@ -18622,6 +18751,7 @@ export const clientManifest = {
             "passwordResets.redeem",
             "desktopSignIns.start",
             "desktopSignIns.exchange",
+            "desktopHandoffs.create",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -18712,6 +18842,10 @@ export const clientManifest = {
             "files.search",
             "files.facts",
             "files.library",
+            "artifactAccess.grant",
+            "artifactAccess.list",
+            "artifactAccess.revoke",
+            "artifactAccess.sharers",
             "artifacts.get",
             "artifacts.create",
             "artifactVersions.list",
@@ -30065,6 +30199,82 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Server-side search for people the writer may @-mention in one conversation (a task chat) or one artifact comment thread, bounded and cursor paged."
     },
+    "ArtifactAccessGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Artifact (document) the person is given access to; supplied via the request's {id} path segment."
+        },
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person to give access to: an active human member of this organization."
+        },
+        "level": {
+          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+          "type": "string",
+          "enum": [
+            "read_comment",
+            "edit"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "principalId"
+      ],
+      "additionalProperties": false,
+      "description": "Gives one person direct access to one document at a level, without a comment. A mention does the same in the comment's own transaction."
+    },
+    "ArtifactAccessRevoke": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Artifact (document) whose direct grant is removed; supplied via the request's {id} path segment."
+        },
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person whose direct access to the document is removed."
+        }
+      },
+      "required": [
+        "id",
+        "principalId"
+      ],
+      "additionalProperties": false,
+      "description": "Removes one person's direct access to one document under compare-and-set on the grant version; the Undo of a mention that gave access."
+    },
+    "ArtifactAccessQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of document access; it is bound to the same scope, principal and organization and is rejected anywhere else. ArtifactAccessQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum grants per page; defaults to 25 and cannot exceed 100. ArtifactAccessQuery.limit must be at least 1. ArtifactAccessQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the live direct grants on one document, oldest first, bounded and cursor paged."
+    },
     "ConversationAccessQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -30938,6 +31148,23 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "DesktopHandoffCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "returnTo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "description": "Same-origin path the desktop window opens once the browser session is set, such as /projects; it starts with a single slash and never names another origin or the handoff page itself. DesktopHandoffCreate.returnTo must contain at least 1 characters. DesktopHandoffCreate.returnTo must contain at most 2048 characters."
+        }
+      },
+      "required": [
+        "returnTo"
+      ],
+      "additionalProperties": false,
+      "description": "Asks for a one-use code the desktop app opens in its own window as GET /api/desktop/handoff?code=<code>, so the server's web pages load with an ordinary browser session for the same person instead of the bearer credential."
     },
     "RouteContinuationAdmit": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46037,6 +46264,7 @@ export const clientManifest = {
                   "passwordResets.redeem",
                   "desktopSignIns.start",
                   "desktopSignIns.exchange",
+                  "desktopHandoffs.create",
                   "installationAuditEvents.list",
                   "browserSessions.list",
                   "browserSessions.revoke",
@@ -46127,6 +46355,10 @@ export const clientManifest = {
                   "files.search",
                   "files.facts",
                   "files.library",
+                  "artifactAccess.grant",
+                  "artifactAccess.list",
+                  "artifactAccess.revoke",
+                  "artifactAccess.sharers",
                   "artifacts.get",
                   "artifacts.create",
                   "artifactVersions.list",
@@ -66518,6 +66750,7 @@ export const clientManifest = {
             "passwordResets.redeem",
             "desktopSignIns.start",
             "desktopSignIns.exchange",
+            "desktopHandoffs.create",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -66608,6 +66841,10 @@ export const clientManifest = {
             "files.search",
             "files.facts",
             "files.library",
+            "artifactAccess.grant",
+            "artifactAccess.list",
+            "artifactAccess.revoke",
+            "artifactAccess.sharers",
             "artifacts.get",
             "artifacts.create",
             "artifactVersions.list",
@@ -76479,9 +76716,9 @@ export const clientManifest = {
               "scimConnection:manage",
               "installationAdministrator:read",
               "installationAdministrator:manage",
+              "browserSession:write",
               "installationAuditEvent:read",
               "browserSession:read",
-              "browserSession:write",
               "connectedClient:read",
               "connectedClient:write",
               "principal:read",
@@ -76510,6 +76747,7 @@ export const clientManifest = {
               "preview:read",
               "preview:access",
               "artifact:read",
+              "artifact:share",
               "artifact:write",
               "artifactVersion:read",
               "artifactVersion:write",
@@ -100985,6 +101223,313 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
     },
+    "ArtifactSharers": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person who may give access."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Their current display name; never an email address. ArtifactSharer.displayName must contain at most 200 characters."
+              }
+            },
+            "required": [
+              "principalId",
+              "displayName"
+            ],
+            "additionalProperties": false,
+            "description": "Up to three active people in the reader's organization whose role may share documents, the document's author first when the author is one of them, then by display name. Empty when nobody may. Each array item follows this format."
+          },
+          "description": "Up to three active people in the reader's organization whose role may share documents, the document's author first when the author is one of them, then by display name. Empty when nobody may."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Who can give access to one document: up to three people, so a writer who may not share can ask one of them. It grants nothing."
+    },
+    "ArtifactAccessGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this grant record."
+        },
+        "artifactId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The one document this grant opens; it never reaches the task, its other documents or its conversation."
+        },
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person who holds the grant."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The holder's current display name; never an email address. ArtifactAccessGrant.displayName must contain at most 200 characters."
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "read_comment",
+            "edit"
+          ],
+          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+        },
+        "grantedById": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Who gave the access most recently."
+        },
+        "grantedByName": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The granting person's current display name. ArtifactAccessGrant.grantedByName must contain at most 200 characters."
+        },
+        "sourceCommentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactAccessGrant.sourceCommentId may be null in this transport value."
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was created or last renewed."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the grant was removed, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactAccessGrant.revokedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Compare-and-set version; send it as If-Match to revoke. ArtifactAccessGrant.version must be at least 1."
+        }
+      },
+      "required": [
+        "id",
+        "artifactId",
+        "principalId",
+        "displayName",
+        "level",
+        "grantedById",
+        "grantedByName",
+        "sourceCommentId",
+        "grantedAt",
+        "revokedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One person's direct access to one document, with its level, who gave it and from which comment."
+    },
+    "Page<ArtifactAccessGrant>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of this grant record."
+              },
+              "artifactId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The one document this grant opens; it never reaches the task, its other documents or its conversation."
+              },
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person who holds the grant."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "The holder's current display name; never an email address. ArtifactAccessGrant.displayName must contain at most 200 characters."
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "read_comment",
+                  "edit"
+                ],
+                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+              },
+              "grantedById": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Who gave the access most recently."
+              },
+              "grantedByName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "The granting person's current display name. ArtifactAccessGrant.grantedByName must contain at most 200 characters."
+              },
+              "sourceCommentId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ArtifactAccessGrant.sourceCommentId may be null in this transport value."
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the grant was created or last renewed."
+              },
+              "revokedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the grant was removed, or null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ArtifactAccessGrant.revokedAt may be null in this transport value."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "Compare-and-set version; send it as If-Match to revoke. ArtifactAccessGrant.version must be at least 1."
+              }
+            },
+            "required": [
+              "id",
+              "artifactId",
+              "principalId",
+              "displayName",
+              "level",
+              "grantedById",
+              "grantedByName",
+              "sourceCommentId",
+              "grantedAt",
+              "revokedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One person's direct access to one document, with its level, who gave it and from which comment."
+          },
+          "description": "ArtifactAccessGrant items in this cursor page. Page<ArtifactAccessGrant>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ArtifactAccessGrant>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ArtifactAccessGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ArtifactAccessGrant>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ArtifactAccessGrant>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ArtifactAccessGrant."
+    },
     "Page<ConversationAccessGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -102163,6 +102708,81 @@ export const clientManifest = {
           },
           "description": "The issues it considered, in order."
         },
+        "waitingOn": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "question",
+                    "approval"
+                  ],
+                  "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                },
+                "questionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The open question or approval; answer it through the questions actions."
+                },
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The task of the issue being worked on, where the person answers."
+                },
+                "since": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when it was put."
+                },
+                "askedOf": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "A person the question or approval was put to."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                  },
+                  "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                }
+              },
+              "required": [
+                "kind",
+                "questionId",
+                "taskId",
+                "since",
+                "askedOf"
+              ],
+              "additionalProperties": false,
+              "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.waitingOn may be null in the safe projection."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -102203,6 +102823,7 @@ export const clientManifest = {
         "elapsedSeconds",
         "spentUsd",
         "issues",
+        "waitingOn",
         "createdAt",
         "updatedAt",
         "version"
@@ -102545,6 +103166,81 @@ export const clientManifest = {
                 },
                 "description": "The issues it considered, in order."
               },
+              "waitingOn": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "question",
+                          "approval"
+                        ],
+                        "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                      },
+                      "questionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The open question or approval; answer it through the questions actions."
+                      },
+                      "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The task of the issue being worked on, where the person answers."
+                      },
+                      "since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when it was put."
+                      },
+                      "askedOf": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "principalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "A person the question or approval was put to."
+                            },
+                            "displayName": {
+                              "type": "string",
+                              "maxLength": 200,
+                              "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                            }
+                          },
+                          "required": [
+                            "principalId",
+                            "displayName"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                        },
+                        "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "questionId",
+                      "taskId",
+                      "since",
+                      "askedOf"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.waitingOn may be null in the safe projection."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -102585,6 +103281,7 @@ export const clientManifest = {
               "elapsedSeconds",
               "spentUsd",
               "issues",
+              "waitingOn",
               "createdAt",
               "updatedAt",
               "version"
@@ -106614,6 +107311,30 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value."
+    },
+    "DesktopHandoff": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "43-character code the app puts in GET /api/desktop/handoff?code=<code> in its own window at once. Only its SHA-256 digest is stored; it opens one browser session and nothing else."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC instant, 30 seconds after issue, after which the handoff page refuses the code and sends the window to sign-in."
+        }
+      },
+      "required": [
+        "code",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A one-use code for the desktop window's browser session, returned once."
     },
     "WorkflowVersionSkills": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
