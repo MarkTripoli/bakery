@@ -6,6 +6,12 @@ import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
 
+/** A still with the pointer off the page, so no row or sidebar item shows a hover. */
+async function snap(page: Page, name: string) {
+  await page.mouse.move(-10, -10);
+  await shot(page, name);
+}
+
 /**
  * The Issues page and batches (design-ux, #58 slice 2b and its rulings): a
  * batch that is still live in a repository is said under the header, in the
@@ -74,15 +80,21 @@ for (
       await expect(
         row(page, 204).getByRole("link", {
           name:
-            "#204 Fix rounding on totals, In progress, In the batch, acme/web · Bakery is working on this.",
+            "#204 Fix rounding on order totals when a gift card pays part, In progress, In the batch, acme/web · Bakery is working on this.",
         }),
       ).toBeVisible();
+      if (viewport.width <= 743) {
+        // On a phone a long title wraps on its own, and "In the batch" has its own line below it.
+        const link = (await row(page, 204).getByRole("link").boundingBox())!;
+        const tag = (await row(page, 204).locator("[data-in-batch]")
+          .boundingBox())!;
+        expect(tag.y).toBeGreaterThanOrEqual(link.y + link.height - 1);
+      }
       // The notice has one way on: the batch's page, named for the screen reader.
       await expect(
         notice(page).getByRole("button", { name: "Open the batch" }),
       ).toBeVisible();
-      await page.mouse.move(700, 700);
-      await shot(page, "issues-batch-running");
+      await snap(page, "issues-batch-running");
       // The issue it merged, now closed, is marked too.
       await chooseFilter(page, "Closed");
       await expect(row(page, 190)).toContainText("In the batch");
@@ -95,7 +107,7 @@ for (
         /A batch is running: 1 of 5 merged, #204 is waiting for approval\./,
       );
       await expect(notice(page)).toHaveAttribute("data-variant", "warning");
-      await shot(page, "issues-batch-waiting-approval");
+      await snap(page, "issues-batch-waiting-approval");
     });
 
     test("a question on the issue reads as waiting for an answer", async ({ page }) => {
@@ -136,7 +148,7 @@ for (
       await expect(notice(page)).toHaveAttribute("data-variant", "warning");
       await chooseFilter(page, "Closed");
       await expect(row(page, 190)).toContainText("In the batch");
-      await shot(page, "issues-batch-waiting-next");
+      await snap(page, "issues-batch-waiting-next");
     });
 
     test("a paused, finishing or stopping batch says its state and the issue it is still on", async ({ page }) => {
@@ -154,7 +166,7 @@ for (
       await expect(notice(page)).toHaveAttribute("data-variant", "information");
       await chooseFilter(page, "All open");
       await expect(row(page, 204)).toContainText("In the batch");
-      await shot(page, "issues-batch-paused");
+      await snap(page, "issues-batch-paused");
     });
 
     test("with no repository chosen, each live batch names its own repository", async ({ page }) => {
@@ -190,7 +202,7 @@ for (
       await expect(
         page.getByRole("button", { name: "Open the batch in acme/api" }),
       ).toBeVisible();
-      await shot(page, "issues-batch-two-repositories");
+      await snap(page, "issues-batch-two-repositories");
     });
 
     test("a finished or stopped batch says nothing and tags nothing", async ({ page }) => {
@@ -217,7 +229,7 @@ for (
       await expect(row(page, 204)).toBeVisible();
       await expect(notice(page)).toHaveCount(0);
       await expect(page.getByText("In the batch")).toHaveCount(0);
-      await shot(page, "issues-batch-finished");
+      await snap(page, "issues-batch-finished");
     });
 
     test("a person who may not read batches is told nothing about them, and no batch is asked for", async ({ page }) => {

@@ -59,7 +59,28 @@ export function issueLine(row: IssueRow, translate: Translator): string {
   return [issueSnapshot(row).repository, note].filter(Boolean).join(" · ");
 }
 
-/** The row's one status, and "In the batch" beside it when a running batch has taken the issue. */
+/** The row's one status. */
+function StatusBadge(
+  { row, translate }: { row: IssueRow; translate: Translator },
+) {
+  const { status } = issueStatus(row);
+  return (
+    <UI.Badge tone={BADGE_TONE[status]}>
+      {translate(`issues.status.${status}` as never)}
+    </UI.Badge>
+  );
+}
+
+/** "In the batch": a live batch has started or merged this issue. */
+function InBatchBadge({ translate }: { translate: Translator }) {
+  return (
+    <UI.Badge tone="neutral" data-in-batch="true">
+      {translate("issues.batch.inBatch" as never)}
+    </UI.Badge>
+  );
+}
+
+/** The table's status cell: the status, and "In the batch" beside it when a live batch has the issue. */
 function IssueBadge(
   { row, inBatch, translate }: {
     row: IssueRow;
@@ -67,19 +88,12 @@ function IssueBadge(
     translate: Translator;
   },
 ) {
-  const { status } = issueStatus(row);
-  const badge = (
-    <UI.Badge tone={BADGE_TONE[status]}>
-      {translate(`issues.status.${status}` as never)}
-    </UI.Badge>
-  );
+  const badge = <StatusBadge row={row} translate={translate} />;
   if (!inBatch) return badge;
   return (
     <UI.Inline gap="compact">
       {badge}
-      <UI.Badge tone="neutral" data-in-batch="true">
-        {translate("issues.batch.inBatch" as never)}
-      </UI.Badge>
+      <InBatchBadge translate={translate} />
     </UI.Inline>
   );
 }
@@ -219,6 +233,8 @@ export function IssuesList(
         {rows.map((row) => (
           <div key={row.id} role="listitem" data-issue-id={row.id}>
             <UI.StackedRow
+              // A real title is long: it wraps rather than sharing its line with two badges.
+              titleLines="wrap"
               title={
                 <IssueTitle
                   row={row}
@@ -226,14 +242,15 @@ export function IssuesList(
                   translate={translate}
                 />
               }
-              status={
-                <IssueBadge
-                  row={row}
-                  inBatch={inBatch.has(row.id)}
-                  translate={translate}
-                />
-              }
+              status={<StatusBadge row={row} translate={translate} />}
             >
+              {inBatch.has(row.id)
+                ? (
+                  <UI.Inline gap="compact">
+                    <InBatchBadge translate={translate} />
+                  </UI.Inline>
+                )
+                : null}
               <UI.Text variant="caption">{issueLine(row, translate)}</UI.Text>
               <RowAction
                 offered={offered(row)}

@@ -97,6 +97,19 @@
   flex: none;
 }
 
+/* From a tablet up, a notice with an action is one line of text beside its
+   button: icon, text and action share a centre line, so a one-line notice is not
+   a tall box with the text at the top. A phone keeps the top alignment, where
+   the text can wrap under the icon. The bar layout has its own alignment. */
+@media (min-width: 744px) {
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) {
+    align-items: center;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) > .ui-inline-notice__icon {
+    margin-block-start: 0;
+  }
+}
+
 .ui-inline-notice__icon {
   /* auth.css:8 `.icon` is inline-flex, so the box is exactly the glyph: an
      inline box would add the line's descender space and make a one-line

@@ -125,7 +125,7 @@ export const OPEN: Seed[] = [
   },
   {
     number: 204,
-    title: "Fix rounding on totals",
+    title: "Fix rounding on order totals when a gift card pays part",
     verdict: "ready",
     checks: ready,
     request: { disposition: "active" },
