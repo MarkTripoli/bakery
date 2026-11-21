@@ -367,6 +367,9 @@ async function deleteWorkerOrganization(
 export async function openWorkerFixture(options: {
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
+  pluginAuthoring?: Parameters<typeof openAuthFixture>[0] extends infer O
+    ? O extends { pluginAuthoring?: infer P } ? P : never
+    : never;
   env?: Record<string, string>;
   telemetry?: ExecutionTelemetry;
 } = {}): Promise<WorkerFixture> {

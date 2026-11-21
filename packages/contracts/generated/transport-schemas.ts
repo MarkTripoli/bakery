@@ -14478,6 +14478,60 @@ const transportSchemas = {
         "Only the host runner credential; never a session or access token. Ignored while Restore to any minute is off. The newest bound never moves backwards, so a late report cannot shrink the window."
       ],
       "description": "The host runner's report of the restorable window it holds off-site."
+    },
+    "PluginAuthoringRunCreate": {
+      "fields": [
+        {
+          "name": "request",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 8000,
+            "pattern": "^(?!\\s)(?=.*\\S)"
+          },
+          "description": "What the backend plugin should do, in the requester's own words. The generator reads it with the pinned authoring kit; its SHA-256 is kept as the version's source evidence."
+        },
+        {
+          "name": "authorizedCapabilities",
+          "type": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 7
+          },
+          "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list."
+        },
+        {
+          "name": "budgetUsd",
+          "type": "decimal",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 200
+          },
+          "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted."
+        },
+        {
+          "name": "maxAttempts",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3
+          },
+          "description": "How many packages the generator may write, 1 to 3. Each failed attempt is handed back with every diagnostic; when the last one fails the run ends blocked and nothing is published."
+        },
+        {
+          "name": "installId",
+          "type": "uuid",
+          "required": false,
+          "description": "The caller's own personal install of an authored plugin to revise. Omitted for a new plugin, which is installed privately for the caller. A revision moves that install to the new version only after its preview passes, approving exactly the added capabilities, and puts it back as it was when the preview or state migration fails."
+        }
+      ],
+      "rules": [
+        "maxAttempts is 1 to 3. The checks run in the same order on every attempt: file_tree, manifest, authority, isolation, typecheck, build, then a private preview. Without a configured generator and preview runtime the request is DEPENDENCY_UNAVAILABLE rather than a pretend success."
+      ],
+      "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     }
   },
   "projections": {
@@ -36485,6 +36539,152 @@ const transportSchemas = {
     "Page<BackupDrill>": {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "PluginAuthoringAttempt": {
+      "fields": [
+        "attemptNumber",
+        "outcome",
+        "filesDigest",
+        "checkReport",
+        "diagnostics",
+        "costUsd",
+        "pluginVersionId",
+        "previewResult",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "attemptNumber": "integer",
+        "outcome": "enum(passed|failed)",
+        "filesDigest": "string|null",
+        "checkReport": "json|null",
+        "diagnostics": "json[]",
+        "costUsd": "decimal",
+        "pluginVersionId": "uuid|null",
+        "previewResult": "json|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "filesDigest",
+        "checkReport",
+        "pluginVersionId",
+        "previewResult"
+      ],
+      "description": "One package the generator wrote for an authoring run and what the checks and preview said about it.",
+      "fieldDescriptions": {
+        "attemptNumber": "The attempt's position in the run, from 1.",
+        "outcome": "passed when the package passed every check and its preview returned a result; failed otherwise.",
+        "filesDigest": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing.",
+        "checkReport": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing.",
+        "diagnostics": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt.",
+        "costUsd": "What the generator reported this attempt cost.",
+        "pluginVersionId": "The private version published from this attempt; null unless it passed.",
+        "previewResult": "The value the job returned in its private preview; null unless the attempt passed.",
+        "createdAt": "When the attempt was recorded."
+      }
+    },
+    "PluginAuthoringEvent": {
+      "fields": [
+        "kind",
+        "detail",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(rolled_back)",
+        "detail": "json",
+        "createdAt": "timestamp"
+      },
+      "description": "Something an authoring run did to an install besides publishing to it, kept as evidence.",
+      "fieldDescriptions": {
+        "kind": "rolled_back when a revision's preview or state migration failed and the install was put back on the version it left.",
+        "detail": "For rolled_back: the install, the version it left and returned to, the failing stage and reason, and the state digests before the revision, after the restore and after the rollback.",
+        "createdAt": "When it was recorded."
+      }
+    },
+    "PluginAuthoringRun": {
+      "fields": [
+        "id",
+        "organizationId",
+        "actorPrincipalId",
+        "status",
+        "request",
+        "requestDigest",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "spentUsd",
+        "maxAttempts",
+        "kitDigest",
+        "sdkVersion",
+        "modelId",
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "attempts",
+        "events",
+        "createdAt",
+        "updatedAt",
+        "finishedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "actorPrincipalId": "uuid",
+        "status": "enum(running|succeeded|blocked|budget_exhausted)",
+        "request": "string",
+        "requestDigest": "string",
+        "authorizedCapabilities": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+        "budgetUsd": "decimal",
+        "spentUsd": "decimal",
+        "maxAttempts": "integer",
+        "kitDigest": "string",
+        "sdkVersion": "string",
+        "modelId": "string",
+        "basePluginInstallId": "uuid|null",
+        "pluginPackageId": "uuid|null",
+        "pluginVersionId": "uuid|null",
+        "pluginInstallId": "uuid|null",
+        "failure": "json|null",
+        "attempts": "PluginAuthoringAttempt[]",
+        "events": "PluginAuthoringEvent[]",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "finishedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "finishedAt"
+      ],
+      "description": "One request to author a private backend plugin: what was asked and authorized, the kit, SDK and model it ran with, every attempt, and where it ended.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this authoring run.",
+        "organizationId": "UUID of the organization that owns this run.",
+        "actorPrincipalId": "The person who asked for the plugin; only they can read the run.",
+        "status": "succeeded when a version was published, previewed and installed; blocked when every attempt failed or a revision was refused, with nothing published; budget_exhausted when the next attempt would have gone over the budget.",
+        "request": "The request text as sent.",
+        "requestDigest": "SHA-256 of the request text, the published version's source evidence.",
+        "authorizedCapabilities": "The capabilities the request allowed, the only ones a package could ask for.",
+        "budgetUsd": "The budget the request set, in USD.",
+        "spentUsd": "What the attempts cost in total, in USD.",
+        "maxAttempts": "The attempt cap the request set.",
+        "kitDigest": "SHA-256 of the pinned authoring kit the generator was shown.",
+        "sdkVersion": "The plugin SDK version the host checked against.",
+        "modelId": "The generator's model id.",
+        "basePluginInstallId": "The install a revision started from; null for a new plugin.",
+        "pluginPackageId": "The package published to; null unless the run succeeded.",
+        "pluginVersionId": "The private version the run published; null unless it succeeded.",
+        "pluginInstallId": "The personal install now running that version; null unless the run succeeded.",
+        "failure": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted or plugin_update_refused (with the install's lastUpdateFailure); null otherwise.",
+        "attempts": "Every attempt in order.",
+        "events": "Rollbacks the run performed, in order.",
+        "createdAt": "When the run started.",
+        "updatedAt": "When the run last changed.",
+        "finishedAt": "When the run reached its outcome; null while running."
+      }
     }
   },
   "pageEnvelope": {

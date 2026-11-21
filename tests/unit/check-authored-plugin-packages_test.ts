@@ -17,7 +17,7 @@ import {
  */
 
 const KIT_DIGEST_PIN =
-  "389495d7d312f37cf475956411249456ce4da5a54422bf80bbe1b0ecf1aeb000";
+  "f15e1e6bf499803ffddb8f942eac2cc4b2983dac4d71a9481a429a2b7e0abb8a";
 
 function example(overrides: Record<string, string | undefined> = {}) {
   const files: Record<string, string> = {

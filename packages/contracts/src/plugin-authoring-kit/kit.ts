@@ -44,6 +44,11 @@ Do not write sdk.ts or runner.ts: the host supplies them.
       return { done: true };
     }
 
+A revision that raises stateSchemaVersion must export migrate. The host runs
+it once, right after the install moves to the new version and before the job,
+with the schema the old version wrote; if it throws, the install goes back to
+the old version with the state it had.
+
 The value the job returns is its one result. Each host.call is one line on
 stdout ({"call": {...}}) answered by one line on stdin; runner.ts does that for
 you.
