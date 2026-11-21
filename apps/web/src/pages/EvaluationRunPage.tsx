@@ -77,22 +77,25 @@ function Attempts(
   return (
     <UI.Stack
       aria-label={translate("library.evaluation.attempts.label", { scorer })}
-      gap="compact"
+      gap="tight"
       role="list"
     >
       {rows.map((attempt) => {
         const words = resultWords(attempt, false);
         return (
           <div key={attempt.id} role="listitem">
-            <UI.DescriptionItem
-              title={translate("library.evaluation.attempts.rowTitle", {
-                number: attempt.attemptNo,
-              })}
-              description={translate("library.evaluation.attempts.rowLine", {
-                time: time(attempt.startedAt ?? attempt.createdAt),
-                state: translate(words.key, words.values),
-              })}
-            />
+            <UI.Inline gap="compact">
+              <UI.Text aria-hidden="true" variant="caption">
+                {"\u2003"}
+              </UI.Text>
+              <UI.Text variant="caption">
+                {translate("library.evaluation.attempts.line", {
+                  number: attempt.attemptNo,
+                  time: time(attempt.startedAt ?? attempt.createdAt),
+                  state: translate(words.key, words.values),
+                })}
+              </UI.Text>
+            </UI.Inline>
           </div>
         );
       })}

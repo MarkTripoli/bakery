@@ -5565,8 +5565,7 @@
   "library.evaluation.attempts.label": "⟪Attempts at {scorer}⟫",
   "library.evaluation.attempts.loading": "⟪Loading the attempts⟫",
   "library.evaluation.attempts.error": "⟪The attempts could not be loaded.⟫",
-  "library.evaluation.attempts.rowTitle": "⟪Attempt {number}⟫",
-  "library.evaluation.attempts.rowLine": "⟪{time} · {state}⟫",
   "library.evaluation.attempts.hide": "⟪{count, plural, one {Hide # attempt} other {Hide # attempts}}⟫",
-  "library.evaluation.state.notScored": "⟪Could not be scored⟫"
+  "library.evaluation.state.notScored": "⟪Could not be scored⟫",
+  "library.evaluation.attempts.line": "⟪Attempt {number} · {time} · {state}⟫"
 }
