@@ -184,6 +184,23 @@ function Steps(
   const [ticked, setTicked] = useState(false);
   return (
     <UI.Stack data-testid="restore-steps" gap="standard">
+      {props.problem !== null && props.problem.kind !== "mismatch"
+        ? (
+          <UI.InlineNotice
+            role="alert"
+            tone={props.problem.kind === "failed" ? "error" : "warning"}
+          >
+            {translate(`installation.restore.problem.${props.problem.kind}`, {
+              number: RESTORE_STEPS.findIndex((other) =>
+                other.id === restore.nextStep
+              ) + 1,
+              title: restore.nextStep === null ? "" : translate(
+                `installation.restore.step.${restore.nextStep}.title`,
+              ),
+            })}
+          </UI.InlineNotice>
+        )
+        : null}
       {RESTORE_STEPS.map((step, index) => {
         const number = index + 1;
         const doneAt = restore[step.doneAt];
@@ -314,26 +331,6 @@ function Steps(
                       value={confirmation}
                     />
                   </UI.Field>
-                  {problem !== null && problem.kind !== "mismatch"
-                    ? (
-                      <UI.InlineNotice
-                        role="alert"
-                        tone={problem.kind === "failed" ? "error" : "warning"}
-                      >
-                        {translate(
-                          `installation.restore.problem.${problem.kind}`,
-                          {
-                            number: RESTORE_STEPS.findIndex((other) =>
-                              other.id === restore.nextStep
-                            ) + 1,
-                            title: restore.nextStep === null ? "" : translate(
-                              `installation.restore.step.${restore.nextStep}.title`,
-                            ),
-                          },
-                        )}
-                      </UI.InlineNotice>
-                    )
-                    : null}
                   <UI.Inline gap="compact">
                     <UI.Button
                       disabled={!ready || props.busyStep !== null}

@@ -328,6 +328,11 @@ test("a read that failed says so and can be tried again", async ({ page }) => {
 });
 
 test("the Installation navigation shows Restore while a restore holds Bakery and after it, and not when none ever did", async ({ page }) => {
+  // On a phone the navigation is a menu, closed until it is opened.
+  test.skip(
+    (page.viewportSize()?.width ?? 1440) < 744,
+    "the sidebar form only",
+  );
   const state = await restoreWorld(page);
   await open(page);
   const nav = page.getByRole("navigation", { name: "Installation" });
@@ -383,11 +388,22 @@ test("everyone else sees the banner without a button, and who can finish the res
 
 test("no banner when no restore holds Bakery, or once the last step is taken", async ({ page }) => {
   const state = await restoreWorld(page, { taken: null });
+  // The status has been answered, and the page has had two frames to draw it.
+  const settled = async () => {
+    await page.waitForResponse("**/v1/installation/status");
+    await page.evaluate(() =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      )
+    );
+  };
+  const answered = settled();
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("navigation").first()).toBeVisible();
+  await answered;
   await expect(banner(page)).toHaveCount(0);
   state.taken = 3;
+  const again = settled();
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("navigation").first()).toBeVisible();
+  await again;
   await expect(banner(page)).toHaveCount(0);
 });
