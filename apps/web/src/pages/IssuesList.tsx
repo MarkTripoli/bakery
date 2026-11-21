@@ -193,7 +193,7 @@ export function IssuesList(
   { offered, inBatch, onStart, rows, loading, phone, translate }: {
     /** Whether Start work is offered on this row (can start, GitHub readable, online). */
     offered: (row: IssueRow) => boolean;
-    /** The ids of the issues a running batch has taken. */
+    /** The ids of the issues a live batch has started or merged. */
     inBatch: ReadonlySet<string>;
     onStart: (row: IssueRow) => void;
     rows: readonly IssueRow[];
