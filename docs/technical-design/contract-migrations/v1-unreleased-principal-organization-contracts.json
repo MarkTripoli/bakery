@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "ac855249abfe5b82963c32aec8e6d014b9237ba1"
+    "c40b903ef87292c03f97ed80295d9898faf29962"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:ff9a705a445e2ee0986d2f0babf2ac73d5e65c5bd317c0baa43aa2b21ea10a94",
-  "reason": "#70 chooser server re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main ac855249abfe5b82963c32aec8e6d014b9237ba1, onto the #70 slice 2 head 1bf2a8f2: RouteContinuationOffer drops estimatedIncrementalCost and lists only usable targets, gaining unavailable (counts per reason, per harness, and up to 20 open route names); RouteContinuationTarget drops eligible and ineligibleReason and gains providerName, modelName, priced and estimatedIncrementalCost; RouteContinuationSource gains providerName and modelName. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:f485f696f3c4ca7f6b0f0e704bd118266e1c9ac0288e4ea77ed633a16697b6cc",
+  "reason": "#70 chooser server re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c40b903ef87292c03f97ed80295d9898faf29962, onto the #70 slice 2 head 1bf2a8f2: RouteContinuationOffer drops estimatedIncrementalCost and lists only usable targets, gaining unavailable (counts per reason, per harness, and up to 20 open route names); RouteContinuationTarget drops eligible and ineligibleReason and gains providerName, modelName, priced and estimatedIncrementalCost; RouteContinuationSource gains providerName and modelName. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "ac855249abfe5b82963c32aec8e6d014b9237ba1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:310d095913989f75555035f8881bb459ef84b9b2fb0c8aa148faef3df220c930",
+      "reason": "#448 S8a version provenance by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main ac855249abfe5b82963c32aec8e6d014b9237ba1: StorageFileVersion gains attemptId, actingForPrincipalId and actingForName; FileSearchHit gains producerKind agent and the producer step, run, attempt, session, agent and acting-for fields. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
