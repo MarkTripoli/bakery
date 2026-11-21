@@ -6577,6 +6577,58 @@
     {
       "group": "Worker protocol",
       "method": "POST",
+      "path": "/v1/worker/attempts/{id}/plugin-broker",
+      "action": "worker.plugin.broker",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "PluginBrokerRequest",
+      "output": "PluginBrokerOutcome",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key equals the request id; a repeated id returns the recorded result",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "BODY_TOO_LARGE",
+        "PRECONDITION_FAILED",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": false
+    },
+    {
+      "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/attempts/{id}/plugin-job-files",
+      "action": "worker.plugin.files",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "PluginJobFiles",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": false
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
       "path": "/v1/worker/attempts/{id}/events",
       "action": "worker.events",
       "access": "Worker+lease",
@@ -30759,6 +30811,100 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/PinnedContextRead"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/worker/attempts/{id}/plugin-broker": {
+        "post": {
+          "operationId": "worker.plugin.broker",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PluginBrokerOutcome"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginBrokerRequest"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/worker/attempts/{id}/plugin-job-files": {
+        "get": {
+          "operationId": "worker.plugin.files",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PluginJobFiles"
                   }
                 }
               }
@@ -56914,6 +57060,8 @@
                 "worker.repositorySource",
                 "worker.tools.secrets",
                 "worker.context",
+                "worker.plugin.broker",
+                "worker.plugin.files",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -81542,6 +81690,189 @@
           ],
           "additionalProperties": false,
           "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+        },
+        "PluginBrokerRequest": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Names one effect. A repeat of an id that already ran returns the recorded result and does not run the operation again. PluginBrokerRequest.requestId must contain at most 128 UTF-8 bytes.",
+              "x-utf8-max-bytes": 128
+            },
+            "sequence": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Strictly higher than the last request the broker accepted for this attempt; a reused or lower number is refused."
+            },
+            "operation": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Dotted name of a typed operation the host registered. The install must hold the grant of the same name. PluginBrokerRequest.operation must contain at most 64 UTF-8 bytes.",
+              "x-utf8-max-bytes": 64
+            },
+            "args": {
+              "description": "The operation's arguments, an object. Identity is never taken from here: the install and organization come from the job the server wrote. PluginBrokerRequest.args must contain at most 65536 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginBrokerRequest____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/PluginBrokerRequest____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 65536
+            }
+          },
+          "required": [
+            "requestId",
+            "sequence",
+            "operation",
+            "args"
+          ],
+          "additionalProperties": false,
+          "description": "One request from a contained plugin job, relayed by its worker to the install-scoped broker. The whole body is bounded to 64 KiB."
+        },
+        "PluginBrokerRequest____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginBrokerRequest____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginBrokerRequest____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginBrokerRequest____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginBrokerRequest____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -107466,6 +107797,8 @@
                 "worker.repositorySource",
                 "worker.tools.secrets",
                 "worker.context",
+                "worker.plugin.broker",
+                "worker.plugin.files",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -108132,6 +108465,8 @@
                 "worker.repositorySource",
                 "worker.tools.secrets",
                 "worker.context",
+                "worker.plugin.broker",
+                "worker.plugin.files",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -108798,6 +109133,8 @@
                 "worker.repositorySource",
                 "worker.tools.secrets",
                 "worker.context",
+                "worker.plugin.broker",
+                "worker.plugin.files",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -154394,6 +154731,8 @@
                       "worker.repositorySource",
                       "worker.tools.secrets",
                       "worker.context",
+                      "worker.plugin.broker",
+                      "worker.plugin.files",
                       "worker.events",
                       "worker.renew",
                       "worker.result",
@@ -270761,6 +271100,279 @@
           "additionalProperties": false,
           "description": "Cursor page of BackupDrill."
         },
+        "PluginBrokerOutcome": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "description": "True when the broker ran the operation (or returned the recorded result of an earlier run of the same request id)."
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PluginBrokerOutcome____schema0"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/PluginBrokerOutcome____schema0"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "The operation's result when ok is true; otherwise null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginBrokerOutcome.result may be null in this transport value."
+            },
+            "replayed": {
+              "anyOf": [
+                {
+                  "type": "boolean",
+                  "description": "True when the request id had already run and this is its recorded result; null when ok is false."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginBrokerOutcome.replayed may be null in this transport value."
+            },
+            "denial": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Why the broker refused when ok is false, a short code such as install_off or not_granted; otherwise null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginBrokerOutcome.denial may be null in this transport value."
+            }
+          },
+          "required": [
+            "ok",
+            "result",
+            "replayed",
+            "denial"
+          ],
+          "additionalProperties": false,
+          "description": "The broker's answer to one relayed plugin job request: the operation's result, or a typed denial. Exactly one of result and denial is non-null."
+        },
+        "PluginBrokerOutcome____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginBrokerOutcome____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginBrokerOutcome____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginBrokerOutcome____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginBrokerOutcome____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginJobFile": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing."
+            },
+            "contentBase64": {
+              "type": "string",
+              "description": "The file's exact bytes, base64 encoded."
+            }
+          },
+          "required": [
+            "path",
+            "contentBase64"
+          ],
+          "additionalProperties": false,
+          "description": "One file of the bundle a contained plugin job runs from."
+        },
+        "PluginJobFiles": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "bundleDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the install's pinned bundle archive."
+            },
+            "entry": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The path inside the bundle that the job was admitted to run."
+            },
+            "files": {
+              "maxItems": 256,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing."
+                  },
+                  "contentBase64": {
+                    "type": "string",
+                    "description": "The file's exact bytes, base64 encoded."
+                  }
+                },
+                "required": [
+                  "path",
+                  "contentBase64"
+                ],
+                "additionalProperties": false,
+                "description": "Every file of the bundle, at most 256 and 8 MiB in all. Each array item follows this format."
+              },
+              "description": "Every file of the bundle, at most 256 and 8 MiB in all. PluginJobFiles.files must contain at most 256 items."
+            }
+          },
+          "required": [
+            "bundleDigest",
+            "entry",
+            "files"
+          ],
+          "additionalProperties": false,
+          "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -272611,7 +273223,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6fd05f4025077cac753672ef3b68e530dd388f59c4752dde627ea10e790c7ade",
+  "compatibilityDigest": "sha256:8b8dd1edf53b6a86e51fca948ea2406ae9a8a41dad2a247f6cf28d607f6d5c8d",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -280155,6 +280767,8 @@
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -304863,6 +305477,191 @@
       ],
       "additionalProperties": false,
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "PluginBrokerRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Names one effect. A repeat of an id that already ran returns the recorded result and does not run the operation again. PluginBrokerRequest.requestId must contain at most 128 UTF-8 bytes.",
+          "x-utf8-max-bytes": 128
+        },
+        "sequence": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Strictly higher than the last request the broker accepted for this attempt; a reused or lower number is refused."
+        },
+        "operation": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Dotted name of a typed operation the host registered. The install must hold the grant of the same name. PluginBrokerRequest.operation must contain at most 64 UTF-8 bytes.",
+          "x-utf8-max-bytes": 64
+        },
+        "args": {
+          "description": "The operation's arguments, an object. Identity is never taken from here: the install and organization come from the job the server wrote. PluginBrokerRequest.args must contain at most 65536 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 65536
+        }
+      },
+      "required": [
+        "requestId",
+        "sequence",
+        "operation",
+        "args"
+      ],
+      "additionalProperties": false,
+      "description": "One request from a contained plugin job, relayed by its worker to the install-scoped broker. The whole body is bounded to 64 KiB.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -330881,6 +331680,8 @@
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -331547,6 +332348,8 @@
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -332213,6 +333016,8 @@
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -377959,6 +378764,8 @@
                   "worker.repositorySource",
                   "worker.tools.secrets",
                   "worker.context",
+                  "worker.plugin.broker",
+                  "worker.plugin.files",
                   "worker.events",
                   "worker.renew",
                   "worker.result",
@@ -494481,6 +495288,281 @@
       ],
       "additionalProperties": false,
       "description": "Cursor page of BackupDrill."
+    },
+    "PluginBrokerOutcome": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True when the broker ran the operation (or returned the recorded result of an earlier run of the same request id)."
+        },
+        "result": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The operation's result when ok is true; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginBrokerOutcome.result may be null in this transport value."
+        },
+        "replayed": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "True when the request id had already run and this is its recorded result; null when ok is false."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginBrokerOutcome.replayed may be null in this transport value."
+        },
+        "denial": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the broker refused when ok is false, a short code such as install_off or not_granted; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginBrokerOutcome.denial may be null in this transport value."
+        }
+      },
+      "required": [
+        "ok",
+        "result",
+        "replayed",
+        "denial"
+      ],
+      "additionalProperties": false,
+      "description": "The broker's answer to one relayed plugin job request: the operation's result, or a typed denial. Exactly one of result and denial is non-null.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "PluginJobFile": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing."
+        },
+        "contentBase64": {
+          "type": "string",
+          "description": "The file's exact bytes, base64 encoded."
+        }
+      },
+      "required": [
+        "path",
+        "contentBase64"
+      ],
+      "additionalProperties": false,
+      "description": "One file of the bundle a contained plugin job runs from."
+    },
+    "PluginJobFiles": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "bundleDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the install's pinned bundle archive."
+        },
+        "entry": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The path inside the bundle that the job was admitted to run."
+        },
+        "files": {
+          "maxItems": 256,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing."
+              },
+              "contentBase64": {
+                "type": "string",
+                "description": "The file's exact bytes, base64 encoded."
+              }
+            },
+            "required": [
+              "path",
+              "contentBase64"
+            ],
+            "additionalProperties": false,
+            "description": "Every file of the bundle, at most 256 and 8 MiB in all. Each array item follows this format."
+          },
+          "description": "Every file of the bundle, at most 256 and 8 MiB in all. PluginJobFiles.files must contain at most 256 items."
+        }
+      },
+      "required": [
+        "bundleDigest",
+        "entry",
+        "files"
+      ],
+      "additionalProperties": false,
+      "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

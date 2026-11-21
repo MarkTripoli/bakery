@@ -213,7 +213,12 @@ Deno.test("turning the install off stops the very next relayed call", () => {
     assertEquals(off.status, 200, await off.clone().text());
     const second = await relay(fixture, worker, assignment, request(2));
     assertEquals(second.status, 200);
-    assertEquals(await second.json(), { ok: false, denial: "install_off" });
+    assertEquals(await second.json(), {
+      ok: false,
+      result: null,
+      replayed: null,
+      denial: "install_off",
+    });
     assertEquals(rec.seen.length, 1);
   }, { pluginBrokerOperations: [rec.operation] });
 });
@@ -235,7 +240,7 @@ Deno.test("sequence and replay hold across a job's calls, and an oversized body 
     // A reused sequence number is refused.
     assertEquals(
       await (await relay(fixture, worker, assignment, request(1))).json(),
-      { ok: false, denial: "sequence_replayed" },
+      { ok: false, result: null, replayed: null, denial: "sequence_replayed" },
     );
     assertEquals(rec.seen.length, 1);
     const huge = await relay(
@@ -254,6 +259,6 @@ Deno.test("with no operations registered every request is refused as unknown", (
     const { worker, assignment } = await setup(fixture, store);
     assertEquals(
       await (await relay(fixture, worker, assignment, request(1))).json(),
-      { ok: false, denial: "unknown_operation" },
+      { ok: false, result: null, replayed: null, denial: "unknown_operation" },
     );
   }));

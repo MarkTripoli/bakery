@@ -53,5 +53,17 @@ export async function pluginBrokerRelayRoute(
     },
     body,
   });
-  return jsonResponse(outcome, 200);
+  // The catalogued contract is flat, with explicit nulls, so a client needs no
+  // custom union: exactly one of `result` and `denial` is non-null.
+  return jsonResponse(
+    outcome.ok
+      ? {
+        ok: true,
+        result: outcome.result ?? null,
+        replayed: outcome.replayed,
+        denial: null,
+      }
+      : { ok: false, result: null, replayed: null, denial: outcome.denial },
+    200,
+  );
 }
