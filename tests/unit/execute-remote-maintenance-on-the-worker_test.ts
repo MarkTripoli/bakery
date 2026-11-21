@@ -4,7 +4,14 @@
 // the result. These tests use real directories, real renames and symlinks.
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readlink, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readlink,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
@@ -17,7 +24,10 @@ import {
 import {
   createReleaseDirectoryAdapter,
   type ReleaseArtifact,
+  WORKER_COMPONENT_KEY,
+  workerMaintenanceAdapters,
 } from "../../apps/worker/src/maintenance-release.ts";
+import { readMaintenanceRelease } from "../../apps/worker/src/config.ts";
 import type {
   WorkerMaintenanceAssignment,
   WorkerMaintenanceReport,
@@ -378,3 +388,79 @@ Deno.test("transient report failures retry with the same journaled key", () =>
     const inventory = JSON.parse(harness.sent[2]?.body.diagnostic ?? "{}");
     assertEquals(inventory.components[0].installedDigest, OLD.digest);
   }));
+
+Deno.test("an unset release root configures no managed components", () => {
+  assertEquals(readMaintenanceRelease({}), undefined);
+  assertEquals(workerMaintenanceAdapters({}), []);
+  let refused = "";
+  try {
+    readMaintenanceRelease({ BAKERY_WORKER_RELEASE_ROOT: "/opt/bakery" });
+  } catch (error) {
+    refused = (error as Error).message;
+  }
+  assertEquals(refused, "BAKERY_WORKER_RELEASE_SOURCE_DIR_REQUIRED");
+});
+
+Deno.test("a configured release root manages the worker's own release from the local source", async () => {
+  const base = await mkdtemp(join(tmpdir(), "bakery-maintenance-config-"));
+  try {
+    const sourceDir = join(base, "source");
+    for (const item of [OLD, NEW]) {
+      await mkdir(join(sourceDir, item.digest), { recursive: true });
+      await writeFile(join(sourceDir, item.digest, "artifact"), item.bytes);
+      await writeFile(
+        join(sourceDir, item.digest, "release.json"),
+        JSON.stringify({ version: item.version, stateFormat: 1 }),
+      );
+    }
+    // A source folder whose bytes do not match its name is refused.
+    const forged = "e".repeat(64);
+    await mkdir(join(sourceDir, forged), { recursive: true });
+    await writeFile(join(sourceDir, forged, "artifact"), OLD.bytes);
+    await writeFile(
+      join(sourceDir, forged, "release.json"),
+      JSON.stringify({ version: "9.9", stateFormat: 1 }),
+    );
+    const config = {
+      maintenanceRelease: readMaintenanceRelease({
+        BAKERY_WORKER_RELEASE_ROOT: join(base, "worker"),
+        BAKERY_WORKER_RELEASE_SOURCE_DIR: sourceDir,
+      }),
+    };
+    const adapters = workerMaintenanceAdapters(config);
+    assertEquals(adapters.map((item) => item.componentKey), [
+      WORKER_COMPONENT_KEY,
+    ]);
+    const [adapter] = adapters;
+    await adapter!.switchTo(
+      await adapter!.stage({ digest: OLD.digest, version: null }),
+    );
+    const sent: WorkerMaintenanceReport[] = [];
+    const executor = new MaintenanceExecutor({
+      journal: await MaintenanceJournalStore.open(join(base, "state")),
+      adapters,
+      log: () => undefined,
+      report: (_id, body) => {
+        sent.push(body);
+        return Promise.resolve();
+      },
+    });
+    await executor.accept([
+      assignment({ verb: "refresh_inventory", componentKey: null }),
+      assignment({ componentKey: WORKER_COMPONENT_KEY }),
+      assignment({ componentKey: WORKER_COMPONENT_KEY, targetDigest: forged }),
+    ]);
+    assertEquals(JSON.parse(sent[0]?.diagnostic ?? "{}").components, [{
+      componentKey: WORKER_COMPONENT_KEY,
+      installOwner: "bakery",
+      installedDigest: OLD.digest,
+      installedVersion: "1.0",
+    }]);
+    assertEquals(sent[2]?.phase, "succeeded");
+    assertEquals(sent[2]?.installedDigest, NEW.digest);
+    assertEquals(sent[4]?.reason, "digest_mismatch");
+    assertEquals(await installedDigest(join(base, "worker")), NEW.digest);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});

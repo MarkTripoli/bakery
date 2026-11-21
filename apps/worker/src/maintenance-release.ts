@@ -199,3 +199,70 @@ export function createReleaseDirectoryAdapter(
     },
   };
 }
+
+/** The component key the worker's own release reports under. */
+export const WORKER_COMPONENT_KEY = "worker.bakery";
+
+/**
+ * Reads a release folder (`<sourceDir>/<digest>/artifact` and
+ * `release.json`) from the fixed local source. The adapter still hashes the
+ * bytes and refuses any that do not match the target digest.
+ */
+export function localReleaseSource(
+  sourceDir: string,
+): ReleaseDirectoryAdapterOptions["fetchArtifact"] {
+  return async (target) => {
+    if (!DIGEST.test(target.digest)) {
+      throw new MaintenanceStepError("digest_invalid");
+    }
+    const folder = join(sourceDir, target.digest);
+    try {
+      const bytes = await readFile(join(folder, "artifact"));
+      const meta = JSON.parse(
+        await readFile(join(folder, "release.json"), "utf8"),
+      ) as { version?: unknown; stateFormat?: unknown };
+      if (
+        typeof meta.version !== "string" ||
+        typeof meta.stateFormat !== "number"
+      ) throw new MaintenanceStepError("release_metadata_invalid");
+      return {
+        bytes: new Uint8Array(bytes),
+        version: meta.version,
+        stateFormat: meta.stateFormat,
+      };
+    } catch (error) {
+      if (isMissing(error)) {
+        throw new MaintenanceStepError("release_not_available");
+      }
+      throw error;
+    }
+  };
+}
+
+/**
+ * The managed components this host's configuration provides: the worker's
+ * own release when a release root is set, otherwise none.
+ */
+export function workerMaintenanceAdapters(
+  config: { maintenanceRelease?: { root: string; sourceDir: string } },
+): MaintenanceComponentAdapter[] {
+  const release = config.maintenanceRelease;
+  if (!release) return [];
+  return [createReleaseDirectoryAdapter({
+    componentKey: WORKER_COMPONENT_KEY,
+    root: release.root,
+    fetchArtifact: localReleaseSource(release.sourceDir),
+    // Health: the installed release is present and its bytes match the
+    // digest it is filed under.
+    health: async (installed) => {
+      if (!installed) return false;
+      try {
+        const link = await readlink(join(release.root, "current"));
+        return link.split("/").pop() === installed.digest;
+      } catch (error) {
+        if (isMissing(error)) return false;
+        throw error;
+      }
+    },
+  })];
+}

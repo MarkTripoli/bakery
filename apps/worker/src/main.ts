@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { MaintenanceExecutor, MaintenanceJournalStore } from "./maintenance.ts";
+import { workerMaintenanceAdapters } from "./maintenance-release.ts";
 import { WorkerApiClient } from "./client.ts";
 import {
   disabledMonitoring,
@@ -333,11 +334,16 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       new SkillCache(config.stateDir),
       client,
     );
-    // No Bakery-managed component adapter ships on hosts yet, so mutating
-    // verbs answer "unsupported"; the journal still recovers and fences.
+    const maintenanceAdapters = workerMaintenanceAdapters(config);
+    if (maintenanceAdapters.length === 0) {
+      console.warn(JSON.stringify({
+        component: "worker-maintenance",
+        event: "maintenance_no_managed_components",
+      }));
+    }
     const maintenance = new MaintenanceExecutor({
       journal: await MaintenanceJournalStore.open(config.stateDir),
-      adapters: [],
+      adapters: maintenanceAdapters,
       report: async (operationId, body, idempotencyKey) => {
         await client.reportMaintenance(operationId, body, idempotencyKey);
       },
