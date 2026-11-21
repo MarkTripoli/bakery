@@ -5068,6 +5068,13 @@
       "frames": []
     },
     {
+      "routeId": "plugin-page",
+      "path": "/plugins/$installId/$pageId",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 5 (design-76/v5 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. The page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-repository-rules",
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",

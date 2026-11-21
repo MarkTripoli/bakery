@@ -4342,6 +4342,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-handoffs",
+      "action": "desktopHandoffs.create",
+      "access": "Authenticated",
+      "permission": "browserSession:write",
+      "input": "DesktopHandoffCreate",
+      "output": "DesktopHandoff",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; every call issues a new 30-second one-use code",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "UNPROCESSABLE",
+        "VALIDATION_FAILED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "authenticated_principal_scope",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
@@ -18725,6 +18751,7 @@ export const clientManifest = {
             "passwordResets.redeem",
             "desktopSignIns.start",
             "desktopSignIns.exchange",
+            "desktopHandoffs.create",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -24170,7 +24197,7 @@ export const clientManifest = {
           "description": "Immutable identifier of the external container this source observes (for example, the GitHub repository's stable ID); only one authoritative source per external container is permitted within an organization. TicketSourceCreate.externalContainerId must contain at most 200 characters."
         },
         "policy": {
-          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options and plan approval; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -24342,7 +24369,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "policy": {
-          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -24503,7 +24530,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "policy": {
-          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -31121,6 +31148,23 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "DesktopHandoffCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "returnTo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "description": "Same-origin path the desktop window opens once the browser session is set, such as /projects; it starts with a single slash and never names another origin or the handoff page itself. DesktopHandoffCreate.returnTo must contain at least 1 characters. DesktopHandoffCreate.returnTo must contain at most 2048 characters."
+        }
+      },
+      "required": [
+        "returnTo"
+      ],
+      "additionalProperties": false,
+      "description": "Asks for a one-use code the desktop app opens in its own window as GET /api/desktop/handoff?code=<code>, so the server's web pages load with an ordinary browser session for the same person instead of the bearer credential."
     },
     "RouteContinuationAdmit": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46220,6 +46264,7 @@ export const clientManifest = {
                   "passwordResets.redeem",
                   "desktopSignIns.start",
                   "desktopSignIns.exchange",
+                  "desktopHandoffs.create",
                   "installationAuditEvents.list",
                   "browserSessions.list",
                   "browserSessions.revoke",
@@ -66705,6 +66750,7 @@ export const clientManifest = {
             "passwordResets.redeem",
             "desktopSignIns.start",
             "desktopSignIns.exchange",
+            "desktopHandoffs.create",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -76670,9 +76716,9 @@ export const clientManifest = {
               "scimConnection:manage",
               "installationAdministrator:read",
               "installationAdministrator:manage",
+              "browserSession:write",
               "installationAuditEvent:read",
               "browserSession:read",
-              "browserSession:write",
               "connectedClient:read",
               "connectedClient:write",
               "principal:read",
@@ -107113,6 +107159,30 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value."
+    },
+    "DesktopHandoff": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "43-character code the app puts in GET /api/desktop/handoff?code=<code> in its own window at once. Only its SHA-256 digest is stored; it opens one browser session and nothing else."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC instant, 30 seconds after issue, after which the handoff page refuses the code and sends the window to sign-in."
+        }
+      },
+      "required": [
+        "code",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A one-use code for the desktop window's browser session, returned once."
     },
     "WorkflowVersionSkills": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
