@@ -2888,9 +2888,10 @@ const transportSchemas = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         {
           "name": "from",
@@ -13465,9 +13466,10 @@ const transportSchemas = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         {
           "name": "from",
@@ -34285,12 +34287,12 @@ const transportSchemas = {
         "count"
       ],
       "fieldTypes": {
-        "reason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)",
+        "reason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|no_line_count|line_count_binary|line_count_truncated|still_open)",
         "count": "integer"
       },
       "description": "One reason records were left out of a metric and how many.",
       "fieldDescriptions": {
-        "reason": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet.",
+        "reason": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; no_line_count: the merged head has not been counted yet; line_count_binary: the diff holds a binary file whose lines are unknown; line_count_truncated: the provider's file list stopped before every changed file; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet.",
         "count": "How many records were left out for this reason."
       }
     },
@@ -34404,7 +34406,8 @@ const transportSchemas = {
         "requestedAt",
         "deliveredAt",
         "deliveryPoint",
-        "waits"
+        "waits",
+        "lineCount"
       ],
       "fieldTypes": {
         "kind": "enum(pullRequest|task)",
@@ -34419,12 +34422,13 @@ const transportSchemas = {
         "closedAt": "timestamp|null",
         "countedAt": "timestamp|null",
         "value": "number|null",
-        "missingReason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)|null",
+        "missingReason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|no_line_count|line_count_binary|line_count_truncated|still_open)|null",
         "title": "string|null",
         "requestedAt": "timestamp|null",
         "deliveredAt": "timestamp|null",
         "deliveryPoint": "enum(merged_pull_request|completed_run)|null",
-        "waits": "MetricWaitShare[]|null"
+        "waits": "MetricWaitShare[]|null",
+        "lineCount": "MetricLineCount|null"
       },
       "nullableFields": [
         "openedAt",
@@ -34440,7 +34444,8 @@ const transportSchemas = {
         "requestedAt",
         "deliveredAt",
         "deliveryPoint",
-        "waits"
+        "waits",
+        "lineCount"
       ],
       "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number.",
       "fieldDescriptions": {
@@ -34461,7 +34466,62 @@ const transportSchemas = {
         "requestedAt": "When the task's first run was admitted; null for a pull request.",
         "deliveredAt": "When the task reached its delivery point; null for a pull request.",
         "deliveryPoint": "Which delivery point the task reached; null for a pull request.",
-        "waits": "Where the task's lead time went; null for a pull request."
+        "waits": "Where the task's lead time went; null for a pull request.",
+        "lineCount": "The line count of the pull request's merged head under the current counter version, the evidence behind loc.changedLines; null for a task or a pull request not counted yet."
+      }
+    },
+    "MetricLineCount": {
+      "fields": [
+        "counterVersion",
+        "coverage",
+        "added",
+        "deleted",
+        "countedFiles",
+        "excludedFiles",
+        "binaryFiles",
+        "categories"
+      ],
+      "fieldTypes": {
+        "counterVersion": "string",
+        "coverage": "enum(complete|binary|truncated)",
+        "added": "integer",
+        "deleted": "integer",
+        "countedFiles": "integer",
+        "excludedFiles": "integer",
+        "binaryFiles": "integer",
+        "categories": "MetricLineCategory[]"
+      },
+      "description": "One count of a pull request's diff at its merged head, from the provider's file list: what was counted, what was excluded and how complete it is.",
+      "fieldDescriptions": {
+        "counterVersion": "Version of the counting rules; counts under different versions are never compared.",
+        "coverage": "complete: every changed file was listed and had line totals; binary: a binary file's lines are unknown; truncated: the provider's list stopped before every changed file. Only a complete count is a known number of lines.",
+        "added": "Added lines over the counted files.",
+        "deleted": "Deleted lines over the counted files.",
+        "countedFiles": "Files whose lines were counted.",
+        "excludedFiles": "Lock, vendored, generated, minified and source-map files, never counted as lines.",
+        "binaryFiles": "Files listed with no patch and no line totals; their lines are unknown.",
+        "categories": "Counted lines by category, one entry per category with a file."
+      }
+    },
+    "MetricLineCategory": {
+      "fields": [
+        "category",
+        "added",
+        "deleted",
+        "files"
+      ],
+      "fieldTypes": {
+        "category": "enum(source|test|docs|config)",
+        "added": "integer",
+        "deleted": "integer",
+        "files": "integer"
+      },
+      "description": "The counted lines of one file category in a line count.",
+      "fieldDescriptions": {
+        "category": "source: code; test: test files and directories; docs: documentation and prose; config: configuration and data files.",
+        "added": "Added lines in this category.",
+        "deleted": "Deleted lines in this category.",
+        "files": "Counted files in this category."
       }
     },
     "Page<MetricSource>": {
