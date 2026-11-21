@@ -2130,7 +2130,7 @@ test(
       .toBeVisible();
     const versions = pane.getByRole("combobox", { name: "Artifact version" });
     await expect(versions).toHaveValue(versionIds[1]);
-    const preview = pane.getByRole("region", { name: "Artifact text preview" });
+    const preview = pane.getByRole("region", { name: "Preview" });
     await expect(preview).toContainText("# Brief v2");
     // The extract is text, never markup.
     await expect(preview).toContainText("<script>alert(1)</script>");
@@ -2167,7 +2167,7 @@ test("a truncated extract says so", async ({ page }) => {
   await expect(pane.getByRole("status")).toContainText(
     "Preview truncated. Download the artifact to read all of it.",
   );
-  await expect(pane.getByRole("region", { name: "Artifact text preview" }))
+  await expect(pane.getByRole("region", { name: "Preview" }))
     .toBeVisible();
 });
 
@@ -2185,7 +2185,7 @@ test("an unsupported media type says preview unavailable and never asks for an e
   await expect(pane.getByRole("status")).toContainText(
     "Preview unavailable for this media type.",
   );
-  await expect(pane.getByRole("region", { name: "Artifact text preview" }))
+  await expect(pane.getByRole("region", { name: "Preview" }))
     .toHaveCount(0);
   await expect(pane.getByRole("link", { name: "Open", exact: true }))
     .toBeVisible();

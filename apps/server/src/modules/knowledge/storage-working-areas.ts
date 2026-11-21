@@ -30,6 +30,7 @@ import {
 } from "./agent-file-scope.ts";
 import { agentFileWriteFor, refuseAgentPath } from "./agent-file-guard.ts";
 import { sha256Bytes } from "./bytes.ts";
+import { enqueueProbeSubject } from "./probe-runner.ts";
 import {
   attemptVersionProvenance,
   type VersionProvenance,
@@ -562,6 +563,7 @@ async function appendVersion(
       " where organization_id = $1 and entry_id = $2",
     [input.organizationId, input.entry.id],
   );
+  const revisionNumber = revision.rows[0].next;
   const inserted = await tx.query<{ id: string }>(
     "insert into bakery.storage_file_versions" +
       " (organization_id, entry_id, revision, blob_id, content, sha256," +
@@ -572,7 +574,7 @@ async function appendVersion(
     [
       input.organizationId,
       input.entry.id,
-      revision.rows[0].next,
+      revisionNumber,
       input.bytes.blobId,
       input.bytes.content,
       input.bytes.sha256,
@@ -585,6 +587,18 @@ async function appendVersion(
       input.provenance?.agentSessionId ?? null,
       input.provenance?.actingForPrincipalId ?? null,
     ],
+  );
+  // A blob-backed version is asked about once however many versions share the
+  // bytes; an inline version is its own subject, because nothing else has them.
+  await enqueueProbeSubject(
+    tx,
+    input.bytes.blobId === null
+      ? {
+        organizationId: input.organizationId,
+        entryId: input.entry.id,
+        revision: revisionNumber,
+      }
+      : { organizationId: input.organizationId, blobId: input.bytes.blobId },
   );
   await tx.query(
     "update bakery.storage_entries" +

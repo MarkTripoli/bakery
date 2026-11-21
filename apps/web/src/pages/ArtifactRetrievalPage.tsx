@@ -50,6 +50,8 @@ import { useShellViewport } from "../app/responsive.ts";
 import { ArtifactEditor } from "./ArtifactEditor.tsx";
 import { isExtractableMediaType } from "./artifact-media.ts";
 import { invalidateArtifactQueries } from "./artifact-live.ts";
+import { offersDownload } from "./preview-actions.ts";
+import { formatFileSize } from "./file-size.ts";
 
 const MAX_EXTRACTION_BYTES = 65_536;
 /** Session Problems meaning "authenticate again", not "this artifact failed". */
@@ -174,7 +176,17 @@ export function ArtifactRetrievalPage(
   const scope = useProtectedScope();
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
+  // `formatFileSize` wants the translator's own shape; the Files panel casts the
+  // same way, because the catalog keys are a closed union.
+  const sizeText = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) =>
+    (translate as (id: string, v?: Record<string, string | number>) => string)(
+      key,
+      values,
+    );
   const [organizationResolutionState, setOrganizationResolutionState] =
     useState<OrganizationResolutionState>("loading");
   const [organizationResolutionError, setOrganizationResolutionError] =
@@ -187,6 +199,9 @@ export function ArtifactRetrievalPage(
   const downloadRequest = useRef(0);
   const downloadAbort = useRef<AbortController | null>(null);
   const [downloadState, setDownloadState] = useState<DownloadState>("idle");
+  // The bytes and the record disagree: the page must not offer to save them
+  // either, so the preview tells this controller and the button goes away.
+  const [digestMismatch, setDigestMismatch] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
   const [startByteInput, setStartByteInput] = useState("0");
   const [extractionInput, setExtractionInput] = useState<
@@ -994,7 +1009,9 @@ export function ArtifactRetrievalPage(
               author: selectedVersion.authorId,
               step: selectedVersion.runStepId ??
                 translate("artifact.retrieval.notAvailable"),
-              size: selectedVersion.sizeBytes,
+              // One formatter for every size on the page: the sentence must not
+              // say "317705 bytes" above a facts line saying "310.3 KB" (#437).
+              size: formatFileSize(selectedVersion.sizeBytes, locale, sizeText),
             })
             : translate("artifact.retrieval.emptyNotice")}
           versionLabel={translate("artifact.retrieval.versionsTitle")}
@@ -1012,7 +1029,10 @@ export function ArtifactRetrievalPage(
               search: { version },
             });
           }}
-          download={selectedVersion
+          download={selectedVersion && offersDownload({
+              mismatch: digestMismatch,
+              contentRemoved: false,
+            })
             ? {
               label: downloadState === "loading"
                 ? translate("artifact.retrieval.downloading")
@@ -1050,7 +1070,13 @@ export function ArtifactRetrievalPage(
               }}
             />
           }
-          previewHandoff={selectedVersion
+          // A damaged file's page must not offer to open a preview of it: the
+          // Banner below says Bakery will not show it, and a handoff beside it
+          // would say the opposite (#437).
+          previewHandoff={selectedVersion && offersDownload({
+              mismatch: digestMismatch,
+              contentRemoved: false,
+            })
             ? (
               <ArtifactPreviewHandoff
                 key={`handoff:${scope.sessionGeneration}:${selectedVersion.id}`}
@@ -1142,6 +1168,7 @@ export function ArtifactRetrievalPage(
                 version={selectedVersion}
                 onDownload={() => void download()}
                 onViewDetails={() => setDetailsOpen(true)}
+                onMismatch={setDigestMismatch}
               />
             )
             : (
