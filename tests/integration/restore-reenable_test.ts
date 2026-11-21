@@ -245,11 +245,24 @@ Deno.test("a step is audited by name and step", () =>
     assertEquals((await take(o, "intake")).status, 200);
     const rows = (await database(o).query<{ details: unknown }>(
       `select details from bakery.audit_events
-        where operation = 'installationRestore.step'
-        order by created_at desc limit 1`,
+        where operation = 'installationRestore.step' and resource_id = $1`,
+      [id],
     )).rows;
     assertEquals(rows.length, 1);
     const details = JSON.stringify(rows[0].details);
     assert(details.includes("intake") && details.includes(NAME), details);
-    void id;
+  }));
+
+Deno.test("a step without an Idempotency-Key is refused and opens nothing", () =>
+  withFixture(async (o) => {
+    await seedRestore(o);
+    const keyless = await refusal(
+      await o.admin("POST", STEPS, { step: "intake", confirmation: NAME }),
+    );
+    assertEquals(keyless.status, 428, keyless.text);
+    assertEquals(await doors(o), [
+      "INSTALLATION_RESTORING",
+      "INSTALLATION_RESTORING",
+      "INSTALLATION_RESTORING",
+    ]);
   }));
