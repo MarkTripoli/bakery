@@ -152,6 +152,8 @@ export async function slackFixture(
     deletes: [] as Record<string, string>[],
     putAnswer: "ok" as "ok" | PutRefusal,
     checkAnswer: "accepted" as "accepted" | "client_id_refused",
+    /** What the next removal answers; `null` removes as usual. */
+    deleteRefusal: null as { status: number; code: string } | null,
   };
   await page.route("**/v1/integrations/slack/app", (route) => {
     const request = route.request();
@@ -182,6 +184,10 @@ export async function slackFixture(
     }
     if (request.method() === "DELETE") {
       slack.deletes.push(request.headers());
+      if (slack.deleteRefusal !== null) {
+        const refusal = slack.deleteRefusal;
+        return route.fulfill(problem(refusal.status, refusal.code));
+      }
       slack.current = { ...slackUnset };
       return route.fulfill({
         status: 200,

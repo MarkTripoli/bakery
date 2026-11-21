@@ -126,6 +126,8 @@ export function createIntegrationsRoutes(options: {
   integrationRegistry: ActiveIntegrationRegistry;
   /** The provider request port the invoke door sends through. */
   providerRequests?: ProviderRequestPort;
+  /** Injected so a check asks Slack nothing; the check is its only network call. */
+  slackAppFetch?: typeof fetch;
   /**
    * The ingress port that verifies and classifies a signed webhook delivery.
    *
@@ -144,8 +146,14 @@ export function createIntegrationsRoutes(options: {
     ...(options.providerRequests === undefined
       ? {}
       : { providerRequests: options.providerRequests }),
+    ...(options.slackAppFetch === undefined
+      ? {}
+      : { slackAppFetch: options.slackAppFetch }),
   });
   const app = new Hono<{ Variables: AuthVariables }>();
+  // The Slack app's check is served by this router so Slack is asked between two
+  // transactions, so it needs the same session gate as its siblings.
+  app.use("/v1/integrations/slack/app/check", options.browserSession);
   app.use("/v1/integration-app-registrations/github", options.browserSession);
   app.use("/v1/integration-app-registrations/github/*", options.browserSession);
   app.use(GitHubAppPath.ManifestCallback, options.browserSession);

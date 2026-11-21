@@ -1008,6 +1008,11 @@ export function createApp(options: {
       // providers instead of re-deriving one.
       integrationRegistry,
       providerRequests,
+      // The Slack app check asks Slack through the action registry, so the one
+      // process-wide fetch seam is handed over here rather than re-derived.
+      ...(options.slackAppFetch === undefined
+        ? {}
+        : { slackAppFetch: options.slackAppFetch }),
     }),
   );
   app.route(
@@ -1142,9 +1147,6 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secretsKey: options.config.secretsKey,
-      ...(options.slackAppFetch === undefined
-        ? {}
-        : { fetch: options.slackAppFetch }),
     }),
   );
   app.route(

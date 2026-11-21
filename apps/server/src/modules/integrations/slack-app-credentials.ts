@@ -356,12 +356,20 @@ export async function saveSlackAppSettings(
   }
 
   if (stored === null) {
-    await transaction.query(
+    // Two first saves race on a row that is not there to lock. The loser's insert
+    // matches the existing row and returns nothing, which is a stale save rather
+    // than a 500: it never read the version it would have overwritten.
+    const inserted = await transaction.query(
       `insert into bakery.slack_app_settings
          (external_app_id, client_id, signing_secret_id, client_secret_id)
-       values ($1, $2, $3, $4)`,
+       values ($1, $2, $3, $4)
+       on conflict (id) do nothing
+       returning id`,
       [input.appId, input.clientId, signingSecretId, clientSecretId],
     );
+    if (inserted.rows.length === 0) {
+      throw new StandardError({ code: "PRECONDITION_FAILED" });
+    }
   } else {
     await transaction.query(
       `update bakery.slack_app_settings
@@ -406,6 +414,29 @@ export async function saveSlackAppSettings(
 }
 
 /**
+ * Reads the row and holds it for the rest of the transaction.
+ *
+ * The settings row is a singleton (`id = true`), so `for update` alone locks
+ * nothing. A save that bumps the version is itself the lock: this writes the row
+ * it read, which both takes the row lock and leaves a version at or past the one
+ * the caller named. The version is not bumped, because nothing the screen shows
+ * has changed.
+ */
+export async function lockSlackAppSettings(
+  transaction: Pick<PgTransactionClient, "query">,
+  expectedVersion: number,
+): Promise<SlackAppSettings | null> {
+  const locked = await transaction.query<{ version: number }>(
+    `update bakery.slack_app_settings set updated_at = updated_at
+      where id = true and version = $1
+      returning version`,
+    [expectedVersion],
+  );
+  if (locked.rows.length === 0) return null;
+  return await readSlackAppSettings(transaction);
+}
+
+/**
  * Removes the app details, and nothing else.
  *
  * Identity links and organization connections are kept: the design's dialog promises
@@ -417,24 +448,33 @@ export async function saveSlackAppSettings(
 export async function removeSlackAppSettings(
   transaction: PgTransactionClient,
   input: {
+    /** The row version the caller saw; a row that moved past it is not removed. */
+    readonly expectedVersion: number;
     readonly principalId: string;
     readonly operation: string;
     readonly requestId: string;
     readonly traceId: string;
   },
 ): Promise<void> {
+  // The removal names the version it removes, so a save that commits between the
+  // caller's check and this delete is not silently deleted with its new secrets.
   const removed = await transaction.query<{
     appId: string;
     signingSecretId: string;
     clientSecretId: string;
   }>(
     `delete from bakery.slack_app_settings
+      where version = $1
       returning external_app_id as "appId",
                 signing_secret_id as "signingSecretId",
                 client_secret_id as "clientSecretId"`,
+    [input.expectedVersion],
   );
   const row = removed.rows[0];
-  if (row === undefined) return;
+  if (row === undefined) {
+    // No row deleted: either it is gone already or someone else moved it.
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
   // The secrets go with the row: nothing outside a saved app can address them,
   // so leaving them behind would be ciphertext with no reader and one more copy
   // of a credential to have to explain. `0303` grants the delete that needs.
@@ -469,6 +509,7 @@ export async function removeSlackAppSettings(
 export async function recordSlackCheck(
   transaction: Pick<PgTransactionClient, "query">,
   result: SlackCheckResult,
+  expectedVersion: number,
   audit: {
     readonly principalId: string;
     readonly operation: string;
@@ -476,12 +517,19 @@ export async function recordSlackCheck(
     readonly traceId: string;
   },
 ): Promise<void> {
-  await transaction.query(
+  // The answer belongs to the pair that was asked about. A save that replaced a
+  // secret while Slack was answering moves the row, and the old pair's "ok" must
+  // not be written onto the new one.
+  const recorded = await transaction.query(
     `update bakery.slack_app_settings
         set details_checked_at = now(), details_check_result = $1
-      where id = true`,
-    [result],
+      where id = true and version = $2
+      returning id`,
+    [result, expectedVersion],
   );
+  if (recorded.rows.length === 0) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
   // A check is a command, like a save: it spends a request and changes what the
   // screen reports, so the ledger names who asked and what Slack said.
   await appendAudit(transaction, {

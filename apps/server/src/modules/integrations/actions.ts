@@ -1,3 +1,4 @@
+import { checkSlackClientCredentials } from "./slack-client-check.ts";
 import {
   type ActionAuthorityRunner,
   type ActionContext,
@@ -13,6 +14,7 @@ import {
   assertImplementedActionRegistry,
   IntegrationsImplementedAction,
   integrationsImplementedActions,
+  IntegrationSlackAppImplementedAction,
 } from "@bakery/contracts/implemented-actions";
 import {
   ActionAccess,
@@ -21,6 +23,7 @@ import {
 } from "@bakery/contracts/contracts";
 import {
   createNormalizedCommandMetadata,
+  parseStrongIfMatch,
   StandardError,
   unprocessable,
 } from "@bakery/contracts/http";
@@ -63,6 +66,11 @@ import {
   createGitHubCallbackRunner,
 } from "./callbacks.ts";
 import { checkConnection, createConnectionCheckRunner } from "./checks.ts";
+import {
+  readSlackAppCheck,
+  registerSlackAppCheck,
+  type SlackCheckPreparation,
+} from "./slack-app-actions.ts";
 import { createDiscovery } from "./discoveries.ts";
 import {
   DeliveryIdentitySchema,
@@ -122,6 +130,8 @@ export type IntegrationsRegistryDependencies = IntegrationsDependencies & {
    * reconciliation; a registry without one creates its own.
    */
   broker?: InstallationTokenBroker;
+  /** Injected so a check asks Slack nothing; the check is its only network call. */
+  slackAppFetch?: typeof fetch;
   /**
    * The process's activated integration registry. Required for the invoke door:
    * its absence is what left `invokeIntegration` with no production caller, so
@@ -132,11 +142,22 @@ export type IntegrationsRegistryDependencies = IntegrationsDependencies & {
   providerRequests?: ProviderRequestPort;
 };
 
+/**
+ * The probe's answer for the Slack app's check, parked between the two
+ * transactions of one request.
+ *
+ * A context slot cannot carry it: the registry hands `next` a fresh context and
+ * the command runner builds the handler's context again, so only module state the
+ * two steps share survives. The entry is keyed by action name because one registry
+ * serves one check at a time, and it is cleared by the step that reads it.
+ */
+
 const preparationSlot = Symbol("private GitHub App registration preparation");
 const putPreparationSlot = Symbol("private GitHub App credentials preparation");
 type PreparedContext = ActionContext & {
   [preparationSlot]?: RegistrationPreparation;
   [putPreparationSlot]?: RegistrationPutPreparation;
+  slackCheckPreparation?: SlackCheckPreparation;
 };
 
 const intakeSlot = Symbol("verified GitHub webhook delivery");
@@ -398,6 +419,76 @@ async function runPut(
  * 3. store everything in the action's transaction through `next`.
  * Other actions pass straight through.
  */
+/**
+ * Runs the Slack app check without holding a transaction across the network.
+ *
+ * 1. the authority runner's own transaction reads the pair and asks Slack inside
+ *    it, which is where the precondition and the admin check belong;
+ * 2. nothing is stored yet: the answer travels on the context;
+ * 3. a second transaction stores it against the version that was read, so a save
+ *    that replaced a secret meanwhile is refused rather than annotated.
+ *
+ * This is the `runPut` shape: probe, call the provider outside any transaction,
+ * then store. `checkSlackApp` reads the answer from the context.
+ */
+async function runSlackCheck(
+  authority: ActionAuthorityRunner,
+  action: ActionDefinition,
+  context: ActionContext,
+  input: unknown,
+  next: (context: ActionContext) => Promise<unknown>,
+  dependencies: IntegrationsRegistryDependencies,
+): Promise<unknown> {
+  // The version the caller named, read here because the step's transaction is a
+  // different context object from the probe's.
+  const expectedVersion = parseStrongIfMatch(
+    context.request.headers.get("if-match"),
+  );
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  // 1. Read the version under the row lock and keep what has to be asked. The
+  //    version reaches the read on the context, because the step's transaction is a
+  //    different context object from the probe's.
+  const settings = await authority.run(
+    action,
+    Object.assign({}, context, {
+      slackCheckPreparation: { expectedVersion },
+    }),
+    input,
+    async (authorized) =>
+      await readSlackAppCheck(authorized, {
+        secretsKey: dependencies.secretsKey,
+        publicBaseUrl: dependencies.publicBaseUrl,
+      }),
+  ) as Awaited<ReturnType<typeof readSlackAppCheck>> | null;
+  if (settings === null) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  context.signal.throwIfAborted();
+  // 2. Ask Slack outside every transaction, so a slow slack.com holds no
+  //    connection and the answer is about a version the caller named.
+  const outcome = await checkSlackClientCredentials({
+    clientId: settings.clientId,
+    clientSecret: settings.clientSecret,
+    ...(dependencies.slackAppFetch === undefined
+      ? {}
+      : { fetch: dependencies.slackAppFetch }),
+  });
+  context.signal.throwIfAborted();
+  // 3. Store the answer against the version it is about.
+  const prepared = { expectedVersion, result: outcome.result };
+  return await authority.run(
+    action,
+    Object.assign({}, context, { slackCheckPreparation: prepared }),
+    input,
+    (authorized) =>
+      next(
+        Object.assign(authorized, { slackCheckPreparation: prepared }),
+      ),
+  );
+}
+
 export function createIntegrationsAuthorityRunner(
   authority: ActionAuthorityRunner,
   database: PgDatabase,
@@ -452,6 +543,23 @@ export function createIntegrationsAuthorityRunner(
   };
   return {
     async run(action, context, input, next) {
+      // The Slack app check asks Slack between two transactions. A step invoked
+      // without an HTTP request (a direct call or an older registry mount) has no
+      // request to re-normalize, so it keeps the single-transaction path.
+      if (
+        action.name ===
+          IntegrationSlackAppImplementedAction.IntegrationSlackAppCheck &&
+        context.request !== undefined
+      ) {
+        return await runSlackCheck(
+          authority,
+          action,
+          context,
+          input,
+          next,
+          dependencies,
+        );
+      }
       if (
         action.name ===
           IntegrationsImplementedAction.IntegrationConnectionsCheck
@@ -623,6 +731,15 @@ export function createIntegrationsActionRegistry(
     createPostgresCommandRunner(),
     "natural-idempotency",
   );
+  // The Slack app's check is served here rather than by the Slack app's own
+  // registry, because only this runner asks Slack between two transactions.
+  registerSlackAppCheck(registry, {
+    secretsKey: dependencies.secretsKey,
+    publicBaseUrl: dependencies.publicBaseUrl,
+    ...(dependencies.slackAppFetch === undefined
+      ? {}
+      : { fetch: dependencies.slackAppFetch }),
+  });
   const invokeDeps = connectionInvokeDeps(
     dependencies.integrationRegistry,
     dependencies.providerRequests ?? denyAllProviderRequests,
@@ -977,6 +1094,12 @@ export function createIntegrationsActionRegistry(
   });
 
   assertRegisteredActions(registry);
-  assertImplementedActionRegistry(registry, integrationsImplementedActions);
+  assertImplementedActionRegistry(
+    registry,
+    [
+      ...integrationsImplementedActions,
+      IntegrationSlackAppImplementedAction.IntegrationSlackAppCheck,
+    ] as Parameters<typeof assertImplementedActionRegistry>[1],
+  );
   return registry;
 }

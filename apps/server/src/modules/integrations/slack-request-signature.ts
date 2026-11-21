@@ -131,6 +131,20 @@ export async function signSlackRequest(input: {
  * parsed. A caller must not read the body's contents until this returns ok, which
  * is why the verdict carries nothing from the body.
  */
+/**
+ * Compares two hex digests without returning early on the first difference. The
+ * lengths are compared first because the loop's bound is public anyway: a
+ * signature of the wrong length is already not Slack's.
+ */
+function equalInConstantTime(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
 export async function verifySlackRequest(input: {
   readonly signingSecret: string;
   readonly signatureHeader: string | null;
@@ -168,7 +182,10 @@ export async function verifySlackRequest(input: {
     timestamp: input.timestampHeader,
     rawBody: input.rawBody,
   });
-  if (expected !== input.signatureHeader) {
+  // The comparison is over secrets, so it takes the same time whether the first
+  // byte differs or the last: an early return hands an attacker a timing oracle
+  // to guess the signature one byte at a time.
+  if (!equalInConstantTime(expected, input.signatureHeader)) {
     return { ok: false, reason: "signature_mismatch" };
   }
   return {

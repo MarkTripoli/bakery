@@ -39,7 +39,40 @@ export type SlackAppStatus =
   | "clientIdRefused"
   | "clientSecretRefused"
   | "removing"
-  | "removed";
+  | "removed"
+  | "removeFailed"
+  | "removeStale"
+  | "checkFailed"
+  | "checkStale";
+
+/**
+ * The banner a failed press shows, or null when nothing failed.
+ *
+ * A save, a check and a removal each say what they were doing: "could not be
+ * saved" over a failed check reads as if the details were lost.
+ */
+function failureKey(status: SlackAppStatus): string | null {
+  switch (status) {
+    case "failed":
+      return "saveFailed";
+    case "stale":
+      return "stale";
+    case "clientIdRefused":
+      return "refused.clientId";
+    case "clientSecretRefused":
+      return "refused.clientSecret";
+    case "checkFailed":
+      return "checkFailed";
+    case "checkStale":
+      return "checkStale";
+    case "removeFailed":
+      return "removeFailed";
+    case "removeStale":
+      return "removeStale";
+    default:
+      return null;
+  }
+}
 
 export type SlackAppSectionProps = {
   readonly view: SlackAppView;
@@ -104,14 +137,15 @@ export function SlackAppSection(
   const previousStatus = useRef(status);
   useEffect(() => {
     if (
-      (previousStatus.current === "saving" ||
-        previousStatus.current === "removing") &&
+      previousStatus.current === "saving" &&
       status !== "failed" && status !== "clientIdRefused" &&
       status !== "clientSecretRefused"
     ) {
       setReplacing(false);
-      setRemoving(false);
     }
+    // A removal closes its dialog whatever the outcome: a refusal belongs in the
+    // banner, not over a modal that hides it.
+    if (previousStatus.current === "removing") setRemoving(false);
     previousStatus.current = status;
   }, [status]);
   const configured = saved?.configured === true;
@@ -326,31 +360,20 @@ export function SlackAppSection(
                     </UI.Text>
                   </>
                 )}
-              {status === "failed"
-                ? (
+              {failureKey(status) === null ||
+                  failureKey(status)?.endsWith("Stale") === true
+                ? null
+                : (
                   <UI.AlertBanner tone="error">
-                    {translate(key("saveFailed"))}
+                    {translate(key(failureKey(status)!))}
                   </UI.AlertBanner>
-                )
-                : null}
-              {status === "clientIdRefused"
-                ? (
-                  <UI.AlertBanner tone="error">
-                    {translate(key("refused.clientId"))}
-                  </UI.AlertBanner>
-                )
-                : null}
-              {status === "clientSecretRefused"
-                ? (
-                  <UI.AlertBanner tone="error">
-                    {translate(key("refused.clientSecret"))}
-                  </UI.AlertBanner>
-                )
-                : null}
-              {status === "stale"
+                )}
+              {failureKey(status) === "stale" ||
+                  failureKey(status) === "checkStale" ||
+                  failureKey(status) === "removeStale"
                 ? (
                   <UI.AlertBanner tone="warning">
-                    {translate(key("stale"))}
+                    {translate(key(failureKey(status)!))}
                   </UI.AlertBanner>
                 )
                 : null}
@@ -546,7 +569,7 @@ export function SlackAppSection(
                     <UI.Button
                       onClick={() => setRemoving(true)}
                       type="button"
-                      variant="secondary"
+                      variant="destructive-outline"
                     >
                       {translate(key("remove"))}
                     </UI.Button>

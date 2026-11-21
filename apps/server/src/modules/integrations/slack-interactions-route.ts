@@ -194,13 +194,16 @@ export function mountSlackInteractionsRoute(
       now: now(),
     });
     if (!verdict.ok) {
-      // The settings screen's second row reports this: a person who regenerated the
-      // signing secret in Slack sees "a request did not match the signing secret"
-      // there, which is the only way the secret is ever tested.
-      await withPgTransaction(
-        options.database,
-        (transaction) => recordSlackRequest(transaction, "refused"),
-      );
+      // Only a request that carried fresh headers and a signature that did not
+      // match says anything about the signing secret. An unsigned probe from the
+      // internet, or a replay, must not make the screen tell an administrator
+      // their secret is wrong, so neither is recorded.
+      if (verdict.reason === "signature_mismatch") {
+        await withPgTransaction(
+          options.database,
+          (transaction) => recordSlackRequest(transaction, "refused"),
+        );
+      }
       // The reason is logged, never returned: "signature_mismatch" is not something
       // Slack or a person can act on, and it would tell a prober how close they got.
       log(

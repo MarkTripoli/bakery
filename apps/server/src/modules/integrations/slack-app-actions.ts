@@ -31,6 +31,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { loadSecretKey } from "../secrets/crypto.ts";
 import { installationActor } from "./postgres.ts";
 import {
+  lockSlackAppSettings,
   readSlackAppCredentials,
   readSlackAppSettings,
   recordSlackCheck,
@@ -39,10 +40,7 @@ import {
   type SlackAppSettings,
   type SlackCheckResult,
 } from "./slack-app-credentials.ts";
-import {
-  checkSlackClientCredentials,
-  type SlackCheckOutcome,
-} from "./slack-client-check.ts";
+import {} from "./slack-client-check.ts";
 import { openAppSecret } from "./callbacks.ts";
 
 /**
@@ -79,7 +77,13 @@ type SlackApp = z.output<typeof contractSchemas.IntegrationSlackApp>;
 type SlackAppPut = z.output<typeof contractSchemas.IntegrationSlackAppPut>;
 type SlackAppCheck = z.output<typeof contractSchemas.IntegrationSlackAppCheck>;
 
-type Dependencies = {
+/** What a check learned before Slack was asked, and Slack's answer. */
+export type SlackCheckPreparation = {
+  readonly expectedVersion: number;
+  readonly result: SlackCheckResult;
+};
+
+export type Dependencies = {
   secretsKey: SecretsKeyConfig | undefined;
   publicBaseUrl: string;
   /** Injected so a test asks Slack nothing; the check is the only network call. */
@@ -240,14 +244,17 @@ export async function deleteSlackApp(
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
-  const existing = await readSlackAppSettings(value.transaction);
+  // An app that is already gone is a stale removal, not a missing precondition:
+  // the caller quoted a version, so the answer is "you are out of date".
+  const existing = await lockSlackAppSettings(
+    value.transaction,
+    expectedVersion,
+  );
   if (existing === null) {
-    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
-  }
-  if (existing.version !== expectedVersion) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
   await removeSlackAppSettings(value.transaction, {
+    expectedVersion,
     principalId: actor.subject.principalId,
     operation: Action.IntegrationSlackAppDelete,
     requestId: context.requestId,
@@ -257,50 +264,70 @@ export async function deleteSlackApp(
 }
 
 /**
- * integrationSlackApp.check: ask Slack, then record the answer.
+ * integrationSlackApp.check: what the check has to ask, under the caller's version.
  *
- * Nothing about the pair is trusted before Slack answers, and the answer is stored
- * so the row still says what happened after a reload. When no app is saved there is
- * nothing to ask about, and that is a precondition, not an empty check.
+ * The pair is read in its own transaction against the version the caller named, so
+ * a save that replaced the secrets meanwhile is refused rather than annotated.
+ * Asking Slack happens outside every transaction, in the runner.
  */
-export async function checkSlackApp(
+export async function readSlackAppCheck(
   context: ActionContext,
-  _input: unknown,
   dependencies: Dependencies,
-): Promise<SlackAppCheck> {
-  const { context: value, actor } = installationActor(context);
+): Promise<{ clientId: string; clientSecret: string } | null> {
+  const { context: value } = installationActor(context);
   const transaction = value.transaction;
-  // A check writes the row it read, so it names the version it is checking:
-  // without one there is nothing to compare a second editor's answer against.
-  const expectedVersion = requireCommandMetadata(context).expectedVersion;
-  if (expectedVersion === undefined) {
-    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
-  }
-  const settings = await readSlackAppSettings(transaction);
-  if (settings === null) {
-    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
-  }
-  if (settings.version !== expectedVersion) {
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
+  // The read is told which version to look at, so it never re-derives one from a
+  // request the step's transaction no longer has.
+  const expectedVersion = slackCheckPreparation(context).expectedVersion;
+  const settings = await lockSlackAppSettings(transaction, expectedVersion);
+  if (settings === null) return null;
   const stored = await readSlackAppCredentials(transaction);
-  if (stored === null) {
-    // A settings row whose secrets cannot be opened is not a check result; asking
-    // Slack with nothing would produce a sentence about a credential we do not have.
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
+  // A settings row whose secrets cannot be opened is not a check result; asking
+  // Slack with nothing would produce a sentence about a credential we do not have.
+  if (stored === null) return null;
   const key = await loadSecretKey(dependencies.secretsKey);
   const [clientSecret] = await Promise.all([
     openAppSecret(key, stored.clientSecret),
   ]);
-  const outcome: SlackCheckOutcome = await checkSlackClientCredentials({
-    clientId: settings.clientId,
-    clientSecret,
-    ...(dependencies.fetch === undefined ? {} : { fetch: dependencies.fetch }),
-  });
+  return { clientId: settings.clientId, clientSecret };
+}
+
+/**
+ * integrationSlackApp.check: store what Slack answered, against the version read.
+ *
+ * The probe read the version, the runner asked Slack outside every transaction and
+ * put the answer on this context, so the step only stores it.
+ */
+export async function checkSlackApp(
+  context: ActionContext,
+  _input: unknown,
+  _dependencies: Dependencies,
+): Promise<SlackAppCheck> {
+  return await storeSlackCheck(context, slackCheckPreparation(context));
+}
+
+/** The answer a probe put on the context, for the step's own transaction. */
+function slackCheckPreparation(context: ActionContext): SlackCheckPreparation {
+  // The runner puts the answer and the version on the context the step's own
+  // transaction is handed, so nothing is re-derived from a request it no longer has.
+  const prepared = (context as ActionContext & {
+    slackCheckPreparation?: SlackCheckPreparation;
+  }).slackCheckPreparation;
+  if (!prepared) throw new StandardError({ code: "INTERNAL" });
+
+  return prepared;
+}
+
+/** Writes the prepared answer and answers with the row the caller will now see. */
+export async function storeSlackCheck(
+  context: ActionContext,
+  prepared: SlackCheckPreparation,
+): Promise<SlackAppCheck> {
+  const { context: value, actor } = installationActor(context);
   await recordSlackCheck(
-    transaction,
-    outcome.result satisfies SlackCheckResult,
+    value.transaction,
+    prepared.result satisfies SlackCheckResult,
+    prepared.expectedVersion,
     {
       principalId: actor.subject.principalId,
       operation: Action.IntegrationSlackAppCheck,
@@ -308,9 +335,9 @@ export async function checkSlackApp(
       traceId: context.traceId,
     },
   );
-  const after = await readSlackAppSettings(transaction);
+  const after = await readSlackAppSettings(value.transaction);
   return {
-    result: outcome.result,
+    result: prepared.result,
     checkedAt: after?.detailsCheckedAt ?? new Date().toISOString(),
   };
 }
@@ -356,22 +383,51 @@ export function createSlackAppActionRegistry(
     explicitIdempotency: "key",
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: (context, input) => deleteSlackApp(context, input, dependencies),
-  }).register({
+  });
+  // The check lives on the integrations router, whose authority runner asks
+  // Slack between two transactions (`runSlackCheck` in `actions.ts`). This
+  // registry declares no route for it, so its own mount answers for three of
+  // the four actions and the fourth is proved by the integrations registry.
+  assertImplementedActionRegistry(
+    registry,
+    integrationSlackAppImplementedActions.filter((name) =>
+      name !== Action.IntegrationSlackAppCheck
+    ),
+  );
+  assertRegisteredActions(registry);
+  return registry;
+}
+
+/**
+ * Declares the check route for a registry whose runner asks Slack between two
+ * transactions. `createIntegrationsActionRegistry` calls this; the Slack app's own
+ * registry serves the other three actions and leaves this one to it.
+ */
+export function registerSlackAppCheck(
+  registry: ActionRegistry,
+  dependencies: Dependencies,
+): void {
+  const policy = {
+    access: ActionAccess.InstallationAdministrator,
+    organizationContext:
+      OrganizationContextPolicy.InstallationAdministratorScope,
+  } as const;
+  registry.register({
     name: Action.IntegrationSlackAppCheck,
     method: HttpMethod.Post,
     path: "/v1/integrations/slack/app/check",
     input: contractSchemas.Empty,
     output: contractSchemas.IntegrationSlackAppCheck,
     explicitIdempotency: "key",
-    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    policy: {
+      ...policy,
+      type: ActionKind.Command,
+      sessionOnly: true,
+      // `If-Match` is required: the answer names the version it is about.
+      conditional: true,
+    },
     handler: (context, input) => checkSlackApp(context, input, dependencies),
   });
-  assertRegisteredActions(registry);
-  assertImplementedActionRegistry(
-    registry,
-    integrationSlackAppImplementedActions,
-  );
-  return registry;
 }
 
 export function createSlackAppRoutes(options: {
@@ -382,8 +438,9 @@ export function createSlackAppRoutes(options: {
   fetch?: typeof fetch;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
+  // The check is served by the integrations router, which asks Slack between two
+  // transactions, so no middleware for it is needed here.
   app.use("/v1/integrations/slack/app", options.browserSession);
-  app.use("/v1/integrations/slack/app/check", options.browserSession);
   app.route(
     "/",
     createApiRouter({

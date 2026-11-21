@@ -6024,5 +6024,9 @@
   "integrations.slack.credentials.appIdMalformed": "⟦À Šļàçķ àþþ ÏÐ šŧàŕŧš ŵïŧĥ À, ļïķë À0123ÀƁÇÐ. ŧëšŧ çôþÿ ŧëš⟧",
   "integrations.slack.credentials.clientIdRequired": "⟦Ëñŧëŕ ŧĥë çļïëñŧ ÏÐ. ŧëšŧ⟧",
   "integrations.slack.credentials.clientSecretRequired": "⟦Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ. ŧëšŧ ç⟧",
-  "integrations.slack.credentials.signingSecretRequired": "⟦Ëñŧëŕ ŧĥë šïĝñïñĝ šëçŕëŧ. ŧëšŧ ç⟧"
+  "integrations.slack.credentials.signingSecretRequired": "⟦Ëñŧëŕ ŧĥë šïĝñïñĝ šëçŕëŧ. ŧëšŧ ç⟧",
+  "integrations.slack.credentials.removeFailed": "The details could not be removed. Nothing changed. Try again.",
+  "integrations.slack.credentials.removeStale": "These details changed since this page loaded, so nothing was removed. Check the current details, then remove them again.",
+  "integrations.slack.credentials.checkFailed": "Slack could not be checked. Nothing changed. Try again.",
+  "integrations.slack.credentials.checkStale": "These details changed since this page loaded, so the check was not made. Check the current details, then check again."
 }

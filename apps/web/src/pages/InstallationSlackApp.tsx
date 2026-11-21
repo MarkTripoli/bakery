@@ -37,12 +37,26 @@ function toSaved(app: IntegrationSlackApp): SlackAppSaved {
   };
 }
 
-/** The banner a refused save shows; every refusal stored nothing. */
-function saveFailure(error: ApiFailure): SlackAppStatus {
+/** What a refused press was doing, so the banner names the right verb. */
+type SlackAppPress = "save" | "check" | "remove";
+
+/**
+ * The banner a refused press shows; every refusal stored nothing.
+ *
+ * A save names the field it refused, a check and a removal get their own words: a
+ * failed removal reported as a failed save suggests the details are gone.
+ */
+function pressFailure(
+  error: ApiFailure,
+  press: SlackAppPress,
+): SlackAppStatus {
   const status = failureStatus(error);
   const problem = error.kind === "problem" ? error.problem : null;
-  if (status === 412 || status === 428) return "stale";
-  if (problem?.code === "STATE_CONFLICT" || status === 409) return "stale";
+  const stale = status === 412 || status === 428 ||
+    problem?.code === "STATE_CONFLICT" || status === 409;
+  if (press === "check") return stale ? "checkStale" : "checkFailed";
+  if (press === "remove") return stale ? "removeStale" : "removeFailed";
+  if (stale) return "stale";
   if (status === 422) {
     // The server names the field it refused; the screen names it back.
     const named = problem?.reason ?? "";
@@ -142,7 +156,7 @@ export function InstallationSlackApp() {
       clientSecret: "",
       signingSecret: "",
     }));
-    setStatus(saveFailure(result.error));
+    setStatus(pressFailure(result.error, "save"));
     if (
       failureStatus(result.error) === 412 || failureStatus(result.error) === 428
     ) {
@@ -176,7 +190,7 @@ export function InstallationSlackApp() {
       setStatus("idle");
       return;
     }
-    setStatus(saveFailure(result.error));
+    setStatus(pressFailure(result.error, "check"));
     if (
       failureStatus(result.error) === 412 || failureStatus(result.error) === 428
     ) {
@@ -203,7 +217,7 @@ export function InstallationSlackApp() {
       setStatus("idle");
       return;
     }
-    setStatus(saveFailure(result.error));
+    setStatus(pressFailure(result.error, "remove"));
     if (
       failureStatus(result.error) === 412 || failureStatus(result.error) === 428
     ) {

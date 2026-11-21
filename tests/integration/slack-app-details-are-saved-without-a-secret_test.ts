@@ -42,6 +42,29 @@ async function key() {
   return { file, keyId: "slack-settings-fixture-key-v1" };
 }
 
+/**
+ * Cleanup: removes whatever row is there.
+ *
+ * The removal names the version it removes, so nothing to remove is the only
+ * outcome worth swallowing; a removal that lost a race is the test's business.
+ */
+async function removeSlackApp(
+  transaction: Parameters<typeof removeSlackAppSettings>[0],
+  input: Parameters<typeof removeSlackAppSettings>[1] extends infer T
+    ? Omit<T & object, "expectedVersion">
+    : never,
+): Promise<void> {
+  const existing = await readSlackAppSettings(transaction as never);
+  if (existing === null) return;
+  await removeSlackAppSettings(
+    transaction,
+    {
+      ...input,
+      expectedVersion: existing.version,
+    } as Parameters<typeof removeSlackAppSettings>[1],
+  );
+}
+
 function save(
   fixture: Fixture,
   secretsKey: { file: string; keyId: string },
@@ -144,7 +167,7 @@ Deno.test("a first save stores both secrets and reports only their dates", async
       await withPgTransaction(
         fixture.pgDatabase,
         (transaction) =>
-          removeSlackAppSettings(transaction, {
+          removeSlackApp(transaction, {
             principalId: fixture.principalId,
             operation: "integration.slack.credentials.remove",
             requestId: crypto.randomUUID(),
@@ -197,7 +220,7 @@ Deno.test("a replaced secret is the only one written, and the other date stands"
       await withPgTransaction(
         fixture.pgDatabase,
         (transaction) =>
-          removeSlackAppSettings(transaction, {
+          removeSlackApp(transaction, {
             principalId: fixture.principalId,
             operation: "integration.slack.credentials.remove",
             requestId: crypto.randomUUID(),
@@ -257,7 +280,7 @@ Deno.test("a second editor's save is refused rather than overwriting", async () 
       await withPgTransaction(
         fixture.pgDatabase,
         (transaction) =>
-          removeSlackAppSettings(transaction, {
+          removeSlackApp(transaction, {
             principalId: fixture.principalId,
             operation: "integration.slack.credentials.remove",
             requestId: crypto.randomUUID(),
@@ -315,7 +338,7 @@ Deno.test("a removal names the version it removes", async () => {
       await withPgTransaction(
         fixture.pgDatabase,
         (transaction) =>
-          removeSlackAppSettings(transaction, {
+          removeSlackApp(transaction, {
             principalId: fixture.principalId,
             operation: "integration.slack.credentials.remove",
             requestId: crypto.randomUUID(),
@@ -351,7 +374,7 @@ Deno.test("removing the details keeps the links people made", async () => {
     await withPgTransaction(
       fixture.pgDatabase,
       (transaction) =>
-        removeSlackAppSettings(transaction, {
+        removeSlackApp(transaction, {
           principalId: fixture.principalId,
           operation: "integration.slack.credentials.remove",
           requestId: crypto.randomUUID(),
@@ -452,7 +475,7 @@ Deno.test("a real request writes the two times the screen reports", async () => 
       await withPgTransaction(
         fixture.pgDatabase,
         (transaction) =>
-          removeSlackAppSettings(transaction, {
+          removeSlackApp(transaction, {
             principalId: fixture.principalId,
             operation: "integration.slack.credentials.remove",
             requestId: crypto.randomUUID(),

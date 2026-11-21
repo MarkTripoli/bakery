@@ -901,6 +901,48 @@ test("removing the Slack app asks first and then says it was removed", async ({ 
   expect(f.slack.deletes[0]!["if-match"]).toBe('"v1"');
 });
 
+test("a removal that fails says so outside the dialog and closes it", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  f.slack.deleteRefusal = { status: 503, code: "DEPENDENCY_UNAVAILABLE" };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove" })
+    .click();
+  // The refusal belongs in the section's banner, not over a modal that hides it,
+  // and it names the removal rather than a save.
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(
+    slack.getByText("The details could not be removed. Nothing changed."),
+  ).toBeVisible();
+  await expect(slack.getByText(/could not be saved/)).toHaveCount(0);
+  expect(f.slack.deletes).toHaveLength(1);
+});
+
+test("a removal of details that changed answers as unchanged, not as a save", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  f.slack.deleteRefusal = { status: 412, code: "PRECONDITION_FAILED" };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove" })
+    .click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(slack.getByText(/so nothing was removed/)).toBeVisible();
+});
+
+test("the Remove trigger is an outline, so it does not read as the page's action", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  const trigger = slack.getByRole("button", { name: "Remove" });
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toHaveClass(/destructive-outline/);
+});
+
 test("a Slack read that is forbidden shows the same message as the rest of the page", async ({ page }) => {
   await integrationsFixture(page);
   // Both reads refuse, so the page has one answer for the whole screen.

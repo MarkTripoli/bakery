@@ -164,10 +164,16 @@ export function mountSlackEventsRoute(
       now: now(),
     });
     if (!verdict.ok) {
-      await withPgTransaction(
-        options.database,
-        (transaction) => recordSlackRequest(transaction, "refused"),
-      );
+      // Only a request that carried fresh headers and a signature that did not
+      // match says anything about the signing secret. An unsigned probe from the
+      // internet, or a replay, must not make the screen tell an administrator
+      // their secret is wrong, so neither is recorded.
+      if (verdict.reason === "signature_mismatch") {
+        await withPgTransaction(
+          options.database,
+          (transaction) => recordSlackRequest(transaction, "refused"),
+        );
+      }
       log(`bakery: Slack event refused (${verdict.reason}) trace=${traceId}`);
       return problemResponse(
         context,
