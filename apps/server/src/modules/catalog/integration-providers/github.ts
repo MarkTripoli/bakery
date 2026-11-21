@@ -208,12 +208,41 @@ const updateComment = defineAction({
   version: UPDATE_REF.version,
   input: updateInput,
   output: updateReceipt,
-  // A PATCH with the same body leaves the same comment: replaying it is safe.
-  effect: "native-idempotent",
+  // The ledger settles every write by reading, so an update names how: the
+  // comment carrying the new text confirms it, a full read without the comment
+  // confirms it gone, and anything else stays uncertain.
+  effect: "reconcile",
   resourceKind: "github.repository",
   requests: [UPDATE_REF, LIST_REF],
+  reconcileRequests: [LIST_REF],
   providerPermissions: { issues: "write" },
   resourceProjection: [],
+  async reconcile(ctx) {
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const items = commentPage.parse(
+        await ctx.provider.request(LIST_REF, {
+          issue_number: ctx.input.issueNumber,
+          per_page: PAGE_SIZE,
+          page,
+        }),
+      );
+      const found = items.find((item) =>
+        String(item.id) === ctx.input.commentId
+      );
+      if (found) {
+        return found.body === ctx.input.body
+          ? {
+            status: "confirmed",
+            result: { remoteId: ctx.input.commentId },
+          }
+          : { status: "uncertain" };
+      }
+      if (items.length < PAGE_SIZE) {
+        return { status: "confirmed", result: { missing: true as const } };
+      }
+    }
+    return { status: "uncertain" };
+  },
   async execute(ctx, input) {
     let raw: unknown;
     try {
@@ -415,13 +444,28 @@ const addLabels = defineAction({
   version: LABELS_ADD_REF.version,
   input: labelsInput,
   output: labelsReceipt,
-  // Adding a label the issue already carries changes nothing: replay is safe,
-  // and the other labels are never named, so a person's labels stay.
-  effect: "native-idempotent",
+  // Adding a label the issue already carries changes nothing, and the other
+  // labels are never named, so a person's labels stay. A lost response is
+  // settled by reading: every requested label on the issue confirms it.
+  effect: "reconcile",
   resourceKind: "github.repository",
   requests: [LABELS_ADD_REF],
+  reconcileRequests: [LABELS_LIST_REF],
   providerPermissions: { issues: "write" },
   resourceProjection: [],
+  async reconcile(ctx) {
+    const names = labelNames(
+      await ctx.provider.request(LABELS_LIST_REF, {
+        issue_number: ctx.input.issueNumber,
+        per_page: PAGE_SIZE,
+      }),
+    );
+    // A full page may hide the label on the next one: not proof of anything.
+    if (names.length >= PAGE_SIZE) return { status: "uncertain" };
+    return ctx.input.labels.every((label) => names.includes(label))
+      ? { status: "confirmed", result: { labels: names } }
+      : { status: "uncertain" };
+  },
   async execute(ctx, input) {
     const raw = await ctx.provider.request(LABELS_ADD_REF, {
       issue_number: input.issueNumber,
@@ -436,11 +480,26 @@ const removeLabel = defineAction({
   version: LABEL_REMOVE_REF.version,
   input: labelRemoveInput,
   output: labelsReceipt,
-  effect: "native-idempotent",
+  // A lost response is settled by reading: the label no longer on the issue
+  // confirms the removal.
+  effect: "reconcile",
   resourceKind: "github.repository",
   requests: [LABEL_REMOVE_REF, LABELS_LIST_REF],
+  reconcileRequests: [LABELS_LIST_REF],
   providerPermissions: { issues: "write" },
   resourceProjection: [],
+  async reconcile(ctx) {
+    const names = labelNames(
+      await ctx.provider.request(LABELS_LIST_REF, {
+        issue_number: ctx.input.issueNumber,
+        per_page: PAGE_SIZE,
+      }),
+    );
+    if (names.length >= PAGE_SIZE) return { status: "uncertain" };
+    return names.includes(ctx.input.label)
+      ? { status: "uncertain" }
+      : { status: "confirmed", result: { labels: names } };
+  },
   async execute(ctx, input) {
     try {
       const raw = await ctx.provider.request(LABEL_REMOVE_REF, {
@@ -695,7 +754,7 @@ export const githubIntegration = defineIntegration({
         owner: "binding:owner",
         repo: "binding:repo",
         issue_number: "input",
-        name: "input",
+        name: "input-text",
       },
       input: labelRemoveRequestInput,
       query: [],

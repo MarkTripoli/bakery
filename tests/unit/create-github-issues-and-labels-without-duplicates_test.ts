@@ -249,3 +249,59 @@ Deno.test("a full page of labels never proves a label absent", async () => {
     remove.execute({ provider: p }, { issueNumber: 5, label: "elsewhere" })
   );
 });
+
+const labelPage = (...names: string[]) => names.map((name) => ({ name }));
+
+function labelReconcileCtx(
+  names: string[],
+  input: Record<string, unknown>,
+) {
+  return {
+    effect: { id: EFFECT },
+    resource: {},
+    input,
+    provider: provider(() => labelPage(...names)),
+  };
+}
+
+Deno.test("a lost label addition is confirmed only when every requested label is on the issue", async () => {
+  const input = { issueNumber: 5, labels: ["bakery:owned", "bakery:review"] };
+  assertEquals(
+    await add.reconcile(
+      labelReconcileCtx(["mine", "bakery:owned", "bakery:review"], input),
+    ),
+    {
+      status: "confirmed",
+      result: { labels: ["mine", "bakery:owned", "bakery:review"] },
+    },
+  );
+  // One missing label proves nothing: the write may never have landed.
+  assertEquals(
+    await add.reconcile(labelReconcileCtx(["mine", "bakery:owned"], input)),
+    { status: "uncertain" },
+  );
+  // A full page may hide the label on the next page.
+  const full = Array.from({ length: 100 }, (_, i) => `l${i}`);
+  assertEquals(
+    await add.reconcile(
+      labelReconcileCtx(full, { issueNumber: 5, labels: ["l1"] }),
+    ),
+    { status: "uncertain" },
+  );
+});
+
+Deno.test("a lost label removal is confirmed only when the label is gone from the issue", async () => {
+  const input = { issueNumber: 5, label: "bakery:owned" };
+  assertEquals(await remove.reconcile(labelReconcileCtx(["mine"], input)), {
+    status: "confirmed",
+    result: { labels: ["mine"] },
+  });
+  assertEquals(
+    await remove.reconcile(labelReconcileCtx(["mine", "bakery:owned"], input)),
+    { status: "uncertain" },
+  );
+  const full = Array.from({ length: 100 }, (_, i) => `l${i}`);
+  assertEquals(await remove.reconcile(labelReconcileCtx(full, input)), {
+    status: "uncertain",
+  });
+});

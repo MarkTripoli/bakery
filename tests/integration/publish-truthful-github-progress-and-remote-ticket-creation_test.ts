@@ -16,6 +16,9 @@ import type { WorkerFixture } from "../helpers/worker-execution.ts";
  */
 
 const CREATE = "github.issue.create";
+const REMOVE_LABEL = "github.issue.label.remove";
+const ADD_LABELS = "github.issue.labels.add";
+const UPDATE_COMMENT = "github.issue.comment.update";
 const ARGS = {
   title: "Add the progress comment",
   body: "Details of the work.",
@@ -107,4 +110,135 @@ Deno.test("a lost creation that left no issue behind stays uncertain and is neve
     assertEquals(retry.run.dispatched, false);
     assertEquals(s.github.posts(), 1);
     assertEquals(s.github.issues.length, 0);
+  }));
+
+/** One label removal through the ledger and the real broker, against the fake GitHub. */
+async function removeLabelSend(fixture: WorkerFixture, label: string) {
+  const github = fakeGithub();
+  const rig = await seededEffectRig(
+    fixture.pgDatabase,
+    fixture.organizationId,
+    fixture.principalId,
+  );
+  grantRigAction(rig, REMOVE_LABEL);
+  const deps = consumerDepsFor(fixture.pgDatabase, rig, github);
+  const result = await invokeIntegration(deps, {
+    organizationId: fixture.organizationId,
+    actorRef: fixture.principalId,
+    connectionId: rig.connectionId,
+    input: {
+      actionId: REMOVE_LABEL,
+      actionVersion: 1,
+      resourceId: rig.resourceId,
+      arguments: { issueNumber: 7, label },
+    },
+  });
+  return { github, result };
+}
+
+Deno.test("a label with a colon, a space or a slash is removed as one encoded path segment", () =>
+  withWorkerFixture(async (fixture) => {
+    for (
+      const [label, segment] of [
+        ["bakery:owned", "bakery%3Aowned"],
+        ["good first issue", "good%20first%20issue"],
+        ["area/web", "area%2Fweb"],
+        ["100%", "100%25"],
+      ]
+    ) {
+      const { github, result } = await removeLabelSend(fixture, label);
+      assert(result.route === "ledger");
+      assertEquals(result.run.outcome, "confirmed", label);
+      assertEquals(result.output, { labels: ["mine"] });
+      const deletes = github.calls.filter((c) => c.method === "DELETE");
+      assertEquals(deletes.length, 1, label);
+      assertEquals(
+        deletes[0].path,
+        `/repos/bakery-org/bakery-repo/issues/7/labels/${segment}`,
+        "the whole name is one segment of the path",
+      );
+    }
+  }));
+
+Deno.test("a label name that cannot be one honest segment never reaches GitHub", () =>
+  withWorkerFixture(async (fixture) => {
+    for (const label of [".", ".."]) {
+      const { github, result } = await removeLabelSend(fixture, label);
+      assert(result.route === "ledger");
+      assertEquals(
+        github.calls.filter((c) => c.method === "DELETE").length,
+        0,
+        `${label} sends no request`,
+      );
+    }
+  }));
+
+/** One send of an action the rig's actor was granted, through the ledger and the real broker. */
+async function sendOnce(
+  fixture: WorkerFixture,
+  actionId: string,
+  args: Record<string, unknown>,
+  seed: (github: ReturnType<typeof fakeGithub>) => void = () => undefined,
+) {
+  const github = fakeGithub();
+  seed(github);
+  const rig = await seededEffectRig(
+    fixture.pgDatabase,
+    fixture.organizationId,
+    fixture.principalId,
+  );
+  grantRigAction(rig, actionId);
+  const deps = consumerDepsFor(fixture.pgDatabase, rig, github);
+  const result = await invokeIntegration(deps, {
+    organizationId: fixture.organizationId,
+    actorRef: fixture.principalId,
+    connectionId: rig.connectionId,
+    input: {
+      actionId,
+      actionVersion: 1,
+      resourceId: rig.resourceId,
+      arguments: args,
+    },
+  });
+  return { github, result };
+}
+
+const bot = { id: 4242, type: "Bot" };
+
+Deno.test("Bakery's status note is rewritten in place through the ledger", () =>
+  withWorkerFixture(async (fixture) => {
+    const { github, result } = await sendOnce(
+      fixture,
+      UPDATE_COMMENT,
+      { issueNumber: 7, commentId: "77", body: "Status: done" },
+      (g) => g.comments.push({ id: 77, body: "Status: running", user: bot }),
+    );
+    assert(result.route === "ledger");
+    assertEquals(result.run.outcome, "confirmed");
+    assertEquals(result.output, { remoteId: "77" });
+    assertEquals(github.comments.map((c) => c.body), ["Status: done"]);
+  }));
+
+Deno.test("a status note deleted on GitHub is confirmed gone through the ledger", () =>
+  withWorkerFixture(async (fixture) => {
+    const { github, result } = await sendOnce(
+      fixture,
+      UPDATE_COMMENT,
+      { issueNumber: 7, commentId: "999", body: "Status: done" },
+    );
+    assert(result.route === "ledger");
+    assertEquals(result.run.outcome, "confirmed");
+    assertEquals(result.output, { missing: true });
+    assertEquals(github.comments.length, 0);
+  }));
+
+Deno.test("adding Bakery's label names only that label and answers what the issue carries", () =>
+  withWorkerFixture(async (fixture) => {
+    const { result } = await sendOnce(fixture, ADD_LABELS, {
+      issueNumber: 7,
+      labels: ["bakery:owned"],
+    });
+    assert(result.route === "ledger");
+    assertEquals(result.run.outcome, "confirmed");
+    assertEquals(result.output, { labels: ["mine", "bakery:owned"] });
   }));

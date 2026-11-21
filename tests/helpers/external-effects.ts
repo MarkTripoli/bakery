@@ -403,6 +403,28 @@ export function fakeGithub(): FakeGithub {
       const method = init?.method ?? "GET";
       fake.calls.push({ method, path: url.pathname });
       const forIssues = url.pathname.endsWith("/issues");
+      // Removing one label answers the labels the issue still carries.
+      if (method === "DELETE") {
+        return Promise.resolve(Response.json([{ name: "mine" }]));
+      }
+      // Rewriting a comment in place: the stored comment takes the new text.
+      if (method === "PATCH") {
+        const id = Number(url.pathname.split("/").at(-1));
+        const stored = fake.comments.find((comment) => comment.id === id);
+        if (stored === undefined) {
+          return Promise.resolve(new Response("{}", { status: 404 }));
+        }
+        stored.body = (JSON.parse(String(init?.body)) as { body: string }).body;
+        return Promise.resolve(Response.json(stored));
+      }
+      // Adding labels keeps the issue's own and answers all of them.
+      if (method === "POST" && url.pathname.endsWith("/labels")) {
+        const added = (JSON.parse(String(init?.body)) as { labels: string[] })
+          .labels;
+        return Promise.resolve(
+          Response.json([{ name: "mine" }, ...added.map((name) => ({ name }))]),
+        );
+      }
       if (method === "POST") {
         if (fake.post === "hang") {
           return new Promise<Response>((_, reject) => {
