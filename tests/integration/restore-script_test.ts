@@ -19,6 +19,10 @@ type Sandbox = {
   run: (
     ...args: string[]
   ) => Promise<{ code: number; stderr: string; stdout: string }>;
+  runEnv: (
+    env: Record<string, string | undefined>,
+    ...args: string[]
+  ) => Promise<{ code: number; stderr: string; stdout: string }>;
   state: string;
 };
 
@@ -94,7 +98,7 @@ async function withSandbox(
       join(opt, "deploy/backup.sh"),
       `echo "backup" >> "${log}"\n${
         options.backup
-          ? `exit ${options.backup}`
+          ? `echo "BACKUP_FAILED: the disk is full" >&2\nexit ${options.backup}`
           : "echo BACKUP_COMPLETED pre-restore-set"
       }`,
     );
@@ -135,6 +139,37 @@ async function withSandbox(
     const identity = join(dir, "identity.txt");
     await Deno.writeTextFile(identity, "AGE-SECRET-KEY-FAKE\n");
 
+    const runEnv = async (
+      overrides: Record<string, string | undefined>,
+      ...args: string[]
+    ) => {
+      const output = await new Deno.Command("bash", {
+        args: [join(REPO, "scripts/deploy/restore.sh"), ...args],
+        clearEnv: true,
+        env: {
+          PATH: `${bin}:/usr/bin:/bin`,
+          HOME: dir,
+          TMPDIR: dir,
+          ...Object.fromEntries(
+            Object.entries({
+              BAKERY_BACKUP_SANDBOX: dir,
+              BAKERY_ENV: "test",
+              ...overrides,
+            }).filter((entry): entry is [string, string] =>
+              entry[1] !== undefined
+            ),
+          ),
+        },
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return {
+        code: output.code,
+        stdout: new TextDecoder().decode(output.stdout),
+        stderr: new TextDecoder().decode(output.stderr),
+      };
+    };
+
     await body({
       dir,
       set,
@@ -146,26 +181,8 @@ async function withSandbox(
           return [];
         }
       },
-      run: async (...args) => {
-        const output = await new Deno.Command("bash", {
-          args: [join(REPO, "scripts/deploy/restore.sh"), ...args],
-          clearEnv: true,
-          env: {
-            PATH: `${bin}:/usr/bin:/bin`,
-            HOME: dir,
-            TMPDIR: dir,
-            BAKERY_BACKUP_SANDBOX: dir,
-            BAKERY_ENV: "test",
-          },
-          stdout: "piped",
-          stderr: "piped",
-        }).output();
-        return {
-          code: output.code,
-          stdout: new TextDecoder().decode(output.stdout),
-          stderr: new TextDecoder().decode(output.stderr),
-        };
-      },
+      run: (...args) => runEnv({}, ...args),
+      runEnv,
     });
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -191,6 +208,39 @@ Deno.test("without the set's own name typed, nothing runs and nothing changes", 
   });
 });
 
+Deno.test("a missing --confirm prints the usage line and changes nothing", async () => {
+  await withSandbox({}, async (s) => {
+    const result = await s.run(s.set, identityOf(s.dir));
+    assertEquals(result.code, 64);
+    assert(result.stderr.includes("--confirm <set name>"), result.stderr);
+    assertEquals(await s.calls(), []);
+  });
+});
+
+Deno.test("the sandbox root is refused outside BAKERY_ENV=test before anything runs", async () => {
+  await withSandbox({}, async (s) => {
+    for (const env of [undefined, "production"]) {
+      const result = await s.runEnv(
+        { BAKERY_ENV: env },
+        s.set,
+        identityOf(s.dir),
+        "--confirm",
+        SET_NAME,
+      );
+      assertEquals(result.code, 64);
+      assert(
+        result.stderr.includes("only honoured when BAKERY_ENV=test"),
+        result.stderr,
+      );
+    }
+    assertEquals(await s.calls(), []);
+    assertEquals(
+      await Deno.readTextFile(join(s.state, "skills/old.txt")),
+      "old skills",
+    );
+  });
+});
+
 Deno.test("a set whose drill does not pass is refused before the installation is touched", async () => {
   await withSandbox({ drill: 1 }, async (s) => {
     const result = await s.run(s.set, identityOf(s.dir), "--confirm", SET_NAME);
@@ -207,6 +257,11 @@ Deno.test("with no pre-restore backup, it is refused before anything is stopped"
     const result = await s.run(s.set, identityOf(s.dir), "--confirm", SET_NAME);
     assertEquals(result.code, 67);
     assert(result.stderr.includes("RESTORE_REFUSED_NO_PRE_BACKUP"));
+    // The backup's own reason reaches the operator.
+    assert(
+      result.stderr.includes("BACKUP_FAILED: the disk is full"),
+      result.stderr,
+    );
     assertEquals((await s.calls()).map((call) => call.split(" ")[0]), [
       "drill",
       "backup",

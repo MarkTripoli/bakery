@@ -50,7 +50,11 @@ set_dir=${1:?completed backup directory required}
 identity=${2:?operator age identity file required}
 flag=${3:-}
 typed=${4:-}
-[[ -d "$set_dir" && -f "$identity" && "$flag" == --confirm ]] || exit 64
+usage="usage: restore.sh <completed backup directory> <age identity file> --confirm <set name>"
+if [[ ! -d "$set_dir" || ! -f "$identity" || "$flag" != --confirm ]]; then
+  echo "$usage" >&2
+  exit 64
+fi
 umask 077
 
 set_name=$(basename "$set_dir")
@@ -79,7 +83,8 @@ if ! bash "$root/deploy/restore-drill.sh" "$set_dir" "$identity" --no-report > /
 fi
 
 # 3. A backup of what is here now.
-if ! pre=$(bash "$root/deploy/backup.sh" 2> /dev/null | sed -n 's/^BACKUP_COMPLETED //p' | tail -n 1) || [[ -z "$pre" ]]; then
+# backup.sh's stderr goes through, so a refusal says why the backup failed.
+if ! pre=$(bash "$root/deploy/backup.sh" | sed -n 's/^BACKUP_COMPLETED //p' | tail -n 1) || [[ -z "$pre" ]]; then
   echo "RESTORE_REFUSED_NO_PRE_BACKUP: a backup of the current installation could not be taken first, so nothing was changed. Fix the backup and run this again." >&2
   exit 67
 fi
