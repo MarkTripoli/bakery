@@ -211,6 +211,29 @@ export function listSessionTools(
 }
 
 /**
+ * The operations O51 keeps with people (AC5): secrets, consent and grants,
+ * and the destructive storage operations. A session asking for one is told
+ * it is a person's operation; no scope may ever name one.
+ */
+export const PEOPLE_ONLY_OPERATIONS: ReadonlySet<string> = new Set([
+  "secrets.list",
+  "secrets.get",
+  "secrets.create",
+  "secrets.rotate",
+  "secrets.updatePolicy",
+  "secrets.revoke",
+  "integrationGrants.create",
+  "permissionGrants.create",
+  "agentPowerGrants.create",
+  "definitionPublishGrants.create",
+  "mcpUseGrants.create",
+  "agentFileGrants.create",
+  "agentFileGrants.revoke",
+  "storageEntries.restore",
+  "storageEntries.purge",
+]);
+
+/**
  * Refuses a session that may not call the operation it named.
  *
  * Separate from the list because asking for a tool you were not offered and
@@ -224,6 +247,11 @@ export function assertSessionToolAllowed(
 ): OperationScope {
   const scope = OPERATION_SCOPES[name];
   if (!scope) {
+    // The operations O51 keeps with people are refused by name; any other
+    // name no scope covers stays unknown to a session.
+    if (PEOPLE_ONLY_OPERATIONS.has(name)) {
+      throw new SessionToolError("SESSION_TOOL_PEOPLE_ONLY", name);
+    }
     throw new SessionToolError("SESSION_TOOL_UNKNOWN", name);
   }
   if (!scopes.includes(scope)) {
@@ -234,13 +262,18 @@ export function assertSessionToolAllowed(
 
 export class SessionToolError extends Error {
   constructor(
-    readonly code: "SESSION_TOOL_UNKNOWN" | "SESSION_TOOL_DENIED",
+    readonly code:
+      | "SESSION_TOOL_UNKNOWN"
+      | "SESSION_TOOL_DENIED"
+      | "SESSION_TOOL_PEOPLE_ONLY",
     readonly tool: string,
     readonly scope?: OperationScope,
   ) {
     super(
       code === "SESSION_TOOL_UNKNOWN"
         ? `no session tool named ${tool}`
+        : code === "SESSION_TOOL_PEOPLE_ONLY"
+        ? `${tool} is a person's operation, never a session's`
         : `session does not hold ${scope} for ${tool}`,
     );
     this.name = "SessionToolError";
