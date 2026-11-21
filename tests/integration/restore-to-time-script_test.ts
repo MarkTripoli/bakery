@@ -25,7 +25,13 @@ type Sandbox = {
 };
 
 async function withSandbox(
-  options: { replay?: "promoted" | "short"; base?: boolean },
+  options: {
+    replay?: "promoted" | "short" | "stale" | "crash";
+    base?: boolean;
+    drill?: "fail";
+    backup?: "fail";
+    timeoutMs?: number;
+  },
   body: (sandbox: Sandbox) => Promise<void>,
 ): Promise<void> {
   const dir = await Deno.makeTempDir({ prefix: "bakery-restore-to-time-" });
@@ -97,7 +103,23 @@ async function withSandbox(
         `case "$*" in`,
         replay === "promoted"
           ? `  *pg_is_in_recovery*) echo f ;;`
+          : replay === "stale"
+          ? `  *pg_is_in_recovery*) n=$(cat "${log}.n" 2>/dev/null || echo 0); echo $((n+1)) > "${log}.n"; if [ "$n" -ge 1 ]; then echo f; else exit 1; fi ;;`
           : `  *pg_is_in_recovery*) exit 1 ;;`,
+        `  *"ps -aq postgres"*) echo container-1 ;;`,
+        replay === "short" || replay === "crash"
+          ? `  *State.Running*) echo "1|false" ;;`
+          : `  *State.Running*) echo "0|true" ;;`,
+        `  inspect*) echo 0 ;;`,
+        // A container keeps every earlier start's lines: without --since the
+        // old refusal is always there.
+        `  *"logs --no-log-prefix --since"*) ${
+          replay === "short"
+            ? 'echo "FATAL:  recovery ended before configured recovery target was reached"'
+            : replay === "crash"
+            ? 'echo "FATAL:  data directory has wrong ownership"'
+            : "true"
+        } ;;`,
         `  *"logs --no-log-prefix postgres"*) echo "FATAL:  recovery ended before configured recovery target was reached" ;;`,
         `esac`,
       ].join("\n"),
@@ -109,11 +131,17 @@ async function withSandbox(
     );
     await stub(
       join(opt, "deploy/restore-drill.sh"),
-      `echo "drill $*" >> "${log}"`,
+      `echo "drill $*" >> "${log}"${
+        options.drill === "fail" ? "\nexit 1" : ""
+      }`,
     );
     await stub(
       join(opt, "deploy/backup.sh"),
-      `echo "backup" >> "${log}"\necho BACKUP_COMPLETED pre-restore-set`,
+      `echo "backup" >> "${log}"${
+        options.backup === "fail"
+          ? "\nexit 1"
+          : "\necho BACKUP_COMPLETED pre-restore-set"
+      }`,
     );
     await stub(
       join(opt, "deploy/runtime.sh"),
@@ -121,7 +149,7 @@ async function withSandbox(
     );
     await stub(
       join(opt, "deploy/pitr-prepare.sh"),
-      `echo "prepare $(basename "$1") $2 $3 $4" >> "${log}"\nmkdir -p "$2"\necho new > "$2/PG_VERSION"`,
+      `echo "prepare $(basename "$1") $2 $3 $4" >> "${log}"\nmkdir -p "$2"\necho new > "$2/PG_VERSION"\necho "restorewal $(ls "$BAKERY_BACKUP_SANDBOX/var/lib/bakery$4" | xargs)" >> "${log}"`,
     );
 
     const set = join(dir, "sets", SET_NAME);
@@ -165,6 +193,9 @@ async function withSandbox(
       const output = await new Deno.Command("bash", {
         args: [join(REPO, "scripts/deploy/restore-to-time.sh"), ...args],
         clearEnv: true,
+        signal: options.timeoutMs
+          ? AbortSignal.timeout(options.timeoutMs)
+          : undefined,
         env: {
           PATH: `${bin}:/usr/bin:/bin`,
           HOME: dir,
@@ -210,6 +241,123 @@ const args = (s: Sandbox, target = TARGET, confirm = SET_NAME) => [
   "--confirm",
   confirm,
 ];
+
+Deno.test("a retry after a short-WAL attempt is not mistaken for another one", async () => {
+  // docker logs keep every earlier start of the same container, so the old FATAL line is still there on a retry.
+  await withSandbox({ replay: "stale" }, async (s) => {
+    const result = await s.run(...args(s));
+    assertEquals(result.code, 0, "exit " + result.code + " " + result.stderr);
+    assert(result.stdout.includes("PITR_REPLAYED"), result.stdout);
+  });
+});
+
+Deno.test("a failed drill refuses with 71 and nothing else runs", async () => {
+  await withSandbox({ drill: "fail" }, async (s) => {
+    const result = await s.run(...args(s));
+    assertEquals(result.code, 71, result.stderr);
+    assert(
+      result.stderr.includes("RESTORE_REFUSED_DRILL_FAILED"),
+      result.stderr,
+    );
+    const calls = await s.calls();
+    assertEquals(calls.length, 1, calls.join("|"));
+    assertEquals(
+      await Deno.readTextFile(join(s.state, "postgres/PG_VERSION")),
+      "old cluster",
+    );
+  });
+});
+
+Deno.test("no pre-restore backup refuses with 67 before anything is stopped", async () => {
+  await withSandbox({ backup: "fail" }, async (s) => {
+    const result = await s.run(...args(s));
+    assertEquals(result.code, 67, result.stderr);
+    assert(
+      result.stderr.includes("RESTORE_REFUSED_NO_PRE_BACKUP"),
+      result.stderr,
+    );
+    const calls = await s.calls();
+    assertEquals(calls.map((c) => c.split(" ")[0]), ["drill", "backup"]);
+    assertEquals(
+      await Deno.readTextFile(join(s.state, "postgres/PG_VERSION")),
+      "old cluster",
+    );
+  });
+});
+
+Deno.test("a half-copied spool file is not given to recovery", async () => {
+  await withSandbox({}, async (s) => {
+    await Deno.writeTextFile(
+      join(s.state, "wal-spool/00000001000000000000000A.tmp"),
+      "half",
+    );
+    const result = await s.run(...args(s));
+    assertEquals(result.code, 0, result.stderr);
+    const line = (await s.calls()).find((c) => c.startsWith("restorewal "))!;
+    assert(line.includes("000000010000000000000008"), line);
+    assert(line.includes("000000010000000000000009"), line);
+    assert(!line.includes(".tmp"), line);
+  });
+});
+
+Deno.test("an unrelated Postgres startup failure ends the wait quickly", async () => {
+  await withSandbox({ replay: "crash", timeoutMs: 15000 }, async (s) => {
+    const t0 = Date.now();
+    const result = await s.run(...args(s));
+    const took = Date.now() - t0;
+    assert(took < 10000, `still polling after ${took} ms`);
+    assertEquals(result.code, 72, result.stderr);
+    assert(result.stderr.includes("PITR_POSTGRES_FAILED"), result.stderr);
+    assert(result.stderr.includes("wrong ownership"), result.stderr);
+    assertEquals(
+      await Deno.readTextFile(join(s.state, "postgres/PG_VERSION")),
+      "old cluster",
+    );
+  });
+});
+
+Deno.test("pitr-prepare refuses bad input before writing anything", async () => {
+  const dir = await Deno.makeTempDir({ prefix: "qa868-prep-" });
+  try {
+    const script = join(REPO, "scripts/deploy/pitr-prepare.sh");
+    const base = join(dir, "base.tar");
+    await Deno.writeTextFile(base, "x");
+    const run = async (...a: string[]) => {
+      const o = await new Deno.Command("bash", {
+        args: [script, ...a],
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return { code: o.code, err: new TextDecoder().decode(o.stderr) };
+    };
+    const full = join(dir, "full");
+    await Deno.mkdir(full);
+    await Deno.writeTextFile(join(full, "f"), "x");
+    assertEquals(
+      (await run(base, full, "2026-11-21T10:15:00Z", "/wal")).code,
+      65,
+    );
+    assertEquals(
+      (await run(base, join(dir, "d"), "2026-11-21 10:15", "/wal")).code,
+      66,
+    );
+    assertEquals(
+      (await run(
+        join(dir, "missing.tar"),
+        join(dir, "d"),
+        "2026-11-21T10:15:00Z",
+        "/wal",
+      )).code,
+      64,
+    );
+    assertEquals([...Deno.readDirSync(dir)].map((e) => e.name).sort(), [
+      "base.tar",
+      "full",
+    ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
 
 Deno.test("restore to a minute refuses before touching anything", async (t) => {
   await t.step("without the set's own name typed", async () => {
@@ -341,5 +489,12 @@ Deno.test("when the WAL stops short of the target, the old database is put back 
     // Nothing after the database ran: no fence, no api.
     assert(!calls.some((c) => c.startsWith("runtime restore-fence")));
     assert(!calls.some((c) => c.startsWith("runtime api-start")));
+  });
+});
+
+Deno.test("a target exactly at the set's finish is accepted", async () => {
+  await withSandbox({}, async (s) => {
+    const result = await s.run(...args(s, "2026-11-21T03:01:00Z"));
+    assertEquals(result.code, 0, result.stderr);
   });
 });

@@ -34,7 +34,8 @@ set -euo pipefail
 # the set's name. 66: the set has no base backup. 68: the target is not a UTC
 # instant or is before the set finished. 67: the pre-restore backup was not
 # taken. 71: the drill of this set did not pass. 69: the archived WAL does not reach the target (the old data is back;
-# the installation stays stopped). 70: the host lacks Deno or the release
+# the installation stays stopped). 72: Postgres stopped or never finished the
+# replay for another reason (the old data is back; services stay stopped). 70: the host lacks Deno or the release
 # checkout. 77: not root. 1: failed after the stores were touched.
 #
 # BAKERY_BACKUP_SANDBOX: tests only, refused unless BAKERY_ENV=test.
@@ -170,28 +171,47 @@ base_tar=$state/wal-spool/base-$stamp.tar
 age --decrypt --identity "$identity" -o "$base_tar" "$set_dir/base.tar.age"
 bash "$root/deploy/pitr-prepare.sh" "$base_tar" "$data" "$target" "/wal-spool/restore-$stamp"
 rm -f "$base_tar"
+# Only this start's log lines count: a container keeps the lines of every
+# earlier start, so a retry after a short-WAL attempt would otherwise read the
+# old refusal.
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 "${compose[@]}" up --detach postgres
-# Replay ends in one of two ways: promoted (pg_is_in_recovery() = f), or
-# Postgres exits because the WAL stops before the target.
-replayed=""
+container=$("${compose[@]}" ps -aq postgres)
+restarts_at_start=$(docker inspect -f '{{.RestartCount}}' "$container")
+# Replay ends in one of three ways: promoted (pg_is_in_recovery() = f); Postgres
+# stops because the WAL ends before the target; or Postgres stops for another
+# reason. "Stops" is the container not running or having restarted.
+replayed="" outcome=""
 for _ in $(seq 1 3600); do
   if [[ "$("${compose[@]}" exec -T postgres psql -U postgres -Atqc 'select pg_is_in_recovery()' 2> /dev/null || true)" == f ]]; then
     replayed=1
     break
   fi
-  if "${compose[@]}" logs --no-log-prefix postgres 2>&1 | grep -q "recovery ended before configured recovery target was reached"; then
+  IFS='|' read -r restarts running < <(docker inspect -f '{{.RestartCount}}|{{.State.Running}}' "$container")
+  if [[ "$running" != true || "$restarts" != "$restarts_at_start" ]]; then
+    if "${compose[@]}" logs --no-log-prefix --since "$started_at" postgres 2>&1 | grep -q "recovery ended before configured recovery target was reached"; then
+      outcome=wal_short
+    else
+      outcome=postgres_failed
+    fi
     break
   fi
   sleep 1
 done
 if [[ -z "$replayed" ]]; then
   trap - ERR
+  postgres_log=$("${compose[@]}" logs --no-log-prefix --since "$started_at" postgres 2>&1 | tail -n 20 || true)
   "${compose[@]}" stop postgres
   mv "$data" "$state/postgres.failed-pitr-$stamp"
   mv "$aside" "$data"
   "${compose[@]}" up --detach --wait postgres
-  echo "PITR_WAL_SHORT: the archived WAL does not reach $target, so the database was put back as it was (the failed attempt is $state/postgres.failed-pitr-$stamp). Every service but Postgres is stopped; fetch the missing WAL and run this again, or restore $pre." >&2
-  exit 69
+  if [[ "$outcome" == wal_short ]]; then
+    echo "PITR_WAL_SHORT: the archived WAL does not reach $target, so the database was put back as it was (the failed attempt is $state/postgres.failed-pitr-$stamp). Every service but Postgres is stopped; fetch the missing WAL and run this again, or restore $pre." >&2
+    exit 69
+  fi
+  echo "PITR_POSTGRES_FAILED: Postgres did not finish the replay (${outcome:-still replaying after an hour}), so the database was put back as it was (the failed attempt is $state/postgres.failed-pitr-$stamp). Every service but Postgres is stopped. Its last log lines:" >&2
+  printf '%s\n' "$postgres_log" >&2
+  exit 72
 fi
 rm -rf "$restore_wal"
 echo "PITR_REPLAYED $target (previous data $aside)"

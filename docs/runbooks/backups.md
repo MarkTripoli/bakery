@@ -569,7 +569,10 @@ and only the api is started: re-enable the installation as after any restore
 | 67 | the pre-restore backup could not be taken; nothing changed |
 | 68 | the minute is not a UTC instant, or is before the set finished; nothing changed |
 | 69 | the WAL ends before the minute: the old database is put back and services stay stopped; fetch the missing segments and run it again |
+| 70 | the host lacks Deno or the release checkout; nothing changed |
 | 71 | the restore drill of the set did not pass; nothing changed |
+| 72 | Postgres stopped for another reason during the replay, or never finished it: the old database is put back, services stay stopped, and the message shows Postgres's last log lines |
+| 77 | not run as root; nothing changed |
 | 1 | failed after the stores were touched; the message names the pre-restore backup |
 
 ## What the runner does when something goes wrong
