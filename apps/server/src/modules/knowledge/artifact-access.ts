@@ -133,7 +133,10 @@ function artifactIdOf(context: ActionContext): string {
 /**
  * Creates, renews or changes one person's grant on one document and records
  * the change. A live grant at the same level is left alone and reported as
- * unchanged, so a repeat creates no second event or audit row. Callers have
+ * unchanged, so a repeat creates no second event or audit row. A live grant
+ * changed by hand (no comment given) keeps the comment that first gave the
+ * access, so a mentioned person stays one; a revoked grant that comes back
+ * starts without one. Callers have
  * already checked the writer's sharing authority and that the person is an
  * active human member.
  */
@@ -157,7 +160,12 @@ export async function upsertArtifactGrant(
      ) values ($1, $2, $3, $4, $5, $6)
      on conflict (organization_id, artifact_id, principal_id)
      do update set level = excluded.level, granted_by = excluded.granted_by,
-       source_comment_id = excluded.source_comment_id,
+       source_comment_id = case
+         when bakery.artifact_access_grants.revoked_at is null
+          and excluded.source_comment_id is null
+         then bakery.artifact_access_grants.source_comment_id
+         else excluded.source_comment_id
+       end,
        granted_at = now(), revoked_at = null, revoked_by = null,
        version = bakery.artifact_access_grants.version + 1
      where bakery.artifact_access_grants.revoked_at is not null

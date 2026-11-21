@@ -3717,6 +3717,41 @@ test("people a mention added: the link, the list, and taking access back after a
     .toBeVisible();
 });
 
+test("Show message for a message that is not loaded says how to load it", async ({ page }) => {
+  const state = world({
+    canShare: true,
+    grants: [{
+      id: "00000000-0000-4000-8000-0000000000c1",
+      conversationId,
+      principalId: SAM,
+      displayName: "Sam Patel",
+      grantedById: ANA,
+      grantedByName: "Ana Ruiz",
+      // An older message the page has not loaded.
+      sourceMessageId: "00000000-0000-4000-8000-000000000999",
+      grantedAt: stamp(5),
+      revokedAt: null,
+      version: 4,
+    }],
+  });
+  await open(page, state);
+  await page.getByRole("button", { name: "1 person was added by a mention" })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "People added to this conversation",
+  });
+  await dialog.getByRole("button", { name: "Show message" }).click();
+  await expect(
+    dialog.getByText(
+      "That message is not loaded yet. Use Load earlier messages at the top of the conversation, then try again.",
+    ),
+  ).toBeVisible();
+  // A conversation has no threads to open.
+  await expect(dialog.getByText(/thread/)).toHaveCount(0);
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-added-not-shown");
+});
+
 test("a change to someone's access is said plainly, and the link is for people who may share", async ({ page }) => {
   const grant = {
     id: "00000000-0000-4000-8000-0000000000c1",

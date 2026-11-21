@@ -136,10 +136,62 @@ export function problem(status: number, code: string) {
   };
 }
 
+/** What `GET /v1/artifact-versions/:id/probe` answers: one flat body, null for "not measured". */
+export type ProbeBody = {
+  readonly status: "described" | "refused" | null;
+  readonly kind: string | null;
+  readonly mediaType: string | null;
+  readonly byteLength: number | null;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly durationMs: number | null;
+  readonly lineCount: number | null;
+  readonly utf8: boolean | null;
+  readonly code: string | null;
+  readonly limit: number | null;
+  readonly probedAt: string | null;
+};
+
+/** Nobody has asked the probe yet: the page falls back to the declared media type. */
+export const NOT_PROBED: ProbeBody = {
+  status: null,
+  kind: null,
+  mediaType: null,
+  byteLength: null,
+  width: null,
+  height: null,
+  durationMs: null,
+  lineCount: null,
+  utf8: null,
+  code: null,
+  limit: null,
+  probedAt: null,
+};
+
+/** The probe described the bytes: the kind it measured, not the name the upload declared. */
+export function probed(
+  kind: string,
+  mediaType: string,
+  byteLength: number,
+  more: Partial<ProbeBody> = {},
+): ProbeBody {
+  return {
+    ...NOT_PROBED,
+    status: "described",
+    kind,
+    mediaType,
+    byteLength,
+    probedAt: timestamp,
+    ...more,
+  };
+}
+
 export type ArtifactFixture = {
   readonly current: ArtifactVersionResponse;
   readonly content: string;
   readonly roots: readonly ArtifactCommentResponse[];
+  /** The probe's answer for every version; default: not probed yet. */
+  readonly probe: ProbeBody;
 };
 
 export async function openComments(page: Page) {
@@ -157,6 +209,7 @@ export async function stubArtifactPage(
     current: version(CONTENT),
     content: CONTENT,
     roots: [ROOT],
+    probe: NOT_PROBED,
     ...overrides,
   };
   const original = { ...version(OLD_CONTENT), id: OLD_VERSION_ID, revision: 1 };
@@ -219,6 +272,10 @@ export async function stubArtifactPage(
       ),
     );
   });
+  await page.route(
+    "**/v1/artifact-versions/*/probe",
+    (route) => route.fulfill(json(fixture.probe)),
+  );
   await page.route("**/v1/artifact-versions/**/content", (route) => {
     const old = route.request().url().includes(OLD_VERSION_ID);
     const selected = old ? original : fixture.current;

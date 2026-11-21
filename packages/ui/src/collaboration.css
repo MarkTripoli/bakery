@@ -2717,18 +2717,10 @@ button.ui-activity-line__row:hover {
 .ui-mention-picker__option[aria-selected="true"] {
   background: var(--color-surface-subtle);
 }
-.ui-mention-picker__option[aria-disabled="true"] {
-  color: var(--color-fg-muted);
-  cursor: default;
-}
 .ui-mention-picker__name {
   flex: 1 1 0%;
   min-inline-size: 0;
   overflow-wrap: anywhere;
-}
-.ui-mention-picker__note {
-  color: var(--color-fg-muted);
-  font: var(--type-caption);
 }
 .ui-mention-picker__rows,
 .ui-mention-picker__message {
@@ -2766,8 +2758,7 @@ button.ui-activity-line__row:hover {
   .ui-mention-picker__option > :first-child {
     grid-row: 1 / span 2;
   }
-  .ui-mention-picker__option > .ui-badge,
-  .ui-mention-picker__option > .ui-mention-picker__note {
+  .ui-mention-picker__option > .ui-badge {
     grid-column: 2;
     justify-self: start;
   }
