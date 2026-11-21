@@ -48,6 +48,8 @@ type World = {
   postIssues: { path: string; code: string; message: string }[];
   posts: Record<string, unknown>[];
   revokes: { principalId: string; ifMatch: string | undefined }[];
+  /** Each grant call: who, and at what level. */
+  grantCalls: { principalId: string; level: string }[];
 };
 
 function world(overrides: Partial<World> = {}): World {
@@ -61,6 +63,7 @@ function world(overrides: Partial<World> = {}): World {
     postIssues: [],
     posts: [],
     revokes: [],
+    grantCalls: [],
     ...overrides,
   };
 }
@@ -110,7 +113,30 @@ async function open(page: Page, state: World = world()) {
   );
   await page.route(
     (url) => url.pathname === `/v1/artifacts/${ARTIFACT_ID}/access`,
-    (route) => route.fulfill(json({ items: state.grants, nextCursor: null })),
+    (route) => {
+      if (route.request().method() !== "POST") {
+        return route.fulfill(json({ items: state.grants, nextCursor: null }));
+      }
+      // Granting again at another level changes the grant, as the server does.
+      const body = route.request().postDataJSON() as {
+        principalId: string;
+        level: string;
+      };
+      state.grantCalls.push({
+        principalId: body.principalId,
+        level: body.level,
+      });
+      state.grants = state.grants.map((grant) =>
+        grant.principalId === body.principalId
+          ? { ...grant, level: body.level, version: grant.version + 1 }
+          : grant
+      );
+      return route.fulfill(
+        json(
+          state.grants.find((grant) => grant.principalId === body.principalId),
+        ),
+      );
+    },
   );
   await page.route(
     (url) => url.pathname === `/v1/artifacts/${ARTIFACT_ID}/access/revoke`,
@@ -148,7 +174,9 @@ async function open(page: Page, state: World = world()) {
 function answerPost(route: Route, state: World, body: Record<string, unknown>) {
   if (state.postStatus === 200) {
     // A post that gave access leaves the grant behind, as the server does.
-    if (body.accessLevel === "read_comment") state.grants = [SAMIR_GRANT];
+    if (typeof body.accessLevel === "string") {
+      state.grants = [{ ...SAMIR_GRANT, level: body.accessLevel }];
+    }
     return route.fulfill(json({ ...ROOT, body: body.body }));
   }
   if (state.postStatus === 422) {
@@ -239,6 +267,10 @@ test("someone without access: the offer, Post is the yes, then the line and Undo
   await expect(page.getByText("Samir Okafor · no access yet")).toBeVisible();
   await expect(post(page, "Give access and post")).toBeEnabled();
   await expect(post(page)).toHaveCount(0);
+  // The level starts at the smallest that lets the person answer.
+  await expect(offer.getByLabel("Access")).toHaveValue("read_comment");
+  await expect(offer.getByText("They can also publish new versions"))
+    .toHaveCount(0);
   await page.mouse.move(700, 100);
   await still(page, "comment-mentions-offer");
   await post(page, "Give access and post").click();
@@ -298,6 +330,8 @@ test("a writer who may not share: the block names who can, Ask swaps the mention
     "Dana Lee can. Ask one of them here, or post without the mention.",
   );
   await expect(post(page)).toBeDisabled();
+  // Nothing is given here, so there is no level to choose.
+  await expect(block.getByLabel("Access")).toHaveCount(0);
   await expect(
     page.getByText("Ask Dana Lee or remove the mention to post."),
   ).toBeVisible();
@@ -421,7 +455,7 @@ test("people a mention added: the link, the list, Show comment, and taking acces
   await expect(dialog).toBeVisible();
   await expect(
     dialog.getByText(
-      "They were mentioned in comments. They can read this document and comment on it only.",
+      "They were mentioned in comments. Choose what each of them can do with this document.",
     ),
   ).toBeVisible();
   await expect(dialog.getByText("Samir Okafor", { exact: true })).toBeVisible();
@@ -452,6 +486,80 @@ test("people a mention added: the link, the list, Show comment, and taking acces
   await expect(page.getByText("Removed Samir Okafor's access.")).toBeVisible();
   await expect(dialog.getByText("No one was added by a mention."))
     .toBeVisible();
+});
+
+test("Can also edit: the help line shows, the post gives edit, and the line says so", async ({ page }) => {
+  const { state } = await open(page);
+  await chooseSamir(page);
+  const offer = page.locator('[data-ui-component="accessOffer"]');
+  await offer.getByLabel("Access").selectOption("edit");
+  await expect(offer.getByText(
+    "They can also publish new versions of this document.",
+  )).toBeVisible();
+  await expect(offer).toContainText(
+    "They will be able to read this document, comment on it, work on its draft and publish new versions. Nothing else is shared.",
+  );
+  await page.mouse.move(700, 100);
+  await still(page, "comment-mentions-offer-edit");
+  await post(page, "Give access and post").click();
+  await expect.poll(() => state.posts.length).toBe(1);
+  expect(state.posts[0]).toEqual({
+    body: "Please look @Samir Okafor",
+    mentions: [SAMIR],
+    accessLevel: "edit",
+  });
+  await expect(
+    page.getByText(
+      "Posted. Samir Okafor can now read, comment on and edit this document.",
+    ),
+  ).toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "comment-mentions-posted-edit");
+  // The next offer starts at the smallest level again.
+  await commentBox(page).fill("Again @sam");
+  await page.getByRole("option", { name: "Samir Okafor, no access yet" })
+    .click();
+  await expect(
+    page.locator('[data-ui-component="accessOffer"]').getByLabel("Access"),
+  ).toHaveValue("read_comment");
+});
+
+test("People added: each person's access can be changed, and a change is said plainly", async ({ page }) => {
+  const { state } = await open(
+    page,
+    world({ canShare: true, grants: [SAMIR_GRANT] }),
+  );
+  await page.getByRole("button", { name: "1 person was added by a mention" })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "People added to this document",
+  });
+  const level = dialog.getByRole("combobox", {
+    name: /^Access for Samir Okafor/,
+  });
+  await expect(level).toHaveValue("read_comment");
+  await level.selectOption("edit");
+  await expect(
+    dialog.getByText("Changed Samir Okafor's access: Can also edit."),
+  ).toBeVisible();
+  expect(state.grantCalls).toEqual([{
+    principalId: SAMIR,
+    level: "edit",
+  }]);
+  await expect(level).toHaveValue("edit");
+  await page.mouse.move(700, 100);
+  await still(page, "comment-mentions-added-edit");
+  // Changing it back lowers the level again, through the same call.
+  state.grants = [{ ...SAMIR_GRANT, level: "edit", version: 5 }];
+  await level.selectOption("read_comment");
+  await expect(
+    dialog.getByText("Changed Samir Okafor's access: Can read and comment."),
+  )
+    .toBeVisible();
+  expect(state.grantCalls.at(-1)).toEqual({
+    principalId: SAMIR,
+    level: "read_comment",
+  });
 });
 
 test("the People added link is for someone who may share the document", async ({ page }) => {

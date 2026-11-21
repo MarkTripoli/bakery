@@ -172,9 +172,9 @@ export function ArtifactComments(
           mentions: mentionField.mentions.map((mention) => mention.principalId),
         }
         : {}),
-      // Posting is the yes: a person with no access gets the one level that reads and comments.
+      // Posting is the yes: a person with no access gets the level the writer chose.
       ...(mentionField.offered > 0
-        ? { accessLevel: "read_comment" as const }
+        ? { accessLevel: mentionField.accessLevel }
         : {}),
     });
     if (!input.success) {

@@ -5951,9 +5951,18 @@
   "mentions.refused.documentNotMember": "⟪Not posted. {name} is no longer a member of {organization}. Remove the mention.⟫",
   "mentions.refused.documentSeveral": "⟪Not posted. {count} people can't be mentioned. Remove the red names to post.⟫",
   "mentions.added.documentTitle": "⟪People added to this document⟫",
-  "mentions.added.documentDescription": "⟪They were mentioned in comments. They can read this document and comment on it only.⟫",
   "mentions.added.documentShow": "⟪Show comment⟫",
   "mentions.added.documentConfirmTitle": "⟪Remove {name}'s access to this document?⟫",
   "mentions.added.documentConfirmBody": "⟪{name} will no longer be able to open this document. Their comments stay.⟫",
-  "mentions.added.documentNotShown": "⟪That comment is inside a thread that is closed. Open the thread to find it.⟫"
+  "mentions.added.documentNotShown": "⟪That comment is inside a thread that is closed. Open the thread to find it.⟫",
+  "mentions.offer.documentDetailEdit": "⟪They will be able to read this document, comment on it, work on its draft and publish new versions. Nothing else is shared.⟫",
+  "mentions.access.label": "⟪Access⟫",
+  "mentions.access.readComment": "⟪Can read and comment⟫",
+  "mentions.access.edit": "⟪Can also edit⟫",
+  "mentions.access.editHelp": "⟪They can also publish new versions of this document.⟫",
+  "mentions.sent.documentLineEdit": "⟪Posted. {names} can now read, comment on and edit this document.⟫",
+  "mentions.added.levelLabel": "⟪Access for {name}⟫",
+  "mentions.added.levelChanged": "⟪Changed {name}'s access: {level}.⟫",
+  "mentions.added.levelFailed": "⟪Access was not changed. Nothing changed. Try again.⟫",
+  "mentions.added.documentDescription": "⟪They were mentioned in comments. Choose what each of them can do with this document.⟫"
 }

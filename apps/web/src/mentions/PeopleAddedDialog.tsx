@@ -24,6 +24,8 @@ type Grant = {
   readonly grantedByName: string;
   readonly grantedAt: string;
   readonly version: number;
+  /** What a document grant lets the person do; null for a conversation, which has one level. */
+  readonly level: "read_comment" | "edit" | null;
   /** The message or comment that gave the access; null when it was given another way. */
   readonly sourceId: string | null;
 };
@@ -81,6 +83,7 @@ export function PeopleAddedDialog(
   const rows: readonly Grant[] | undefined = isConversation
     ? conversationGrants.data?.map((grant) => ({
       ...grant,
+      level: null,
       sourceId: grant.sourceMessageId,
     }))
     : documentGrants.data?.map((grant) => ({
@@ -90,7 +93,12 @@ export function PeopleAddedDialog(
   const [removing, setRemoving] = useState<Grant | null>(null);
   const [outcome, setOutcome] = useState<
     | { readonly kind: "removed" | "changed"; readonly name: string }
-    | { readonly kind: "failed" | "notShown" }
+    | {
+      readonly kind: "levelChanged";
+      readonly name: string;
+      readonly level: string;
+    }
+    | { readonly kind: "failed" | "notShown" | "levelFailed" }
     | null
   >(null);
   const revoke = useMutation({
@@ -115,6 +123,51 @@ export function PeopleAddedDialog(
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["protected"] }),
   });
+  // A document grant's level changes through the same grant call, with the new level.
+  const setLevel = useMutation({
+    mutationKey: ["artifactAccess.grant"],
+    mutationFn: async (
+      change: {
+        readonly grant: Grant;
+        readonly level: "read_comment" | "edit";
+      },
+    ) => {
+      const result = await api.grantArtifactAccess({
+        organizationId: scope.organizationId as string,
+        artifactId: subject.id,
+        principalId: change.grant.principalId,
+        level: change.level,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["protected"] }),
+  });
+  const levelLabel = (level: "read_comment" | "edit") =>
+    translate(
+      level === "edit" ? "mentions.access.edit" : "mentions.access.readComment",
+    );
+  const changeLevel = (grant: Grant, level: "read_comment" | "edit") => {
+    if (level === grant.level) return;
+    setOutcome(null);
+    setLevel.mutateAsync({ grant, level }).then(
+      () =>
+        setOutcome({
+          kind: "levelChanged",
+          name: grant.displayName,
+          level: levelLabel(level),
+        }),
+      (error) => {
+        const status = failureStatus(error);
+        setOutcome(
+          status === 409 || status === 412
+            ? { kind: "changed", name: grant.displayName }
+            : { kind: "levelFailed" },
+        );
+      },
+    );
+  };
   const date = (iso: string) =>
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
       new Date(iso),
@@ -172,8 +225,12 @@ export function PeopleAddedDialog(
           {outcome !== null
             ? (
               <UI.InlineNotice
-                role={outcome.kind === "failed" ? "alert" : "status"}
-                tone={outcome.kind === "failed"
+                role={outcome.kind === "failed" ||
+                    outcome.kind === "levelFailed"
+                  ? "alert"
+                  : "status"}
+                tone={outcome.kind === "failed" ||
+                    outcome.kind === "levelFailed"
                   ? "error"
                   : outcome.kind === "changed" || outcome.kind === "notShown"
                   ? "information"
@@ -185,6 +242,13 @@ export function PeopleAddedDialog(
                   ? translate("mentions.added.changed", { name: outcome.name })
                   : outcome.kind === "notShown"
                   ? translate("mentions.added.documentNotShown")
+                  : outcome.kind === "levelChanged"
+                  ? translate("mentions.added.levelChanged", {
+                    name: outcome.name,
+                    level: outcome.level,
+                  })
+                  : outcome.kind === "levelFailed"
+                  ? translate("mentions.added.levelFailed")
                   : translate("mentions.added.failed")}
               </UI.InlineNotice>
             )
@@ -228,6 +292,31 @@ export function PeopleAddedDialog(
                     actionPlacement="below"
                     action={
                       <UI.Inline gap="compact">
+                        {grant.level !== null
+                          ? (
+                            <UI.Combobox
+                              disabled={setLevel.isPending}
+                              label={translate("mentions.added.levelLabel", {
+                                name: grant.displayName,
+                              })}
+                              onChange={(event) =>
+                                changeLevel(
+                                  grant,
+                                  event.currentTarget.value === "edit"
+                                    ? "edit"
+                                    : "read_comment",
+                                )}
+                              options={[
+                                {
+                                  value: "read_comment",
+                                  label: levelLabel("read_comment"),
+                                },
+                                { value: "edit", label: levelLabel("edit") },
+                              ]}
+                              value={grant.level}
+                            />
+                          )
+                          : null}
                         {grant.sourceId !== null
                           ? (
                             <UI.Button

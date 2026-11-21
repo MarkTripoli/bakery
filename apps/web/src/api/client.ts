@@ -2318,6 +2318,15 @@ export type BakeryApiClient = {
     readonly artifactId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<ArtifactSharers>>;
+  /** Gives one person direct access to a document at a level; for someone who has it, a different level changes it. */
+  readonly grantArtifactAccess: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly principalId: string;
+    readonly level: "read_comment" | "edit";
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactAccessGrant>>;
   /** Takes one person's direct access to a document back. `version` is the grant's own, sent as If-Match. */
   readonly revokeArtifactAccess: (options: {
     readonly organizationId: string;
@@ -5341,6 +5350,28 @@ export function createBakeryApiClient({
         const data = await client.actions["artifactAccess.sharers"](
           { id: options.artifactId },
           { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async grantArtifactAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.grant"](
+          {
+            id: options.artifactId,
+            principalId: options.principalId,
+            level: options.level,
+          },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
         );
         return { ok: true, data };
       } catch (error) {

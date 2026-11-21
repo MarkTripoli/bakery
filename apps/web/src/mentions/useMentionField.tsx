@@ -47,6 +47,9 @@ import {
   withoutMention,
 } from "./mentions-state.ts";
 
+/** What a mention that gives access to a document gives: read and comment, or also edit. */
+export type AccessLevel = "read_comment" | "edit";
+
 /** What a composer needs from the mention field: the props for its text field, and the parts to draw. */
 export type MentionField = {
   /** Everyone chosen and still named in the text, in the order sent as `mentions`. */
@@ -77,6 +80,8 @@ export type MentionField = {
   readonly retryLabel: string;
   /** How many people the send would give access to. */
   readonly offered: number;
+  /** The level the offer gives, for a document; "read_comment" until the writer chooses "Can also edit". */
+  readonly accessLevel: AccessLevel;
   /** The "Not sent." sentence for what the server refused; null otherwise. */
   readonly notice: string | null;
   /** A chosen person needs someone else to give them access: Send stays off until that mention is removed or someone is asked. */
@@ -182,9 +187,12 @@ export function useMentionField(
   const [sent, setSent] = useState<
     {
       readonly people: readonly { principalId: string; name: string }[];
+      readonly level: AccessLevel;
       readonly state: "done" | "undoing" | "undone" | "failed";
     } | null
   >(null);
+  // What the offer on a document gives; one level for everyone offered.
+  const [level, setLevel] = useState<AccessLevel>("read_comment");
   const queryClient = useQueryClient();
 
   const trigger = triggerAt(value, Math.min(caret, value.length));
@@ -513,7 +521,45 @@ export function useMentionField(
                   onDecline: () => removeMention(offering[0], true),
                 }
                 : undefined}
-              detail={translate(words.offerDetail)}
+              control={source.kind === "comment"
+                ? (
+                  <UI.Stack gap="tight">
+                    <UI.Combobox
+                      disabled={disabled}
+                      label={translate("mentions.access.label")}
+                      onChange={(event) =>
+                        setLevel(
+                          event.currentTarget.value === "edit"
+                            ? "edit"
+                            : "read_comment",
+                        )}
+                      options={[
+                        {
+                          value: "read_comment",
+                          label: translate("mentions.access.readComment"),
+                        },
+                        {
+                          value: "edit",
+                          label: translate("mentions.access.edit"),
+                        },
+                      ]}
+                      value={level}
+                    />
+                    {level === "edit"
+                      ? (
+                        <UI.Text variant="caption">
+                          {translate("mentions.access.editHelp")}
+                        </UI.Text>
+                      )
+                      : null}
+                  </UI.Stack>
+                )
+                : undefined}
+              detail={translate(
+                source.kind === "comment" && level === "edit"
+                  ? "mentions.offer.documentDetailEdit"
+                  : words.offerDetail,
+              )}
               question={translate(
                 offerNotSent ? words.offerQuestionNotSent : words.offerQuestion,
                 { count: offering.length, name: offering[0].name },
@@ -591,9 +637,12 @@ export function useMentionField(
                 detail={sent.state === "failed"
                   ? translate("mentions.sent.undoFailed")
                   : undefined}
-                question={translate(words.sentLine, {
-                  names: joined(sent.people.map((person) => person.name)),
-                })}
+                question={translate(
+                  source.kind === "comment" && sent.level === "edit"
+                    ? "mentions.sent.documentLineEdit"
+                    : words.sentLine,
+                  { names: joined(sent.people.map((person) => person.name)) },
+                )}
                 state={sent.state === "undoing" ? "busy" : "default"}
                 // Good news is not warning-coloured; a failed undo keeps the warning.
                 tone={sent.state === "failed" ? "warning" : "success"}
@@ -670,6 +719,7 @@ export function useMentionField(
     picker,
     row,
     offered: offering.length,
+    accessLevel: level,
     sendLabel: offering.length > 0
       ? translate(words.offerSend, { count: offering.length })
       : null,
@@ -730,9 +780,11 @@ export function useMentionField(
             principalId: mention.principalId,
             name: mention.name,
           })),
+          level,
           state: "done",
         });
       }
+      setLevel("read_comment");
       setMentions([]);
       setRefusals([]);
       setNotSentIds([]);

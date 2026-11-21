@@ -5951,9 +5951,18 @@
   "mentions.refused.documentNotMember": "⟦Ñôŧ þôšŧëð. {name} ïš ñô ļôñĝëŕ à ɱëɱƀëŕ ôƒ {organization}. Ŕëɱôṽë ŧĥë ɱëñŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "mentions.refused.documentSeveral": "⟦Ñôŧ þôšŧëð. {count} þëôþļë çàñ'ŧ ƀë ɱëñŧïôñëð. Ŕëɱôṽë ŧĥë ŕëð ñàɱëš ŧô þôšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "mentions.added.documentTitle": "⟦Þëôþļë àððëð ŧô ŧĥïš ðôçûɱëñŧ ŧëšŧ çôþ⟧",
-  "mentions.added.documentDescription": "⟦Ŧĥëÿ ŵëŕë ɱëñŧïôñëð ïñ çôɱɱëñŧš. Ŧĥëÿ çàñ ŕëàð ŧĥïš ðôçûɱëñŧ àñð çôɱɱëñŧ ôñ ïŧ ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "mentions.added.documentShow": "⟦Šĥôŵ çôɱɱëñŧ ŧë⟧",
   "mentions.added.documentConfirmTitle": "⟦Ŕëɱôṽë {name}'š àççëšš ŧô ŧĥïš ðôçûɱëñŧ? ŧëšŧ çôþÿ ŧ⟧",
   "mentions.added.documentConfirmBody": "⟦{name} ŵïļļ ñô ļôñĝëŕ ƀë àƀļë ŧô ôþëñ ŧĥïš ðôçûɱëñŧ. Ŧĥëïŕ çôɱɱëñŧš šŧàÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "mentions.added.documentNotShown": "⟦Ŧĥàŧ çôɱɱëñŧ ïš ïñšïðë à ŧĥŕëàð ŧĥàŧ ïš çļôšëð. Ôþëñ ŧĥë ŧĥŕëàð ŧô ƒïñð ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "mentions.added.documentNotShown": "⟦Ŧĥàŧ çôɱɱëñŧ ïš ïñšïðë à ŧĥŕëàð ŧĥàŧ ïš çļôšëð. Ôþëñ ŧĥë ŧĥŕëàð ŧô ƒïñð ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "mentions.offer.documentDetailEdit": "⟦Ŧĥëÿ ŵïļļ ƀë àƀļë ŧô ŕëàð ŧĥïš ðôçûɱëñŧ, çôɱɱëñŧ ôñ ïŧ, ŵôŕķ ôñ ïŧš ðŕàƒŧ àñð þûƀļïšĥ ñëŵ ṽëŕšïôñš. Ñôŧĥïñĝ ëļšë ïš šĥàŕëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "mentions.access.label": "⟦Àççëšš…⟧",
+  "mentions.access.readComment": "⟦Çàñ ŕëàð àñð çôɱɱëñŧ ŧëšŧ⟧",
+  "mentions.access.edit": "⟦Çàñ àļšô ëðïŧ ŧë⟧",
+  "mentions.access.editHelp": "⟦Ŧĥëÿ çàñ àļšô þûƀļïšĥ ñëŵ ṽëŕšïôñš ôƒ ŧĥïš ðôçûɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "mentions.sent.documentLineEdit": "⟦Þôšŧëð. {names} çàñ ñôŵ ŕëàð, çôɱɱëñŧ ôñ àñð ëðïŧ ŧĥïš ðôçûɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "mentions.added.levelLabel": "⟦Àççëšš ƒôŕ {name} ŧëš⟧",
+  "mentions.added.levelChanged": "⟦Çĥàñĝëð {name}'š àççëšš: {level}. ŧëšŧ çôþÿ⟧",
+  "mentions.added.levelFailed": "⟦Àççëšš ŵàš ñôŧ çĥàñĝëð. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "mentions.added.documentDescription": "⟦Ŧĥëÿ ŵëŕë ɱëñŧïôñëð ïñ çôɱɱëñŧš. Çĥôôšë ŵĥàŧ ëàçĥ ôƒ ŧĥëɱ çàñ ðô ŵïŧĥ ŧĥïš ðôçûɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }
