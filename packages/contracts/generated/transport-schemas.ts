@@ -1092,7 +1092,7 @@ const transportSchemas = {
           "name": "accessLevel",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
         }
       ],
       "rules": [
@@ -12494,7 +12494,7 @@ const transportSchemas = {
           "name": "level",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do."
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it)."
         }
       ],
       "rules": [
@@ -25958,14 +25958,17 @@ const transportSchemas = {
     },
     "InstallationStatus": {
       "fields": [
-        "bootstrapped"
+        "bootstrapped",
+        "restoreHeld"
       ],
       "fieldTypes": {
-        "bootstrapped": "boolean"
+        "bootstrapped": "boolean",
+        "restoreHeld": "boolean"
       },
-      "description": "Whether a first installation administrator already exists; carries no identity.",
+      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity.",
       "fieldDescriptions": {
-        "bootstrapped": "Whether a first installation administrator already exists; carries no identity."
+        "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
+        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
       }
     },
     "BrowserSession": {
@@ -33341,7 +33344,7 @@ const transportSchemas = {
         "artifactId": "The one document this grant opens; it never reaches the task, its other documents or its conversation.",
         "principalId": "The person who holds the grant.",
         "displayName": "The holder's current display name; never an email address.",
-        "level": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet.",
+        "level": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it.",
         "grantedById": "Who gave the access most recently.",
         "grantedByName": "The granting person's current display name.",
         "sourceCommentId": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone.",
@@ -36341,8 +36344,11 @@ const transportSchemas = {
         "jobsAwaitingReconciliation",
         "workersRevoked",
         "intakeEnabledAt",
+        "intakeEnabledBy",
         "dispatchEnabledAt",
+        "dispatchEnabledBy",
         "workersEnabledAt",
+        "workersEnabledBy",
         "releasedAt",
         "nextStep"
       ],
@@ -36359,7 +36365,10 @@ const transportSchemas = {
         "dispatchEnabledAt": "timestamp|null",
         "workersEnabledAt": "timestamp|null",
         "releasedAt": "timestamp|null",
-        "nextStep": "enum(intake|dispatch|workers)|null"
+        "nextStep": "enum(intake|dispatch|workers)|null",
+        "intakeEnabledBy": "InstallationRestoreActor|null",
+        "dispatchEnabledBy": "InstallationRestoreActor|null",
+        "workersEnabledBy": "InstallationRestoreActor|null"
       },
       "nullableFields": [
         "cutoffAt",
@@ -36367,9 +36376,12 @@ const transportSchemas = {
         "dispatchEnabledAt",
         "workersEnabledAt",
         "releasedAt",
-        "nextStep"
+        "nextStep",
+        "intakeEnabledBy",
+        "dispatchEnabledBy",
+        "workersEnabledBy"
       ],
-      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown.",
+      "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown.",
       "fieldDescriptions": {
         "id": "The restore's id.",
         "backupName": "The directory name of the backup that was restored; it is the confirmation to type.",
@@ -36383,7 +36395,25 @@ const transportSchemas = {
         "dispatchEnabledAt": "When dispatch was re-enabled; null until then.",
         "workersEnabledAt": "When workers were re-enabled; null until then.",
         "releasedAt": "When the restore was released; null while it holds the installation.",
-        "nextStep": "The step to take next; null once released."
+        "nextStep": "The step to take next; null once released.",
+        "intakeEnabledBy": "Who turned on new work; null until that step is taken.",
+        "dispatchEnabledBy": "Who turned on the background consumers; null until that step is taken.",
+        "workersEnabledBy": "Who turned workers on and released the restore; null until that step is taken."
+      }
+    },
+    "InstallationRestoreActor": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "description": "The installation administrator who took one re-enable step.",
+      "fieldDescriptions": {
+        "principalId": "Principal id of the administrator who took the step.",
+        "displayName": "Their current display name."
       }
     },
     "BackupDrill": {

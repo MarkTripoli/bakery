@@ -1410,6 +1410,7 @@ export type ContractOutputName =
   | "InstallationAdministrator"
   | "InstallationCapabilities"
   | "InstallationRestore"
+  | "InstallationRestoreActor"
   | "InstallationSettings"
   | "InstallationStatus"
   | "IntegrationActionReceipt"
