@@ -1,6 +1,6 @@
 # Stills for the Slack app section (#415)
 
-Head: `b313c66ef` — the merged head the stills ship with; taken at `f19532ec`.
+Head: `3e1efa5d4` — the merged head the stills ship with; taken at `f19532ec`.
 
 Twenty-four stills: six states, two themes, two viewports. Each is the
 Slack section of `/settings/installation/integrations`, clipped with padding
