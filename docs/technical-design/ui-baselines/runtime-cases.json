@@ -1404,6 +1404,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.sealedFrame.contract.desktop-light-fine",
+      "catalogId": "ui.sealedFrame",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sealedframe--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.providerMark.contract.desktop-light-fine",
       "catalogId": "ui.providerMark",
       "requiredCaseId": "contract",
@@ -1423,6 +1430,50 @@
       "requiredCaseId": "contract",
       "storyId": "bakery-organisms-messagecomposer--contract",
       "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.accessOffer.contract.desktop-light-fine",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.accessOffer.contract.dark",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.accessOffer.contract.phone-coarse",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "phone-light-coarse",
+      "assertions": ["containment"]
+    },
+    {
+      "id": "ui.accessOffer.contract.phone-dark-coarse",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "phone-dark-coarse",
+      "assertions": ["containment"]
+    },
+    {
+      "id": "ui.accessOffer.contract.rtl",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.accessOffer.contract.system",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "system-dark"
     },
     {
       "id": "ui.mentionPicker.contract.desktop-light-fine",
