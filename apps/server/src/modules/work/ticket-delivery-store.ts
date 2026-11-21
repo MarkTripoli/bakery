@@ -17,6 +17,7 @@ import {
 export type RequestDeliveryFacts = Readonly<{
   policy: TicketCompletionPolicy;
   pullRequests: TicketDeliveryEvidence["pullRequests"];
+  finishedSecondsAgo: number | null;
 }>;
 
 type FactsRow = {
@@ -24,6 +25,7 @@ type FactsRow = {
   intent: string;
   completion: string | null;
   pull_request_statuses: string[];
+  finished_seconds_ago: string | null;
 };
 
 const POLICIES: readonly TicketCompletionPolicy[] = [
@@ -68,7 +70,19 @@ export async function readRequestDeliveryFacts(
                       where target.organization_id = request.organization_id
                         and target.ticket_request_id = request.id
                         and target.child_task_id is not null))
-            ) as pull_request_statuses
+            ) as pull_request_statuses,
+            (select floor(min(extract(epoch from now() - run.finished_at)))::text
+               from bakery.workflow_runs as run
+              where run.organization_id = request.organization_id
+                and run.finished_at is not null
+                and (run.task_id = link.task_id
+                  or run.task_id in (
+                    select target.child_task_id
+                      from bakery.ticket_request_targets as target
+                     where target.organization_id = request.organization_id
+                       and target.ticket_request_id = request.id
+                       and target.child_task_id is not null))
+            ) as finished_seconds_ago
        from bakery.ticket_requests as request
        join bakery.ticket_task_links as link
          on link.organization_id = request.organization_id
@@ -94,6 +108,9 @@ export async function readRequestDeliveryFacts(
       pullRequests: row.pull_request_statuses.filter(isPullRequestStatus).map(
         (status) => ({ status }),
       ),
+      finishedSecondsAgo: row.finished_seconds_ago === null
+        ? null
+        : Number(row.finished_seconds_ago),
     });
   }
   return facts;
@@ -111,5 +128,6 @@ export function requestDeliveryVerdict(
     workFinished,
     pullRequests: facts?.pullRequests ?? [],
     deployment: null,
+    finishedSecondsAgo: facts?.finishedSecondsAgo ?? null,
   });
 }
