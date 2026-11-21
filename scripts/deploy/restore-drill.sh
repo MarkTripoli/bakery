@@ -55,7 +55,7 @@ infra_value() {
     sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
 }
 key_file=$(infra_value BAKERY_SECRETS_KEY_FILE || true)
-args=("$snapshot" --identity "$identity" --release-root "$root/background")
+args=("$snapshot" --identity "$identity" --release-root "$root/background" --scratch-root "$scratch")
 # The drill checks the key against the fingerprint the backup recorded; with no
 # key file it fails that check and says so, it does not skip it.
 [[ -n "$key_file" ]] && args+=(--key-file "$key_file")
@@ -66,7 +66,7 @@ env_file="$etc/backup-runner.env"
 permissions=(--no-prompt "--allow-read" "--allow-write=$scratch" "--allow-run=bash,age,tar,docker")
 if [[ "$report" == --no-report ]]; then
   args+=(--no-report)
-  permissions+=("--allow-env=BAKERY_ENV")
+  permissions+=("--allow-env=BAKERY_ENV,NODE_V8_COVERAGE,PATH,HOME,LANG,TMPDIR,DOCKER_HOST,DOCKER_CONFIG,DOCKER_CONTEXT,XDG_RUNTIME_DIR")
 else
   if [[ ! -s "$env_file" ]]; then
     echo "restore-drill.sh: no runner credential at $env_file, so the result cannot be reported (pass --no-report to run without it)" >&2
@@ -77,6 +77,6 @@ else
   source "$env_file"
   set +a
   api_host=$(printf '%s' "${BAKERY_API_URL:-}" | sed -E 's#^[a-z]+://([^/]+).*#\1#')
-  permissions+=("--allow-env=BAKERY_API_URL,BAKERY_BACKUP_RUNNER_TOKEN,BAKERY_ENV" "--allow-net=$api_host")
+  permissions+=("--allow-env=BAKERY_API_URL,BAKERY_BACKUP_RUNNER_TOKEN,BAKERY_ENV,NODE_V8_COVERAGE,PATH,HOME,LANG,TMPDIR,DOCKER_HOST,DOCKER_CONFIG,DOCKER_CONTEXT,XDG_RUNTIME_DIR" "--allow-net=$api_host")
 fi
 exec deno run "${permissions[@]}" "$drill" "${args[@]}"

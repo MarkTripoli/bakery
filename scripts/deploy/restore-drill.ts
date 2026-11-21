@@ -20,7 +20,8 @@ import { addSecret, createSecrets, redact } from "./backup-runner/redact.ts";
  * restore-drill.sh.
  *
  *   restore-drill.ts <backup set directory> --identity <age identity file>
- *       --key-file <secrets key file> [--release-root <dir>] [--no-report]
+ *       --key-file <secrets key file> [--release-root <dir>]
+ *       [--scratch-root <dir>] [--no-report]
  *
  * It restores the set into isolated, throwaway stores, checks it there, prints
  * one result line, and reports the result to the server with the backup
@@ -56,6 +57,7 @@ type Parsed = {
   identityFile: string;
   keyFile?: string;
   releaseRoot: string;
+  scratchRoot?: string;
   report: boolean;
 };
 
@@ -64,6 +66,7 @@ function parse(args: readonly string[]): Parsed | string {
   let identityFile: string | undefined;
   let keyFile: string | undefined;
   let releaseRoot = DEFAULT_RELEASE_ROOT;
+  let scratchRoot: string | undefined;
   let report = true;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -76,6 +79,7 @@ function parse(args: readonly string[]): Parsed | string {
     if (arg === "--identity") identityFile = value();
     else if (arg === "--key-file") keyFile = value();
     else if (arg === "--release-root") releaseRoot = value() ?? "";
+    else if (arg === "--scratch-root") scratchRoot = value() ?? "";
     else if (arg === "--no-report") report = false;
     else if (arg.startsWith("--")) return `unknown option ${arg}`;
     else if (directory === undefined) directory = arg;
@@ -84,19 +88,22 @@ function parse(args: readonly string[]): Parsed | string {
   if (directory === undefined) return "the backup set directory is required";
   if (!identityFile) return "--identity <age identity file> is required";
   if (releaseRoot === "") return "--release-root needs a directory";
+  if (scratchRoot === "") return "--scratch-root needs a directory";
   return {
     directory,
     identityFile,
     releaseRoot,
     report,
     ...(keyFile === undefined ? {} : { keyFile }),
+    ...(scratchRoot === undefined ? {} : { scratchRoot }),
   };
 }
 
 function summary(outcome: DrillOutcome): string {
-  const times = `rpo=${
-    outcome.rpoSeconds ?? "unknown"
-  }s rto=${outcome.rtoSeconds}s`;
+  const age = outcome.rpoSeconds === null
+    ? "unknown"
+    : `${outcome.rpoSeconds}s`;
+  const times = `rpo=${age} rto=${outcome.rtoSeconds}s`;
   if (outcome.outcome === "passed") {
     return `RESTORE_DRILL_PASSED backup=${outcome.backupName} ${times}`;
   }
@@ -141,6 +148,9 @@ export async function main(
     identityFile: parsed.identityFile,
     releaseRoot: parsed.releaseRoot,
     ...(parsed.keyFile === undefined ? {} : { keyFile: parsed.keyFile }),
+    ...(parsed.scratchRoot === undefined
+      ? {}
+      : { scratchRoot: parsed.scratchRoot }),
   });
   out(summary(outcome));
   const code = outcome.outcome === "passed" ? EXIT.passed : EXIT.failed;

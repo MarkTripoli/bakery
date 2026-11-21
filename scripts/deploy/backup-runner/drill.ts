@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
+import process from "node:process";
 import {
   type Census,
   compareCensus,
@@ -85,11 +86,38 @@ type Failure = {
   readonly detail: string;
 };
 
+/**
+ * The environment a drill's child processes get: only what `bash`, `docker`,
+ * `age` and `tar` need to find themselves and the Docker daemon. The drill is
+ * run with `--allow-env` for exactly these names, so it cannot pass anything
+ * else on, and nothing of the runner's credential reaches a child.
+ */
+export const CHILD_ENV_NAMES = [
+  "PATH",
+  "HOME",
+  "LANG",
+  "TMPDIR",
+  "DOCKER_HOST",
+  "DOCKER_CONFIG",
+  "DOCKER_CONTEXT",
+  "XDG_RUNTIME_DIR",
+] as const;
+
+function childEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const name of CHILD_ENV_NAMES) {
+    const value = process.env[name];
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
+}
+
 export function defaultExec(): Exec {
   return (command, options) =>
     new Promise((resolve, reject) => {
       const child = spawn(command[0], command.slice(1), {
         stdio: ["pipe", "pipe", "pipe"],
+        env: childEnv(),
       });
       const out: Buffer[] = [];
       const err: Buffer[] = [];

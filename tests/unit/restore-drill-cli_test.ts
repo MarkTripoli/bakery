@@ -229,3 +229,25 @@ Deno.test("the runner's credential never appears in anything the command prints"
   await main(ARGS, options);
   for (const line of [...h.out, ...h.log]) assert(!line.includes(TOKEN), line);
 });
+
+Deno.test("a set with no cutoff prints an unknown age, not a number", async () => {
+  const [h, options] = harness(
+    { ...failed, cutoffAt: null, rpoSeconds: null },
+    keep,
+  );
+  await main(ARGS, options);
+  assert(h.out[0].includes("rpo=unknown rto=142s"), h.out[0]);
+  assert(!h.out[0].includes("unknowns"));
+});
+
+Deno.test("--scratch-root is passed to the drill, so the wrapper and the drill agree on where it writes", async () => {
+  const [h, options] = harness(passed, keep);
+  await main(
+    [...ARGS, "--scratch-root", "/srv/scratch", "--no-report"],
+    options,
+  );
+  assertEquals(h.drilled[0].scratchRoot, "/srv/scratch");
+  const [h2, options2] = harness(passed, keep);
+  assertEquals(await main([...ARGS, "--scratch-root"], options2), EXIT.usage);
+  assertEquals(h2.drilled.length, 0);
+});
