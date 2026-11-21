@@ -382,14 +382,20 @@ Deno.test("an agent cannot grant itself a folder, and a grant never reaches the 
       "agent-448-self",
       () => Promise.resolve(),
     );
-    // Not offered to a session at all: the gateway does not know the tool.
+    // Never offered to a session: the gateway refuses it by name as a
+    // person's operation.
     const self = await agent.call("agentFileGrants.create", {
       workflowId: agent.job.workflowId,
       folderId: folder.id,
       access: "write",
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     });
-    assertEquals(self.status, 404);
+    const selfText = await self.text();
+    assertEquals(self.status, 403, selfText);
+    assertEquals(
+      (JSON.parse(selfText) as { reason?: string }).reason,
+      "session_operation_people_only",
+    );
     const rows = await fixture.pgDatabase.query(
       "select 1 from bakery.agent_file_grants where folder_id = $1",
       [folder.id],

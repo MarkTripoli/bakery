@@ -11435,6 +11435,28 @@
     {
       "group": "Tickets",
       "method": "GET",
+      "path": "/v1/batches/startable",
+      "action": "batches.startable",
+      "access": "Developer",
+      "permission": "batch:read",
+      "input": "BatchStartableQuery",
+      "output": "BatchStartable",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
       "path": "/v1/batches/{id}",
       "action": "batches.get",
       "access": "Developer",
@@ -11912,6 +11934,72 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-pages",
+      "action": "pluginPages.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginPageEntry>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}",
+      "action": "pluginPages.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "PluginPagePath",
+      "output": "PluginPageAccess",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}/document",
+      "action": "pluginPageDocuments.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
+      "input": "PluginPageDocumentQuery",
+      "output": "PluginPageDocument",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ]
     },
     {
       "group": "Plugins",
