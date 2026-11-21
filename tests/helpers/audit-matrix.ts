@@ -465,6 +465,49 @@ export async function runAuditMatrix(
       }),
     },
     {
+      operation: "browserSessions.revokeCurrent",
+      failure: () =>
+        f.app.fetch(
+          new Request(
+            `${
+              new URL(f.config.auth!.publicOrigin).origin
+            }/v1/me/sessions/revoke-current`,
+            {
+              method: "POST",
+              headers: { origin: f.config.auth!.publicOrigin },
+            },
+          ),
+        ),
+      success: async () => {
+        // A second sign-in of its own, so ending it leaves the matrix's admin session alone.
+        const second = await f.app.fetch(
+          authRequest("/api/auth/sign-in/email", {
+            email: f.adminEmail,
+            password: f.password,
+          }),
+        );
+        assertEquals(second.status, 200);
+        const sessions = await json(
+          await call(f, "GET", "/v1/me/sessions", sessionCookie(second), {
+            headers: org,
+          }),
+        );
+        const current = (sessions.items as { id: string; current: boolean }[])
+          .find((item) => item.current)!;
+        return {
+          response: await call(
+            f,
+            "POST",
+            "/v1/me/sessions/revoke-current",
+            sessionCookie(second),
+            { body: {}, headers: { ...org, "Idempotency-Key": key() } },
+          ),
+          organizationId: null,
+          resourceId: current.id,
+        };
+      },
+    },
+    {
       operation: "userPreferences.update",
       failure: () =>
         adminCall("PATCH", "/v1/user-preferences", {
