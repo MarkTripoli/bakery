@@ -4342,6 +4342,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-handoffs",
+      "action": "desktopHandoffs.create",
+      "access": "Authenticated",
+      "permission": "browserSession:write",
+      "input": "DesktopHandoffCreate",
+      "output": "DesktopHandoff",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; every call issues a new 30-second one-use code",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "UNPROCESSABLE",
+        "VALIDATION_FAILED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "authenticated_principal_scope",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
@@ -18622,6 +18648,7 @@ export const clientManifest = {
             "passwordResets.redeem",
             "desktopSignIns.start",
             "desktopSignIns.exchange",
+            "desktopHandoffs.create",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -30938,6 +30965,23 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "DesktopHandoffCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "returnTo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "description": "Same-origin path the desktop window opens once the browser session is set, such as /projects; it starts with a single slash and never names another origin or the handoff page itself. DesktopHandoffCreate.returnTo must contain at least 1 characters. DesktopHandoffCreate.returnTo must contain at most 2048 characters."
+        }
+      },
+      "required": [
+        "returnTo"
+      ],
+      "additionalProperties": false,
+      "description": "Asks for a one-use code the desktop app opens in its own window as GET /api/desktop/handoff?code=<code>, so the server's web pages load with an ordinary browser session for the same person instead of the bearer credential."
     },
     "RouteContinuationAdmit": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46037,6 +46081,7 @@ export const clientManifest = {
                   "passwordResets.redeem",
                   "desktopSignIns.start",
                   "desktopSignIns.exchange",
+                  "desktopHandoffs.create",
                   "installationAuditEvents.list",
                   "browserSessions.list",
                   "browserSessions.revoke",
@@ -66518,6 +66563,7 @@ export const clientManifest = {
             "passwordResets.redeem",
             "desktopSignIns.start",
             "desktopSignIns.exchange",
+            "desktopHandoffs.create",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -76479,9 +76525,9 @@ export const clientManifest = {
               "scimConnection:manage",
               "installationAdministrator:read",
               "installationAdministrator:manage",
+              "browserSession:write",
               "installationAuditEvent:read",
               "browserSession:read",
-              "browserSession:write",
               "connectedClient:read",
               "connectedClient:write",
               "principal:read",
@@ -106614,6 +106660,30 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value."
+    },
+    "DesktopHandoff": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "43-character code the app puts in GET /api/desktop/handoff?code=<code> in its own window at once. Only its SHA-256 digest is stored; it opens one browser session and nothing else."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC instant, 30 seconds after issue, after which the handoff page refuses the code and sends the window to sign-in."
+        }
+      },
+      "required": [
+        "code",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A one-use code for the desktop window's browser session, returned once."
     },
     "WorkflowVersionSkills": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

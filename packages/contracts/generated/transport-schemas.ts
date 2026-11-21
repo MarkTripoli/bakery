@@ -13455,6 +13455,26 @@ const transportSchemas = {
       ],
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
     },
+    "DesktopHandoffCreate": {
+      "fields": [
+        {
+          "name": "returnTo",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "description": "Same-origin path the desktop window opens once the browser session is set, such as /projects; it starts with a single slash and never names another origin or the handoff page itself."
+        }
+      ],
+      "rules": [
+        "Only the desktop app's own sign-in (a bkd_ bearer credential) may ask; a browser cookie session is AUTH_FORBIDDEN and an access token is refused before the handler.",
+        "The code lives 30 seconds and is spent on the first visit of the handoff page, whatever the outcome; a second visit ends the browser session the first one opened.",
+        "A returnTo that is not a same-origin path is UNPROCESSABLE with reason desktop_handoff_return_to_invalid."
+      ],
+      "description": "Asks for a one-use code the desktop app opens in its own window as GET /api/desktop/handoff?code=<code>, so the server's web pages load with an ordinary browser session for the same person instead of the bearer credential."
+    },
     "RouteContinuationAdmit": {
       "fields": [
         {
@@ -34405,6 +34425,21 @@ const transportSchemas = {
         "credential": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again.",
         "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
         "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
+      }
+    },
+    "DesktopHandoff": {
+      "fields": [
+        "code",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "code": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A one-use code for the desktop window's browser session, returned once.",
+      "fieldDescriptions": {
+        "code": "43-character code the app puts in GET /api/desktop/handoff?code=<code> in its own window at once. Only its SHA-256 digest is stored; it opens one browser session and nothing else.",
+        "expiresAt": "UTC instant, 30 seconds after issue, after which the handoff page refuses the code and sends the window to sign-in."
       }
     },
     "WorkflowStepSkill": {
