@@ -24,6 +24,7 @@ import type {
   BrowserSessionList,
   CheckRunListResponse,
   ConnectedClientList,
+  ConversationAccessGrant,
   ConversationParticipantListResponse,
   ConversationTurnListResponse,
   CoordinationPlanListResponse,
@@ -46,6 +47,8 @@ import type {
   LibraryPage,
   MemoryEntryResponse,
   MemoryRevisionResponse,
+  MentionCandidatePage,
+  MentionSource,
   MergeAttemptListResponse,
   MergeEntryListResponse,
   MessageListResponse,
@@ -3720,6 +3723,82 @@ export function telemetryDestinationQueryOptions(
     refetchInterval: 15_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** How many people one page of the mention picker holds (design-ux #73: ten rows, more on scroll). */
+export const MENTION_PAGE = 10;
+
+/** The people the writer may mention, as they type: ten a page, never cached for long. */
+export function mentionCandidatesQueryOptions(
+  client: Pick<BakeryApiClient, "listMentionCandidates">,
+  scope: ApiScope,
+  source: MentionSource,
+  text: string,
+) {
+  return infiniteQueryOptions<
+    MentionCandidatePage,
+    ApiFailure,
+    { pages: MentionCandidatePage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "mentionCandidates.list", {
+      kind: source.kind,
+      id: source.id,
+      text,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listMentionCandidates({
+          organizationId: requireOrganization(scope),
+          source,
+          query: text,
+          cursor: pageParam ?? undefined,
+          limit: MENTION_PAGE,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && source.id !== "",
+    gcTime: 30_000,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+/** The people one conversation was opened to by a mention (a few pages at most), live grants only. */
+export function conversationAccessQueryOptions(
+  client: Pick<BakeryApiClient, "listConversationAccess">,
+  scope: ApiScope,
+  conversationId: string,
+) {
+  return queryOptions<ConversationAccessGrant[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "conversationAccess.list", {
+      conversationId,
+    }),
+    queryFn: async ({ signal }) => {
+      const items: ConversationAccessGrant[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listConversationAccess({
+            organizationId: requireOrganization(scope),
+            conversationId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items.filter((grant) => grant.revokedAt === null));
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId) && conversationId !== "",
     retry: retryNetworkOnce,
   });
 }
