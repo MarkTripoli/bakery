@@ -1796,6 +1796,10 @@
 .ui-data-table__select > * {
   display: block;
 }
+/* A mark beside a name inside the row control stays a row. */
+.ui-data-table__select > .ui-inline {
+  display: flex;
+}
 
 @media (max-width: 743px) {
   .ui-data-table--ruled[data-inset="edge"] td {

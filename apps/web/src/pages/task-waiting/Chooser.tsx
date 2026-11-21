@@ -10,6 +10,7 @@ import * as UI from "@bakery/ui";
 import type { Translator } from "@bakery/i18n";
 import { stepTitle } from "../task-timeline.ts";
 import {
+  agentName,
   choiceSummary,
   choosable,
   chooserIntro,
@@ -23,6 +24,7 @@ import {
   type ProviderEntry,
   searchTargets,
   stateLabel,
+  SUGGESTED,
   type Target,
   targetsOf,
   unavailableLines,
@@ -167,12 +169,19 @@ export function Chooser(
           id: "name",
           header: t("tasks.waiting.chooser.providers"),
           cell: (row) => (
-            <UI.Stack gap="none">
-              <UI.Text>{row.name}</UI.Text>
-              <UI.Text variant="hint">
-                {t("tasks.waiting.chooser.providerCount", { count: row.count })}
-              </UI.Text>
-            </UI.Stack>
+            <UI.Inline gap="compact">
+              {row.key === SUGGESTED
+                ? null
+                : <UI.ProviderMark name={row.name} provider={row.key} />}
+              <UI.Stack gap="none">
+                <UI.Text>{row.name}</UI.Text>
+                <UI.Text variant="hint">
+                  {t("tasks.waiting.chooser.providerCount", {
+                    count: row.count,
+                  })}
+                </UI.Text>
+              </UI.Stack>
+            </UI.Inline>
           ),
         }]}
         getRowAttributes={(row) => ({ "data-provider": row.key })}
@@ -244,8 +253,16 @@ export function Chooser(
               ? [{
                 id: "provider",
                 header: t("tasks.waiting.chooser.column.provider"),
-                width: "22%",
-                cell: (row: Target) => <UI.Text>{row.providerName}</UI.Text>,
+                width: "26%",
+                cell: (row: Target) => (
+                  <UI.Inline gap="compact">
+                    <UI.ProviderMark
+                      name={row.providerName}
+                      provider={row.provider}
+                    />
+                    <UI.Text>{row.providerName}</UI.Text>
+                  </UI.Inline>
+                ),
               }]
               : []),
             {
@@ -375,7 +392,15 @@ export function Chooser(
     </UI.Stack>
   );
 
-  const intro = <UI.Text>{chooserIntro(t, offer)}</UI.Text>;
+  const intro = (
+    <UI.Inline gap="compact" data-testid="route-waiting-intro">
+      <UI.ProviderMark
+        name={agentName(t, offer.source.harness)}
+        provider={offer.source.harness}
+      />
+      <UI.Text>{chooserIntro(t, offer)}</UI.Text>
+    </UI.Inline>
+  );
 
   if (phone) {
     return (

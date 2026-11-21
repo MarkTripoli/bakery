@@ -678,15 +678,17 @@ test("Enter on a model chooses it, as Space does", async ({ page }) => {
 test("a failed read of the choices keeps the card and the badge, and Try again reads them", async ({ page }) => {
   const state = await openWaiting(page, [offerRow()], { failRead: true });
   await expect(card(page)).toHaveCount(1);
-  await expect(page.getByTestId("route-waiting-load-failed")).toContainText(
-    "The choices could not be loaded.",
+  await expect(card(page).getByRole("heading")).toHaveText(
+    "Waiting: a step cannot reach its model",
+  );
+  await expect(page.getByTestId("route-waiting-load-failed")).toHaveText(
+    "The details and the choices could not be loaded.",
   );
   await expect(page.getByText("Waiting on a model", { exact: true }).first())
     .toBeVisible();
   await expect(chooseButton(page)).toHaveCount(0);
   state.failRead = false;
-  await page.getByTestId("route-waiting-load-failed")
-    .getByRole("button", { name: "Try again" }).click();
+  await card(page).getByRole("button", { name: "Try again" }).click();
   await expect(page.getByTestId("route-waiting-load-failed")).toHaveCount(0);
   await expect(chooseButton(page)).toBeVisible();
 });

@@ -164,24 +164,28 @@ export function RouteWaiting(
         ? (
           // The run says a step waits but the choices did not load: the card
           // stays, and where the chooser would be the page says so.
-          <UI.AlertBanner data-testid="route-waiting-card" tone="warning">
+          <UI.AlertBanner
+            action={
+              <UI.Button
+                data-testid="route-waiting-retry"
+                variant="secondary"
+                loading={retrying}
+                onClick={onRetry}
+              >
+                {t("tasks.waiting.chooser.retry")}
+              </UI.Button>
+            }
+            data-testid="route-waiting-card"
+            tone="warning"
+          >
             <UI.Stack gap="tight">
               <UI.Heading level="subsection">
                 {t("tasks.waiting.unknownTitle")}
               </UI.Heading>
               <UI.Text variant="muted">{t("tasks.waiting.second")}</UI.Text>
-              <UI.Stack gap="tight" data-testid="route-waiting-load-failed">
-                <UI.Text>{t("tasks.waiting.chooser.loadFailed")}</UI.Text>
-                <UI.Inline gap="compact">
-                  <UI.Button
-                    variant="secondary"
-                    loading={retrying}
-                    onClick={onRetry}
-                  >
-                    {t("tasks.waiting.chooser.retry")}
-                  </UI.Button>
-                </UI.Inline>
-              </UI.Stack>
+              <UI.Text data-testid="route-waiting-load-failed">
+                {t("tasks.waiting.loadFailed")}
+              </UI.Text>
             </UI.Stack>
           </UI.AlertBanner>
         )

@@ -5504,7 +5504,6 @@
   "tasks.waiting.chooser.continueNone": "⟪Continue⟫",
   "tasks.waiting.chooser.loadFailed": "⟪The choices could not be loaded.⟫",
   "tasks.waiting.chooser.retry": "⟪Try again⟫",
-  "tasks.waiting.unknownTitle": "⟪A step is waiting on its model⟫",
   "tasks.waiting.unavailable.summary": "⟪{count, plural, one {# route cannot be used} other {# routes cannot be used}}⟫",
   "tasks.waiting.unavailable.different_harness": "⟪A different coding agent ({count}): {agents}⟫",
   "tasks.waiting.unavailable.agentCount": "⟪{agent} {count}⟫",
@@ -5521,5 +5520,7 @@
   "tasks.waiting.refused.noPrice": "⟪Bakery has no price for that one, so it cannot hold a budget for it. Pick another.⟫",
   "tasks.waiting.refused.confirming": "⟪Bakery is still confirming what the last attempt did. Try again in a moment.⟫",
   "tasks.waiting.refused.noBudget": "⟪This step has no budget or attempts left, so it cannot be moved.⟫",
-  "tasks.waiting.refused.other": "⟪Nothing was switched. Try again.⟫"
+  "tasks.waiting.refused.other": "⟪Nothing was switched. Try again.⟫",
+  "tasks.waiting.unknownTitle": "⟪Waiting: a step cannot reach its model⟫",
+  "tasks.waiting.loadFailed": "⟪The details and the choices could not be loaded.⟫"
 }
