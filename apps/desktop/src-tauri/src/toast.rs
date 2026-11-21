@@ -8,7 +8,7 @@
 
 use serde_json::json;
 
-pub const ACTION_SCHEME: &str = "bakery-action";
+pub use bakery_desktop_core::links::ACTION_SCHEME;
 
 #[derive(Clone, Copy)]
 pub enum Tone {
@@ -133,13 +133,8 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
     )
 }
 
-/// What an action address asks for, when its nonce is the app's.
-pub fn parse_action<'a>(url: &'a url::Url, nonce: &str) -> Option<(&'a str, u64)> {
-    if url.scheme() != ACTION_SCHEME || url.host_str() != Some(nonce) {
-        return None;
-    }
-    let mut parts = url.path().trim_start_matches('/').split('/');
-    let action = parts.next()?;
-    let id = parts.next()?.parse().ok()?;
-    parts.next().is_none().then_some((action, id))
+/// What an action address asks for, when its nonce is the app's: the rule lives in the core, where it
+/// is tested.
+pub fn parse_action(url: &url::Url, nonce: &str) -> Option<(String, u64)> {
+    bakery_desktop_core::links::toast_action(url.as_str(), nonce)
 }

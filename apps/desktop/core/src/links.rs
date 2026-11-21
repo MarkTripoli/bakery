@@ -37,6 +37,35 @@ fn owns(path: &str, prefix: &str) -> bool {
     lower == prefix || lower.starts_with(&format!("{prefix}/"))
 }
 
+/// The scheme a notice's buttons navigate to when they ask the app for something. The app answers it
+/// itself and never loads it.
+pub const ACTION_SCHEME: &str = "bakery-action";
+
+/// What a notice's button asks for, as `(action, notice id)`, when the address is exactly
+/// `bakery-action://<nonce>/<action>/<id>` and the nonce is this run's. The nonce is made when the app
+/// starts and lives only in the buttons the app draws, so a page that does not hold it, or any other
+/// address, asks for nothing.
+pub fn toast_action(raw: &str, nonce: &str) -> Option<(String, u64)> {
+    if nonce.is_empty() {
+        return None;
+    }
+    let url = Url::parse(raw).ok()?;
+    if url.scheme() != ACTION_SCHEME
+        || url.host_str() != Some(nonce)
+        || url.port().is_some()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    let mut parts = url.path().trim_start_matches('/').split('/');
+    let action = parts.next().filter(|a| matches!(*a, "show" | "retry"))?;
+    let id = parts.next()?.parse().ok()?;
+    parts.next().is_none().then(|| (action.to_string(), id))
+}
+
 /// The longest page address an `open` link may carry.
 const MAX_PATH: usize = 2048;
 
@@ -329,6 +358,37 @@ mod tests {
             let raw = format!("bakery://open?path=%2F&server={typed}");
             assert_eq!(open_link(&raw).unwrap().server.as_deref(), Some(origin), "{typed}");
         }
+    }
+
+    #[test]
+    fn a_notice_button_with_this_runs_nonce_asks_for_its_action() {
+        assert_eq!(toast_action("bakery-action://a1b2/show/7", "a1b2"), Some(("show".into(), 7)));
+        assert_eq!(toast_action("bakery-action://a1b2/retry/12", "a1b2"), Some(("retry".into(), 12)));
+    }
+
+    #[test]
+    fn an_action_without_the_nonce_or_from_anywhere_else_asks_for_nothing() {
+        for raw in [
+            "bakery-action://wrong/show/7",
+            "bakery-action:///show/7",
+            "bakery-action://A1B2.evil.test/show/7",
+            "bakery-action://a1b2@evil.test/show/7",
+            "bakery-action://a1b2:80/show/7",
+            "https://a1b2/show/7",
+            "https://bakery.example.com/bakery-action/a1b2/show/7",
+            "bakery-action://a1b2/open/7",
+            "bakery-action://a1b2/show/x",
+            "bakery-action://a1b2/show/7/extra",
+            "bakery-action://a1b2/show/7?x=1",
+            "bakery-action://a1b2/show/7#x",
+            "bakery-action://a1b2/show",
+            "javascript:alert(1)",
+            "not a url",
+        ] {
+            assert_eq!(toast_action(raw, "a1b2"), None, "{raw}");
+        }
+        // A run with no nonce answers nothing at all.
+        assert_eq!(toast_action("bakery-action:///show/7", ""), None);
     }
 
     #[test]

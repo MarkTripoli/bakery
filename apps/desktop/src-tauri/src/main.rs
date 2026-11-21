@@ -187,7 +187,7 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
             if url.scheme() == toast::ACTION_SCHEME {
                 if let Some(shell) = &shell {
                     if let Some((action, id)) = toast::parse_action(url, shell.action_nonce()) {
-                        shell.toast_action(action, id);
+                        shell.toast_action(&action, id);
                     }
                 }
                 return false;

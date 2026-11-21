@@ -774,6 +774,13 @@ def phase_web_download():
             check(label + ": its Show in folder button reaches the app",
                   wait_report(p, "toast_action", 1, timeout=20)
                   and [e["data"]["action"] for e in reports(p) if e["event"] == "toast_action"][0] == "show")
+            # A page without this run's nonce asks for nothing: the same address with a wrong nonce
+            # changes nothing and shows nothing. (Other addresses are refused by the core's tests.)
+            eval_in_window(p, "location.href = 'bakery-action://wrong/show/1'")
+            time.sleep(4)
+            check(label + ": an action address without the nonce is refused",
+                  sum(1 for e in reports(p) if e["event"] == "toast_action") == 1
+                  and not any(e["event"] == "view" and e["data"].get("link_dialog") for e in reports(p)))
         else:
             # Without the harness, the system's save dialog opens and waits: nothing is written yet.
             time.sleep(6)
