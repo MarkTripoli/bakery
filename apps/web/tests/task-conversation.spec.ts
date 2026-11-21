@@ -3051,6 +3051,76 @@ test("no one found, a failed read with Try again, and the limit of 20 people", a
   ).toBeVisible();
 });
 
+const NO_ACCESS = [
+  "Ana Ruiz",
+  "Sam Patel",
+  "Lee Wu",
+  "Kim Oh",
+  "Dana Lee",
+  "Omar Haddad",
+];
+const noAccessWorld = () =>
+  world({
+    candidates: NO_ACCESS.map((displayName, index) => ({
+      principalId: `00000000-0000-4000-8000-0000000000d${index}`,
+      displayName,
+      hasAccess: false,
+      gainsAccessOnSend: true,
+    })),
+  });
+
+for (const count of [3, 6]) {
+  test(`${count} people without access: one question that counts them, the chips are the only list`, async ({ page }) => {
+    await open(page, noAccessWorld());
+    const box = messageBox(page);
+    for (const name of NO_ACCESS.slice(0, count)) {
+      await box.press("End");
+      await box.pressSequentially(`@${name.slice(0, 3)}`);
+      await page.getByRole("option", { name: `${name}, no access yet` })
+        .click();
+    }
+    await expect(
+      page.getByText(
+        `${count} people can't see this conversation. Give them access?`,
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText("To leave someone out, remove their name above."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: `Give access to ${count} people and send`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    // The chips name everyone; the offer lists no one a second time.
+    await expect(page.getByRole("button", { name: /^Remove mention of / }))
+      .toHaveCount(count);
+    const offer = page.getByRole("status").filter({
+      hasText: "Give them access?",
+    });
+    await expect(offer.getByRole("button")).toHaveCount(0);
+    await page.mouse.move(700, 100);
+    await still(page, `mentions-several${count}`);
+  });
+}
+
+test("not mentioning someone keeps the name as words and drops the chip and the offer", async ({ page }) => {
+  await open(page);
+  const box = messageBox(page);
+  await box.fill("Hi @sa");
+  await page.getByRole("option", { name: "Sam Patel, no access yet" }).click();
+  await expect(box).toHaveValue("Hi @Sam Patel ");
+  await page.getByRole("button", { name: "Don't mention Sam Patel" }).click();
+  await expect(box).toHaveValue("Hi Sam Patel ");
+  await expect(page.getByText("Sam Patel · no access yet")).toHaveCount(0);
+  await expect(page.getByText(/Give them access\?/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Send", exact: true }))
+    .toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-declined");
+});
+
 test("people a mention added: the link, the list, and taking access back after asking", async ({ page }) => {
   const state = world({
     canShare: true,

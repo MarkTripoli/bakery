@@ -2809,20 +2809,6 @@ button.ui-activity-line__row:hover {
   margin: var(--space-0);
   overflow-wrap: anywhere;
 }
-.ui-access-offer__people {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  list-style: none;
-  margin: var(--space-0);
-  padding: var(--space-0);
-}
-.ui-access-offer__person {
-  align-items: center;
-  display: flex;
-  font: var(--type-caption);
-  gap: var(--space-2);
-}
 .ui-access-offer[data-state="busy"] {
   opacity: 0.8;
 }

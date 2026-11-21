@@ -89,6 +89,17 @@ export function withoutMention(text: string, mention: Mention): string {
   return text.slice(0, at) + text.slice(text[end] === " " ? end + 1 : end);
 }
 
+/**
+ * The text with only the `@` taken off a person's `@Name`, so the name stays as
+ * words ("Hi @Sam Patel" becomes "Hi Sam Patel"). It is for "Don't mention":
+ * the chip's own remove button cuts the whole word instead.
+ */
+export function withoutAtSign(text: string, mention: Mention): string {
+  const at = find(text, mention);
+  if (at < 0) return text;
+  return text.slice(0, at) + text.slice(at + 1);
+}
+
 /** Adds a person once: choosing the same person again keeps one chip. */
 export function addMention(
   mentions: readonly Mention[],

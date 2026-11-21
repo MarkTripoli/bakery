@@ -29,6 +29,7 @@ import {
   refusedPeople,
   rowKind,
   triggerAt,
+  withoutAtSign,
   withoutMention,
 } from "./mentions-state.ts";
 
@@ -250,8 +251,11 @@ export function useMentionField(
       mention.gainsAccess && !refusedIds.has(mention.principalId)
     )
     : [];
-  const removeMention = (mention: Mention) => {
-    onValue(withoutMention(value, mention));
+  // "Don't mention" keeps the name as words; the chip's remove cuts the whole word.
+  const removeMention = (mention: Mention, keepName = false) => {
+    onValue(
+      keepName ? withoutAtSign(value, mention) : withoutMention(value, mention),
+    );
     setMentions((current) =>
       current.filter((entry) => entry.principalId !== mention.principalId)
     );
@@ -304,32 +308,21 @@ export function useMentionField(
       {offering.length > 0
         ? (
           <UI.AccessOffer
+            caption={offering.length > 1
+              ? translate("mentions.offer.leaveOut")
+              : undefined}
             decline={offering.length === 1
               ? {
                 label: translate("mentions.offer.decline", {
                   name: offering[0].name,
                 }),
-                onDecline: () => removeMention(offering[0]),
+                onDecline: () => removeMention(offering[0], true),
               }
               : undefined}
             detail={translate("mentions.offer.detail")}
-            onRemove={(id) => {
-              const found = offering.find((entry) => entry.principalId === id);
-              if (found !== undefined) removeMention(found);
-            }}
-            people={offering.map((mention) => ({
-              id: mention.principalId,
-              name: mention.name,
-              removeLabel: translate("mentions.offer.remove", {
-                name: mention.name,
-              }),
-            }))}
             question={translate("mentions.offer.question", {
               count: offering.length,
               name: offering[0].name,
-            })}
-            showAllLabel={translate("mentions.offer.showAll", {
-              count: offering.length,
             })}
           />
         )

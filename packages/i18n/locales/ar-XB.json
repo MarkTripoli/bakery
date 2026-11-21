@@ -5852,12 +5852,11 @@
   "mentions.offer.question": "⟪{count, plural, one {{name} can't see this conversation. Give them access?} other {# people can't see this conversation. Give them access?}}⟫",
   "mentions.offer.detail": "⟪They will be able to read and reply in this conversation. Nothing else in the task is shared. This is the only access a mention can give here.⟫",
   "mentions.offer.decline": "⟪Don't mention {name}⟫",
-  "mentions.offer.remove": "⟪Remove {name}⟫",
   "mentions.offer.send": "⟪{count, plural, one {Give access and send} other {Give access to # people and send}}⟫",
   "mentions.offer.sending": "⟪Giving access and sending…⟫",
   "mentions.row.gains": "⟪No access yet⟫",
   "mentions.row.optionGains": "⟪{name}, no access yet⟫",
   "mentions.footer.conversation": "⟪You can give access when you send.⟫",
   "mentions.chip.gains": "⟪{name} · no access yet⟫",
-  "mentions.offer.showAll": "⟪Show all {count}⟫"
+  "mentions.offer.leaveOut": "⟪To leave someone out, remove their name above.⟫"
 }

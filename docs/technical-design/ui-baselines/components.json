@@ -1,5 +1,5 @@
 {
-  "revision": "21d77e28555c4b021eb3c9b965af89558d6e76dc01f8f4935f02adb73b7b8d94",
+  "revision": "81eb26088a6ca669e586d115ca3d4990beea2a0bba58467d08a9f1d810eede28",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21090,7 +21090,7 @@
     {
       "id": "ui.accessOffer",
       "name": "AccessOffer",
-      "description": "The block under a message or comment that offers access to a mentioned person who has none: the question, what they would get, the way out, and a list when there are several.",
+      "description": "The block under a message or comment that offers access to a mentioned person who has none: the question, what they would get and the way out; the chips above it are the only list of names.",
       "level": "organism",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Organisms/AccessOffer",
@@ -21203,7 +21203,7 @@
       "requiredCases": [
         {
           "id": "contract",
-          "description": "Exercises AccessOffer for one person, several, a long list and while sending.",
+          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, and while sending.",
           "variants": [
             "default"
           ],

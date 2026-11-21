@@ -9,6 +9,7 @@ import {
   refusedPeople,
   rowKind,
   triggerAt,
+  withoutAtSign,
   withoutMention,
 } from "../../apps/web/src/mentions/mentions-state.ts";
 
@@ -138,4 +139,11 @@ Deno.test("removing a chip cuts its own word, not the start of a longer name", (
     withoutMention("@Sam Patelson, @Sam Patel!", patel),
     "@Sam Patelson, !",
   );
+});
+
+Deno.test("not mentioning someone keeps the name as words and drops only the @", () => {
+  const sam: Mention = { principalId: "p2", name: "Sam", gainsAccess: true };
+  assertEquals(withoutAtSign("Hi @Sam ok", sam), "Hi Sam ok");
+  assertEquals(withoutAtSign("Hi @Samir and @Sam", sam), "Hi @Samir and Sam");
+  assertEquals(withoutAtSign("no mention", sam), "no mention");
 });

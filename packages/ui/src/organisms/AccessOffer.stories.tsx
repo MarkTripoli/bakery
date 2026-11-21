@@ -10,20 +10,9 @@ export default meta;
 const noop = () => undefined;
 const detail =
   "They will be able to read and reply in this conversation. Nothing else in the task is shared. This is the only access a mention can give here.";
-const many = [
-  "Ana Ruiz",
-  "Sam Patel",
-  "Lee Wu",
-  "Kim Oh",
-  "Dana Lee",
-  "Omar Haddad",
-  "Rui Costa",
-]
-  .map((name) => ({ id: name, name, removeLabel: `Remove ${name}` }));
-
 /**
- * The offer for one person, for several, for a long list that opens on
- * "Show all", and while the send is under way.
+ * The offer for one person, for several people (one caption says how to
+ * leave someone out), and while the send is under way.
  */
 export const Contract: StoryObj = {
   render: () => (
@@ -39,20 +28,9 @@ export const Contract: StoryObj = {
       <div>
         <Text>Three people</Text>
         <AccessOffer
+          caption="To leave someone out, remove their name above."
           detail={detail}
-          onRemove={noop}
-          people={many.slice(0, 3)}
           question="3 people can't see this conversation. Give them access?"
-        />
-      </div>
-      <div>
-        <Text>Seven people</Text>
-        <AccessOffer
-          detail={detail}
-          onRemove={noop}
-          people={many}
-          question="7 people can't see this conversation. Give them access?"
-          showAllLabel="Show all 7"
         />
       </div>
       <div>

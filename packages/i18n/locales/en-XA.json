@@ -5852,12 +5852,11 @@
   "mentions.offer.question": "⟦{count, plural, one {{name} can't see this conversation. Give them access?} other {# people can't see this conversation. Give them access?}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "mentions.offer.detail": "⟦Ŧĥëÿ ŵïļļ ƀë àƀļë ŧô ŕëàð àñð ŕëþļÿ ïñ ŧĥïš çôñṽëŕšàŧïôñ. Ñôŧĥïñĝ ëļšë ïñ ŧĥë ŧàšķ ïš šĥàŕëð. Ŧĥïš ïš ŧĥë ôñļÿ àççëšš à ɱëñŧïôñ çàñ ĝïṽë ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "mentions.offer.decline": "⟦Ðôñ'ŧ ɱëñŧïôñ {name} ŧëšŧ⟧",
-  "mentions.offer.remove": "⟦Ŕëɱôṽë {name} ŧë⟧",
   "mentions.offer.send": "⟦{count, plural, one {Give access and send} other {Give access to # people and send}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "mentions.offer.sending": "⟦Ĝïṽïñĝ àççëšš àñð šëñðïñĝ… ŧëšŧ çô⟧",
   "mentions.row.gains": "⟦Ñô àççëšš ÿëŧ ŧë⟧",
   "mentions.row.optionGains": "⟦{name}, ñô àççëšš ÿëŧ ŧëšŧŧ⟧",
   "mentions.footer.conversation": "⟦Ÿôû çàñ ĝïṽë àççëšš ŵĥëñ ÿôû šëñð. ŧëšŧ çôþÿ⟧",
   "mentions.chip.gains": "⟦{name} · ñô àççëšš ÿëŧ ŧëšŧŧ⟧",
-  "mentions.offer.showAll": "⟦Šĥôŵ àļļ {count} ŧëš⟧"
+  "mentions.offer.leaveOut": "⟦Ŧô ļëàṽë šôɱëôñë ôûŧ, ŕëɱôṽë ŧĥëïŕ ñàɱë àƀôṽë. ŧëšŧ çôþÿ ŧëšŧ⟧"
 }
