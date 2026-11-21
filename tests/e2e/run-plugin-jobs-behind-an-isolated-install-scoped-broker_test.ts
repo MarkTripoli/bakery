@@ -552,12 +552,16 @@ async function countNamed(prefix: string): Promise<number> {
   ).length;
 }
 
-async function settledCount(prefix: string): Promise<number> {
-  // Containers a daemon was still creating appear late, so wait until the
-  // count has stopped changing before trusting it.
+async function settledCount(
+  prefix: string,
+  steadySeconds: number,
+): Promise<number> {
+  // Containers a daemon was still creating appear late: under load its create
+  // backlog drains for 15 to 30 seconds. A zero only counts once the count has
+  // stayed the same for a long steady window, not for a few seconds.
   let last = -1;
   let steady = 0;
-  for (let waited = 0; waited < 60 && steady < 3; waited++) {
+  for (let waited = 0; waited < 180 && steady < steadySeconds; waited++) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     const now = await countNamed(prefix);
     steady = now === last ? steady + 1 : 0;
@@ -605,7 +609,10 @@ dockerTest(
     ]);
     if (handle !== null) await handle.kill();
     else await (await started).kill();
-    assertEquals(await settledCount("bakery-plugin-slowcreate-"), 0);
+    // The wrapper's run path sleeps 1 s and Docker then needs time to create,
+    // so the container a leaking runtime leaves appears seconds after the kill.
+    await new Promise((resolve) => setTimeout(resolve, 8_000));
+    assertEquals(await countNamed("bakery-plugin-slowcreate-"), 0);
   },
 );
 
@@ -628,7 +635,7 @@ dockerTest(
         await handle.kill();
       }),
     );
-    assertEquals(await settledCount("bakery-plugin-stress-"), 0);
+    assertEquals(await settledCount("bakery-plugin-stress-", 20), 0);
   },
 );
 
