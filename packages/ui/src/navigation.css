@@ -1644,6 +1644,8 @@ a.bakery-application-rail__link:hover {
   gap: var(--space-6);
   grid-template-columns: minmax(0, 1fr);
   inline-size: 100%;
+  /* One column: no wider than the form is beside its summary, so the buttons end at the form's edge. */
+  max-inline-size: var(--layout-message);
 }
 .ui-form-with-summary__form {
   display: flex;
@@ -1672,8 +1674,9 @@ a.bakery-application-rail__link:hover {
     grid-template-areas:
       "form aside"
       "actions aside";
-    grid-template-columns: minmax(0, var(--layout-form))
+    grid-template-columns: minmax(0, var(--layout-message))
       var(--layout-form-summary);
+    max-inline-size: none;
   }
   .ui-form-with-summary__form {
     grid-area: form;

@@ -20,7 +20,8 @@ export type FormWithSummaryProps =
  * at its side, level with the top of the form; the buttons sit under the form,
  * at its end. Below that the summary comes between the form and the buttons, so
  * it is read before the step is taken. On a phone the buttons stack with the
- * main step first.
+ * main step first. In one column the template is no wider than the form is
+ * beside its summary, so the buttons end at the form's edge.
  */
 export function FormWithSummary(
   { children, aside, actions, ...props }: FormWithSummaryProps,

@@ -429,3 +429,22 @@ for (
     });
   });
 }
+
+test.describe("tablet: batch start", () => {
+  test.use({ viewport: { width: 1100, height: 900 } });
+
+  test("between 744px and 1279px the start form is one column no wider than 620px, and the buttons end at its edge", async ({ page }) => {
+    await batchesFixture(page);
+    await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+    const layout = page.locator('[data-ui-component="formWithSummary"]');
+    await expect(layout).toBeVisible();
+    const box = (await layout.boundingBox())!;
+    expect(box.width).toBeLessThanOrEqual(620.5);
+    const start = (await page.getByRole("button", { name: "Start batch" })
+      .boundingBox())!;
+    const edge = box.x + box.width;
+    expect(start.x + start.width).toBeLessThanOrEqual(edge + 0.5);
+    expect(start.x + start.width).toBeGreaterThan(edge - 24);
+    await still(page, "batch-new-tablet");
+  });
+});
