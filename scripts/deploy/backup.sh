@@ -181,10 +181,18 @@ fi
 # The key file is the only file outside the set the builder may read.
 build_read=$attempt
 if [[ -n "$key_file" ]]; then build_read="$attempt,$key_file"; fi
+# The database cutoff the runner took while the installation was quiet, as one
+# JSON value (non-secret). Without it (the daily timer, a manual run) the
+# manifest records the host clock at the start of this script, marked weaker.
+cutoff_args=()
+if [[ -n "${BAKERY_BACKUP_CUTOFF:-}" ]]; then
+  cutoff_args=(--cutoff-json "$BAKERY_BACKUP_CUTOFF")
+fi
 build_run=(deno run --no-prompt "--allow-read=$build_read" "--allow-write=$attempt")
 deno_run=(deno run --no-prompt "--allow-read=$attempt" "--allow-write=$attempt")
 "${build_run[@]}" "${manifest[@]}" build "$attempt" --started "$started" \
   "${key_args[@]}" --skill-files "$skill_files" --blobs "$blobs" \
+  ${cutoff_args[@]+"${cutoff_args[@]}"} \
   ${failed[@]+"${failed[@]}"}
 "${deno_run[@]}" "${manifest[@]}" verify "$attempt" > /dev/null
 
