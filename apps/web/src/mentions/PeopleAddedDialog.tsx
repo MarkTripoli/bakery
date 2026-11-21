@@ -292,31 +292,6 @@ export function PeopleAddedDialog(
                     actionPlacement="below"
                     action={
                       <UI.Inline gap="compact">
-                        {grant.level !== null
-                          ? (
-                            <UI.Combobox
-                              disabled={setLevel.isPending}
-                              label={translate("mentions.added.levelLabel", {
-                                name: grant.displayName,
-                              })}
-                              onChange={(event) =>
-                                changeLevel(
-                                  grant,
-                                  event.currentTarget.value === "edit"
-                                    ? "edit"
-                                    : "read_comment",
-                                )}
-                              options={[
-                                {
-                                  value: "read_comment",
-                                  label: levelLabel("read_comment"),
-                                },
-                                { value: "edit", label: levelLabel("edit") },
-                              ]}
-                              value={grant.level}
-                            />
-                          )
-                          : null}
                         {grant.sourceId !== null
                           ? (
                             <UI.Button
@@ -341,10 +316,43 @@ export function PeopleAddedDialog(
                         </UI.Button>
                       </UI.Inline>
                     }
-                    description={translate("mentions.added.row", {
-                      by: grant.grantedByName,
-                      date: date(grant.grantedAt),
-                    })}
+                    description={grant.level === null
+                      ? translate("mentions.added.row", {
+                        by: grant.grantedByName,
+                        date: date(grant.grantedAt),
+                      })
+                      : (
+                        // A document's grant also says what the person may do: its select sits under the text, not beside the buttons.
+                        <UI.Stack gap="compact">
+                          <span>
+                            {translate("mentions.added.row", {
+                              by: grant.grantedByName,
+                              date: date(grant.grantedAt),
+                            })}
+                          </span>
+                          <UI.Combobox
+                            disabled={setLevel.isPending}
+                            label={translate("mentions.added.levelLabel", {
+                              name: grant.displayName,
+                            })}
+                            onChange={(event) =>
+                              changeLevel(
+                                grant,
+                                event.currentTarget.value === "edit"
+                                  ? "edit"
+                                  : "read_comment",
+                              )}
+                            options={[
+                              {
+                                value: "read_comment",
+                                label: levelLabel("read_comment"),
+                              },
+                              { value: "edit", label: levelLabel("edit") },
+                            ]}
+                            value={grant.level}
+                          />
+                        </UI.Stack>
+                      )}
                     key={grant.id}
                     title={grant.displayName}
                   />
