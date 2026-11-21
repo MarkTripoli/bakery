@@ -4456,6 +4456,27 @@
     },
     {
       "group": "Access",
+      "method": "POST",
+      "path": "/v1/me/sessions/revoke-current",
+      "action": "browserSessions.revokeCurrent",
+      "access": "Authenticated",
+      "permission": "browserSession:write",
+      "input": "Empty",
+      "output": "BrowserSessionRevocation",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; the caller's own sign-in ends, so a repeat is refused as unauthenticated and the caller treats that as ended",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN"
+      ],
+      "organizationContext": "authenticated_principal_scope"
+    },
+    {
+      "group": "Access",
       "method": "GET",
       "path": "/v1/me/connected-clients",
       "action": "connectedClients.list",
