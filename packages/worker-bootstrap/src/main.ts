@@ -1,5 +1,6 @@
 import { BootstrapError } from "./errors.ts";
 import { type CommandIo, parseCommand, runCommand } from "./cli.ts";
+import { type LinkIo, parseLinkCommand, runLink } from "./link.ts";
 import {
   type OperationIo,
   parseOperation,
@@ -16,6 +17,8 @@ import {
  */
 export type BootstrapIo = Readonly<{
   command: CommandIo;
+  /** `link` (#70): the one-paste link. */
+  link: LinkIo;
   operation: OperationIo;
   /** Where the installation lives unless `--root` says otherwise. */
   defaultRoot: string;
@@ -27,6 +30,12 @@ export async function runBootstrap(
   io: BootstrapIo,
 ): Promise<number> {
   try {
+    if (argv[0] === "link") {
+      return await runLink(
+        parseLinkCommand(argv, io.environment, { root: io.defaultRoot }),
+        io.link,
+      );
+    }
     if (argv[0] === "setup" || argv[0] === "pair") {
       return await runCommand(
         parseCommand(argv, io.environment, { root: io.defaultRoot }),

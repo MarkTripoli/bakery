@@ -41,6 +41,7 @@ import {
 import { takeCutoff } from "./cutoff.ts";
 import { listBackupDrills, recordDrill } from "./drill.ts";
 import { getRestore, takeRestoreStep } from "./restore-release.ts";
+import { readUncertainActions } from "./uncertain-actions.ts";
 import { maintainRun } from "./maintenance.ts";
 import {
   type BackupSettingsDependencies,
@@ -114,6 +115,12 @@ function getInstallationRestore(context: ActionContext) {
   return getRestore(value.transaction);
 }
 
+/** installationUncertainActions.get */
+function getInstallationUncertainActions(context: ActionContext) {
+  const { context: value } = installationActor(context);
+  return readUncertainActions(value.transaction);
+}
+
 /** installationRestore.step */
 function takeInstallationRestoreStep(
   context: ActionContext,
@@ -175,6 +182,7 @@ const ADMIN_ACTIONS = [
   Action.BackupsDrillsList,
   Action.InstallationRestoreGet,
   Action.InstallationRestoreStep,
+  Action.InstallationUncertainActionsGet,
   Action.BackupsStatus,
   Action.BackupsStart,
   Action.BackupRunnerCredentialIssue,
@@ -229,6 +237,14 @@ export function createBackupActionRegistry(
     output: contractSchemas.InstallationRestore,
     policy: { ...policy, type: ActionKind.Query },
     handler: getInstallationRestore,
+  }).register({
+    name: Action.InstallationUncertainActionsGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/uncertain-actions",
+    input: contractSchemas.Empty,
+    output: contractSchemas.InstallationUncertainActions,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getInstallationUncertainActions,
   }).register({
     name: Action.InstallationRestoreStep,
     method: HttpMethod.Post,
@@ -597,6 +613,7 @@ export function createBackupRoutes(options: BackupRouteOptions) {
   app.use("/v1/installation/backup-offsite", options.browserSession);
   app.use("/v1/installation/backup-offsite/*", options.browserSession);
   app.use("/v1/installation/backup-runner/*", options.browserSession);
+  app.use("/v1/installation/uncertain-actions", options.browserSession);
   app.use("/v1/installation/restore", options.browserSession);
   app.use("/v1/installation/restore/*", options.browserSession);
   app.route(

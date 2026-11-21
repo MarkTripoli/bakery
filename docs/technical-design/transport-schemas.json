@@ -4852,30 +4852,31 @@
         {
           "name": "name",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views."
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "os",
           "type": "enum",
-          "required": true,
+          "required": false,
           "enum": [
             "linux",
             "macos"
           ],
-          "description": "Intended operating system of the machine being enrolled; the setup command and installed worker binary target this platform."
+          "description": "Intended operating system of the machine being enrolled; omitted means the machine reports its own system when it links, and Bakery checks it against the supported systems."
         },
         {
           "name": "architecture",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
             "maxLength": 100
           },
-          "description": "Intended CPU architecture of the machine being enrolled; a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant."
+          "description": "Intended CPU architecture of the machine being enrolled; omitted means the machine reports its own processor when it links. When given, a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant."
         },
         {
           "name": "capabilities",
@@ -5594,11 +5595,20 @@
         {
           "name": "enrollmentToken",
           "type": "secretString",
-          "required": true,
+          "required": false,
           "bounds": {
             "maxLength": 500
           },
-          "description": "One-use, short-lived token issued during enrollment, proving this worker is authorized to register for that intended machine."
+          "description": "One-use, short-lived token issued during enrollment, proving this worker is authorized to register for that intended machine. Send exactly one of enrollmentToken or linkCode."
+        },
+        {
+          "name": "linkCode",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 20
+          },
+          "description": "Ten-minute, one-use link code (XXXX-XXXX; capitals and the dash do not matter) from a one-paste link command, the alternative to enrollmentToken. It is used up only by this registration, binds the organization, name, slots and capabilities the Admin set, and is useless afterwards."
         },
         {
           "name": "workerCredential",
@@ -5616,9 +5626,10 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Display name reported for this worker at registration."
+          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "os",
@@ -5628,16 +5639,17 @@
             "linux",
             "macos"
           ],
-          "description": "Operating system this worker is actually running, checked against the enrollment's intended platform."
+          "description": "Operating system this worker is actually running, checked against the enrollment's intended platform, or against the supported systems when a link-code enrollment left it to the machine."
         },
         {
           "name": "architecture",
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture."
+          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "capabilities",
@@ -5671,7 +5683,8 @@
       "rules": [
         "Lock the enrollment record; verify token hash/expiry/unused state and worker-generated credential strength.",
         "Normalize requested capability names and require requested capabilities to be a subset of worker_enrollments.allowed_capabilities. Reject before consuming the token on failure.",
-        "Create/update the worker principal and host and consume the enrollment token atomically. Only an authorized Admin workers.update may later expand the allowed capability set."
+        "Create/update the worker principal and host and consume the enrollment token atomically. Only an authorized Admin workers.update may later expand the allowed capability set.",
+        "Exactly one of enrollmentToken or linkCode is sent. A link code is looked up by its hash, rate-limited per source, and consumed atomically with the registration; an unsupported system is refused before anything is consumed."
       ],
       "description": "Consumes an enrollment token to create or update this host's worker principal; requested capabilities are normalized and must be a subset of the enrollment's allowed set, and the token can only be consumed once."
     },
@@ -14509,6 +14522,176 @@
         "Only the host runner credential; never a session or access token. Ignored while Restore to any minute is off. The newest bound never moves backwards, so a late report cannot shrink the window."
       ],
       "description": "The host runner's report of the restorable window it holds off-site."
+    },
+    "WorkerLinkCodeInspect": {
+      "fields": [
+        {
+          "name": "linkCode",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 20
+          },
+          "description": "Link code from the command, XXXX-XXXX; capitals and the dash do not matter. Inspection does not use it up."
+        },
+        {
+          "name": "os",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 50
+          },
+          "description": "Operating system the machine reports, such as linux or macos; compared with the supported systems and with any system the Admin set."
+        },
+        {
+          "name": "architecture",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        },
+        {
+          "name": "hostname",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        }
+      ],
+      "rules": [
+        "Rate-limited per source and per code; too many tries answer RATE_LIMITED.",
+        "Unknown, expired, used or canceled codes answer a problem whose reason is not_found, expired or used, revealing no organization.",
+        "Inspection never consumes the code, even for an unsupported system."
+      ],
+      "description": "What the link command sends before it asks its one question: the link code and what the machine is, so Bakery can say which organization, name and slots it would join and whether the system is supported."
+    },
+    "WorkerLinkRequestCreate": {
+      "fields": [
+        {
+          "name": "os",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "linux",
+            "macos"
+          ],
+          "description": "Operating system the machine reports: linux or macos. Anything else is refused, so an unauthenticated machine cannot put its own words on an Admin's screen."
+        },
+        {
+          "name": "architecture",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        },
+        {
+          "name": "hostname",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        }
+      ],
+      "rules": [
+        "Unauthenticated and rate-limited per source.",
+        "Only linux or macos is accepted as the system; any other text is refused before anything is stored.",
+        "Creates a request that grants nothing until an Admin approves its user code."
+      ],
+      "description": "A machine with no link code asks to be linked: Bakery returns a short user code to show an Admin and a device secret only this terminal keeps."
+    },
+    "WorkerLinkRequestPoll": {
+      "fields": [
+        {
+          "name": "deviceSecret",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The device secret this terminal received when it created the request; a wrong one answers not found."
+        }
+      ],
+      "rules": [
+        "Rate-limited per source.",
+        "Only the request named in the path whose device secret matches is answered."
+      ],
+      "description": "The waiting terminal asks whether its link request was approved, declined or expired; an approval returns a fresh link code bound to the approved settings."
+    },
+    "WorkerLinkRequestLookup": {
+      "fields": [
+        {
+          "name": "userCode",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 20
+          },
+          "description": "The code the terminal shows, XXXX-XXXX; capitals and the dash do not matter."
+        }
+      ],
+      "rules": [
+        "Admin only, rate-limited per principal and per code.",
+        "A request another organization already decided answers not found; a pending request reveals only what the machine said about itself."
+      ],
+      "description": "An Admin types the code a terminal shows to find the machine that is waiting to join."
+    },
+    "WorkerLinkRequestApprove": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        },
+        {
+          "name": "slots",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 100
+          },
+          "description": "How many tasks the machine may run at once; registration cannot exceed it."
+        },
+        {
+          "name": "capabilities",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 32000
+          },
+          "description": "Capabilities the machine may run; registration cannot exceed them."
+        }
+      ],
+      "rules": [
+        "Admin (worker:manage) of the approving organization; Idempotency-Key required.",
+        "A request is decided once: a retry with the same key replays, anything else on a decided request answers STATE_CONFLICT with reason approved or declined.",
+        "Approval creates the enrollment in the approving organization; the waiting terminal then receives a link code bound to these settings."
+      ],
+      "description": "An Admin approves a waiting machine with its name, slots and coding-agent capabilities."
+    },
+    "WorkerLinkRequestDecline": {
+      "fields": [],
+      "rules": [
+        "Admin (worker:manage); Idempotency-Key required; a request is decided once."
+      ],
+      "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
     }
   },
   "projections": {
@@ -25215,21 +25398,29 @@
       "fields": [
         "enrollmentId",
         "enrollmentToken",
-        "expiresAt"
+        "expiresAt",
+        "linkCode",
+        "command"
       ],
       "fieldTypes": {
         "enrollmentId": "uuid",
         "enrollmentToken": "secretString",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "linkCode": "string",
+        "command": "string"
       },
       "sensitiveFields": [
-        "enrollmentToken"
+        "enrollmentToken",
+        "linkCode",
+        "command"
       ],
-      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential.",
+      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential. It also returns a short link code for the same enrollment and the one-line command that carries it (#70).",
       "fieldDescriptions": {
         "enrollmentId": "Stable UUID linking this record to the related enrollment entity.",
         "enrollmentToken": "One-time token used to enroll the worker.",
-        "expiresAt": "UTC timestamp when the record expires."
+        "expiresAt": "UTC timestamp when the record expires.",
+        "linkCode": "Ten-minute, one-use link code (XXXX-XXXX) for the same enrollment; it may appear in a command because it expires with the enrollment, works once, only adds one machine to this organization within the settings above, and is useless once the machine registers. Persisted only as a hash.",
+        "command": "The whole one-line command an Admin pastes on the machine: npx -y <origin>/v1/worker/link.tgz link --server <origin> --code <linkCode>. Until an npm scope is chosen the link command is served from this Bakery's own origin as an npm tarball."
       }
     },
     "DispatchBlocker": {
@@ -25324,15 +25515,18 @@
         "canceledAt",
         "workerHostId",
         "replacementOfId",
-        "targetWorkerHostId"
+        "targetWorkerHostId",
+        "name",
+        "os",
+        "architecture"
       ],
       "description": "Safe organization-scoped enrollment inventory entry with derived lifecycle state, intended machine capacity and replacement/re-pair lineage. Token material, token hashes and credentials are never projected.",
       "fieldDescriptions": {
         "enrollmentId": "Stable UUID identifying the enrollment record.",
         "state": "Derived pending, consumed, canceled or expired state at the server's current time.",
-        "name": "Intended machine display name.",
-        "os": "Intended operating system.",
-        "architecture": "Intended machine architecture.",
+        "name": "Intended machine display name. Null when the Admin left it to the machine's host name and the machine has not registered yet.",
+        "os": "Intended operating system. Null when the machine reports it when it links.",
+        "architecture": "Intended machine architecture. Null when the machine reports it when it links.",
         "capabilities": "Allowed worker capabilities that registration cannot exceed.",
         "slots": "Intended concurrent task-slot ceiling.",
         "expiresAt": "UTC timestamp after which an otherwise pending enrollment is expired.",
@@ -25508,14 +25702,19 @@
       "fieldDescriptions": {
         "enrollmentId": "Stable UUID identifying the enrollment record.",
         "organizationName": "Display name of the enrolling organization the token pairs to.",
-        "name": "Intended machine display name from the enrollment.",
-        "os": "Intended operating system from the enrollment.",
-        "architecture": "Intended architecture from the enrollment.",
+        "name": "Intended machine display name from the enrollment. Null when the Admin left it to the machine's host name and the machine has not registered yet.",
+        "os": "Intended operating system from the enrollment. Null when the machine reports it when it links.",
+        "architecture": "Intended architecture from the enrollment. Null when the machine reports it when it links.",
         "slots": "Intended task-slot ceiling from the enrollment; registration cannot raise it.",
         "capabilities": "Intended allowed capabilities from the enrollment; registration cannot exceed it.",
         "expiresAt": "UTC timestamp after which the token is no longer consumable.",
         "state": "Derived pending/canceled/expired state observed at inspection time."
-      }
+      },
+      "nullableFields": [
+        "name",
+        "os",
+        "architecture"
+      ]
     },
     "EnrollmentStatus": {
       "fields": [
@@ -26005,16 +26204,19 @@
     "InstallationStatus": {
       "fields": [
         "bootstrapped",
-        "restoreHeld"
+        "restoreHeld",
+        "updatePaused"
       ],
       "fieldTypes": {
         "bootstrapped": "boolean",
-        "restoreHeld": "boolean"
+        "restoreHeld": "boolean",
+        "updatePaused": "boolean"
       },
-      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity.",
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity.",
       "fieldDescriptions": {
         "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
-        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action.",
+        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
       }
     },
     "BrowserSession": {
@@ -36581,6 +36783,39 @@
         "displayName": "Their current display name."
       }
     },
+    "UncertainActionKind": {
+      "fields": [
+        "operation",
+        "count",
+        "since"
+      ],
+      "fieldTypes": {
+        "operation": "string",
+        "count": "integer",
+        "since": "timestamp"
+      },
+      "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried.",
+      "fieldDescriptions": {
+        "operation": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind.",
+        "count": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first.",
+        "since": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+      }
+    },
+    "InstallationUncertainActions": {
+      "fields": [
+        "kinds",
+        "total"
+      ],
+      "fieldTypes": {
+        "kinds": "UncertainActionKind[]",
+        "total": "integer"
+      },
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only.",
+      "fieldDescriptions": {
+        "kinds": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain.",
+        "total": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+      }
+    },
     "BackupDrill": {
       "fields": [
         "id",
@@ -36635,6 +36870,140 @@
     "Page<BackupDrill>": {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "WorkerLinkCodeInspection": {
+      "fields": [
+        "organizationName",
+        "name",
+        "slots",
+        "capabilities",
+        "supported",
+        "supportedSystems",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "organizationName": "string",
+        "name": "string",
+        "slots": "integer",
+        "capabilities": "json",
+        "supported": "boolean",
+        "supportedSystems": "json",
+        "expiresAt": "timestamp"
+      },
+      "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
+      "fieldDescriptions": {
+        "organizationName": "Display name of the organization the machine would join.",
+        "name": "Machine name the Admin set, or the reported host name when it was left empty.",
+        "slots": "How many tasks the machine may run at once.",
+        "capabilities": "Capabilities the machine may run.",
+        "supported": "Whether the reported system and processor are supported (and match any system the Admin set); false means nothing should be installed and the code stays unused.",
+        "supportedSystems": "The supported systems as a list of {os, architecture} pairs, such as linux arm64.",
+        "expiresAt": "UTC timestamp after which the code no longer works."
+      }
+    },
+    "WorkerLinkRequestCreated": {
+      "fields": [
+        "requestId",
+        "userCode",
+        "deviceSecret",
+        "expiresAt",
+        "pollIntervalSeconds"
+      ],
+      "fieldTypes": {
+        "requestId": "uuid",
+        "userCode": "string",
+        "deviceSecret": "secretString",
+        "expiresAt": "timestamp",
+        "pollIntervalSeconds": "integer"
+      },
+      "sensitiveFields": [
+        "deviceSecret"
+      ],
+      "description": "A new link request: the user code the terminal prints for an Admin and the device secret only the terminal keeps. Both are stored as hashes.",
+      "fieldDescriptions": {
+        "requestId": "Stable UUID of the link request; the terminal polls it.",
+        "userCode": "Short code (XXXX-XXXX) the terminal prints for an Admin to approve.",
+        "deviceSecret": "Secret only this terminal holds, returned once; every poll must present it.",
+        "expiresAt": "UTC timestamp, ten minutes after creation, when an undecided request expires.",
+        "pollIntervalSeconds": "How many seconds the terminal waits between polls."
+      }
+    },
+    "WorkerLinkRequestPollResult": {
+      "fields": [
+        "state",
+        "linkCode"
+      ],
+      "fieldTypes": {
+        "state": "enum(pending|approved|declined|expired)",
+        "linkCode": "string"
+      },
+      "optionalFields": [
+        "linkCode"
+      ],
+      "description": "Where a link request stands for the waiting terminal.",
+      "fieldDescriptions": {
+        "state": "pending while no Admin has decided, approved, declined, or expired after ten minutes.",
+        "linkCode": "Present only when approved and the machine has not registered yet: a fresh link code bound to the approved settings, replacing any earlier one."
+      }
+    },
+    "WorkerLinkRequest": {
+      "fields": [
+        "id",
+        "userCode",
+        "hostname",
+        "os",
+        "architecture",
+        "supported",
+        "state",
+        "createdAt",
+        "expiresAt",
+        "decidedAt",
+        "decidedBy",
+        "enrollmentId",
+        "workerHostId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "userCode": "string",
+        "hostname": "string",
+        "os": "string",
+        "architecture": "string",
+        "supported": "boolean",
+        "state": "enum(pending|approved|declined|expired)",
+        "createdAt": "timestamp",
+        "expiresAt": "timestamp",
+        "decidedAt": "timestamp",
+        "decidedBy": "uuid",
+        "enrollmentId": "uuid",
+        "workerHostId": "uuid"
+      },
+      "nullableFields": [
+        "userCode",
+        "decidedAt",
+        "decidedBy",
+        "enrollmentId",
+        "workerHostId"
+      ],
+      "description": "A machine waiting to be linked, as an Admin sees it: only what the machine said about itself, and the decision once made. Never the device secret or any hash.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the link request.",
+        "userCode": "The code as the Admin typed it on lookup, normalized to XXXX-XXXX; null on approve and decline answers, since only its hash is stored.",
+        "hostname": "Host name the machine reported.",
+        "os": "Operating system the machine reported.",
+        "architecture": "Processor the machine reported.",
+        "supported": "Whether the reported system is supported today.",
+        "state": "pending, approved, declined or expired.",
+        "createdAt": "UTC timestamp when the machine asked.",
+        "expiresAt": "UTC timestamp when an undecided request expires.",
+        "decidedAt": "UTC timestamp of the approval or decline, or null while pending.",
+        "decidedBy": "Principal who approved or declined, or null while pending.",
+        "enrollmentId": "Enrollment the approval created, or null; its status is watched through workerEnrollments.get.",
+        "workerHostId": "Machine registered from the approval, or null until it registers."
+      }
+    },
+    "WorkerLinkPackageBytes": {
+      "body": "bytes",
+      "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes."
     }
   },
   "pageEnvelope": {
