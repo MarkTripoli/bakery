@@ -799,7 +799,8 @@ export const clientManifest = {
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2668,7 +2669,8 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2817,7 +2819,8 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -6349,7 +6352,8 @@ export const clientManifest = {
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -8410,6 +8414,31 @@ export const clientManifest = {
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/installation/backups/drills",
+      "action": "backups.drills.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<BackupDrill>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/backups/status",
       "action": "backups.status",
       "access": "Installation administrator",
@@ -8712,6 +8741,31 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/drills",
+      "action": "backupRunner.drill",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupDrillReport",
+      "output": "BackupDrill",
+      "event": "",
+      "mcp": "",
+      "idempotency": "safe to repeat: the first report records the drill, later reports with the same id return the same record",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "STATE_CONFLICT",
         "BODY_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
@@ -11000,6 +11054,75 @@ export const clientManifest = {
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-pages",
+      "action": "pluginPages.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginPageEntry>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}",
+      "action": "pluginPages.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "PluginPagePath",
+      "output": "PluginPageAccess",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}/document",
+      "action": "pluginPageDocuments.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "PluginPageDocumentQuery",
+      "output": "PluginPageDocument",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
       "implemented": true
     },
     {
@@ -18567,6 +18690,7 @@ export const clientManifest = {
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -18579,6 +18703,7 @@ export const clientManifest = {
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -18683,6 +18808,9 @@ export const clientManifest = {
             "pluginState.get",
             "pluginStateItems.list",
             "pluginState.put",
+            "pluginPages.list",
+            "pluginPages.get",
+            "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
             "artifacts.update",
@@ -25355,6 +25483,88 @@ export const clientManifest = {
         }
       }
     },
+    "PluginPagePath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The plugin install whose page is addressed, supplied via the {id} path segment; numbered only among installs of the caller's organization."
+        },
+        "pageId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "Id of one page the install's current version declares in its manifest pages list (lowercase letters, digits and hyphens); supplied via the {pageId} path segment. PluginPagePath.pageId must contain at least 1 characters. PluginPagePath.pageId must contain at most 64 characters. PluginPagePath.pageId must match the pattern ^[a-z0-9][a-z0-9-]*$."
+        }
+      },
+      "required": [
+        "id",
+        "pageId"
+      ],
+      "additionalProperties": false,
+      "description": "Addresses one page of one plugin install for pluginPages.get. Both values come from the route; an install the caller cannot see answers as removed rather than revealing that it exists."
+    },
+    "PluginPageDocumentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The plugin install whose page is addressed, supplied via the {id} path segment; numbered only among installs of the caller's organization."
+        },
+        "pageId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "Id of one page the install's current version declares in its manifest pages list (lowercase letters, digits and hyphens); supplied via the {pageId} path segment. PluginPageDocumentQuery.pageId must contain at least 1 characters. PluginPageDocumentQuery.pageId must contain at most 64 characters. PluginPageDocumentQuery.pageId must match the pattern ^[a-z0-9][a-z0-9-]*$."
+        },
+        "theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark"
+          ],
+          "description": "The resolved Bakery theme the frame should draw in (System already resolved to light or dark by the host). Echoed to the page unchanged in its own query string as theme; the server does not rewrite the plugin's HTML."
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 35,
+          "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$",
+          "description": "The person's Bakery locale as a BCP 47 tag, such as en or ar-EG. Echoed to the page in its query string as locale and sent back as Content-Language; the plugin picks its own catalog from it and falls back to English. PluginPageDocumentQuery.locale must contain at least 2 characters. PluginPageDocumentQuery.locale must contain at most 35 characters. PluginPageDocumentQuery.locale must match the pattern ^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$."
+        },
+        "dir": {
+          "type": "string",
+          "enum": [
+            "ltr",
+            "rtl"
+          ],
+          "description": "Text direction of the person's locale, so the page can mirror its layout. Echoed to the page in its query string as dir."
+        },
+        "organizationId": {
+          "description": "Organization that owns the install, as a query parameter because an iframe src cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "id",
+        "pageId",
+        "theme",
+        "locale",
+        "dir"
+      ],
+      "additionalProperties": false,
+      "description": "Reads the HTML document of one plugin page for the sealed frame Bakery draws it in. theme, locale and dir are the host's validated render inputs; the page reads them from its own location.search."
+    },
     "PluginInstallQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -31856,6 +32066,141 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
+    },
+    "BackupDrillReport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "drillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Chosen by the runner for this drill. Reporting the same drill again returns the stored record; the same id with different content answers 409 STATE_CONFLICT."
+        },
+        "backupName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "The directory name of the backup set that was restored into the isolated database. BackupDrillReport.backupName must contain at least 1 characters. BackupDrillReport.backupName must contain at most 128 characters."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the drill began, on the host clock."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "Whether every required check passed."
+        },
+        "failureCode": {
+          "description": "BackupDrillReport.failureCode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "set_incomplete",
+                "key_mismatch",
+                "migration_unsupported",
+                "cutoff_mismatch",
+                "restore_failed",
+                "references_missing",
+                "drill_error"
+              ],
+              "description": "Why a failed drill failed, as a stable code; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "detail": {
+          "description": "BackupDrillReport.detail may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "Plain words saying what to do about a failure, with no path, key or restored data in it; null when it passed. BackupDrillReport.detail must contain at most 1000 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "cutoffAt": {
+          "description": "BackupDrillReport.cutoffAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the restored set recorded; null for a set that recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "rpoSeconds": {
+          "description": "BackupDrillReport.rpoSeconds may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 31536000,
+              "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup, which is the data a failure at that moment would have lost. Null exactly when cutoffAt is null. BackupDrillReport.rpoSeconds must be at least 0. BackupDrillReport.rpoSeconds must be at most 31536000."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "rtoSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800,
+          "description": "Whole seconds from the start of the drill to the end of its last check: how long restoring this set took on this host. BackupDrillReport.rtoSeconds must be at least 0. BackupDrillReport.rtoSeconds must be at most 604800."
+        },
+        "checksPassed": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. Each array item follows this format."
+          },
+          "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. BackupDrillReport.checksPassed must contain at most 16 items."
+        },
+        "checksFailed": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that failed, by the same names; empty when the drill passed. Each array item follows this format."
+          },
+          "description": "The checks that failed, by the same names; empty when the drill passed. BackupDrillReport.checksFailed must contain at most 16 items."
+        }
+      },
+      "required": [
+        "drillId",
+        "backupName",
+        "startedAt",
+        "outcome",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "additionalProperties": false,
+      "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -45653,6 +45998,7 @@ export const clientManifest = {
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
                   "backups.list",
+                  "backups.drills.list",
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
@@ -45665,6 +46011,7 @@ export const clientManifest = {
                   "backupRunner.report",
                   "backupRunner.maintain",
                   "backupRunner.cutoff",
+                  "backupRunner.drill",
                   "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.get",
@@ -45769,6 +46116,9 @@ export const clientManifest = {
                   "pluginState.get",
                   "pluginStateItems.list",
                   "pluginState.put",
+                  "pluginPages.list",
+                  "pluginPages.get",
+                  "pluginPageDocuments.get",
                   "userPreferences.get",
                   "userPreferences.update",
                   "artifacts.update",
@@ -66124,6 +66474,7 @@ export const clientManifest = {
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -66136,6 +66487,7 @@ export const clientManifest = {
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -66240,6 +66592,9 @@ export const clientManifest = {
             "pluginState.get",
             "pluginStateItems.list",
             "pluginState.put",
+            "pluginPages.list",
+            "pluginPages.get",
+            "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
             "artifacts.update",
@@ -82689,6 +83044,37 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Monotonic revision used to order or conditionally update this plugin version record."
+        },
+        "pages": {
+          "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Stable page id, unique within the version (lowercase letters, digits and hyphens, at most 64); the {pageId} of the page routes and of the /plugins/{install}/{page} address."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Title Bakery shows in its own strip and in the sidebar, at most 80 characters, with no control or bidirectional-override characters."
+              },
+              "file": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Relative path of the page's self-contained .html file inside the version's bundle archive; never absolute, never with an empty, . or .. segment."
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "file"
+            ],
+            "additionalProperties": false,
+            "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -83236,6 +83622,37 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Monotonic revision used to order or conditionally update this plugin version record."
+              },
+              "pages": {
+                "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Stable page id, unique within the version (lowercase letters, digits and hyphens, at most 64); the {pageId} of the page routes and of the /plugins/{install}/{page} address."
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Title Bakery shows in its own strip and in the sidebar, at most 80 characters, with no control or bidirectional-override characters."
+                    },
+                    "file": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Relative path of the page's self-contained .html file inside the version's bundle archive; never absolute, never with an empty, . or .. segment."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "file"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page. Each array item follows this format."
+                }
               }
             },
             "required": [
@@ -106552,6 +106969,336 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of PluginStateItem."
     },
+    "PluginPageAccess": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "installId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The install asked about, echoed from the path."
+        },
+        "pageId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The page asked about, echoed from the path."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "refused"
+          ],
+          "description": "available when the document read will answer; refused otherwise, with reason saying why."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "off",
+                "removed",
+                "no_such_page",
+                "no_access",
+                "not_granted"
+              ],
+              "description": "Why the page cannot be shown, null when available: off when the install is staged, disabled or failed; removed when the install was uninstalled, is not in the caller's organization or does not exist; no_access when it is another person's personal (private) install; no_such_page when the install's current version declares no page with this id; not_granted when the install does not hold the ui.page grant."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.reason may be null in this transport value."
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The page's title from the version manifest; null when removed, no_access or no_such_page."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.title may be null in this transport value."
+        },
+        "pluginPackageId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The plugin package the install is of; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.pluginPackageId may be null in this transport value."
+        },
+        "pluginDisplayName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The package's displayName, for \"Provided by the plugin {name}\"; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.pluginDisplayName may be null in this transport value."
+        },
+        "pluginVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The version the install runs now. A page that is open on another version was updated underneath it. Null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.pluginVersionId may be null in this transport value."
+        },
+        "versionName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The running version's versionName, for \"version {v}\"; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.versionName may be null in this transport value."
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "organization",
+                "personal"
+              ],
+              "description": "personal for a private install that only its owner sees, organization otherwise; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.scope may be null in this transport value."
+        },
+        "documentPath": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Path of the document read for this page, /v1/plugin-installs/{id}/pages/{pageId}/document, to which the host adds theme, locale, dir and organizationId; null unless available."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.documentPath may be null in this transport value."
+        }
+      },
+      "required": [
+        "installId",
+        "pageId",
+        "status",
+        "reason",
+        "title",
+        "pluginPackageId",
+        "pluginDisplayName",
+        "pluginVersionId",
+        "versionName",
+        "scope",
+        "documentPath"
+      ],
+      "additionalProperties": false,
+      "description": "Whether one plugin page can be shown to the caller now, with what Bakery needs to draw its strip. A refusal is an answer, not an error, so the page can say which state it is in; the web asks again when the window regains focus because no event announces an install being turned off, removed or updated."
+    },
+    "Page<PluginPageEntry>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "installId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The install the page belongs to; with pageId it forms the /plugins/{install}/{page} address."
+              },
+              "pageId": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The page's id within the install's current version."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The page's title from the version manifest."
+              },
+              "pluginPackageId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The plugin package the install is of."
+              },
+              "pluginDisplayName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The package's displayName, shown with the page."
+              },
+              "pluginVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The version the install runs now."
+              },
+              "versionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The running version's versionName."
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "organization",
+                  "personal"
+                ],
+                "description": "personal for a private install only its owner sees, organization otherwise."
+              },
+              "documentPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Path of the page's document read, to which the host adds theme, locale, dir and organizationId."
+              }
+            },
+            "required": [
+              "installId",
+              "pageId",
+              "title",
+              "pluginPackageId",
+              "pluginDisplayName",
+              "pluginVersionId",
+              "versionName",
+              "scope",
+              "documentPath"
+            ],
+            "additionalProperties": false,
+            "description": "One sidebar entry: a page of a plugin install that is on, holds ui.page and is visible to the caller (an organization install, or the caller's own personal install)."
+          },
+          "description": "PluginPageEntry items in this cursor page. Page<PluginPageEntry>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginPageEntry>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginPageEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginPageEntry>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginPageEntry>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginPageEntry."
+    },
+    "PluginPageDocument": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contentType": {
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+\\/[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*;[ \\t]*[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*=[ \\t]*(?:\"(?:[\\t\\x20-\\x21\\x23-\\x5b\\x5d-\\x7e]|\\\\[\\t\\x20-\\x7e])*\"|[!#$%&'*+\\-.^_`|~0-9A-Za-z]+))?)*$",
+          "description": "Always text/html; charset=utf-8."
+        },
+        "contentLength": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Length of the document in bytes, at most 2 MiB."
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the document bytes as they sit in the bundle."
+        },
+        "content": {
+          "description": "The page's HTML file exactly as the bundle holds it; the server adds nothing to it. PluginPageDocument.content must contain at most 2097152 UTF-8 bytes.",
+          "type": "string",
+          "format": "binary",
+          "x-utf8-max-bytes": 2097152
+        }
+      },
+      "required": [
+        "contentType",
+        "contentLength",
+        "contentDigest",
+        "content"
+      ],
+      "additionalProperties": false,
+      "description": "A plugin page's HTML document. The REST response is the raw file (PluginPageDocumentBytes); this shape names its parts for the catalog."
+    },
     "PreviewAvailability": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -107272,6 +108019,11 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The dataset measured, for linking to it."
         },
+        "datasetName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The dataset's name, so a list can show it without a second read."
+        },
         "datasetDigest": {
           "type": "string",
           "maxLength": 65536,
@@ -107315,6 +108067,46 @@ export const clientManifest = {
             }
           ],
           "description": "What is measured, as pinned at admission."
+        },
+        "candidateDefinition": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "definitionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The agent or workflow definition the pin names, for linking to it."
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Its current name; null when this organization cannot resolve it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationPinDefinition.name may be null in this transport value."
+                }
+              },
+              "required": [
+                "definitionId",
+                "name"
+              ],
+              "additionalProperties": false,
+              "description": "The definition the candidate pin names and its current name, for display; null when the pin names no definition."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.candidateDefinition may be null in this transport value."
         },
         "baseline": {
           "anyOf": [
@@ -107363,6 +108155,46 @@ export const clientManifest = {
             }
           ],
           "description": "EvaluationBatch.baseline may be null in this transport value."
+        },
+        "baselineDefinition": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "definitionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The agent or workflow definition the pin names, for linking to it."
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Its current name; null when this organization cannot resolve it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationPinDefinition.name may be null in this transport value."
+                }
+              },
+              "required": [
+                "definitionId",
+                "name"
+              ],
+              "additionalProperties": false,
+              "description": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.baselineDefinition may be null in this transport value."
         },
         "scorers": {
           "type": "array",
@@ -107576,6 +108408,21 @@ export const clientManifest = {
           ],
           "description": "EvaluationBatch.canceledAt may be null in this transport value."
         },
+        "canceledBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The person who stopped it; null while it has not been canceled."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.canceledBy may be null in this transport value."
+        },
         "completedAt": {
           "anyOf": [
             {
@@ -107613,9 +108460,12 @@ export const clientManifest = {
       "required": [
         "id",
         "datasetId",
+        "datasetName",
         "datasetDigest",
         "candidate",
+        "candidateDefinition",
         "baseline",
+        "baselineDefinition",
         "scorers",
         "state",
         "requiredCount",
@@ -107624,6 +108474,7 @@ export const clientManifest = {
         "gate",
         "hiddenCount",
         "canceledAt",
+        "canceledBy",
         "completedAt",
         "createdAt",
         "updatedAt",
@@ -107878,6 +108729,11 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The dataset measured, for linking to it."
               },
+              "datasetName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The dataset's name, so a list can show it without a second read."
+              },
               "datasetDigest": {
                 "type": "string",
                 "maxLength": 65536,
@@ -107921,6 +108777,46 @@ export const clientManifest = {
                   }
                 ],
                 "description": "What is measured, as pinned at admission."
+              },
+              "candidateDefinition": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "definitionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The agent or workflow definition the pin names, for linking to it."
+                      },
+                      "name": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Its current name; null when this organization cannot resolve it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationPinDefinition.name may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "definitionId",
+                      "name"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The definition the candidate pin names and its current name, for display; null when the pin names no definition."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.candidateDefinition may be null in this transport value."
               },
               "baseline": {
                 "anyOf": [
@@ -107969,6 +108865,46 @@ export const clientManifest = {
                   }
                 ],
                 "description": "EvaluationBatch.baseline may be null in this transport value."
+              },
+              "baselineDefinition": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "definitionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The agent or workflow definition the pin names, for linking to it."
+                      },
+                      "name": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Its current name; null when this organization cannot resolve it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationPinDefinition.name may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "definitionId",
+                      "name"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.baselineDefinition may be null in this transport value."
               },
               "scorers": {
                 "type": "array",
@@ -108182,6 +109118,21 @@ export const clientManifest = {
                 ],
                 "description": "EvaluationBatch.canceledAt may be null in this transport value."
               },
+              "canceledBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The person who stopped it; null while it has not been canceled."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.canceledBy may be null in this transport value."
+              },
               "completedAt": {
                 "anyOf": [
                   {
@@ -108219,9 +109170,12 @@ export const clientManifest = {
             "required": [
               "id",
               "datasetId",
+              "datasetName",
               "datasetDigest",
               "candidate",
+              "candidateDefinition",
               "baseline",
+              "baselineDefinition",
               "scorers",
               "state",
               "requiredCount",
@@ -108230,6 +109184,7 @@ export const clientManifest = {
               "gate",
               "hiddenCount",
               "canceledAt",
+              "canceledBy",
               "completedAt",
               "createdAt",
               "updatedAt",
@@ -108552,6 +109507,11 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The case, for linking to it."
               },
+              "caseName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The case's name, so a list can show it without a second read."
+              },
               "caseRevision": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -108653,6 +109613,7 @@ export const clientManifest = {
               "batchId",
               "role",
               "caseId",
+              "caseName",
               "caseRevision",
               "scorerId",
               "scorerRevision",
@@ -110826,6 +111787,352 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
+    },
+    "BackupDrill": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The drill's id, chosen by the runner."
+        },
+        "backupName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The directory name of the backup set that was restored."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the drill began, on the host clock."
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the server recorded the report, on the database clock."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "passed when every required check passed, otherwise failed."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "set_incomplete",
+                "key_mismatch",
+                "migration_unsupported",
+                "cutoff_mismatch",
+                "restore_failed",
+                "references_missing",
+                "drill_error"
+              ],
+              "description": "Why a failed drill failed, as a stable code; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.failureCode may be null in this transport value."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Plain words saying what to do about a failure; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.detail may be null in this transport value."
+        },
+        "cutoffAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the set recorded; null when it recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.cutoffAt may be null in this transport value."
+        },
+        "rpoSeconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.rpoSeconds may be null in this transport value."
+        },
+        "rtoSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Whole seconds the restore and its checks took on this host."
+        },
+        "checksPassed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that passed, by name. Each array item follows this format."
+          },
+          "description": "The checks that passed, by name."
+        },
+        "checksFailed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+          },
+          "description": "The checks that failed, by name; empty when the drill passed."
+        }
+      },
+      "required": [
+        "id",
+        "backupName",
+        "startedAt",
+        "recordedAt",
+        "outcome",
+        "failureCode",
+        "detail",
+        "cutoffAt",
+        "rpoSeconds",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "additionalProperties": false,
+      "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+    },
+    "Page<BackupDrill>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The drill's id, chosen by the runner."
+              },
+              "backupName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The directory name of the backup set that was restored."
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the drill began, on the host clock."
+              },
+              "recordedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the server recorded the report, on the database clock."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed"
+                ],
+                "description": "passed when every required check passed, otherwise failed."
+              },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "set_incomplete",
+                      "key_mismatch",
+                      "migration_unsupported",
+                      "cutoff_mismatch",
+                      "restore_failed",
+                      "references_missing",
+                      "drill_error"
+                    ],
+                    "description": "Why a failed drill failed, as a stable code; null when it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.failureCode may be null in this transport value."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Plain words saying what to do about a failure; null when it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.detail may be null in this transport value."
+              },
+              "cutoffAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "The database-clock cutoff the set recorded; null when it recorded none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.cutoffAt may be null in this transport value."
+              },
+              "rpoSeconds": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.rpoSeconds may be null in this transport value."
+              },
+              "rtoSeconds": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Whole seconds the restore and its checks took on this host."
+              },
+              "checksPassed": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The checks that passed, by name. Each array item follows this format."
+                },
+                "description": "The checks that passed, by name."
+              },
+              "checksFailed": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+                },
+                "description": "The checks that failed, by name; empty when the drill passed."
+              }
+            },
+            "required": [
+              "id",
+              "backupName",
+              "startedAt",
+              "recordedAt",
+              "outcome",
+              "failureCode",
+              "detail",
+              "cutoffAt",
+              "rpoSeconds",
+              "rtoSeconds",
+              "checksPassed",
+              "checksFailed"
+            ],
+            "additionalProperties": false,
+            "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+          },
+          "description": "BackupDrill items in this cursor page. Page<BackupDrill>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<BackupDrill>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<BackupDrill>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<BackupDrill>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<BackupDrill>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of BackupDrill."
     }
   }
 } as const;
