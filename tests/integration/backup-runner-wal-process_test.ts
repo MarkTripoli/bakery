@@ -251,3 +251,35 @@ Deno.test("the destination refuses an upload: the spool is kept, the pass fails,
     await cleanup(w);
   }
 });
+
+Deno.test("after an off pass prunes WAL, the next on pass reports the window only from a base backup taken after the break", async () => {
+  const w = await world({ [SEG1]: "one" });
+  const receiver = startS3Receiver();
+  const offApi = fakeApi({ endpoint: receiver.endpoint, pointInTime: false });
+  try {
+    assertEquals((await runRunnerProcess(w, offApi.url)).code, 0);
+    assertEquals(await left(w.spool), [".wal-unbroken-since"]);
+  } finally {
+    await offApi.stop();
+  }
+  // The world's own set (2026-11-20T03:00) predates the break; this one is
+  // after it.
+  const after = "20991231T000000Z-00000000-0000-4000-8000-000000000002";
+  await Deno.mkdir(join(w.root, after));
+  await Deno.writeTextFile(join(w.root, after, "base.tar.age"), "base");
+  await Deno.writeTextFile(join(w.spool, SEG2), "two");
+  const onApi = fakeApi({ endpoint: receiver.endpoint, pointInTime: true });
+  try {
+    const r = await runRunnerProcess(w, onApi.url);
+    assertEquals(r.code, 0, r.text);
+    assertEquals(onApi.seen.wal.length, 1);
+    assertEquals(
+      onApi.seen.wal[0].earliestBaseBackupAt,
+      "2099-12-31T00:00:00.000Z",
+    );
+  } finally {
+    await onApi.stop();
+    await receiver.stop();
+    await cleanup(w);
+  }
+});

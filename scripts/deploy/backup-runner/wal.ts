@@ -75,12 +75,13 @@ export function walKey(prefix: string, name: string): string {
 export async function shipWal(deps: WalShipDeps): Promise<WalShipOutcome> {
   const files = await listSpool(deps.spool);
   if (!deps.enabled || deps.connection === null) {
-    for (const file of files) await Deno.remove(join(deps.spool, file.name));
     // Pruned WAL breaks the chain: no base backup taken before now can be
-    // replayed forward any more.
+    // replayed forward any more. The break is recorded before anything is
+    // removed, so a crash in between can only over-record it.
     if (files.length > 0) {
       await markWalBroken(deps.spool, deps.now?.() ?? new Date());
     }
+    for (const file of files) await Deno.remove(join(deps.spool, file.name));
     return { shipped: 0, pruned: files.length, reported: false };
   }
   const { client, destination } = deps.connection;

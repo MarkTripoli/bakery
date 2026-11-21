@@ -240,3 +240,55 @@ Deno.test("switch on with no destination also breaks the chain", async () => {
     await Deno.remove(spool, { recursive: true });
   }
 });
+
+Deno.test("the break is recorded before any WAL is removed: a crash in between never leaves the window at an older base backup", async () => {
+  const spool = await spoolWith([SEG1]);
+  const root = await Deno.makeTempDir({ prefix: "bakery-wal-root-" });
+  try {
+    const set = "20261121T030000Z-00000000-0000-4000-8000-00000000000a";
+    await Deno.mkdir(join(root, set));
+    await Deno.writeTextFile(join(root, set, BASE_BACKUP_FILE), "base");
+    const off = (now: () => Date): WalShipDeps => ({
+      spool,
+      enabled: false,
+      connection: null,
+      encrypt: (path) => Deno.readFile(path),
+      report: () => Promise.resolve(),
+      earliestBaseBackupAt: null,
+      now,
+    });
+    // The pass dies at the moment it records the break.
+    await assertRejects(() =>
+      shipWal(off(() => {
+        throw new Error("crash while recording the break");
+      }))
+    );
+    // Nothing was pruned unrecorded: the segment is still there, and the
+    // next pass records the break before pruning it.
+    assertEquals([...Deno.readDirSync(spool)].map((e) => e.name), [SEG1]);
+    await shipWal(off(() => new Date("2026-11-21T12:01:00.000Z")));
+    const window = await earliestBaseBackup(
+      root,
+      await walUnbrokenSince(spool),
+    );
+    assertEquals(window, null);
+  } finally {
+    await Deno.remove(spool, { recursive: true });
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("an unreadable marker counts as a break now, never as unbroken", async () => {
+  const spool = await spoolWith([]);
+  try {
+    await Deno.writeTextFile(join(spool, WAL_UNBROKEN_SINCE_FILE), "garbage\n");
+    const before = Date.now();
+    const since = await walUnbrokenSince(spool);
+    if (since === null) {
+      throw new Error("an unreadable marker read as unbroken");
+    }
+    assertEquals(since.getTime() >= before, true);
+  } finally {
+    await Deno.remove(spool, { recursive: true });
+  }
+});
