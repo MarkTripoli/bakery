@@ -5194,6 +5194,13 @@
       "frames": []
     },
     {
+      "routeId": "library-evaluation",
+      "path": "/library/evaluations/$batchId",
+      "status": "no-mock",
+      "rationale": "One evaluation run (its quality gate, results by test case, attempts, what it used, Stop run) is designed by design-ux on #75 (revision 4, mocks at pr-evidence design-75/v4/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "notifications",
       "path": "/notifications",
       "status": "no-mock",
