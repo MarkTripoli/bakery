@@ -1,3 +1,4 @@
+import type { Cutoff } from "../../apps/server/src/modules/backups/cutoff-rules.ts";
 import {
   ApiFatal,
   ApiUnavailable,
@@ -60,6 +61,7 @@ export type RunnerOptions = {
   readonly backup?: (
     signal: AbortSignal,
     secrets: Secrets,
+    cutoff: Cutoff,
   ) => Promise<Artifact>;
   readonly resolve?: HostResolver;
   readonly sleep?: RunnerDeps["sleep"];
@@ -131,10 +133,16 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
   const deps: RunnerDeps = {
     api,
     secrets,
-    backup: (signal) =>
+    backup: (signal, cutoff) =>
       options.backup
-        ? options.backup(signal, secrets)
-        : runBackupScript({ script: BACKUP_SCRIPT, root, secrets, signal }),
+        ? options.backup(signal, secrets, cutoff)
+        : runBackupScript({
+          script: BACKUP_SCRIPT,
+          root,
+          secrets,
+          signal,
+          cutoff,
+        }),
     offsite: (settings) =>
       offsiteFromSettings(settings, { allowLoopbackEndpoint: test }),
     upload: (offsite: Offsite, artifact, signal, onFile) =>

@@ -2,6 +2,11 @@ import { assert, assertEquals } from "@std/assert";
 import { runRunner } from "../../scripts/deploy/backup-runner.ts";
 import { readArtifact } from "../../scripts/deploy/backup-runner/backup-step.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
+import type { Cutoff } from "../../apps/server/src/modules/backups/cutoff-rules.ts";
+import {
+  removeSeededEffects,
+  seedEffect,
+} from "../helpers/external-effects-seed.ts";
 import {
   accessKeyId,
   type BackupSettingsFixture,
@@ -50,7 +55,7 @@ async function withEnvironment<T>(
     root: string;
     credential: string;
     receiver: ReturnType<typeof startS3Receiver>;
-    stub: { calls: number; name: string | null };
+    stub: { calls: number; name: string | null; cutoffs: Cutoff[] };
     /** The settings-release audit rows written since this test began. */
     audit: () => Promise<Awaited<ReturnType<typeof runnerAuditRows>>>;
     pass: () => Promise<number>;
@@ -65,10 +70,19 @@ async function withEnvironment<T>(
   const receiver = startS3Receiver(receiverOptions);
   try {
     const credential = await o.issueCredential();
-    const stub = { calls: 0, name: null as string | null };
+    const stub = {
+      calls: 0,
+      name: null as string | null,
+      cutoffs: [] as Cutoff[],
+    };
     // The stand-in for backup.sh: a finished encrypted set in the backups root.
-    const backup = async () => {
+    const backup = async (
+      _signal: AbortSignal,
+      _secrets: unknown,
+      cutoff: Cutoff,
+    ) => {
       stub.calls++;
+      stub.cutoffs.push(cutoff);
       const name = setName();
       stub.name = name;
       await Deno.mkdir(`${root}/${name}`);
@@ -128,6 +142,7 @@ async function withEnvironment<T>(
   } finally {
     await receiver.stop();
     await Deno.remove(root, { recursive: true });
+    await removeSeededEffects(o.f.pgDatabase);
   }
 }
 
@@ -155,12 +170,59 @@ Deno.test("an administrator's backup is claimed, taken, copied off-site and show
         })).status,
         200,
       );
+      // Two effects still unsettled when the installation goes quiet, and one
+      // that is settled and must not be counted.
+      await seedEffect(
+        o.f.pgDatabase,
+        o.f.organizationId,
+        "prepared",
+        "github.merge",
+      );
+      await seedEffect(
+        o.f.pgDatabase,
+        o.f.organizationId,
+        "uncertain",
+        "slack.post",
+      );
+      await seedEffect(
+        o.f.pgDatabase,
+        o.f.organizationId,
+        "confirmed",
+        "github.merge",
+      );
       await start(o);
       assertEquals(await e.pass(), 0);
 
       const [run] = await e.runs();
       assertEquals(run.status, "completed", JSON.stringify(run));
       assertEquals(run.locations, ["server-host", "off-site"]);
+
+      // The backup step was handed the cutoff the server recorded for this run:
+      // the database clock at the quiet moment, with the census of unsettled
+      // effects, and it is the cutoff the administrator's status now shows.
+      assertEquals(e.stub.cutoffs.length, 1);
+      const cutoff = e.stub.cutoffs[0];
+      assertEquals(cutoff.source, "database");
+      assertEquals(cutoff.effects?.total, 2);
+      assertEquals(cutoff.effects?.byOperation, [
+        { operation: "github.merge", count: 1 },
+        { operation: "slack.post", count: 1 },
+      ]);
+      const recorded = await o.f.pgDatabase.query<
+        { cutoffAt: Date; digest: string }
+      >(
+        `select cutoff_at as "cutoffAt", effects_digest as digest
+           from bakery.backup_cutoffs where run_id = $1`,
+        [run.id],
+      );
+      assertEquals(recorded.rows.length, 1);
+      assertEquals(recorded.rows[0].cutoffAt.toISOString(), cutoff.at);
+      assertEquals(recorded.rows[0].digest, cutoff.effects?.digest);
+      const status = await (await o.admin(
+        "GET",
+        "/v1/installation/backups/status",
+      )).json() as { lastBackupCutoffAt: string | null };
+      assertEquals(status.lastBackupCutoffAt, cutoff.at);
       const stored = [...e.receiver.objects.entries()].filter(([key]) =>
         key.startsWith(`/bakery-backups/prod/${e.stub.name}/`)
       );

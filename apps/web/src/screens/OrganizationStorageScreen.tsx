@@ -5,6 +5,7 @@ import { ORGANIZATIONS_PATH } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
+  DEFAULTED_FIELDS,
   FIELD_RULES,
   type FieldProblem,
   fieldText,
@@ -31,6 +32,8 @@ const LABEL: Readonly<Record<StorageField, MessageKey>> = {
   projectQuotaBytes: "organizationStorage.field.project.label",
   personalQuotaBytes: "organizationStorage.field.personal.label",
   maxFileBytes: "organizationStorage.field.file.label",
+  stepWriteBytes: "organizationStorage.field.stepBytes.label",
+  stepWriteFiles: "organizationStorage.field.stepFiles.label",
   workingVersionsKept: "organizationStorage.field.versions.label",
   trashRetentionDays: "organizationStorage.field.trash.label",
   scratchRetentionDays: "organizationStorage.field.scratch.label",
@@ -40,12 +43,15 @@ const HELP: Readonly<Record<StorageField, MessageKey>> = {
   projectQuotaBytes: "organizationStorage.field.project.help",
   personalQuotaBytes: "organizationStorage.field.personal.help",
   maxFileBytes: "organizationStorage.field.file.help",
+  stepWriteBytes: "organizationStorage.field.stepBytes.help",
+  stepWriteFiles: "organizationStorage.field.stepFiles.help",
   workingVersionsKept: "organizationStorage.field.versions.help",
   trashRetentionDays: "organizationStorage.field.trash.help",
   scratchRetentionDays: "organizationStorage.field.scratch.help",
 };
 const LIMITS: readonly StorageField[] = STORAGE_FIELDS.slice(0, 4);
-const KEPT: readonly StorageField[] = STORAGE_FIELDS.slice(4);
+const AGENT: readonly StorageField[] = STORAGE_FIELDS.slice(4, 6);
+const KEPT: readonly StorageField[] = STORAGE_FIELDS.slice(6);
 
 export type OrganizationStorageScreenProps = {
   /** Shared async state; `null` renders the settled screen. */
@@ -189,8 +195,13 @@ function unitWord(
   field: StorageField,
   translate: ReturnType<typeof useI18n>["translate"],
 ): string {
-  return FIELD_RULES[field].unit === "gigabytes"
+  const unit = FIELD_RULES[field].unit;
+  return unit === "gigabytes"
     ? translate("organizationStorage.unit.gb")
+    : unit === "megabytes"
+    ? translate("organizationStorage.unit.mb")
+    : field === "stepWriteFiles"
+    ? translate("organizationStorage.unit.filesWord")
     : field === "workingVersionsKept"
     ? translate("organizationStorage.unit.versionsWord")
     : translate("organizationStorage.unit.daysWord");
@@ -201,26 +212,33 @@ function valueWords(
   field: StorageField,
   settings: StorageSettings,
   translate: ReturnType<typeof useI18n>["translate"],
+  locale: string,
 ): string {
   const text = fieldText(field, settings[field]);
+  if (FIELD_RULES[field].unit === "megabytes") {
+    const words = sizeWords(settings[field], locale);
+    return translate(words.key, { value: words.value });
+  }
   if (FIELD_RULES[field].unit === "gigabytes") {
     return translate("organizationStorage.unit.gigabytes", { value: text });
   }
   return translate(
     field === "workingVersionsKept"
       ? "organizationStorage.unit.versions"
+      : field === "stepWriteFiles"
+      ? "organizationStorage.unit.files"
       : "organizationStorage.unit.days",
     { value: Number(text) },
   );
 }
 
 function ReadOnly({ settings }: { readonly settings: StorageSettings }) {
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
   const rows = (fields: readonly StorageField[]) => (
     <UI.DescriptionList>
       {fields.map((field) => (
         <UI.DescriptionItem
-          description={valueWords(field, settings, translate)}
+          description={valueWords(field, settings, translate, locale)}
           key={field}
           title={translate(LABEL[field])}
         />
@@ -234,6 +252,14 @@ function ReadOnly({ settings }: { readonly settings: StorageSettings }) {
         title={translate("organizationStorage.limits.heading")}
       >
         {rows(LIMITS)}
+      </UI.SettingsSection>
+      <UI.SettingsSection
+        title={translate("organizationStorage.agent.heading")}
+      >
+        <UI.Text variant="muted">
+          {translate("organizationStorage.agent.description")}
+        </UI.Text>
+        {rows(AGENT)}
       </UI.SettingsSection>
       <UI.SettingsSection
         title={translate("organizationStorage.kept.heading")}
@@ -261,6 +287,14 @@ function EditForm(
   const message = (field: StorageField) => {
     const problem = problems[field];
     if (problem === undefined) return undefined;
+    if (DEFAULTED_FIELDS.includes(field)) {
+      return translate(
+        problem === "tooLarge"
+          ? "organizationStorage.error.range"
+          : "organizationStorage.error.positive",
+        range(field),
+      );
+    }
     return problem === "tooLarge" && field === "maxFileBytes"
       ? translate("organizationStorage.error.largestFile", range(field))
       : translate("organizationStorage.error.whole", range(field));
@@ -290,6 +324,9 @@ function EditForm(
               name={name}
               onBlur={() => props.onFieldBlur(name)}
               onChange={(value) => props.onDraftChange(name, value)}
+              placeholder={DEFAULTED_FIELDS.includes(name)
+                ? translate("organizationStorage.field.defaultPlaceholder")
+                : undefined}
               type="text"
               value={draft[name]}
             />
@@ -323,6 +360,15 @@ function EditForm(
             variant="stack"
           >
             {LIMITS.map(field)}
+          </UI.SettingsSection>
+          <UI.SettingsSection
+            title={translate("organizationStorage.agent.heading")}
+            variant="stack"
+          >
+            <UI.Text variant="muted">
+              {translate("organizationStorage.agent.description")}
+            </UI.Text>
+            {AGENT.map(field)}
           </UI.SettingsSection>
           <UI.SettingsSection
             title={translate("organizationStorage.kept.heading")}
