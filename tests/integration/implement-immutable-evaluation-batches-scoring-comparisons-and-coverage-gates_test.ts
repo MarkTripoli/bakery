@@ -392,6 +392,45 @@ Deno.test("a batch and its results carry the names a list shows, and a cancel na
     assert(canceled.canceledAt !== null);
   }));
 
+Deno.test("a pin naming another organization's definition shows no name", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const foreign = await createWorkerScope(
+      fixture,
+      "eval-75-foreign",
+      fixture,
+    );
+    const foreignAgent = crypto.randomUUID();
+    try {
+      await fixture.pgDatabase.query(
+        "insert into bakery.agent_definitions (id, organization_id, slug, name) values ($1, $2, 'foreign-agent', 'Foreign secret agent')",
+        [foreignAgent, foreign.organizationId],
+      );
+      const batch = await ok(
+        await call(fixture, "POST", "/v1/evaluation-batches", {
+          body: {
+            datasetId: w.dataset.id,
+            candidate: { kind: "agentVersion", id: foreignAgent, version: 1 },
+            scorerIds: [w.schema.id],
+          },
+        }),
+        201,
+      );
+      // The name lookup is scoped to the caller's organization, so another
+      // organization's definition resolves to no name and leaks nothing.
+      assertEquals(batch.candidateDefinition, {
+        definitionId: foreignAgent,
+        name: null,
+      });
+    } finally {
+      await fixture.pgDatabase.query(
+        "delete from bakery.agent_definitions where id = $1",
+        [foreignAgent],
+      );
+      await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
+    }
+  }));
+
 Deno.test("cancel takes If-Match and keeps completed results; compare refuses incompatible pairs; another organization cannot read", () =>
   withWorkerFixture(async (fixture) => {
     const w = await world(fixture);
