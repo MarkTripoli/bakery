@@ -4,6 +4,7 @@ import {
   accessScopeClause,
 } from "../auth/application/bindings.ts";
 import type { NotificationRow } from "./notifications-postgres.ts";
+import { memberRoleHolds } from "../conversation/mentions.ts";
 
 /**
  * A resolved destination. `path` is a validated internal route, never an
@@ -103,6 +104,22 @@ export async function resolveNotificationTarget(
     targetKind === "comment"
       ? await resolveDocumentGrantTarget(transaction, scope, row)
       : UNAVAILABLE(targetKind);
+
+  // Someone who holds a live grant on the document and whose role cannot read
+  // tasks is sent to the document, whatever the task's own scope says: the task
+  // page is one they cannot open.
+  if (targetKind === "comment") {
+    const document = await resolveDocumentGrantTarget(transaction, scope, row);
+    if (
+      document.status !== "unavailable" &&
+      !await memberRoleHolds(
+        transaction,
+        scope.organizationId,
+        scope.recipientId,
+        "task:read",
+      )
+    ) return document;
+  }
 
   // Every other destination is reached through its task page. A target with no
   // task cannot be routed to a real surface yet, so it stays unavailable

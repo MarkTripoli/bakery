@@ -235,6 +235,29 @@ function accessFor(
   };
 }
 
+/**
+ * Whether one member's organization role (system or custom) holds a
+ * permission. Capabilities are ignored, as in memberHolds.
+ */
+export async function memberRoleHolds(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  permission: CatalogPermissionKey,
+): Promise<boolean> {
+  const result = await transaction.query<MemberRow>(
+    `select principal.id as "principalId",
+            principal.display_name as "displayName", membership.role,
+            membership.custom_role_id as "customRoleId",
+            custom.permissions as "customPermissions", false as granted
+     ${ELIGIBLE_MEMBER_SQL}
+       and principal.id = $2::uuid`,
+    [organizationId, principalId],
+  );
+  const row = result.rows[0];
+  return row !== undefined && memberHolds(row, [permission]);
+}
+
 /** The most people a "who can give access" answer names. */
 export const MAX_SHARERS = 3;
 

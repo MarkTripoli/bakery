@@ -247,10 +247,8 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
     await t.step(
       "the grant opens the document and its comments only",
       async () => {
-        assertEquals(
-          await status(await as(ana, `/v1/artifacts/${artifact}`)),
-          200,
-        );
+        const read = await as(ana, `/v1/artifacts/${artifact}`);
+        assertEquals(read.status, 200, await read.text());
         assertEquals(
           await status(
             await as(ana, `/v1/artifacts/${artifact}/versions?limit=5`),
