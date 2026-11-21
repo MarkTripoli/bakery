@@ -5,6 +5,7 @@ import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createTicketActionRegistry } from "./ticket-actions.ts";
 import type { TicketOperationDependencies } from "./ticket-operation-runner.ts";
 import type { TicketNoteWriter } from "./ticket-notes.ts";
+import type { RemoteTicketCreator } from "./ticket-create.ts";
 
 /** Longest a ticket request may run: a preview reads up to 25 issues. */
 export const TICKET_DEADLINE_MS = 30_000;
@@ -22,6 +23,8 @@ export function createTicketRoutes(
     cursorSecret: string;
     /** Writes Bakery's status note on a ticket; see `ticket-notes.ts`. */
     noteWriter?: TicketNoteWriter;
+    /** Creates a ticket in the tracker; see `ticket-create.ts`. */
+    ticketCreator?: RemoteTicketCreator;
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();

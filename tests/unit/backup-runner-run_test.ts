@@ -169,6 +169,7 @@ function harness(options: Options = {}) {
         ? Promise.reject(options.cutoff)
         : Promise.resolve(options.cutoff ?? cutoffView);
     },
+    reportWal: () => Promise.resolve(),
     settings: () => {
       events.push("settings");
       return options.settingsError
