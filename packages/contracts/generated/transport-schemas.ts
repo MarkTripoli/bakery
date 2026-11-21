@@ -231,6 +231,11 @@ const transportSchemas = {
       "retryable": true,
       "slug": "installation-quiesced"
     },
+    "INSTALLATION_RESTORING": {
+      "status": 503,
+      "retryable": false,
+      "slug": "installation-restoring"
+    },
     "SNAPSHOT_SCOPE_TOO_LARGE": {
       "status": 413,
       "retryable": false,
