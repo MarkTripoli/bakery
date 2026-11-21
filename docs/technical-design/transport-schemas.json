@@ -32918,6 +32918,41 @@
       ],
       "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
     },
+    "ConversationSharer": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "The person who may give access.",
+        "displayName": "Their current display name; never an email address."
+      },
+      "description": "One person who may give someone access to a conversation or a document."
+    },
+    "ConversationSharers": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "ConversationSharer[]"
+      },
+      "fieldDescriptions": {
+        "items": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may."
+      },
+      "rules": [
+        "Names only people in the reader's own organization; nothing else about them is returned."
+      ],
+      "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
+    },
     "Page<ConversationAccessGrant>": {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."

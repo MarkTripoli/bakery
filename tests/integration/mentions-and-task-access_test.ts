@@ -238,6 +238,42 @@ Deno.test("mentions share one conversation atomically and only with authority", 
       );
 
     await t.step(
+      "sharers names up to three people who may share, the author first",
+      async () => {
+        const page = await json<{
+          items: { principalId: string; displayName: string }[];
+        }>(
+          await call(
+            fixture,
+            viewer.cookie,
+            orgA,
+            `/v1/conversations/${conversation}/access/sharers`,
+          ),
+          200,
+        );
+        // Wren wrote the conversation, so leads; Dana also holds the share
+        // right. Viewers, a disabled account, a removed member, an agent and
+        // another organization's admin never appear.
+        assertEquals(page.items.map((item) => item.principalId), [
+          writer.principalId,
+          dev.principalId,
+        ]);
+        assertEquals(
+          page.items.map((item) => Object.keys(item).sort()),
+          [["displayName", "principalId"], ["displayName", "principalId"]],
+        );
+        const foreign = await call(
+          fixture,
+          writer.cookie,
+          orgA,
+          `/v1/conversations/${foreignConversation}/access/sharers`,
+        );
+        assertEquals(foreign.status, 404);
+        await foreign.body?.cancel();
+      },
+    );
+
+    await t.step(
       "search shows only visible members, marked by access",
       async () => {
         const all: Candidate[] = [];
