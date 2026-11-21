@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { registerPageHealth } from "./helpers/page-health.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { still } from "./helpers/stills.ts";
 import { evaluationsFixture, IDS } from "./helpers/evaluations-fixture.ts";
 
@@ -314,6 +315,21 @@ for (
       await still(page, "evaluation-run-changed");
     });
 
+    test("while the run is read the page shows a loading state", async ({ page }) => {
+      const fixture = await evaluationsFixture(page, { holdGet: true });
+      await page.goto(run(IDS.gaps));
+      await expect(page.getByText("Loading the run")).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-loading");
+      fixture.release();
+      await expect(
+        page.getByRole("heading", {
+          name: "Reviewed coding, version 5",
+          level: 1,
+        }),
+      ).toBeVisible();
+    });
+
     test("a finished run has no Stop button, and neither does a viewer", async ({ page }) => {
       await evaluationsFixture(page);
       await page.goto(run(IDS.met));
@@ -321,6 +337,8 @@ for (
       await expect(page.getByRole("button", { name: "Stop run" })).toHaveCount(
         0,
       );
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-finished");
       const viewer = await page.context().newPage();
       await evaluationsFixture(viewer, { viewer: true });
       await viewer.setViewportSize({
@@ -331,6 +349,8 @@ for (
       await expect(viewer.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(viewer.getByRole("button", { name: "Stop run" }))
         .toHaveCount(0);
+      await viewer.mouse.move(700, 700);
+      await still(viewer, "evaluation-run-viewer");
       await viewer.close();
     });
 
@@ -351,11 +371,13 @@ for (
         .toBeVisible();
       await expect(failing.getByRole("button", { name: "Try again" }))
         .toBeVisible();
+      await failing.mouse.move(700, 700);
+      await still(failing, "evaluation-run-load-failed");
       await failing.close();
     });
 
     test("a running run reads again on its own and its counts change in place", async ({ page }) => {
-      test.setTimeout(60_000);
+      test.setTimeout(laneBudgetMs(60_000));
       const fixture = await evaluationsFixture(page);
       await page.goto(run(IDS.running));
       await expect(page.getByText("Running · 4 of 10 results measured"))

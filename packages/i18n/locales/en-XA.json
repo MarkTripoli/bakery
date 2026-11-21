@@ -5567,5 +5567,7 @@
   "library.evaluation.attempts.label": "⟦Àŧŧëɱþŧš àŧ {scorer} ŧëšŧ⟧",
   "library.evaluation.attempts.loading": "⟦Ļôàðïñĝ ŧĥë àŧŧëɱþŧš ŧëšŧ⟧",
   "library.evaluation.attempts.error": "⟦Ŧĥë àŧŧëɱþŧš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
-  "library.evaluation.attempts.line": "⟦Àŧŧëɱþŧ {number} · {time} · {state} ŧëšŧ çôþÿŧ⟧"
+  "library.evaluation.attempts.rowTitle": "⟦Àŧŧëɱþŧ {number} ŧëš⟧",
+  "library.evaluation.attempts.rowLine": "⟦{time} · {state} ŧëš⟧",
+  "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
 }

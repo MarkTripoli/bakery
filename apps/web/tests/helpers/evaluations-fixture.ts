@@ -155,6 +155,8 @@ export type EvaluationsOptions = {
   listStatus?: number;
   /** Reading one run answers this status. */
   getStatus?: number;
+  /** Hold the answer to reading one run until `release` is called, to see the loading state. */
+  holdGet?: boolean;
   /** The person is a viewer: reads, but may not stop a run. */
   viewer?: boolean;
 };
@@ -299,6 +301,12 @@ export async function evaluationsFixture(
       (_, index) => run(uuid(1000 + index), 10 + index, {}),
     ),
   ];
+  let release: () => void = () => {};
+  const held = options.holdGet === true
+    ? new Promise<void>((resolve) => {
+      release = resolve;
+    })
+    : null;
   const seen: Seen[] = [];
   let conflictOnce = options.conflictOnce === true;
   const record = (route: Route) => {
@@ -420,7 +428,8 @@ export async function evaluationsFixture(
   );
   await page.route(
     (url) => /^\/v1\/evaluation-batches\/[^/]+$/.test(url.pathname),
-    (route) => {
+    async (route) => {
+      await held;
       const { url } = record(route);
       if (options.getStatus !== undefined) {
         return problem(
@@ -536,5 +545,5 @@ export async function evaluationsFixture(
       });
     },
   );
-  return { seen, runs };
+  return { seen, runs, release: () => release() };
 }

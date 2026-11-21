@@ -86,13 +86,15 @@ function Attempts(
         const words = resultWords(attempt, false);
         return (
           <div key={attempt.id} role="listitem">
-            <UI.Text variant="caption">
-              {translate("library.evaluation.attempts.line", {
+            <UI.DescriptionItem
+              title={translate("library.evaluation.attempts.rowTitle", {
                 number: attempt.attemptNo,
+              })}
+              description={translate("library.evaluation.attempts.rowLine", {
                 time: time(attempt.startedAt ?? attempt.createdAt),
                 state: translate(words.key, words.values),
               })}
-            </UI.Text>
+            />
           </div>
         );
       })}
@@ -545,10 +547,12 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
                                             }
                                             return next;
                                           })}
-                                        variant="quiet"
+                                        variant="text"
                                       >
                                         {translate(
-                                          "library.evaluation.attempts.toggle",
+                                          openAttempts.has(result.id)
+                                            ? "library.evaluation.attempts.hide"
+                                            : "library.evaluation.attempts.toggle",
                                           { count: result.attemptCount },
                                         )}
                                       </UI.Button>
