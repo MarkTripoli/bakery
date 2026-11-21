@@ -66,14 +66,30 @@ Deno.test("issue 69: progress is defined for every disposition and run status", 
   for (const disposition of TICKET_REQUEST_DISPOSITIONS) {
     for (const status of RUN_STATUSES) {
       assertEquals(
-        ticketRequestProgress(disposition, status),
+        ticketRequestProgress(disposition, status, true),
         EXPECTED[disposition][String(status)],
         `${disposition} with run ${status}`,
       );
     }
   }
   // A status this build does not know leaves the disposition as stored.
-  assertEquals(ticketRequestProgress("active", "something_new"), "active");
+  assertEquals(
+    ticketRequestProgress("active", "something_new", true),
+    "active",
+  );
+});
+
+Deno.test("issue 32: a completed run reads as active until the completion policy is met", () => {
+  assertEquals(ticketRequestProgress("active", "completed", false), "active");
+  assertEquals(ticketRequestProgress("active", "completed", true), "completed");
+  // A run that failed or was stopped never waits on delivery.
+  assertEquals(ticketRequestProgress("active", "failed", false), "failed");
+  assertEquals(ticketRequestProgress("active", "canceled", false), "canceled");
+  // A stored disposition is shown as stored.
+  assertEquals(
+    ticketRequestProgress("completed", "completed", false),
+    "completed",
+  );
 });
 
 Deno.test("issue 69: a stored disposition reason maps to its closed code, anything else to null", () => {

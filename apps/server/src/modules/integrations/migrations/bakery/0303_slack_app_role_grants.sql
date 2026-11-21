@@ -7,9 +7,12 @@
 -- carried none, so a thread reply could not resolve its run and a delivery
 -- could not record its message.
 --
--- Secrets stay as 0050 left them: the application role may insert and read them
--- and may take one out of use, never delete one.
+-- Removing an app deletes its two secrets, so the role may delete a secret row
+-- and its versions as well as insert and read them. It still cannot update a
+-- secret's ciphertext.
 
 grant select, insert, update, delete on bakery.slack_app_settings to bakery_app;
+
+grant delete on bakery.secrets, bakery.secret_versions to bakery_app;
 
 grant select, insert, update on bakery.slack_milestone_posts to bakery_app;

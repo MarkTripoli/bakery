@@ -411,7 +411,8 @@ export async function saveSlackAppSettings(
  * Identity links and organization connections are kept: the design's dialog promises
  * they work again when details are entered again, and deleting them would silently
  * unlink people over a credential rotation. The secrets go, because the app they
- * belonged to no longer exists here.
+ * belonged to no longer exists here, and with them the only two rows that ever
+ * named them.
  */
 export async function removeSlackAppSettings(
   transaction: PgTransactionClient,
@@ -434,19 +435,24 @@ export async function removeSlackAppSettings(
   );
   const row = removed.rows[0];
   if (row === undefined) return;
-  for (const secretId of [row.signingSecretId, row.clientSecretId]) {
-    // The application role may take a secret out of use but not delete one, so
-    // removal revokes: the ciphertext stays as sealed history, nothing decrypts
-    // it again, and the key that sealed it is no longer reachable from any row.
-    await transaction.query(
-      `update bakery.secrets
-          set active_version_id = null, revoked_at = now(),
-              invalidation_generation = invalidation_generation + 1,
-              version = version + 1, updated_at = now()
-        where id = $1`,
-      [secretId],
-    );
-  }
+  // The secrets go with the row: nothing outside a saved app can address them,
+  // so leaving them behind would be ciphertext with no reader and one more copy
+  // of a credential to have to explain. `0303` grants the delete that needs.
+  const secretIds = [row.signingSecretId, row.clientSecretId];
+  // The active version is named by the secret row, so it is cleared first.
+  await transaction.query(
+    `update bakery.secrets set active_version_id = null
+      where id = any($1::uuid[])`,
+    [secretIds],
+  );
+  await transaction.query(
+    `delete from bakery.secret_versions where secret_id = any($1::uuid[])`,
+    [secretIds],
+  );
+  await transaction.query(
+    `delete from bakery.secrets where id = any($1::uuid[])`,
+    [secretIds],
+  );
   await appendAudit(transaction, {
     organizationId: null,
     principalId: input.principalId,

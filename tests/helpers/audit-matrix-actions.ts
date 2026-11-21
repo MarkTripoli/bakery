@@ -17,6 +17,7 @@ export const AUDIT_MATRIX_ACTIONS = [
   "browserSessions.revoke",
   "browserSessions.revokeOthers",
   "browserSessions.revokeCurrent",
+  "desktopHandoffs.create",
   "connectedClients.revoke",
   "userPreferences.update",
   "installationSettings.update",

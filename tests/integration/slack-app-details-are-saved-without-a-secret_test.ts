@@ -301,8 +301,7 @@ Deno.test("a removal names the version it removes", async () => {
       const still = await readSlackAppSettings(fixture.pgDatabase as never);
       assertEquals(still?.version, saved.version);
       const secrets = await fixture.pgDatabase.query<{ n: string }>(
-        `select count(*)::text as n from bakery.secrets
-          where provider = 'slack' and revoked_at is null`,
+        "select count(*)::text as n from bakery.secrets where provider = 'slack'",
       );
       assertEquals(secrets.rows[0]!.n, "2");
 
@@ -369,19 +368,18 @@ Deno.test("removing the details keeps the links people made", async () => {
       [fixture.organizationId],
     );
     assertEquals(links.rows[0]!.n, "1");
-    // The secrets went out of use with it: the app they belonged to no longer
-    // exists here. The application role may take a secret out of use but not
-    // delete one, so the rows stay as sealed history and nothing decrypts them.
+    // The secrets went with it: the app they belonged to no longer exists here,
+    // and nothing outside a saved app can address them, so the rows are deleted
+    // rather than left as ciphertext with no reader.
     const secrets = await fixture.pgDatabase.query<{ n: string }>(
-      `select count(*)::text as n from bakery.secrets
-        where provider = 'slack' and revoked_at is null`,
+      "select count(*)::text as n from bakery.secrets where provider = 'slack'",
     );
     assertEquals(secrets.rows[0]!.n, "0");
-    const sealed = await fixture.pgDatabase.query<{ n: string }>(
-      `select count(*)::text as n from bakery.secrets
-        where provider = 'slack' and active_version_id is null`,
+    const versions = await fixture.pgDatabase.query<{ n: string }>(
+      `select count(*)::text as n from bakery.secret_versions
+        where secret_id not in (select id from bakery.secrets)`,
     );
-    assertEquals(sealed.rows[0]!.n, "2");
+    assertEquals(versions.rows[0]!.n, "0");
     // Save/remove both left an audit row, and neither names a secret value.
     const audit = await fixture.pgDatabase.query<{ details: unknown }>(
       `select details from bakery.audit_events
