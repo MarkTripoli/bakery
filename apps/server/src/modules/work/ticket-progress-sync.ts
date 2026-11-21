@@ -5,10 +5,12 @@ import {
   readRequestDeliveryFacts,
   requestDeliveryVerdict,
 } from "./ticket-delivery-store.ts";
+import type { TicketLabelWriter } from "./ticket-labels.ts";
 import { noteProblemCode, type TicketNoteWriter } from "./ticket-notes.ts";
 import {
   type TicketAudience,
   ticketProgressBody,
+  ticketProgressLabelOfCode,
   ticketProgressPhase,
 } from "./ticket-progress.ts";
 import { ticketRequestProgress } from "./ticket-request-state.ts";
@@ -24,6 +26,8 @@ import { ticketRequestProgress } from "./ticket-request-state.ts";
  * 2. the writer posts or rewrites the note;
  * 3. a second transaction records `healthy` with the phase, or `failed` with a
  *    fixed problem code.
+ * With a label writer, Bakery's own progress label follows the note (add the
+ * new one, then take the old one off), and only those labels change.
  * A failed write keeps the link's last good phase and never touches the
  * request: accepted work is not undone by a note that did not post, and the
  * failure is retried after `PROGRESS_RETRY_SECONDS`. A claim whose writer
@@ -112,7 +116,12 @@ const READ_CANDIDATES = `
  * `PROGRESS_SYNC_LIMIT`, least recently touched first.
  */
 export async function syncSourceProgress(
-  deps: { database: PgDatabase; writer: TicketNoteWriter },
+  deps: {
+    database: PgDatabase;
+    writer: TicketNoteWriter;
+    /** Changes Bakery's progress labels after a note posts; absent, labels are left alone. */
+    labels?: TicketLabelWriter;
+  },
   call: {
     organizationId: string;
     sourceId: string;
@@ -136,6 +145,9 @@ export async function syncSourceProgress(
     const claimed: Array<{
       candidate: Candidate;
       phaseCode: number;
+      /** Bakery's label for the phase, and the one the last synced phase put on. */
+      label: string | null;
+      previousLabel: string | null;
       claimedVersion: number;
       body: string;
     }> = [];
@@ -204,6 +216,8 @@ export async function syncSourceProgress(
       claimed.push({
         candidate: row,
         phaseCode: phase.code,
+        label: phase.label,
+        previousLabel: ticketProgressLabelOfCode(row.last_synced_run_revision),
         claimedVersion: claim.rows[0].version,
         body: ticketProgressBody({
           phase,
@@ -224,9 +238,9 @@ export async function syncSourceProgress(
 
   for (const claim of claims) {
     const row = claim.candidate;
-    let outcome: Awaited<ReturnType<TicketNoteWriter["post"]>>;
+    let note: Awaited<ReturnType<TicketNoteWriter["post"]>>;
     try {
-      outcome = await deps.writer.post({
+      note = await deps.writer.post({
         organizationId: call.organizationId,
         actorPrincipalId: row.authority_principal_id!,
         provider: row.provider,
@@ -240,14 +254,55 @@ export async function syncSourceProgress(
         signal: call.signal,
       });
     } catch {
-      outcome = { kind: "failed", problemCode: "note_post_failed" };
+      note = { kind: "failed", problemCode: "note_post_failed" };
     }
+    let healthy = note.kind === "posted";
+    let problem = note.kind === "posted"
+      ? (note.recreated ? "note_recreated" : null)
+      : noteProblemCode(note.problemCode);
+    // Bakery's progress label follows the note: the new phase's label is added
+    // before the old one comes off, so the issue is never left with none. A
+    // label that did not change hands is not written again.
+    if (healthy && deps.labels !== undefined) {
+      const add = claim.label !== null && claim.label !== claim.previousLabel
+        ? [claim.label]
+        : [];
+      const remove =
+        claim.previousLabel !== null && claim.previousLabel !== claim.label
+          ? [claim.previousLabel]
+          : [];
+      if (add.length > 0 || remove.length > 0) {
+        let labels: Awaited<ReturnType<TicketLabelWriter["apply"]>>;
+        try {
+          labels = await deps.labels.apply({
+            organizationId: call.organizationId,
+            actorPrincipalId: row.authority_principal_id!,
+            provider: row.provider,
+            connectionId: row.connection_id,
+            resourceId: row.resource_id,
+            issueNumber: Number(row.number),
+            add,
+            remove,
+            idempotencyKey:
+              `ticket-progress-labels:${row.link_id}:${claim.claimedVersion}`,
+            signal: call.signal,
+          });
+        } catch {
+          labels = { kind: "failed", problemCode: "label_change_failed" };
+        }
+        if (labels.kind === "failed") {
+          healthy = false;
+          problem = noteProblemCode(labels.problemCode);
+        }
+      }
+    }
+    // The comment id is kept whenever the note posted, so a label that failed
+    // never makes the next sync post a second comment.
     await withPgTransaction(deps.database, (transaction) =>
       transaction.query(
         `update bakery.ticket_task_links
             set sync_health = $4,
-                status_comment_external_id = case when $4 = 'healthy' then $5
-                  else status_comment_external_id end,
+                status_comment_external_id = coalesce($5, status_comment_external_id),
                 last_synced_run_revision = case when $4 = 'healthy' then $6::integer
                   else last_synced_run_revision end,
                 last_problem_code = $7,
@@ -258,15 +313,13 @@ export async function syncSourceProgress(
           call.organizationId,
           row.link_id,
           claim.claimedVersion,
-          outcome.kind === "posted" ? "healthy" : "failed",
-          outcome.kind === "posted" ? outcome.externalId : null,
+          healthy ? "healthy" : "failed",
+          note.kind === "posted" ? note.externalId : null,
           claim.phaseCode,
-          outcome.kind === "posted"
-            ? (outcome.recreated ? "note_recreated" : null)
-            : noteProblemCode(outcome.problemCode),
+          problem,
         ],
       ), call.signal);
-    if (outcome.kind === "posted") result.posted++;
+    if (healthy) result.posted++;
     else result.failed++;
   }
   return result;

@@ -12,6 +12,7 @@ import {
   type RecheckAction,
   recheckTicket,
 } from "./ticket-admission.ts";
+import type { TicketLabelWriter } from "./ticket-labels.ts";
 import type { TicketNoteWriter } from "./ticket-notes.ts";
 import { requestedIntentFromLabels } from "./ticket-policy.ts";
 import {
@@ -72,6 +73,8 @@ export type TicketWorkflowDeps = {
   budget: BudgetRuntimeConfig | undefined;
   /** Writes Bakery's status note after a poll step; without it the poll writes no note. */
   noteWriter?: TicketNoteWriter;
+  /** Changes Bakery's progress labels after a note is written; without it labels are left alone. */
+  labelWriter?: TicketLabelWriter;
 };
 
 /** What the intake function did for one source of the delivery's repository. */
@@ -334,11 +337,12 @@ export type TicketPollOutcome = {
 async function syncProgress(
   database: PgDatabase,
   writer: TicketNoteWriter,
+  labels: TicketLabelWriter | undefined,
   source: PollSource,
   signal: AbortSignal,
 ): Promise<ProgressSyncResult | undefined> {
   try {
-    return await syncSourceProgress({ database, writer }, {
+    return await syncSourceProgress({ database, writer, labels }, {
       organizationId: source.organizationId,
       sourceId: source.sourceId,
       signal,
@@ -393,7 +397,13 @@ export async function pollTicketSource(
     );
     const progress = deps.noteWriter === undefined
       ? undefined
-      : await syncProgress(deps.database, deps.noteWriter, source, signal);
+      : await syncProgress(
+        deps.database,
+        deps.noteWriter,
+        deps.labelWriter,
+        source,
+        signal,
+      );
     return {
       sourceId: source.sourceId,
       outcome: step.outcome,

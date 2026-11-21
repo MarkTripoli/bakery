@@ -1,6 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   ticketProgressBody,
+  ticketProgressLabelOfCode,
   ticketProgressPhase,
 } from "../../apps/server/src/modules/work/ticket-progress.ts";
 import type { TicketDeliveryVerdict } from "../../apps/server/src/modules/work/ticket-delivery.ts";
@@ -70,4 +71,23 @@ Deno.test("a note lists at most ten pull requests", () => {
     note.split("\n").filter((line) => line.startsWith("Pull request")).length,
     10,
   );
+});
+
+Deno.test("each phase names a Bakery label or none, and a stored code finds the label it put on", () => {
+  const labels = [
+    ["admitted", waiting("work"), "bakery:queued"],
+    ["active", waiting("work"), "bakery:working"],
+    ["active", waiting("merge"), "bakery:review"],
+    ["suspended", waiting("work"), "bakery:blocked"],
+    ["failed", waiting("work"), "bakery:blocked"],
+    ["completed", { delivered: true }, "bakery:done"],
+    ["canceled", waiting("work"), null],
+  ] as const;
+  for (const [progress, verdict, label] of labels) {
+    const phase = ticketProgressPhase(progress, verdict)!;
+    assertEquals(phase.label, label, progress);
+    assertEquals(ticketProgressLabelOfCode(phase.code), label, progress);
+  }
+  assertEquals(ticketProgressLabelOfCode(null), null);
+  assertEquals(ticketProgressLabelOfCode(999), null);
 });

@@ -8,6 +8,32 @@ import {
   PROGRESS_RETRY_SECONDS,
   syncSourceProgress,
 } from "../../apps/server/src/modules/work/ticket-progress-sync.ts";
+import type {
+  TicketLabelChange,
+  TicketLabelResult,
+  TicketLabelWriter,
+} from "../../apps/server/src/modules/work/ticket-labels.ts";
+
+/** Records the label changes the sync asks for, and fails the next one when told to. */
+function memoryLabels(): TicketLabelWriter & {
+  changes: { add: readonly string[]; remove: readonly string[] }[];
+  failNext: string | null;
+} {
+  const writer = {
+    changes: [] as { add: readonly string[]; remove: readonly string[] }[],
+    failNext: null as string | null,
+    apply(change: TicketLabelChange): Promise<TicketLabelResult> {
+      if (writer.failNext !== null) {
+        const problemCode = writer.failNext;
+        writer.failNext = null;
+        return Promise.resolve({ kind: "failed", problemCode });
+      }
+      writer.changes.push({ add: change.add, remove: change.remove });
+      return Promise.resolve({ kind: "applied" });
+    },
+  };
+  return writer;
+}
 
 /**
  * Issue 32: Bakery keeps one status note on a ticket true as its request moves
@@ -29,9 +55,13 @@ async function admitted(
   return { sourceId, request: result.request!, ticketId: result.ticketId! };
 }
 
-const sync = (fx: TicketFixture, sourceId: string) =>
+const sync = (
+  fx: TicketFixture,
+  sourceId: string,
+  labels?: TicketLabelWriter,
+) =>
   syncSourceProgress(
-    { database: fx.runtime, writer: fx.notes },
+    { database: fx.runtime, writer: fx.notes, labels },
     {
       organizationId: fx.organizationId,
       sourceId,
@@ -203,4 +233,70 @@ Deno.test("a note that did not post keeps the request and the last good phase, a
       healed.last_synced_run_revision !== good.last_synced_run_revision,
       true,
     );
+  }));
+
+Deno.test("Bakery's progress label follows the phase: the new one is added before the old one comes off, and only Bakery's labels change", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId, request } = await admitted(fx, 1104);
+    const labels = memoryLabels();
+    await sync(fx, sourceId, labels);
+    await setRun(fx, request.workflowRunId, "running");
+    await sync(fx, sourceId, labels);
+    // Finished with no pull request yet, then with one open: both read "review".
+    await setRun(fx, request.workflowRunId, "completed", 0);
+    await sync(fx, sourceId, labels);
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: request.taskId,
+      number: 11040,
+      status: "open",
+    });
+    await sync(fx, sourceId, labels);
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where organization_id = $1 and provider_number = 11040",
+      [fx.organizationId],
+    );
+    await sync(fx, sourceId, labels);
+    assertEquals(labels.changes, [
+      { add: ["bakery:queued"], remove: [] },
+      { add: ["bakery:working"], remove: ["bakery:queued"] },
+      { add: ["bakery:review"], remove: ["bakery:working"] },
+      // The same label for the next phase is not written again.
+      { add: ["bakery:done"], remove: ["bakery:review"] },
+    ]);
+  }));
+
+Deno.test("a label that did not change leaves the one comment alone, and the next sync writes the label again", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId, request } = await admitted(fx, 1105);
+    const labels = memoryLabels();
+    await sync(fx, sourceId, labels);
+    const first = await link(fx, request.id);
+    await setRun(fx, request.workflowRunId, "running");
+    labels.failNext = "grant_missing";
+    assertEquals((await sync(fx, sourceId, labels)).failed, 1);
+    const failed = await link(fx, request.id);
+    assertEquals(failed.sync_health, "failed");
+    assertEquals(failed.last_problem_code, "grant_missing");
+    // The note posted, so its id is kept and no second comment follows.
+    assertEquals(
+      failed.status_comment_external_id,
+      first.status_comment_external_id,
+    );
+    assertEquals(
+      failed.last_synced_run_revision,
+      first.last_synced_run_revision,
+    );
+    await fx.owner.query(
+      `update bakery.ticket_task_links
+          set updated_at = now() - make_interval(secs => $1)
+        where organization_id = $2`,
+      [PROGRESS_RETRY_SECONDS + 5, fx.organizationId],
+    );
+    assertEquals((await sync(fx, sourceId, labels)).posted, 1);
+    assertEquals(fx.notes.comments.size, 1, "one status comment");
+    assertEquals(labels.changes.at(-1), {
+      add: ["bakery:working"],
+      remove: ["bakery:queued"],
+    });
   }));

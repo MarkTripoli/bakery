@@ -18,33 +18,58 @@ export type TicketProgressPhase = Readonly<{
   code: number;
   /** The first line of the note, in plain words. */
   headline: string;
+  /** Bakery's progress label for the phase, or null when the phase carries none. */
+  label: string | null;
 }>;
 
 const PHASES = {
-  queued: { code: 1, headline: "Queued: Bakery will start on this soon." },
-  working: { code: 2, headline: "Working on this issue." },
+  queued: {
+    code: 1,
+    headline: "Queued: Bakery will start on this soon.",
+    label: "bakery:queued",
+  },
+  working: {
+    code: 2,
+    headline: "Working on this issue.",
+    label: "bakery:working",
+  },
   waitingForPullRequest: {
     code: 3,
     headline: "The work is finished; waiting for its pull request.",
+    label: "bakery:review",
   },
   waitingForMerge: {
     code: 4,
     headline: "The work is finished; waiting for its pull request to merge.",
+    label: "bakery:review",
   },
   pullRequestClosed: {
     code: 5,
     headline:
       "The pull request was closed without merging, so this is not delivered.",
+    label: "bakery:review",
   },
   waitingForDeployment: {
     code: 6,
     headline: "Merged; waiting for a healthy release.",
+    label: "bakery:review",
   },
-  paused: { code: 7, headline: "Paused." },
-  delivered: { code: 8, headline: "Delivered." },
-  failed: { code: 9, headline: "Stopped: the run did not succeed." },
-  canceled: { code: 10, headline: "Canceled." },
+  paused: { code: 7, headline: "Paused.", label: "bakery:blocked" },
+  delivered: { code: 8, headline: "Delivered.", label: "bakery:done" },
+  failed: {
+    code: 9,
+    headline: "Stopped: the run did not succeed.",
+    label: "bakery:blocked",
+  },
+  canceled: { code: 10, headline: "Canceled.", label: null },
 } as const satisfies Record<string, TicketProgressPhase>;
+
+/** The progress label a stored phase code put on the ticket, or null when it put none or the code is unknown. */
+export function ticketProgressLabelOfCode(code: number | null): string | null {
+  if (code === null) return null;
+  return Object.values(PHASES).find((phase) => phase.code === code)?.label ??
+    null;
+}
 
 /**
  * The phase for a request's progress and delivery verdict, or null when the
