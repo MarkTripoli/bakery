@@ -4,6 +4,7 @@ import {
   openAuthFixture,
   signSessionCookie,
 } from "../helpers/auth.ts";
+import { openSocketFixture } from "../helpers/events-socket.ts";
 
 /**
  * #54 slice 1: one mention send under duplicates and races, through the real
@@ -364,5 +365,268 @@ Deno.test("a send racing the recipient's removal or the sender's demotion is all
     }
   } finally {
     await w.close();
+  }
+});
+
+type Inbox = Awaited<ReturnType<typeof openSocketFixture>>;
+
+/** One inbox row for the fixture's person. */
+async function arrive(
+  fixture: Inbox,
+  targetId: string = crypto.randomUUID(),
+): Promise<{ id: string; revision: number }> {
+  const event = await fixture.insertDomainEvent({
+    eventType: "conversation.message_created",
+    aggregateId: crypto.randomUUID(),
+  });
+  const row = await fixture.pgDatabase.query<{ id: string; revision: number }>(
+    `insert into bakery.notifications (
+       organization_id, recipient_id, kind, target_kind, target_id, task_id,
+       source_event_id, source_version
+     ) values ($1, $2, 'mention', 'conversation_message', $3, $4, $5, 1)
+     returning id, revision`,
+    [
+      fixture.organizationId,
+      fixture.principalId,
+      targetId,
+      fixture.taskId,
+      event.id,
+    ],
+  );
+  return row.rows[0]!;
+}
+
+function inbox(
+  fixture: Inbox,
+  method: "GET" | "PATCH" | "POST",
+  path: string,
+  options: { body?: unknown; ifMatch?: number; organizationId?: string } = {},
+): Promise<Response> {
+  const headers = new Headers({
+    cookie: fixture.cookie,
+    "Bakery-Organization-Id": options.organizationId ?? fixture.organizationId,
+  });
+  if (method !== "GET") {
+    headers.set("origin", authTestOrigin);
+    headers.set("content-type", "application/json");
+    headers.set("Idempotency-Key", crypto.randomUUID());
+  }
+  if (options.ifMatch !== undefined) {
+    headers.set("If-Match", `"${options.ifMatch}"`);
+  }
+  return Promise.resolve(fixture.app.fetch(
+    new Request(`${authTestOrigin}${path}`, {
+      method,
+      headers,
+      ...(method === "GET" ? {} : { body: JSON.stringify(options.body ?? {}) }),
+    }),
+  ));
+}
+
+async function body<T>(
+  pending: Response | Promise<Response>,
+  status: number,
+): Promise<T> {
+  const response = await pending;
+  const text = await response.text();
+  assertEquals(response.status, status, text);
+  return JSON.parse(text) as T;
+}
+
+type Row = { id: string; revision: number; readAt: string | null };
+
+Deno.test("mark all read at a cutoff leaves a racing arrival unread, and the other session's stale revision is discarded", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const older = await arrive(fixture);
+    await arrive(fixture);
+    const cutoff = (await fixture.pgDatabase.query<{ now: Date }>(
+      "select clock_timestamp() as now",
+    )).rows[0]!.now.toISOString();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    // Session B holds the first row's revision from before the bulk read.
+    const seenByB = older.revision;
+
+    // The arrival lands while session A's mark-all-read is in flight.
+    const [marked, arrival] = await Promise.all([
+      inbox(fixture, "POST", "/v1/notifications/read-all", {
+        body: { readBefore: cutoff },
+      }),
+      arrive(fixture),
+    ]);
+    assertEquals(
+      (await body<{ marked: number }>(marked, 201)).marked,
+      2,
+      "only what existed at the cutoff",
+    );
+    const unread = await body<{ items: Row[] }>(
+      await inbox(fixture, "GET", "/v1/notifications?filter=unread&limit=50"),
+      200,
+    );
+    assertEquals(
+      unread.items.map((item) => item.id),
+      [arrival.id],
+      "the arrival stays unread",
+    );
+    assertEquals(
+      (await body<{ unread: number }>(
+        await inbox(fixture, "GET", "/v1/notifications/count"),
+        200,
+      )).unread,
+      1,
+    );
+
+    // Session B now writes with the revision it saw before: discarded.
+    const stale = await inbox(
+      fixture,
+      "PATCH",
+      `/v1/notifications/${older.id}`,
+      {
+        body: { read: false, expectedCasVersion: seenByB },
+        ifMatch: seenByB,
+      },
+    );
+    assertEquals(stale.status, 409, await stale.text());
+    const current = await body<Row>(
+      await inbox(fixture, "GET", `/v1/notifications/${older.id}`),
+      200,
+    );
+    assert(current.revision > seenByB, "revisions only move forward");
+    assert(current.readAt !== null, "the bulk read stands");
+
+    // Refetching and writing in order succeeds, and each write moves it on.
+    const unreadAgain = await body<Row>(
+      await inbox(fixture, "PATCH", `/v1/notifications/${older.id}`, {
+        body: { read: false, expectedCasVersion: current.revision },
+        ifMatch: current.revision,
+      }),
+      200,
+    );
+    assert(unreadAgain.revision > current.revision);
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("a deleted part opens its task with no anchor, and an unreachable task shows no title", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const secret = "SECRET-TASK-TITLE-" + crypto.randomUUID().slice(0, 8);
+    await fixture.pgDatabase.query(
+      "update bakery.tasks set title = $2 where id = $1",
+      [fixture.taskId, secret],
+    );
+    const item = await arrive(fixture, crypto.randomUUID());
+    const target = () =>
+      body<{ status: string; path: string | null; anchor: string | null }>(
+        inbox(fixture, "GET", `/v1/notifications/${item.id}/target`),
+        200,
+      );
+
+    // The message is gone but its task still opens: no dead anchor.
+    const part = await target();
+    assertEquals(part.status, "part_unavailable");
+    assertEquals(part.path, `/tasks/${fixture.taskId}`);
+    assertEquals(part.anchor, null);
+
+    // No reachable task: unavailable, and the task's title is nowhere.
+    await fixture.pgDatabase.query(
+      "update bakery.notifications set task_id = null where id = $1",
+      [item.id],
+    );
+    const gone = await target();
+    assertEquals(gone.status, "unavailable");
+    assertEquals(gone.path, null);
+    assertEquals(gone.anchor, null);
+    const listed = await body<{
+      items: {
+        id: string;
+        destination: { title: string | null; available: boolean };
+      }[];
+    }>(inbox(fixture, "GET", "/v1/notifications?limit=50"), 200);
+    const row = listed.items.find((entry) => entry.id === item.id)!;
+    assertEquals(row.destination, { title: null, available: false });
+    const detail = await (await inbox(
+      fixture,
+      "GET",
+      `/v1/notifications/${item.id}`,
+    )).text();
+    for (const text of [detail, JSON.stringify(gone), JSON.stringify(row)]) {
+      assert(!text.includes(secret), "the protected title never appears");
+    }
+
+    // Deleting the task takes its notifications with it: nothing is left to
+    // show, so no stale row can keep a title alive.
+    await fixture.pgDatabase.query(
+      "update bakery.notifications set task_id = $2 where id = $1",
+      [item.id, fixture.taskId],
+    );
+    await fixture.pgDatabase.query("delete from bakery.tasks where id = $1", [
+      fixture.taskId,
+    ]);
+    const after = await inbox(fixture, "GET", `/v1/notifications/${item.id}`);
+    assertEquals(after.status, 404, await after.text());
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("a cursor pages without repeats, and another organization's scope reaches nothing", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const made = [];
+    for (let index = 0; index < 5; index++) made.push(await arrive(fixture));
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const page: { items: Row[]; nextCursor: string | null } = await body(
+        await inbox(
+          fixture,
+          "GET",
+          `/v1/notifications?limit=2${
+            cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""
+          }`,
+        ),
+        200,
+      );
+      seen.push(...page.items.map((item) => item.id));
+      cursor = page.nextCursor;
+      pages++;
+    } while (cursor && pages < 10);
+    assertEquals(new Set(seen).size, seen.length, "no row repeats");
+    assertEquals(new Set(seen), new Set(made.map((item) => item.id)));
+
+    // A cursor issued in this organization, and an id from it, mean nothing
+    // under another organization's scope.
+    const other = crypto.randomUUID();
+    const first: { nextCursor: string } = await body(
+      await inbox(fixture, "GET", "/v1/notifications?limit=2"),
+      200,
+    );
+    const crossList = await inbox(
+      fixture,
+      "GET",
+      `/v1/notifications?limit=2&cursor=${
+        encodeURIComponent(first.nextCursor)
+      }`,
+      { organizationId: other },
+    );
+    assert(
+      crossList.status >= 400,
+      "no list under an organization I am not in",
+    );
+    await crossList.body?.cancel();
+    const crossRead = await inbox(
+      fixture,
+      "GET",
+      `/v1/notifications/${made[0]!.id}`,
+      { organizationId: other },
+    );
+    assert(crossRead.status >= 400, "an id grants nothing in another scope");
+    await crossRead.body?.cancel();
+  } finally {
+    await fixture.close();
   }
 });
