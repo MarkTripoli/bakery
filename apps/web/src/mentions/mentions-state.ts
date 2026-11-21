@@ -1,8 +1,4 @@
-import type {
-  ApiFailure,
-  MentionCandidate,
-  MentionSource,
-} from "../api/client.ts";
+import type { ApiFailure, MentionCandidate } from "../api/client.ts";
 
 /** The most people one message or comment may mention (the server's limit). */
 export const MAX_MENTIONS = 20;
@@ -11,7 +7,7 @@ export const MAX_MENTIONS = 20;
 export type Mention = {
   readonly principalId: string;
   readonly name: string;
-  /** Sending would give this person access to the conversation. */
+  /** Sending would give this person access to the conversation or document. */
   readonly gainsAccess: boolean;
   /**
    * This person has no access and the writer may not give it: someone who can
@@ -117,29 +113,24 @@ export function addMention(
 }
 
 /** What a picker row is, from what the server says about the person and where the writer is. */
-export type RowKind = "ready" | "gains" | "blocked";
+export type RowKind = "ready" | "gains";
 
 /**
- * A person who can already read here is an ordinary row. In a conversation
- * anyone without access can be chosen and wears the badge: whether sending
- * gives the access or someone else has to is `needsSharer`. A comment never
- * widens access, so a person who cannot see the document is blocked.
+ * A person who can already read here is an ordinary row. Anyone without access
+ * can be chosen, in a conversation or on a document, and wears the badge:
+ * whether sending gives the access or someone else has to is `needsSharer`.
  */
 export function rowKind(
   candidate: Pick<MentionCandidate, "hasAccess">,
-  source: MentionSource["kind"],
 ): RowKind {
-  if (candidate.hasAccess) return "ready";
-  return source === "conversation" ? "gains" : "blocked";
+  return candidate.hasAccess ? "ready" : "gains";
 }
 
 /** A person without access whom the writer may not give it to: someone who can share must be asked. */
 export function needsSharer(
   candidate: Pick<MentionCandidate, "hasAccess" | "gainsAccessOnSend">,
-  source: MentionSource["kind"],
 ): boolean {
-  return source === "conversation" && !candidate.hasAccess &&
-    !candidate.gainsAccessOnSend;
+  return !candidate.hasAccess && !candidate.gainsAccessOnSend;
 }
 
 /** The mentions with these people marked as needing a sharer, when the server says the writer may not share after all. */

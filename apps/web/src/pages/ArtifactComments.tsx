@@ -11,12 +11,18 @@ import {
 } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  artifactAccessQueryOptions,
   artifactCommentsAcrossVersionsQueryOptions,
+  effectiveAccessQueryOptions,
   taskQueryOptions,
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useConnectivity } from "../app/connectivity.ts";
+import {
+  grantsFromComments,
+  PeopleAddedDialog,
+} from "../mentions/PeopleAddedDialog.tsx";
 import { useMentionField } from "../mentions/useMentionField.tsx";
 import {
   type ArtifactCommentComposerModel,
@@ -135,12 +141,27 @@ export function ArtifactComments(
   ]);
   const connectivity = useConnectivity();
   const mentionField = useMentionField({
-    source: { kind: "comment", id: reply?.artifactVersionId ?? version.id },
+    source: {
+      kind: "comment",
+      id: reply?.artifactVersionId ?? version.id,
+      artifactId: artifact.id,
+    },
     value: body,
     onValue: setBody,
     offline: connectivity === "offline",
     disabled: busy,
   });
+  // The link to the people a comment added is for someone who may share the document.
+  const access = useQuery(effectiveAccessQueryOptions(api, scope));
+  const canShare =
+    access.data?.capabilities.includes("artifact:share") === true;
+  const added = useQuery({
+    ...artifactAccessQueryOptions(api, scope, artifact.id),
+    enabled: canShare && Boolean(scope.organizationId),
+  });
+  // Only the access a comment gave is "added by a mention"; access given by hand is not.
+  const addedCount = grantsFromComments(added.data ?? []).length;
+  const [addedOpen, setAddedOpen] = useState(false);
   const submit = async () => {
     if (!scope.organizationId || busy || (!reply && invalidAnchor)) return;
     const bytes = new TextEncoder().encode(body.trim()).length;
@@ -155,6 +176,10 @@ export function ArtifactComments(
         ? {
           mentions: mentionField.mentions.map((mention) => mention.principalId),
         }
+        : {}),
+      // Posting is the yes: a person with no access gets the level the writer chose.
+      ...(mentionField.offered > 0
+        ? { accessLevel: mentionField.accessLevel }
         : {}),
     });
     if (!input.success) {
@@ -204,6 +229,10 @@ export function ArtifactComments(
     setInvalidAnchor(false);
     setAnchorGeneration((generation) => generation + 1);
     setSelected([]);
+    // A post that gave access added someone: the People added link must count them now.
+    if (canShare && input.data.accessLevel !== undefined) {
+      void added.refetch();
+    }
     await comments.refetch();
   };
   const resolve = async (root: ArtifactCommentResponse) => {
@@ -239,11 +268,16 @@ export function ArtifactComments(
     value: body,
     onChange: setBody,
     onSubmit: () => void submit(),
-    submitLabel: t(
-      reply ? "artifact.comments.sendReply" : "artifact.comments.post",
-    ),
+    // While an offer is open the button says what it does: it gives the access and posts.
+    submitLabel: busy && mentionField.sendingLabel !== null
+      ? mentionField.sendingLabel
+      : failure === "failed" && mentionField.failed !== null
+      ? mentionField.retryLabel
+      : mentionField.sendLabel ??
+        t(reply ? "artifact.comments.sendReply" : "artifact.comments.post"),
     disabled: busy || comments.isError || (!reply && invalidAnchor) ||
-      mentionField.refused,
+      mentionField.refused || mentionField.blocked,
+    sendReason: mentionField.sendReason,
     mentionField,
     mode: reply
       ? {
@@ -346,7 +380,10 @@ export function ArtifactComments(
       {failure
         ? (
           <UI.InlineNotice tone="error">
-            {t(`artifact.comments.${failure}`)}
+            {failure === "failed" && mentionField.failed !== null
+              // A post that was giving access failed: nothing was given, and the draft is still here.
+              ? `${mentionField.failed.line} ${mentionField.failed.detail}`
+              : t(`artifact.comments.${failure}`)}
           </UI.InlineNotice>
         )
         : null}
@@ -364,6 +401,24 @@ export function ArtifactComments(
         )
         : null}
       {!reply ? <ArtifactCommentComposerView {...composer} /> : null}
+      {canShare
+        ? (
+          <>
+            {addedCount > 0 || addedOpen
+              ? (
+                <UI.Button onClick={() => setAddedOpen(true)} variant="text">
+                  {t("mentions.added.link", { count: addedCount })}
+                </UI.Button>
+              )
+              : null}
+            <PeopleAddedDialog
+              onOpenChange={setAddedOpen}
+              open={addedOpen}
+              subject={{ kind: "document", id: artifact.id }}
+            />
+          </>
+        )
+        : null}
     </UI.CommentRail>
   );
 }

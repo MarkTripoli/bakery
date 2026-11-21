@@ -41,7 +41,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { TaskFromIssue } from "../TaskFromIssue.tsx";
 import { useMentionField } from "../../mentions/useMentionField.tsx";
 import { Composer } from "./Composer.tsx";
-import { PeopleAddedDialog } from "./PeopleAddedDialog.tsx";
+import { PeopleAddedDialog } from "../../mentions/PeopleAddedDialog.tsx";
 import {
   browserDraftStore,
   type Draft,
@@ -854,7 +854,7 @@ export function TaskConversation(
                     )
                     : null}
                   <PeopleAddedDialog
-                    conversationId={conversationId}
+                    subject={{ kind: "conversation", id: conversationId }}
                     onOpenChange={setAddedOpen}
                     open={addedOpen}
                   />
