@@ -423,6 +423,65 @@ it passed, 1 when it failed, and 3 when it ran but its result could not be
 reported (a network error is retried three times; a refusal is not). The drill's
 own id is chosen by the host, so reporting the same drill twice records it once.
 
+## Restore in place: replacing the installation from a set
+
+This **replaces the whole installation**: Postgres (`bakery` and `inngest`),
+Redis and the skills tree. It is a destructive step on the host, run as **root
+on the host by the operator who holds the age identity**. No API call and no
+role can do it. Plan it as an incident: say who runs it, which set, and why.
+
+```sh
+sudo bash /opt/bakery/deploy/restore.sh /var/lib/bakery/backups/<set> /path/to/identity --confirm <set>
+```
+
+`--confirm` must be the set's own directory name. Without it the script exits
+65 and changes nothing.
+
+**It refuses, and changes nothing, unless:**
+
+| exit | refusal | meaning |
+| ---- | ------- | ------- |
+| 65 | `RESTORE_CONFIRMATION_REQUIRED` | the typed name is not the set's name |
+| 66 | `RESTORE_REFUSED_DRILL_FAILED` | `restore-drill.sh` of this set did not pass just now (the drill runs here and reports nothing, because the API may be the thing being replaced) |
+| 67 | `RESTORE_REFUSED_NO_PRE_BACKUP` | a backup of the installation as it is could not be taken first, so the restore could not be undone |
+| 70 | | Deno or the release checkout is missing |
+
+**What it does, in order.**
+
+1. Takes the pre-restore backup and prints `PRE_RESTORE_BACKUP <name>`.
+2. Puts the proxy's pending page up (503 "installation pending") and stops the
+   api (both slots), dispatch, the worker and Inngest.
+3. Replaces `bakery` and `inngest` from their dumps (owners and grants as dumped),
+   Redis from its snapshot, and the skills tree. The old skills tree is kept as
+   `skills.pre-restore-<time>`.
+4. **Moves the worker's state aside** as `worker.pre-restore-<time>` and creates
+   an empty directory in its place. It is never restored: a copied worker
+   journal must not be replayed against older database truth.
+5. Brings the schema up to the running release, then runs the **restore fence**:
+   every effect that was prepared or submitted becomes `uncertain` (to be
+   reconciled, never sent again), every active attempt is quarantined and its job
+   waits for reconciliation, and every worker host is revoked.
+6. Starts the api only and puts the proxy back. Dispatch, the worker and Inngest
+   **stay stopped**. The restore hold keeps every guarded door answering 503
+   until an installation administrator re-enables the installation (the next
+   slice). It prints `RESTORE_COMPLETED_HELD`.
+
+**Redis is loaded in a separate step on purpose.** With the append-only file on
+(as production runs it) and only a snapshot present, Redis starts empty and
+ignores the snapshot. The script loads the snapshot in a one-shot server with the
+append-only file off, switches it on so a fresh file is written from memory, and
+only then starts the real server.
+
+**If it fails after the stores were touched** it exits 1, says
+`RESTORE_FAILED` and names the pre-restore backup. The installation stays
+stopped. Do not start any service by hand: restore the pre-restore backup the
+same way, or fix the cause and run the script again.
+
+**What it does not do.** It does not restore the secrets key (the operator keeps
+it; the drill already checked it matches). It does not read or send anything to a
+provider. What an unsettled effect did at its provider is not known, which is why
+it is `uncertain`.
+
 ## What the runner does when something goes wrong
 
 The order of a pass is: claim, hold the installation, wait for quiet, read
