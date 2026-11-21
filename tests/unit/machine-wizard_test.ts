@@ -4,14 +4,12 @@ import {
   enrollmentInput,
   environmentValue,
   harnessRepositorySetting,
-  hasInstaller,
   initialAnswers,
   installState,
   minutesLeft,
   parsedSlots,
   saveSetupCodeCommand,
   startWorkerCommand,
-  suggestedProcessor,
   systemProblems,
   workerEnvironment,
 } from "../../apps/web/src/pages/machine-wizard.ts";
@@ -19,10 +17,9 @@ import {
 // #70 slice 1: the add-a-machine wizard asks three questions and makes one
 // enrollment from the answers.
 
-Deno.test("each system suggests the processor it most often has, and the answers start valid except for the name and the agent", () => {
-  assertEquals(suggestedProcessor("linux"), "x86_64");
-  assertEquals(suggestedProcessor("macos"), "arm64");
+Deno.test("the answers start on the one supported system, valid except for the name and the agent", () => {
   const answers = initialAnswers();
+  assertEquals([answers.os, answers.architecture], ["linux", "arm64"]);
   assertEquals(answers.slots, "1");
   assertEquals(answers.agent, null);
   assertEquals(systemProblems(answers), ["nameRequired"]);
@@ -58,15 +55,15 @@ Deno.test("the first step refuses an empty or oversized name and any slots but a
 
 Deno.test("the enrollment is made only from complete answers, with the capabilities a coding machine needs and the chosen agent", () => {
   const complete = {
-    name: "  build-mac-01 ",
-    os: "macos" as const,
+    name: "  build-arm-01 ",
+    os: "linux" as const,
     architecture: "arm64",
     slots: "2",
     agent: "codex" as const,
   };
   assertEquals(enrollmentInput(complete), {
-    name: "build-mac-01",
-    os: "macos",
+    name: "build-arm-01",
+    os: "linux",
     architecture: "arm64",
     capabilities: ["git", "shell", "web", "model", "codex"],
     slots: 2,
@@ -75,13 +72,28 @@ Deno.test("the enrollment is made only from complete answers, with the capabilit
   assertEquals(enrollmentInput({ ...complete, name: "" }), null);
   assertEquals(enrollmentInput({ ...complete, slots: "0" }), null);
   assertEquals(enrollmentInput({ ...complete, architecture: "  " }), null);
+  // A system without an installer never makes a setup, whatever else is filled in.
+  for (
+    const [os, architecture] of [
+      ["linux", "x86_64"],
+      ["macos", "arm64"],
+      ["macos", "x86_64"],
+      ["windows", "x86_64"],
+    ] as const
+  ) {
+    assertEquals(
+      enrollmentInput({ ...complete, os: os as "linux", architecture }),
+      null,
+      `${os} ${architecture}`,
+    );
+  }
 });
 
 Deno.test("the worker settings name the machine, its slots and capabilities and exactly the chosen agent's, and never the setup code", () => {
   const answers = {
     name: "ci-linux-02",
     os: "linux" as const,
-    architecture: "x86_64",
+    architecture: "arm64",
     slots: "3",
   };
   const settings = (agent: "claude" | "codex" | "pi") =>
@@ -132,7 +144,7 @@ Deno.test("a machine name the settings file could misread is quoted so the servi
       input: enrollmentInput({
         name,
         os: "linux",
-        architecture: "x86_64",
+        architecture: "arm64",
         slots: "1",
         agent: "claude",
       })!,
@@ -170,9 +182,7 @@ Deno.test("the setup code is typed into a file only its owner can read, and a Li
   assertEquals(startWorkerCommand("macos"), null);
 });
 
-Deno.test("only Linux has steps to run the worker, and the repository setting is named per agent", () => {
-  assertEquals(hasInstaller("linux"), true);
-  assertEquals(hasInstaller("macos"), false);
+Deno.test("the repository setting is named per agent", () => {
   assertEquals(
     harnessRepositorySetting("claude"),
     "BAKERY_CLAUDE_HARNESS_REPOSITORY",
@@ -186,7 +196,7 @@ Deno.test("only Linux has steps to run the worker, and the repository setting is
   const input = enrollmentInput({
     name: "x",
     os: "linux",
-    architecture: "x86_64",
+    architecture: "arm64",
     slots: "1",
     agent: "pi",
   })!;
@@ -207,7 +217,7 @@ Deno.test("a machine with no known coding agent gets the settings without any ag
   const input = {
     name: "old-box",
     os: "linux" as const,
-    architecture: "x86_64",
+    architecture: "arm64",
     capabilities: ["git", "shell"],
     slots: 1,
   };

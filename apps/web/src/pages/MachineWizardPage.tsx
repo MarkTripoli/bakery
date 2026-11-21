@@ -12,22 +12,25 @@ import {
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { SetupInstructions } from "./SetupInstructions.tsx";
 import type { CodingAgent } from "./machine-state.ts";
 import {
+  isSupportedSystem,
+  SYSTEM_ROWS,
+  type SystemRow,
+  systemRow,
+} from "./machine-systems.ts";
+import {
   agentOfCapabilities,
   type EnrollmentInput,
   enrollmentInput,
-  hasInstaller,
   initialAnswers,
   installState,
-  type MachineSystem,
   NAME_MAX,
-  PROCESSORS,
-  suggestedProcessor,
   systemProblems,
   WIZARD_STEPS,
   type WizardAnswers,
@@ -43,8 +46,164 @@ type IssuedCode = Readonly<{
   expiresAt: string;
 }>;
 
-const AGENTS: readonly CodingAgent[] = ["claude", "codex", "pi"];
-const SYSTEMS: readonly MachineSystem[] = ["linux", "macos"];
+/** The words of a row's processor: `arm64`, or `arm64 (Apple silicon)`. */
+function processorText(row: SystemRow, translate: Translator): string {
+  return row.processorNote === null
+    ? row.architecture
+    : `${row.architecture} (${
+      translate(`machines.wizard.processor.${row.processorNote}` as never)
+    })`;
+}
+
+/** The coding agents of a row as one line, or a dash when it has none. */
+function agentsText(row: SystemRow, translate: Translator): string {
+  return row.agents.length === 0
+    ? "—"
+    : row.agents.map((agent) => translate(`machines.agent.${agent}` as never))
+      .join(", ");
+}
+
+function installedAsText(row: SystemRow, translate: Translator): string {
+  return row.installedAs === null
+    ? "—"
+    : translate(`machines.wizard.installedAs.${row.installedAs}` as never);
+}
+
+/** A cell of the table: quiet for a system Bakery cannot set up. */
+function cellText(row: SystemRow, text: string) {
+  return row.supported ? text : <UI.Text variant="muted">{text}</UI.Text>;
+}
+
+function SupportBadge(
+  { row, translate }: { row: SystemRow; translate: Translator },
+) {
+  return row.supported
+    ? (
+      <UI.Badge tone="success">
+        {translate("machines.wizard.support.supported" as never)}
+      </UI.Badge>
+    )
+    : (
+      <UI.Badge>
+        {translate("machines.wizard.support.notYet" as never)}
+      </UI.Badge>
+    );
+}
+
+/** The systems Bakery lists: one table to choose from, cards on a phone. */
+function SystemChoice(
+  { answers, onChange, translate }: {
+    answers: WizardAnswers;
+    onChange: (next: WizardAnswers) => void;
+    translate: Translator;
+  },
+) {
+  const phone = useShellViewport() === "phone";
+  const chosen = systemRow(answers.os, answers.architecture)?.id ?? null;
+  // Only a supported row can be chosen; the agent follows only if the row has it.
+  const choose = (row: SystemRow) => {
+    if (!row.supported) return;
+    onChange({
+      ...answers,
+      os: row.os,
+      architecture: row.architecture,
+      agent: answers.agent !== null && row.agents.includes(answers.agent)
+        ? answers.agent
+        : null,
+    });
+  };
+  const osName = (row: SystemRow) =>
+    translate(`machines.os.${row.os}` as never);
+  const label = translate("machines.wizard.system" as never);
+  if (phone) {
+    return (
+      <UI.Stack gap="compact" role="radiogroup" aria-label={label}>
+        {SYSTEM_ROWS.map((row) => (
+          <UI.PresetOption
+            key={row.id}
+            name="machine-wizard-system"
+            value={row.id}
+            checked={chosen === row.id}
+            disabled={!row.supported}
+            onChange={() => choose(row)}
+            title={`${osName(row)} · ${processorText(row, translate)}`}
+            description={row.supported
+              ? `${installedAsText(row, translate)} · ${
+                agentsText(row, translate)
+              }`
+              : translate("machines.wizard.noInstaller" as never)}
+            unavailable={row.supported ? undefined : translate(
+              "machines.wizard.support.notYet" as never,
+            )}
+          />
+        ))}
+      </UI.Stack>
+    );
+  }
+  return (
+    <UI.DataTable<SystemRow>
+      caption={label}
+      captionHidden
+      variant="ruled"
+      inset="none"
+      rows={[...SYSTEM_ROWS]}
+      getRowKey={(row) => row.id}
+      getRowAttributes={(row) => ({
+        "data-system-id": row.id,
+        ...(chosen === row.id ? { "data-selected": "true" } : {}),
+        ...(row.supported ? {} : { "data-muted": "true" }),
+      })}
+      columns={[
+        {
+          id: "choose",
+          width: "6%",
+          header: <UI.VisuallyHidden>{label}</UI.VisuallyHidden>,
+          cell: (row) => (
+            <UI.Radio
+              name="machine-wizard-system"
+              value={row.id}
+              checked={chosen === row.id}
+              disabled={!row.supported}
+              aria-label={`${osName(row)} ${processorText(row, translate)}`}
+              onChange={() => choose(row)}
+            >
+              {null}
+            </UI.Radio>
+          ),
+        },
+        {
+          id: "system",
+          width: "12%",
+          header: translate("machines.wizard.column.system" as never),
+          cell: (row) => cellText(row, osName(row)),
+        },
+        {
+          id: "processor",
+          width: "22%",
+          header: translate("machines.wizard.column.processor" as never),
+          cell: (row) => cellText(row, processorText(row, translate)),
+        },
+        {
+          id: "installedAs",
+          width: "26%",
+          header: translate("machines.wizard.column.installedAs" as never),
+          cell: (row) => cellText(row, installedAsText(row, translate)),
+        },
+        {
+          id: "agents",
+          width: "18%",
+          header: translate("machines.wizard.column.agents" as never),
+          cell: (row) => cellText(row, agentsText(row, translate)),
+        },
+        {
+          id: "support",
+          header: translate("machines.wizard.column.support" as never),
+          cell: (row) => <SupportBadge row={row} translate={translate} />,
+        },
+      ]}
+    />
+  );
+}
 
 function SystemStep(
   { answers, onChange, showProblems, translate }: {
@@ -81,61 +240,19 @@ function SystemStep(
       </UI.Field>
       <UI.Stack gap="compact">
         <UI.Text variant="strong">
-          {translate("machines.wizard.os" as never)}
+          {translate("machines.wizard.system" as never)}
         </UI.Text>
-        <UI.SegmentedControl
-          aria-label={translate("machines.wizard.os" as never)}
-          name="machine-wizard-os"
-          variant="inline"
-          value={answers.os}
-          onChange={(value) => {
-            const os = value as MachineSystem;
-            // The processor follows the system until the person changes it.
-            const followed = answers.architecture ===
-              suggestedProcessor(answers.os);
-            onChange({
-              ...answers,
-              os,
-              architecture: followed
-                ? suggestedProcessor(os)
-                : answers.architecture,
-            });
-          }}
-          options={SYSTEMS.map((value) => ({
-            value,
-            label: translate(`machines.os.${value}` as never),
-          }))}
+        <UI.Text variant="muted">
+          {translate("machines.wizard.systemHint" as never)}
+        </UI.Text>
+        <SystemChoice
+          answers={answers}
+          onChange={onChange}
+          translate={translate}
         />
         <UI.Text variant="muted">
-          {translate("machines.wizard.osHint" as never)}
+          {translate("machines.wizard.systemFootnote" as never)}
         </UI.Text>
-        {!hasInstaller(answers.os)
-          ? (
-            <UI.AlertBanner
-              tone="information"
-              role="status"
-              id="machine-wizard-os-notice"
-            >
-              {translate("machines.wizard.macos" as never)}
-            </UI.AlertBanner>
-          )
-          : null}
-      </UI.Stack>
-      <UI.Stack gap="compact">
-        <UI.Text variant="strong">
-          {translate("machines.wizard.processor" as never)}
-        </UI.Text>
-        <UI.SegmentedControl
-          aria-label={translate("machines.wizard.processor" as never)}
-          name="machine-wizard-processor"
-          variant="inline"
-          value={answers.architecture}
-          onChange={(architecture) => onChange({ ...answers, architecture })}
-          options={PROCESSORS.map((value) => ({
-            value,
-            label: translate(`machines.wizard.processor.${value}` as never),
-          }))}
-        />
       </UI.Stack>
       <UI.Field
         label={translate("machines.wizard.slots" as never)}
@@ -172,13 +289,14 @@ function AgentStep(
   },
 ) {
   const question = translate("machines.wizard.agent.question" as never);
+  const agents = systemRow(answers.os, answers.architecture)?.agents ?? [];
   return (
     <UI.Stack gap="standard">
       <UI.Heading level="section" rank={2}>
         {question}
       </UI.Heading>
       <UI.Stack gap="compact" role="radiogroup" aria-label={question}>
-        {AGENTS.map((agent) => (
+        {agents.map((agent) => (
           <UI.PresetOption
             key={agent}
             name="machine-wizard-agent"
@@ -270,10 +388,10 @@ function InstallStep(
 
   // A setup for a system without an installer can only have come from before
   // the wizard stopped offering it: say so, and offer nothing it cannot do.
-  if (!hasInstaller(input.os)) {
+  if (!isSupportedSystem(input.os, input.architecture)) {
     return (
       <UI.AlertBanner tone="information" role="status">
-        {translate("machines.wizard.macos" as never)}
+        {translate("machines.wizard.unsupported" as never)}
       </UI.AlertBanner>
     );
   }
@@ -682,10 +800,6 @@ export function MachineWizardPage(
               <UI.Button
                 variant="primary"
                 onClick={next}
-                disabled={step === "system" && !hasInstaller(answers.os)}
-                aria-describedby={step === "system" && !hasInstaller(answers.os)
-                  ? "machine-wizard-os-notice"
-                  : undefined}
               >
                 {translate("machines.wizard.continue" as never)}
               </UI.Button>

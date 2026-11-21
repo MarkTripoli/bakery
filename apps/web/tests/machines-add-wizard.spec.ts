@@ -129,6 +129,14 @@ const settingsOf = (page: Page) =>
     hasText: "BAKERY_SERVER_URL=",
   });
 
+/** A phone shows the systems as cards, a wide screen as a table; the radio is named for each. */
+function systemRadio(page: Page, os: string, architecture: string) {
+  const phone = test.info().project.name === "mobile";
+  return page.getByRole("radio", {
+    name: phone ? `${os} · ${architecture}` : `${os} ${architecture}`,
+  });
+}
+
 test.describe("add a machine wizard", () => {
   test("three steps create one setup and wait for the machine to connect", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"])
@@ -141,11 +149,45 @@ test.describe("add a machine wizard", () => {
     // The step's name is the progress line's; it is not printed a second time.
     await expect(page.getByRole("heading", { name: "Name and system" }))
       .toHaveCount(0);
-    await expect(page.getByText("Windows is not supported yet.")).toBeVisible();
-    // The two choices are labelled.
-    await expect(page.getByText("Operating system", { exact: true }))
-      .toBeVisible();
-    await expect(page.getByText("Processor", { exact: true })).toBeVisible();
+    // The systems are one table: only Linux arm64 can be chosen, and it is
+    // chosen when the page opens.
+    const phone = test.info().project.name === "mobile";
+    if (phone) {
+      const cards = page.getByRole("radiogroup", { name: "System" });
+      await expect(cards.getByRole("radio")).toHaveCount(4);
+      await expect(cards.getByText("Not supported yet")).toHaveCount(3);
+      await expect(cards.getByText("Supported", { exact: true }))
+        .toHaveCount(0);
+      await expect(cards).toContainText("A system service (systemd)");
+      await expect(cards).toContainText("Claude Code, Codex, Pi");
+    } else {
+      const systems = page.getByRole("table", { name: "System" });
+      await expect(systems.getByRole("columnheader")).toHaveText([
+        "System",
+        "System",
+        "Processor",
+        "Installed as",
+        "Coding agents",
+        "Support",
+      ]);
+      await expect(systems.locator("tbody tr")).toHaveCount(4);
+      await expect(systems.getByText("Supported", { exact: true }))
+        .toHaveCount(1);
+      await expect(systems.getByText("Not supported yet")).toHaveCount(3);
+      await expect(systems.locator('tr[data-system-id="linux-arm64"]'))
+        .toContainText("A system service (systemd)");
+      await expect(systems.locator('tr[data-system-id="linux-arm64"]'))
+        .toContainText("Claude Code, Codex, Pi");
+    }
+    await expect(systemRadio(page, "Linux", "arm64")).toBeChecked();
+    await expect(systemRadio(page, "Linux", "x86_64")).toBeDisabled();
+    await expect(systemRadio(page, "macOS", "arm64")).toBeDisabled();
+    await expect(systemRadio(page, "macOS", "x86_64")).toBeDisabled();
+    await expect(
+      page.getByText(
+        "Is your system not supported yet? You cannot add it today. Nothing is installed on a system Bakery has not been proven on.",
+      ),
+    ).toBeVisible();
     // The old form's words are gone.
     for (
       const word of [
@@ -167,18 +209,6 @@ test.describe("add a machine wizard", () => {
     await expect(page.getByText("Enter a whole number from 1 to 100."))
       .toBeVisible();
     await page.getByLabel("How many tasks at once").fill("2");
-    // The processor follows the system until it is changed.
-    await expect(page.getByRole("radio", { name: /Intel or AMD/ }))
-      .toBeChecked();
-    await page.getByRole("radio", { name: "macOS" }).check({ force: true });
-    await expect(page.getByRole("radio", { name: /Apple silicon/ }))
-      .toBeChecked();
-    await page.getByRole("radio", { name: "Linux" }).check({ force: true });
-    await expect(page.getByRole("radio", { name: /Intel or AMD/ }))
-      .toBeChecked();
-    await page.getByRole("radio", { name: /Apple silicon/ }).check({
-      force: true,
-    });
     await shot(page, "machines-wizard-system");
     const axeSystem = await new AxeBuilder({ page }).analyze();
     expect(axeSystem.violations.map((v) => v.id)).toEqual([]);
@@ -334,40 +364,30 @@ test.describe("add a machine wizard", () => {
     expect(setup.creates).toHaveLength(1);
   });
 
-  test("a Mac is told on step 1 that there is no installer, and cannot continue", async ({ page }) => {
+  test("a system with no installer cannot be chosen, and nothing is created for it", async ({ page }) => {
     const setup = newSetup();
     await open(page, setup);
     await page.getByLabel("Name").fill("build-mac-01");
-    const notice = page.getByRole("status").filter({
-      hasText: "Bakery has no installer for macOS yet.",
-    });
-    await expect(notice).toHaveCount(0);
-    await page.getByRole("radio", { name: "macOS" }).check({ force: true });
-    // Where the choice is made: under it, with its reason, and no way on.
-    await expect(notice).toHaveText(
-      "Bakery has no installer for macOS yet. A one-step installer is coming. Until it ships, a Mac cannot join through this page; choose Linux to add a Linux machine.",
-    );
-    await expect(page.getByText("Windows is not supported yet.")).toBeVisible();
-    const next = page.getByRole("button", { name: "Continue" });
-    await expect(next).toBeDisabled();
-    // The reason is tied to the button for a screen reader.
-    const reason = await next.getAttribute("aria-describedby");
-    expect(reason).toBeTruthy();
-    await expect(page.locator(`#${reason}`)).toContainText(
-      "Bakery has no installer for macOS yet.",
-    );
-    await shot(page, "machines-wizard-mac");
-    const axeMac = await new AxeBuilder({ page }).analyze();
-    expect(axeMac.violations.map((v) => v.id)).toEqual([]);
-    // Choosing Linux lifts it, with the answers kept.
-    await page.getByRole("radio", { name: "Linux" }).check({ force: true });
-    await expect(notice).toHaveCount(0);
-    await expect(next).toBeEnabled();
-    await expect(next).not.toHaveAttribute("aria-describedby", /.+/);
+    for (
+      const [os, architecture] of [
+        ["macOS", "arm64"],
+        ["macOS", "x86_64"],
+        ["Linux", "x86_64"],
+      ]
+    ) {
+      const radio = systemRadio(page, os!, architecture!);
+      await expect(radio).toBeDisabled();
+      // Forcing the click changes nothing: the supported row stays chosen.
+      await radio.click({ force: true }).catch(() => undefined);
+      await expect(systemRadio(page, "Linux", "arm64")).toBeChecked();
+    }
+    await shot(page, "machines-wizard-systems-unsupported");
+    const axeSystems = await new AxeBuilder({ page }).analyze();
+    expect(axeSystems.violations.map((v) => v.id)).toEqual([]);
+    // The name is kept, Continue is never blocked, and no setup was made.
     await expect(page.getByLabel("Name")).toHaveValue("build-mac-01");
-    await expect(page.getByRole("radio", { name: /Intel or AMD/ }))
-      .toBeChecked();
-    // Nothing was ever created, and no Mac steps exist anywhere.
+    await expect(page.getByRole("button", { name: "Continue" }))
+      .toBeEnabled();
     expect(setup.creates).toHaveLength(0);
     await expect(page.getByText("/var/lib/bakery")).toHaveCount(0);
   });
@@ -394,7 +414,7 @@ test.describe("add a machine wizard", () => {
     await open(page, setup, { path: `/machines/new?finish=${ENROLLMENT_ID}` });
     await expect(
       page.getByRole("status").filter({
-        hasText: "Bakery has no installer for macOS yet.",
+        hasText: "Bakery has no installer for this system yet.",
       }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Get new settings" }))
@@ -416,7 +436,7 @@ test.describe("add a machine wizard", () => {
     await expect(page.getByText(SETUP_CODE)).toBeVisible();
     expect(setup.creates[0]!.postDataJSON()).toMatchObject({
       os: "linux",
-      architecture: "x86_64",
+      architecture: "arm64",
       slots: 1,
       capabilities: ["git", "shell", "web", "model", "claude"],
     });
