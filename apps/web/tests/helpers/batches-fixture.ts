@@ -94,6 +94,7 @@ export function batch(seed: BatchSeed = {}) {
       issues.filter((i) => i.state === "merged").length,
     elapsedSeconds: seed.elapsedSeconds ?? 0,
     spentUsd: seed.spentUsd ?? "0.0000",
+    waitingOn: null,
     issues: issues.map((issue) => ({
       id: uuid(5000 + id.charCodeAt(30) * 10 + issue.position + issue.number),
       position: issue.position,

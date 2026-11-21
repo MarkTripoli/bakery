@@ -102784,6 +102784,81 @@ export const clientManifest = {
           },
           "description": "The issues it considered, in order."
         },
+        "waitingOn": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "question",
+                    "approval"
+                  ],
+                  "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                },
+                "questionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The open question or approval; answer it through the questions actions."
+                },
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The task of the issue being worked on, where the person answers."
+                },
+                "since": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when it was put."
+                },
+                "askedOf": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "A person the question or approval was put to."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                  },
+                  "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                }
+              },
+              "required": [
+                "kind",
+                "questionId",
+                "taskId",
+                "since",
+                "askedOf"
+              ],
+              "additionalProperties": false,
+              "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.waitingOn may be null in the safe projection."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -102824,6 +102899,7 @@ export const clientManifest = {
         "elapsedSeconds",
         "spentUsd",
         "issues",
+        "waitingOn",
         "createdAt",
         "updatedAt",
         "version"
@@ -103166,6 +103242,81 @@ export const clientManifest = {
                 },
                 "description": "The issues it considered, in order."
               },
+              "waitingOn": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "question",
+                          "approval"
+                        ],
+                        "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                      },
+                      "questionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The open question or approval; answer it through the questions actions."
+                      },
+                      "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The task of the issue being worked on, where the person answers."
+                      },
+                      "since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when it was put."
+                      },
+                      "askedOf": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "principalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "A person the question or approval was put to."
+                            },
+                            "displayName": {
+                              "type": "string",
+                              "maxLength": 200,
+                              "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                            }
+                          },
+                          "required": [
+                            "principalId",
+                            "displayName"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                        },
+                        "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "questionId",
+                      "taskId",
+                      "since",
+                      "askedOf"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.waitingOn may be null in the safe projection."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -103206,6 +103357,7 @@ export const clientManifest = {
               "elapsedSeconds",
               "spentUsd",
               "issues",
+              "waitingOn",
               "createdAt",
               "updatedAt",
               "version"
