@@ -17,7 +17,7 @@ export async function collectArtifactVersion(
   }
   return await withPgTransaction(ownerDatabase, async (transaction) => {
     // A backup holds the installation: nothing is collected until it lets go.
-    await assertNotQuiesced(transaction);
+    await assertNotQuiesced(transaction, "dispatch");
     const role = await transaction.query<{ allowed: boolean }>(
       `select session_user='bakery' and current_user='bakery'
       and (select datdba::regrole::text from pg_database where datname=current_database())='bakery' as allowed`,
