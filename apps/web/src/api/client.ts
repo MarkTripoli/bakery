@@ -2278,6 +2278,7 @@ export type BakeryApiClient = {
       | "withdrawn"
       | "superseded";
     readonly limit?: number;
+    readonly cursor?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<QuestionListResponse>>;
   readonly answerQuestion: (options: {
@@ -5224,6 +5225,7 @@ export function createBakeryApiClient({
             taskId: options.taskId,
             ...(options.status === undefined ? {} : { status: options.status }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
           },
           { signal: options.signal },
         );

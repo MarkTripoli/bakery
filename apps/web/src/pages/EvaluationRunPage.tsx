@@ -84,18 +84,14 @@ function Attempts(
         const words = resultWords(attempt, false);
         return (
           <div key={attempt.id} role="listitem">
-            <UI.Inline gap="compact">
-              <UI.Text aria-hidden="true" variant="caption">
-                {"\u2003"}
-              </UI.Text>
-              <UI.Text variant="caption">
-                {translate("library.evaluation.attempts.line", {
+            <UI.Text variant="caption">
+              {"\u2003" +
+                translate("library.evaluation.attempts.line", {
                   number: attempt.attemptNo,
                   time: time(attempt.startedAt ?? attempt.createdAt),
                   state: translate(words.key, words.values),
                 })}
-              </UI.Text>
-            </UI.Inline>
+            </UI.Text>
           </div>
         );
       })}

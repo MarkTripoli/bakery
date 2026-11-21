@@ -5465,6 +5465,14 @@
   "files.preview.state.mismatchTitle": "⟦Ŧĥïš ƒïļë ðôëš ñôŧ ɱàŧçĥ ïŧš ŕëçôŕð ŧëšŧ çôþÿŧ⟧",
   "files.preview.state.mismatchDescription": "⟦Ŵĥàŧ ïš šŧôŕëð ïš ñôŧ ŵĥàŧ ŵàš ŕëçôŕðëð, šô Ɓàķëŕÿ ŵïļļ ñôŧ šĥôŵ ôŕ ðôŵñļôàð ïŧ. Àšķ àñ ôŕĝàñïžàŧïôñ Àðɱïñ ŧô çĥëçķ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "files.preview.state.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "issues.work.progress.needsAnswer": "⟦Ñëëðš àñ àñšŵëŕ ŧëš⟧",
+  "issues.work.question.one": "⟦Ɓàķëŕÿ ñëëðš àñ àñšŵëŕ ŧëšŧŧ⟧",
+  "issues.work.question.many": "⟦Ɓàķëŕÿ ñëëðš {count} àñšŵëŕš ŧëšŧ çô⟧",
+  "issues.work.question.asked": "⟦Àšķëð {when} · ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.answer": "⟦Àñšŵëŕ…⟧",
+  "issues.work.question.cannot": "⟦Šôɱëôñë ŵĥô çàñ ŵôŕķ ôñ ŧĥïš ŧàšķ ñëëðš ŧô àñšŵëŕ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.expired": "⟦À ǫûëšŧïôñ ŵëñŧ ûñàñšŵëŕëð àñð ëẋþïŕëð. ŧëšŧ çôþÿ ŧ⟧",
+  "issues.work.question.loadFailed": "⟦Ɓàķëŕÿ'š ǫûëšŧïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧",
   "library.tab.evaluations": "⟦Ëṽàļûàŧïôñš ŧ⟧",
   "library.evaluations.intro": "⟦Ëàçĥ ŕûñ ɱëàšûŕëš ôñë ṽëŕšïôñ ôƒ à ŵôŕķƒļôŵ ôŕ àĝëñŧ àĝàïñšŧ à ƒïẋëð šëŧ ôƒ ŧëšŧ çàšëš. Ñëŵëšŧ ƒïŕšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.evaluations.title": "⟦Ŕûñš⟧",
@@ -5544,6 +5552,7 @@
   "library.evaluation.filter.chip": "⟦{state} {count} ŧëš⟧",
   "library.evaluation.state.passed": "⟦Þàššëð…⟧",
   "library.evaluation.state.failed": "⟦Ƒàïļëð…⟧",
+  "library.evaluation.state.notScored": "⟦Çôûļð ñôŧ ƀë šçôŕëð ŧëšŧ⟧",
   "library.evaluation.state.missing": "⟦Ñôŧ ŕûñ…⟧",
   "library.evaluation.state.canceled": "⟦Šŧôþþëð…⟧",
   "library.evaluation.state.skipped": "⟦Šķïþþëð…⟧",
@@ -5565,7 +5574,6 @@
   "library.evaluation.attempts.label": "⟦Àŧŧëɱþŧš àŧ {scorer} ŧëšŧ⟧",
   "library.evaluation.attempts.loading": "⟦Ļôàðïñĝ ŧĥë àŧŧëɱþŧš ŧëšŧ⟧",
   "library.evaluation.attempts.error": "⟦Ŧĥë àŧŧëɱþŧš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
-  "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "library.evaluation.state.notScored": "⟦Çôûļð ñôŧ ƀë šçôŕëð ŧëšŧ⟧",
-  "library.evaluation.attempts.line": "⟦Àŧŧëɱþŧ {number} · {time} · {state} ŧëšŧ çôþÿŧ⟧"
+  "library.evaluation.attempts.line": "⟦Àŧŧëɱþŧ {number} · {time} · {state} ŧëšŧ çôþÿŧ⟧",
+  "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
 }
