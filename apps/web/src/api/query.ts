@@ -101,6 +101,9 @@ import type {
   TaskListResponse,
   TaskRepositoryListResponse,
   TaskResponse,
+  TelemetryDestinationDetail,
+  TelemetryDestinationList,
+  TelemetryDestinationListQuery,
   TicketRequestViewListResponse,
   TicketRoutingRuleSetResponse,
   TicketSourceLabelListResponse,
@@ -2979,6 +2982,54 @@ export function questionsQueryOptions(
   });
 }
 
+/** The most pages of open questions one read follows; each holds up to 100. */
+const OPEN_QUESTION_PAGES = 10;
+
+/**
+ * Every open question of a task, not just the newest page: the list is newest
+ * first and a page holds at most 100, so a count or an oldest read from one
+ * page would miss older open ones. Follows the cursor to the end or to the cap
+ * of ten pages, so a task with more than 1,000 open questions has the newest
+ * 1,000 counted; no task is expected to have that many.
+ */
+export function openQuestionsQueryOptions(
+  client: Pick<BakeryApiClient, "listQuestions">,
+  scope: ApiScope,
+  taskId: string,
+) {
+  return queryOptions<
+    { readonly items: QuestionListResponse["items"] },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "questions.list", {
+      taskId,
+      status: "open",
+      allPages: true,
+    }),
+    queryFn: async ({ signal }) => {
+      const items: QuestionListResponse["items"] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < OPEN_QUESTION_PAGES; page++) {
+        const result = unwrap(
+          await client.listQuestions({
+            organizationId: requireOrganization(scope),
+            taskId,
+            status: "open",
+            limit: 100,
+            ...(cursor === undefined ? {} : { cursor }),
+            signal,
+          }),
+        );
+        items.push(...result.items);
+        if (!result.nextCursor) break;
+        cursor = result.nextCursor;
+      }
+      return { items };
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
 export function conversationParticipantsQueryOptions(
   client: Pick<BakeryApiClient, "listConversationParticipants">,
   scope: ApiScope,
@@ -3640,5 +3691,83 @@ export function storageFileAtVersionQueryOptions(
     enabled: Boolean(scope.organizationId),
     retry: false,
     staleTime: Infinity,
+  });
+}
+
+/**
+ * One page of the telemetry destinations that match the search and filters,
+ * with the kinds, the measurements and the providers. Further pages follow the
+ * cursor, so a long list is read a page at a time. No event is sent when a
+ * destination's state changes, so it reads again every 15 seconds while visible
+ * and when the tab regains focus.
+ */
+export function telemetryDestinationsQueryOptions(
+  client: Pick<BakeryApiClient, "telemetryDestinations">,
+  scope: ApiScope,
+  filters: Readonly<
+    {
+      search?: string;
+      state?: string;
+      kind?: string;
+      provider?: string;
+      limit?: number;
+    }
+  > = {},
+) {
+  const limit = filters.limit ?? 25;
+  return infiniteQueryOptions<
+    TelemetryDestinationList,
+    ApiFailure,
+    { pages: TelemetryDestinationList[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "telemetryDestinations.list", {
+      search: filters.search ?? null,
+      state: filters.state ?? null,
+      kind: filters.kind ?? null,
+      provider: filters.provider ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.telemetryDestinations.list({
+          ...(filters.search === undefined || filters.search === ""
+            ? {}
+            : { search: filters.search }),
+          ...(filters.state === undefined ? {} : { state: filters.state }),
+          ...(filters.kind === undefined ? {} : { kind: filters.kind }),
+          ...(filters.provider === undefined
+            ? {}
+            : { provider: filters.provider }),
+          limit,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+        } as TelemetryDestinationListQuery, signal),
+      ),
+    enabled: Boolean(scope.organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One telemetry destination with its kind, its provider and the measurements. */
+export function telemetryDestinationQueryOptions(
+  client: Pick<BakeryApiClient, "telemetryDestinations">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<TelemetryDestinationDetail, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "telemetryDestinations.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.telemetryDestinations.get(id, signal)),
+    enabled: Boolean(scope.organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
   });
 }

@@ -24,6 +24,7 @@ import {
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { type ProbeSubject, readBlobProbe } from "./blob-probes.ts";
 import {
   ifNoneMatchMatches,
   ifRangeMatches,
@@ -472,48 +473,47 @@ type VersionRow = {
   run_id: string | null;
   task_id: string | null;
   task_title: string | null;
+  /** The agent session the version recorded at its write (#448 S8a). */
   session_id: string | null;
+  /** The job attempt the version recorded at its write. */
+  attempt_id: string | null;
+  /** The agent the recorded session ran. */
+  agent_name: string | null;
+  /** The person the producing run acts for, as recorded at the write. */
+  acting_for_id: string | null;
+  acting_for_name: string | null;
   /** True when an agent's session call wrote the version (a put or copy). */
   agent_write: boolean;
-  agent_session_id: string | null;
-  agent_name: string | null;
 };
 
 /**
- * Who made a version. A version a run step published names the step, its run,
- * its work item and the step's latest agent session. A version an agent wrote
- * from its session with a person's access names the agent, its session and
- * that person: it never reads as the person's own. Any other version names the
- * person (or service) that wrote it.
+ * Who made a version. Every field comes from what the version recorded when it
+ * was written (#448 S8a), never from the step's sessions now: a step's later
+ * session does not become the maker of a version an earlier one wrote. A
+ * version an agent wrote from its session with a person's access names the
+ * agent, its session, attempt, step and run and that person: it never reads as
+ * the person's own. A version a run step published names the step, its run,
+ * its work item and the session and attempt that published it. Any other
+ * version names the person (or service) that wrote it.
  */
 export function versionMaker(row: VersionRow) {
+  const produced = {
+    makerPrincipalId: row.author_id,
+    makerName: row.author_name,
+    stepId: row.run_step_id,
+    stepName: row.step_key,
+    runId: row.run_id,
+    workItemId: row.task_id,
+    workItemTitle: row.task_title,
+    sessionId: row.session_id,
+    attemptId: row.attempt_id,
+    agentName: row.agent_name,
+    actingForPrincipalId: row.acting_for_id,
+    actingForName: row.acting_for_name,
+  };
+  if (row.agent_write) return { makerKind: "agent" as const, ...produced };
   if (row.run_step_id !== null) {
-    return {
-      makerKind: "step" as const,
-      makerPrincipalId: row.author_id,
-      makerName: row.author_name,
-      stepId: row.run_step_id,
-      stepName: row.step_key,
-      runId: row.run_id,
-      workItemId: row.task_id,
-      workItemTitle: row.task_title,
-      sessionId: row.session_id,
-      agentName: null,
-    };
-  }
-  if (row.agent_write) {
-    return {
-      makerKind: "agent" as const,
-      makerPrincipalId: row.author_id,
-      makerName: row.author_name,
-      stepId: null,
-      stepName: null,
-      runId: null,
-      workItemId: null,
-      workItemTitle: null,
-      sessionId: row.agent_session_id,
-      agentName: row.agent_name,
-    };
+    return { makerKind: "step" as const, ...produced };
   }
   return {
     makerKind: "person" as const,
@@ -525,7 +525,10 @@ export function versionMaker(row: VersionRow) {
     workItemId: null,
     workItemTitle: null,
     sessionId: null,
+    attemptId: null,
     agentName: null,
+    actingForPrincipalId: null,
+    actingForName: null,
   };
 }
 
@@ -572,21 +575,34 @@ export function createFileVersionLister(secret: string) {
           " v.media_type, v.sha256, v.purged_at as removed_at," +
           " (v.purged_at is not null) as content_removed, v.author_id," +
           " who.display_name as author_name, v.run_step_id, rs.step_key," +
-          " rs.run_id, wr.task_id, task.title as task_title," +
-          " (select s.id from bakery.agent_sessions s" +
-          " where s.organization_id = v.organization_id" +
-          " and s.run_step_id = v.run_step_id" +
-          " order by s.created_at desc, s.id desc limit 1) as session_id," +
-          " false as agent_write, null::uuid as agent_session_id," +
-          " null::text as agent_name" +
+          " coalesce(v.run_id, rs.run_id) as run_id, wr.task_id," +
+          " task.title as task_title," +
+          // The session and attempt the version recorded when it was published,
+          // not the step's sessions now.
+          " v.agent_session_id as session_id, v.attempt_id," +
+          " def.name as agent_name," +
+          " v.acting_for_principal_id as acting_for_id," +
+          " actor.display_name as acting_for_name," +
+          " false as agent_write" +
           " from bakery.artifact_versions v" +
           " left join bakery.principals who on who.id = v.author_id" +
+          " left join bakery.principals actor" +
+          " on actor.id = v.acting_for_principal_id" +
           " left join bakery.run_steps rs" +
           " on rs.organization_id = v.organization_id and rs.id = v.run_step_id" +
           " left join bakery.workflow_runs wr" +
           " on wr.organization_id = rs.organization_id and wr.id = rs.run_id" +
           " left join bakery.tasks task" +
           " on task.organization_id = wr.organization_id and task.id = wr.task_id" +
+          " left join bakery.agent_sessions s" +
+          " on s.organization_id = v.organization_id" +
+          " and s.id = v.agent_session_id" +
+          " left join bakery.agent_versions av" +
+          " on av.organization_id = s.organization_id" +
+          " and av.id = s.agent_version_id" +
+          " left join bakery.agent_definitions def" +
+          " on def.organization_id = av.organization_id" +
+          " and def.id = av.agent_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
           " and ($3::int is null or v.revision < $3)" +
           " order by v.revision desc limit $4",
@@ -597,30 +613,43 @@ export function createFileVersionLister(secret: string) {
         "select v.id, v.revision, v.created_at, v.size_bytes::text," +
           " v.media_type, v.sha256, null::timestamptz as removed_at," +
           " false as content_removed, v.author_id," +
-          " who.display_name as author_name, null::uuid as run_step_id," +
-          " null::text as step_key, null::uuid as run_id," +
-          " null::uuid as task_id, null::text as task_title," +
-          " null::uuid as session_id," +
-          " (agent.id is not null) as agent_write," +
-          " agent.agent_session_id, agent.agent_name" +
+          " who.display_name as author_name, v.run_step_id, rs.step_key," +
+          " v.run_id, wr.task_id, task.title as task_title," +
+          // What the version recorded at its write (#448 S8a). A version an
+          // agent wrote before that recorded only its step write set row,
+          // which names the session and attempt from the same write.
+          " coalesce(v.agent_session_id, agent.agent_session_id) as session_id," +
+          " coalesce(v.attempt_id, agent.attempt_id) as attempt_id," +
+          " def.name as agent_name," +
+          " v.acting_for_principal_id as acting_for_id," +
+          " actor.display_name as acting_for_name," +
+          " (v.attempt_id is not null or agent.id is not null) as agent_write" +
           " from bakery.storage_file_versions v" +
           " left join bakery.principals who on who.id = v.author_id" +
-          // The agent write that made this version, if one did: its session
-          // and the agent the session ran.
-          " left join lateral (select w.id, w.agent_session_id," +
-          " def.name as agent_name from bakery.step_write_set w" +
+          " left join bakery.principals actor" +
+          " on actor.id = v.acting_for_principal_id" +
+          " left join bakery.run_steps rs" +
+          " on rs.organization_id = v.organization_id and rs.id = v.run_step_id" +
+          " left join bakery.workflow_runs wr" +
+          " on wr.organization_id = v.organization_id and wr.id = v.run_id" +
+          " left join bakery.tasks task" +
+          " on task.organization_id = wr.organization_id and task.id = wr.task_id" +
+          // A version written before 0300: the agent write that made it.
+          " left join lateral (select w.id, w.agent_session_id, w.attempt_id" +
+          " from bakery.step_write_set w" +
+          " where v.attempt_id is null" +
+          " and w.organization_id = v.organization_id" +
+          " and w.new_version_id = v.id and w.op in ('put', 'copy')" +
+          " order by w.created_at, w.id limit 1) agent on true" +
           " left join bakery.agent_sessions s" +
-          " on s.organization_id = w.organization_id" +
-          " and s.id = w.agent_session_id" +
+          " on s.organization_id = v.organization_id" +
+          " and s.id = coalesce(v.agent_session_id, agent.agent_session_id)" +
           " left join bakery.agent_versions av" +
           " on av.organization_id = s.organization_id" +
           " and av.id = s.agent_version_id" +
           " left join bakery.agent_definitions def" +
           " on def.organization_id = av.organization_id" +
           " and def.id = av.agent_id" +
-          " where w.organization_id = v.organization_id" +
-          " and w.new_version_id = v.id and w.op in ('put', 'copy')" +
-          " order by w.created_at, w.id limit 1) agent on true" +
           " where v.organization_id = $1 and v.entry_id = $2" +
           " and ($3::int is null or v.revision < $3)" +
           " order by v.revision desc limit $4",
@@ -780,6 +809,132 @@ export function parseRevision(value: string | undefined): number | null {
     });
   }
   return Number(value);
+}
+
+/**
+ * What the probe measured about a storage file's version (the current one unless
+ * a revision is named).
+ *
+ * The same read the artifact-version probe makes, reached the way the content
+ * read reaches these bytes: through `readableEntry`, so a file in another
+ * organization and a file in somebody else's personal folder are both simply not
+ * found, exactly as they are for the bytes themselves. The answer is keyed on the
+ * blob, so every version sharing those bytes shares the answer, and a file whose
+ * content is stored inline (no blob) has never been probed.
+ */
+export function createFileProbeReader() {
+  return async (
+    context: ActionContext,
+    reader: StorageReader,
+    input: Readonly<{ revision: number | null }>,
+  ): Promise<StorageFileProbeAnswer> => {
+    const { transaction: tx, organizationId, principalId } =
+      requireWorkTransaction(context);
+    // `readableEntry` takes the context for the agent guard main added (#770): a
+    // person's read is unaffected, an agent's is judged by its step's files
+    // section. This reader was written before that parameter existed and the
+    // merge left it out, so every probe answered "not found".
+    const file = await readableEntry(
+      context,
+      tx,
+      organizationId,
+      principalId,
+      reader,
+      context.params.id,
+    );
+    if (file.kind !== "file") notFound();
+    if (file.purged_at !== null) notFound();
+    // The subject is whichever of the three the version resolves to: a blob when
+    // the bytes live in one, an artifact version, or an inline entry and revision.
+    // Reading only the blob left every inline file and every store-less artifact
+    // version with no answer at all, however the runner had recorded it.
+    const found = file.artifact_id !== null
+      ? await tx.query<{
+        id: string;
+        blob_id: string | null;
+        entry_id: null;
+        revision: null;
+      }>(
+        "select v.id, v.blob_id, null::text as entry_id," +
+          " null::int as revision from bakery.artifact_versions v" +
+          " join bakery.artifacts a" +
+          " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
+          " where v.organization_id = $1 and v.artifact_id = $2" +
+          " and (($3::int is null and v.id = a.current_version_id)" +
+          " or v.revision = $3)",
+        [organizationId, file.artifact_id, input.revision],
+      )
+      : await tx.query<{
+        id: string;
+        blob_id: string | null;
+        entry_id: string;
+        revision: number;
+      }>(
+        "select id, blob_id, entry_id, revision from bakery.storage_file_versions" +
+          " where organization_id = $1 and entry_id = $2" +
+          " and (($3::int is null and id = $4) or revision = $3)",
+        [organizationId, file.id, input.revision, file.current_version_id],
+      );
+    const row = found.rows[0];
+    if (!row) notFound();
+    const subject: ProbeSubject = row.blob_id !== null
+      ? { blobId: row.blob_id }
+      : row.entry_id === null
+      ? { artifactVersionId: row.id }
+      : { entryId: row.entry_id, revision: Number(row.revision) };
+    const stored = await readBlobProbe(tx, { organizationId, ...subject });
+    if (stored === null) return neverProbed();
+    const { result, probedAt } = stored;
+    const described = result.status === "described" ? result : null;
+    const refused = result.status === "refused" ? result : null;
+    return {
+      status: result.status,
+      kind: described?.kind ?? null,
+      mediaType: described?.mediaType ?? null,
+      byteLength: described?.byteLength ?? null,
+      width: described?.width ?? null,
+      height: described?.height ?? null,
+      durationMs: described?.durationMs ?? null,
+      lineCount: described?.lineCount ?? null,
+      utf8: described?.utf8 ?? null,
+      code: refused?.code ?? null,
+      limit: refused?.limit ?? null,
+      probedAt: probedAt.toISOString(),
+    };
+  };
+}
+
+/** The flat answer the transport can express: one field per fact, null if unmeasured. */
+export type StorageFileProbeAnswer = Readonly<{
+  status: "described" | "refused" | null;
+  kind: string | null;
+  mediaType: string | null;
+  byteLength: number | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  lineCount: number | null;
+  utf8: boolean | null;
+  code: string | null;
+  limit: number | null;
+  probedAt: string | null;
+}>;
+
+function neverProbed(): StorageFileProbeAnswer {
+  return {
+    status: null,
+    kind: null,
+    mediaType: null,
+    byteLength: null,
+    width: null,
+    height: null,
+    durationMs: null,
+    lineCount: null,
+    utf8: null,
+    code: null,
+    limit: null,
+    probedAt: null,
+  };
 }
 
 /**

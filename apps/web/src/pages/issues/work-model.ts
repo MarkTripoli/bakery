@@ -1,4 +1,5 @@
 import type {
+  QuestionResponse,
   TicketRequestViewResponse,
   TicketTaskLinkResponse,
 } from "../../api/client.ts";
@@ -159,4 +160,71 @@ export function pausedBanner(
     case null:
       return null;
   }
+}
+
+/** The progress values a task can be in while it waits on a person's answer. */
+const ANSWERABLE: ReadonlySet<WorkProgress> = new Set(["admitted", "active"]);
+
+/**
+ * Whether the progress badge should read "Needs an answer": the work is under
+ * way and its task has an open question, so "Working" would contradict the row
+ * above it. A paused, finished or stopped request keeps its own word.
+ */
+export function waitsOnAnswer(
+  progress: WorkProgress,
+  row: QuestionRowView | null,
+): boolean {
+  return row?.kind === "open" && ANSWERABLE.has(progress);
+}
+
+/** What the issue page says about its task's questions (design section D). */
+export type QuestionRowView =
+  | {
+    kind: "open";
+    /** Every question still waiting for an answer. */
+    count: number;
+    /** The first two lines of the oldest one. */
+    lines: readonly string[];
+    /** When the oldest was asked. */
+    askedAt: string;
+  }
+  | { kind: "expired" };
+
+/**
+ * Reads a task's questions into the one row the issue page shows. Approvals are
+ * decisions the task page asks for, not questions. A question that is open shows
+ * the oldest, since that is the one that has waited longest; with none open, the
+ * row stays only while the newest question is the one that expired, so an
+ * old expiry does not outlive the answer that came after it.
+ */
+export function questionRow(
+  questions: readonly Pick<
+    QuestionResponse,
+    "kind" | "status" | "prompt" | "createdAt"
+  >[],
+): QuestionRowView | null {
+  const asked = questions.filter((question) => question.kind === "question");
+  const open = asked.filter((question) => question.status === "open");
+  if (open.length > 0) {
+    const oldest = open.reduce((first, next) =>
+      Date.parse(next.createdAt) < Date.parse(first.createdAt) ? next : first
+    );
+    return {
+      kind: "open",
+      count: open.length,
+      lines: oldest.prompt.split(/\r?\n/).map((line) => line.trim()).filter(
+        (line) => line !== "",
+      ).slice(0, 2),
+      askedAt: oldest.createdAt,
+    };
+  }
+  const newest = asked.reduce<(typeof asked)[number] | null>(
+    (latest, next) =>
+      latest === null ||
+        Date.parse(next.createdAt) > Date.parse(latest.createdAt)
+        ? next
+        : latest,
+    null,
+  );
+  return newest?.status === "expired" ? { kind: "expired" } : null;
 }

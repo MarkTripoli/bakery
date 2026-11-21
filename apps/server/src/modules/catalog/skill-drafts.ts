@@ -79,7 +79,7 @@ const DRAFT_FROM = `bakery.skill_drafts as draft
     on base.organization_id = draft.organization_id
    and base.id = draft.base_version_id`;
 
-type Facts = Readonly<{
+export type Facts = Readonly<{
   transaction: PgTransactionClient;
   organizationId: string;
   principalId: string;
@@ -92,7 +92,9 @@ type Facts = Readonly<{
  * Finds the skill the caller may author. Someone else's personal skill is not
  * found; a skill that comes with Bakery has no draft, only a copy has.
  */
-async function authorableSkill(context: ActionContext): Promise<Facts> {
+export async function authorableSkill(
+  context: ActionContext,
+): Promise<Facts> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );

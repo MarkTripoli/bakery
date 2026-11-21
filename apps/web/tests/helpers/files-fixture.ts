@@ -319,6 +319,11 @@ export type FilesOptions = {
   disabledPrincipal?: boolean;
   /** More kinds than one page of 100, to show the Kind filter reads every page. */
   kindCount?: number;
+  /**
+   * A file whose stored bytes do not hash to the digest its record names, so
+   * every read of it is refused as a mismatch (#437).
+   */
+  mismatchId?: number;
 };
 
 /** A list as the server pages it: `limit` at a time, the cursor an offset. */
@@ -710,6 +715,27 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
       );
       seen.contents.push(revision);
       const fileId = new URL(route.request().url()).pathname.split("/")[4]!;
+      if (
+        options.mismatchId !== undefined &&
+        fileId === uuid(options.mismatchId)
+      ) {
+        return route.fulfill({
+          status: 409,
+          // The client only reads a failure as a problem when it is served as
+          // one; any other content type becomes an unexplained protocol error.
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Conflict",
+            status: 409,
+            code: "ARTIFACT_CONTENT_MISMATCH",
+            retryable: false,
+            detail: "the stored bytes do not hash to the recorded digest",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
       if (fileId === uuid(45)) {
         return route.fulfill({
           status: 500,
