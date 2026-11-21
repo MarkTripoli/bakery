@@ -10,7 +10,7 @@ export type InlineProps =
     /**
      * `actions` = Paper `.two-actions` (auth.css:10, :13): a row of equal-width
      * buttons (12px gap) that wraps on phones; `split` is two equal columns
-     * (16px gap); `thirds` is three equal columns (12px gap) that stack on phones; `quarters` is four equal columns (12px gap) that fall to two by two on phones; `end` packs the row at the end of the line, the order of a dialog's actions (the secondary first, the primary last); `between` puts a heading block at the start and its actions at the end, and stacks them full width on phones; `flow` is the default content-sized row.
+     * (16px gap); `thirds` is three equal columns (12px gap) that stack on phones; `quarters` is four equal columns (12px gap) that fall to two by two on phones; `end` packs the row at the end of the line, the order of a dialog's actions (the secondary first, the primary last); `between` puts a heading block at the start and its actions at the end, and stacks them full width on phones; `aside` is a fixed 12.5rem column (a list to pick from) beside the content it picks, stacked on phones; `flow` is the default content-sized row.
      */
     variant?:
       | "flow"
@@ -19,7 +19,8 @@ export type InlineProps =
       | "thirds"
       | "quarters"
       | "end"
-      | "between";
+      | "between"
+      | "aside";
   };
 
 export function Inline(
@@ -36,6 +37,7 @@ export function Inline(
         variant === "quarters" && "ui-inline--quarters",
         variant === "end" && "ui-inline--end",
         variant === "between" && "ui-inline--between",
+        variant === "aside" && "ui-inline--aside",
       ].filter(Boolean).join(" ")}
       {...props}
       data-state="default"

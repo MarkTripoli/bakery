@@ -43,7 +43,9 @@ export function SegmentedBar(
     <figure
       className="ui-segmented-bar"
       {...props}
+      data-state="default"
       data-ui-component="segmentedBar"
+      data-variant="default"
     >
       <div aria-label={label} className="ui-segmented-bar__bar" role="img">
         {shown.map((part) => (
