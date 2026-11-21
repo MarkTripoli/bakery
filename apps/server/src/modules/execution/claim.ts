@@ -9,6 +9,7 @@ import {
   createClaimsRepository,
 } from "@bakery/persistence/claims";
 import { jsonResponse, noContentResponse, parseContract } from "./http.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 import { emitAttemptEvent, EXECUTION_TELEMETRY_EVENTS } from "./telemetry.ts";
 import { type ClaimUnitOfWork, executeClaim } from "./claim-application.ts";
 import {
@@ -57,6 +58,10 @@ function createClaimUnitOfWork(database: PgDatabase): ClaimUnitOfWork {
           if (workerHostId !== identity.host.id) {
             throw new StandardError({ code: "AUTH_FORBIDDEN" });
           }
+          // A backup holds the installation: no new attempt is leased until it
+          // lets go. A worker treats the 503 as transient and keeps working
+          // on, and renewing the lease of, what it already holds.
+          await assertNotQuiesced(transaction);
           const persistence = createClaimsRepository(
             transaction,
             persistenceIdentity(identity),
