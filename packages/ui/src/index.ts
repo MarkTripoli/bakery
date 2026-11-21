@@ -211,6 +211,7 @@ export * from "./organisms/TaskQueue.tsx";
 export * from "./organisms/RunTimeline.tsx";
 export * from "./templates/AuthEntry.tsx";
 export * from "./templates/FormContent.tsx";
+export * from "./templates/FormWithSummary.tsx";
 export * from "./templates/SettingsContent.tsx";
 export * from "./templates/SettingsSection.tsx";
 export * from "./templates/InstallationSettingsForm.tsx";

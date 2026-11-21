@@ -1,5 +1,5 @@
 {
-  "revision": "b95d8316a65c55ebb75fead66c20d7dfe63167bd32f62284d3204e4e8d7b769e",
+  "revision": "cc9f0e7658333ee1578a0f67fde8f441551bf9142f01ac0a5bdb310df0dcb235",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -12535,6 +12535,118 @@
         ]
       },
       "paperAbsentReason": "Confirmation flows on page O-0 (12, 13) are route goldens, not template specimens."
+    },
+    {
+      "id": "template.formWithSummary",
+      "name": "FormWithSummary",
+      "description": "Places a form beside a plain summary of what it will do, with the buttons under the form, and stacks them on a narrow screen.",
+      "level": "template",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Templates/FormWithSummary",
+      "usage": {
+        "whenToUse": "Lay out a form page that has a summary or notes to read beside it, such as starting a batch of issues.",
+        "whenNotToUse": "Do not use it for a settings form inside SettingsContent (use FormContent), or when there is nothing to put beside the form.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The content is a full-width settings section",
+            "use": "template.settingsSection"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "accessibleName": "none",
+        "keyboard": [],
+        "notes": "A form column and a 300px summary column from 1280px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region."
+      },
+      "tokens": [
+        "--space-6"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented FormWithSummary variants and observable states across required contexts.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.frontend"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:template.formWithSummary.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:template.formWithSummary.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:template.formWithSummary.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #58 UX design comment (revision 2) for the batch start page; no Paper frame names it."
     },
     {
       "id": "page.authSignIn",
