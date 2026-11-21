@@ -24,6 +24,12 @@ import {
   workerEnrollmentStatus,
 } from "./machines.ts";
 import {
+  cancelWorkerMaintenance,
+  createWorkerMaintenance,
+  getWorkerMaintenance,
+  listWorkerMaintenance,
+} from "./maintenance.ts";
+import {
   cancelProviderAuthAttempt,
   createProviderAuthAttempt,
   createProviderBinding,
@@ -257,6 +263,28 @@ export function createExecutionRoutes(
   app.post(
     "/v1/workers/:id/revocations",
     routeHandler(options, (context) => revokeWorker(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/maintenance",
+    routeHandler(
+      options,
+      (context) => createWorkerMaintenance(context, options),
+    ),
+  );
+  app.get(
+    "/v1/workers/:id/maintenance",
+    routeHandler(options, (context) => listWorkerMaintenance(context, options)),
+  );
+  app.get(
+    "/v1/workers/:id/maintenance/:operationId",
+    routeHandler(options, (context) => getWorkerMaintenance(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/maintenance/:operationId/cancellations",
+    routeHandler(
+      options,
+      (context) => cancelWorkerMaintenance(context, options),
+    ),
   );
   app.post(
     "/v1/workers/:id/enrollments",

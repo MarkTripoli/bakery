@@ -5529,6 +5529,64 @@ const transportSchemas = {
       ],
       "description": "Admin creation of one provider binding: an explicit authorized account placement naming provider, billing route, harness component and credential location for one machine."
     },
+    "WorkerMaintenanceCreate": {
+      "fields": [
+        {
+          "name": "verb",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb. refresh_inventory and verify only read the host; every other verb changes it and closes the machine's claim gate until the operation ends."
+        },
+        {
+          "name": "componentKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 255
+          },
+          "description": "Inventory component key the verb acts on. Required for install, update, rollback and remove; optional for verify; not allowed for refresh_inventory. An existing component must be Bakery-managed, never an external install."
+        },
+        {
+          "name": "targetVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Exact version to install, update or roll back to. Required for install_component and update_component; not allowed for refresh_inventory, verify or remove_component."
+        },
+        {
+          "name": "targetDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest the target version must match; only allowed together with targetVersion."
+        },
+        {
+          "name": "expectedInventoryRevision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; the same key with the same body replays the original operation, with a different body it is IDEMPOTENCY_PAYLOAD_MISMATCH.",
+        "At most one unfinished mutating operation per machine: a second is STATE_CONFLICT with reason maintenance_in_progress.",
+        "A revoked machine is STATE_CONFLICT. An externally managed component is UNPROCESSABLE with reason externally_managed.",
+        "Never cancels or changes running task attempts: a busy machine starts in waiting_for_idle."
+      ],
+      "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
     "WorkerProviderBindingUpdate": {
       "fields": [
         {
@@ -20387,6 +20445,77 @@ const transportSchemas = {
     "Page<WorkerComponent>": {
       "pageOf": "WorkerComponent",
       "description": "Cursor page of one machine's typed installed/available component inventory, projected from the latest accepted worker inventory report; Developer-readable and free of host-local paths or secret material."
+    },
+    "WorkerMaintenanceOperation": {
+      "projection": "worker_maintenance_operations",
+      "fields": [
+        "id",
+        "workerHostId",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "requestedBy",
+        "expectedInventoryRevision",
+        "expectedCredentialGeneration",
+        "capturedDesiredMode",
+        "phase",
+        "deadlineAt",
+        "expiresAt",
+        "result",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "result"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workerHostId": "uuid",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "requestedBy": "uuid",
+        "expectedInventoryRevision": "integer",
+        "expectedCredentialGeneration": "integer",
+        "capturedDesiredMode": "enum(accepting|paused|draining|revoked)",
+        "phase": "enum(queued|waiting_for_idle|assigned|applying|reconciling|succeeded|failed|canceled|expired|needs_attention)",
+        "deadlineAt": "timestamp",
+        "expiresAt": "timestamp",
+        "result": "json",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the maintenance operation.",
+        "workerHostId": "Machine the operation runs on.",
+        "verb": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version the operation installs, updates or rolls back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the target version must match, or null.",
+        "requestedBy": "Principal ID of the Admin who requested the operation.",
+        "expectedInventoryRevision": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory.",
+        "expectedCredentialGeneration": "Machine credential generation at request time; a re-paired machine cannot pick up the operation.",
+        "capturedDesiredMode": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it.",
+        "phase": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown.",
+        "deadlineAt": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled.",
+        "expiresAt": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request).",
+        "result": "Bounded, redacted outcome reported for a finished operation, or null.",
+        "createdAt": "UTC timestamp when the operation was requested.",
+        "updatedAt": "UTC timestamp of the last phase change.",
+        "version": "Row version, incremented on every phase change."
+      }
+    },
+    "Page<WorkerMaintenanceOperation>": {
+      "pageOf": "WorkerMaintenanceOperation",
+      "description": "Cursor page of one machine's maintenance operations, newest first; Developer-readable and free of shell input, host paths or secret material."
     },
     "Page<ModelProviderAccount>": {
       "pageOf": "ModelProviderAccount",
@@ -37246,6 +37375,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Provider binding or auth attempt state changed (binding created/updated, auth attempt issued, won, failed or canceled); fetch the safe binding projection. Public payloads contain references/versions, never provider responses or credentials."
+    },
+    "worker.maintenance_updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A machine maintenance operation was requested or changed phase (resourceId is the operation, resourceVersion its row version); fetch the safe operation projection. Trigger consumers always re-read durable state."
     },
     "worker.updated": {
       "schemaVersion": 1,

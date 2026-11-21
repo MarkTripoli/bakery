@@ -11,6 +11,7 @@ import {
   connectivityState,
   type DispatchGate,
   dispatchGate,
+  openMutatingMaintenance,
 } from "./machine-readiness.ts";
 import { appendAudit, appendDomainEvent } from "./event-audit.ts";
 import { executionActionCapabilities } from "./action-admission.ts";
@@ -278,7 +279,7 @@ export function createClaimsRepository(
          order by check_id asc, id asc`,
         [identity.host.id],
       );
-      return dispatchGate({
+      const gate = dispatchGate({
         now,
         connectivity: connectivityState(identity.host.lastHeartbeatAt, now),
         status: identity.host.status,
@@ -295,6 +296,13 @@ export function createClaimsRepository(
           expiresAt: row.expires_at,
         })),
       });
+      // An unfinished mutating maintenance operation closes the claim gate
+      // (issue #25). The host row is already locked FOR UPDATE by
+      // loadWorkerIdentity, the same lock the Admin create path takes.
+      if (await openMutatingMaintenance(transaction, identity.host.id)) {
+        return { ...gate, allBlocked: true };
+      }
+      return gate;
     },
     async acquireClaimLock(workerHostId, claimKey) {
       await transaction.query(

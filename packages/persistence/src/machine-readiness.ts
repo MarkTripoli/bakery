@@ -149,6 +149,29 @@ function bindingEventVersion(
   );
 }
 
+/**
+ * True while the host has an unfinished mutating maintenance operation
+ * (issue #25): every verb except refresh_inventory and verify, in any phase
+ * but succeeded, failed, canceled or expired. The worker claim gate and the
+ * Admin create path both read it under the worker_hosts row lock, so a claim
+ * and a new operation cannot interleave.
+ */
+export async function openMutatingMaintenance(
+  transaction: Pick<PgTransactionClient, "query">,
+  workerHostId: string,
+): Promise<boolean> {
+  const result = await transaction.query<{ open: boolean }>(
+    `select exists (
+       select 1 from bakery.worker_maintenance_operations
+       where worker_host_id = $1
+         and verb not in ('refresh_inventory', 'verify')
+         and phase not in ('succeeded', 'failed', 'canceled', 'expired')
+     ) as open`,
+    [workerHostId],
+  );
+  return result.rows[0]?.open === true;
+}
+
 export function derivedEnrollmentState(row: {
   consumedAt: Date | string | null;
   canceledAt: Date | string | null;
