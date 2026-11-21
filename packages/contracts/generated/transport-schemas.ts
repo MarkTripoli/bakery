@@ -23860,7 +23860,6 @@ const transportSchemas = {
         "readinessReason",
         "failedCheckIds",
         "unsettledAttemptCount",
-        "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "createdAt",
@@ -23921,7 +23920,8 @@ const transportSchemas = {
         "connectivity",
         "readiness",
         "readinessReason",
-        "failedCheckIds"
+        "failedCheckIds",
+        "unsettledAttemptCount"
       ]
     },
     "Preview": {

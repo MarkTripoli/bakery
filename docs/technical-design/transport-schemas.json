@@ -23849,7 +23849,6 @@
         "readinessReason",
         "failedCheckIds",
         "unsettledAttemptCount",
-        "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "createdAt",
@@ -23910,7 +23909,8 @@
         "connectivity",
         "readiness",
         "readinessReason",
-        "failedCheckIds"
+        "failedCheckIds",
+        "unsettledAttemptCount"
       ]
     },
     "Preview": {

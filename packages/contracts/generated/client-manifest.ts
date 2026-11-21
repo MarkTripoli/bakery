@@ -47879,10 +47879,10 @@ export const clientManifest = {
                 "description": "Check identifiers with a fresh failing result, sorted; empty when none."
               },
               "unsettledAttemptCount": {
+                "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
                 "type": "integer",
                 "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+                "maximum": 9007199254740991
               },
               "lastHeartbeatAt": {
                 "anyOf": [
@@ -47934,7 +47934,6 @@ export const clientManifest = {
               "toolchainVersions",
               "slots",
               "status",
-              "unsettledAttemptCount",
               "lastHeartbeatAt",
               "credentialGeneration",
               "createdAt",
@@ -68067,10 +68066,10 @@ export const clientManifest = {
           "description": "Check identifiers with a fresh failing result, sorted; empty when none."
         },
         "unsettledAttemptCount": {
+          "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
           "type": "integer",
           "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+          "maximum": 9007199254740991
         },
         "lastHeartbeatAt": {
           "anyOf": [
@@ -68122,7 +68121,6 @@ export const clientManifest = {
         "toolchainVersions",
         "slots",
         "status",
-        "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "createdAt",
@@ -72639,10 +72637,10 @@ export const clientManifest = {
                   "description": "Check identifiers with a fresh failing result, sorted; empty when none."
                 },
                 "unsettledAttemptCount": {
+                  "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
                   "type": "integer",
                   "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+                  "maximum": 9007199254740991
                 },
                 "lastHeartbeatAt": {
                   "anyOf": [
@@ -72694,7 +72692,6 @@ export const clientManifest = {
                 "toolchainVersions",
                 "slots",
                 "status",
-                "unsettledAttemptCount",
                 "lastHeartbeatAt",
                 "credentialGeneration",
                 "createdAt",
