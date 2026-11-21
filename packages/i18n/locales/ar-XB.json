@@ -5898,7 +5898,6 @@
   "settings.plugins.frame.noAccess.title": "⟪You do not have access to this page⟫",
   "settings.plugins.pages.help": "⟪Each one is also in the sidebar under Plugins.⟫",
   "settings.plugins.pages.column": "⟪Page⟫",
-  "batches.start.limits.spendHelpFrom": "⟪From {amount}, the least that starts one issue, up to $4,000⟫",
   "batches.start.summary.workFrom": "⟪Work through ready issues in {repository}, one at a time, starting with {number}.⟫",
   "batches.start.startable.label": "⟪It would start with⟫",
   "batches.start.startable.checked": "⟪Checked {time}: Bakery reads GitHub again before each issue, so the order can change.⟫",
@@ -5915,5 +5914,7 @@
   "batches.start.spend.blocked.body": "⟪A batch started now would pause until that is fixed.⟫",
   "batches.start.spend.blocked.link": "⟪Open Issue settings⟫",
   "batches.start.error.maxSpendLow": "⟪Use at least {amount}. That is the least that starts one issue.⟫",
-  "batches.start.error.maxSpendLowNoAmount": "⟪Use a higher amount. This one is below the least that starts one issue.⟫"
+  "batches.start.error.maxSpendLowNoAmount": "⟪Use a higher amount. This one is below the least that starts one issue.⟫",
+  "batches.start.limits.smallestNote": "⟪{amount} is the least that starts one issue.⟫",
+  "batches.start.limits.spendHelpFrom": "⟪From {amount}, up to $4,000⟫"
 }

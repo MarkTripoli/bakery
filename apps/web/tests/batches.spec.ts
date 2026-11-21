@@ -201,10 +201,20 @@ for (
         "Checked 12 minutes ago: Bakery reads GitHub again before each issue, so the order can change.",
       );
       await expect(
-        page.getByText(
-          "From $12.50, the least that starts one issue, up to $4,000",
-        ),
+        page.getByText("From $12.50, up to $4,000", { exact: true }),
       ).toBeVisible();
+      await expect(
+        page.getByText("$12.50 is the least that starts one issue."),
+      ).toBeVisible();
+      // One row: the three limits share a line on a wide screen.
+      if (viewport.width >= 1280) {
+        const tops = await Promise.all(
+          ["Issues merged", "Time", "Spend"].map(async (label) =>
+            (await page.getByLabel(label).boundingBox())!.y
+          ),
+        );
+        expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(4);
+      }
       await expect(page.getByTestId("batch-plan")).toContainText(
         "one at a time, starting with #409.",
       );
@@ -286,7 +296,7 @@ for (
     test("an amount the server refuses as too low is named under Spend", async ({ page }) => {
       await batchesFixture(page, {
         create: "spendLow",
-        startable: { smallestSpendUsd: null },
+        startable: { smallestSpendUsd: null, smallestAfterRefusal: "12.5000" },
       });
       await page.goto(`/issues/batches/new?repository=${WEB.id}`);
       await page.getByLabel("Spend").fill("1");
@@ -294,7 +304,7 @@ for (
       await page.getByRole("button", { name: "Start batch" }).click();
       await expect(
         page.getByText(
-          "Use a higher amount. This one is below the least that starts one issue.",
+          "Use at least $12.50. That is the least that starts one issue.",
         ),
       ).toBeVisible();
       await expect(

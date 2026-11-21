@@ -173,6 +173,8 @@ export type Options = {
     fails?: number;
     /** The first answer fails and the next succeeds (for Try again). */
     failsOnce?: number;
+    /** Once a start is refused as too low, later reads say this is the smallest. */
+    smallestAfterRefusal?: string;
   };
 };
 
@@ -228,6 +230,7 @@ export async function batchesFixture(page: Page, options: Options = {}) {
     startable: [] as string[],
   };
   let startableFailure = options.startable?.failsOnce;
+  let smallestAfterRefusal: string | null = null;
   let conflict = options.conflictOnce === true;
 
   await page.route(
@@ -368,6 +371,8 @@ export async function batchesFixture(page: Page, options: Options = {}) {
           return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
         }
         if (refusal === "spendLow") {
+          smallestAfterRefusal = options.startable?.smallestAfterRefusal ??
+            null;
           return route.fulfill(
             problem(422, "UNPROCESSABLE", undefined, [
               "max_spend_below_smallest",
@@ -494,9 +499,10 @@ export async function batchesFixture(page: Page, options: Options = {}) {
       return route.fulfill(json({
         items,
         nextCursor: plan.more === true || numbers.length > limit ? "c5" : null,
-        smallestSpendUsd: plan.smallestSpendUsd === undefined
-          ? "12.5000"
-          : plan.smallestSpendUsd,
+        smallestSpendUsd: smallestAfterRefusal ??
+          (plan.smallestSpendUsd === undefined
+            ? "12.5000"
+            : plan.smallestSpendUsd),
       }));
     },
   );
