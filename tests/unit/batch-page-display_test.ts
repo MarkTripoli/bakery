@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import type {
   BatchIssueResponse,
   BatchResponse,
+  BatchStartableResponse,
 } from "../../apps/web/src/api/client.ts";
 import {
   type BannerFacts,
@@ -17,10 +18,13 @@ import {
   parseSpend,
   phrase,
   planValues,
+  smallestSpend,
   START_DEFAULTS,
+  startableView,
   startBody,
   stopChoices,
   tableIssues,
+  timeAgo,
   validateStart,
   whyItEnded,
 } from "../../apps/web/src/pages/batches/batch-display.ts";
@@ -506,4 +510,95 @@ Deno.test("a batch time is shown in the zone it is given, not the machine's", ()
     ),
     "Nov 21, 8:30 AM",
   );
+});
+
+const startableIssue = (number: number, checkedAt: string) => ({
+  externalTicketId: `ticket-${number}`,
+  number: String(number),
+  title: `Issue ${number}`,
+  url: null,
+  checkedAt,
+});
+
+const startable = (
+  numbers: number[],
+  patch: Partial<BatchStartableResponse> = {},
+): BatchStartableResponse => ({
+  items: numbers.map((number, index) =>
+    startableIssue(number, `2026-11-21T10:0${index}:00Z`)
+  ),
+  nextCursor: null,
+  smallestSpendUsd: "12.5000",
+  ...patch,
+});
+
+Deno.test("the start list shows the first five, says when more can start and dates itself by the oldest check", () => {
+  const five = startableView(startable([409, 412, 415, 418, 421]));
+  assertEquals(five.issues.map((item) => item.number), [
+    "409",
+    "412",
+    "415",
+    "418",
+    "421",
+  ]);
+  assertEquals(five.more, false);
+  assertEquals(five.checkedAt, "2026-11-21T10:00:00Z");
+  // A next cursor, or more rows than are shown, both mean more can start.
+  assertEquals(
+    startableView(startable([409], { nextCursor: "c1" })).more,
+    true,
+  );
+  const six = startableView(startable([1, 2, 3, 4, 5, 6]));
+  assertEquals(six.issues.length, 5);
+  assertEquals(six.more, true);
+  const none = startableView(startable([]));
+  assertEquals(none.issues, []);
+  assertEquals(none.checkedAt, null);
+  // The oldest check wins, whatever order the rows come in.
+  const mixed = startable([1, 2]);
+  mixed.items[0]!.checkedAt = "2026-11-21T12:00:00Z";
+  assertEquals(startableView(mixed).checkedAt, "2026-11-21T10:01:00Z");
+});
+
+Deno.test("the smallest spend is a number of dollars, or null while unknown and when no work can start", () => {
+  assertEquals(smallestSpend(undefined), null);
+  assertEquals(smallestSpend(startable([], { smallestSpendUsd: null })), null);
+  assertEquals(smallestSpend(startable([])), 12.5);
+});
+
+Deno.test("an amount below the smallest is a problem under Spend, and the smallest itself is fine", () => {
+  const ok = {
+    ...START_DEFAULTS,
+    repositoryId: "r-1",
+    maxSpend: "12.50",
+    continueMode: "carry_on" as const,
+  };
+  assertEquals(validateStart(ok, 12.5), {});
+  assertEquals(validateStart({ ...ok, maxSpend: "12.49" }, 12.5), {
+    maxSpend: "batches.start.error.maxSpendLow",
+  });
+  // With no smallest known, only the fixed bounds apply.
+  assertEquals(validateStart({ ...ok, maxSpend: "0.01" }, null), {});
+  assertEquals(validateStart({ ...ok, maxSpend: "0" }, 12.5), {
+    maxSpend: "batches.start.error.maxSpend",
+  });
+});
+
+Deno.test("a server refusal of a spend that is too low is told apart and shown under Spend", () => {
+  const refused = createRefusal(problem({
+    status: 422,
+    code: "UNPROCESSABLE",
+    issueCodes: ["max_spend_below_smallest"],
+  }));
+  assertEquals(refused, "spendLow");
+  assertEquals(createRefusalPlace(refused), "spend");
+});
+
+Deno.test("when the stored checks were made is said in the person's language, to the nearest unit", () => {
+  const now = Date.parse("2026-11-21T12:00:00Z");
+  assertEquals(timeAgo("2026-11-21T11:48:00Z", now, "en"), "12 minutes ago");
+  assertEquals(timeAgo("2026-11-21T09:00:00Z", now, "en"), "3 hours ago");
+  assertEquals(timeAgo("2026-11-19T12:00:00Z", now, "en"), "2 days ago");
+  assertEquals(timeAgo("2026-11-21T11:59:50Z", now, "en"), "this minute");
+  assertEquals(timeAgo("2026-11-21T11:59:00Z", now, "en"), "1 minute ago");
 });
