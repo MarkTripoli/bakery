@@ -177,8 +177,6 @@ Deno.test("the comment and edit_work powers offer exactly their own tools", () =
   const registry = [
     action("artifactComments.create", ActionKind.Command),
     action("artifactComments.update", ActionKind.Command),
-    action("draftComments.create", ActionKind.Command),
-    action("draftComments.update", ActionKind.Command),
     action("tasks.update", ActionKind.Command),
     action("tasks.list"),
   ];
@@ -187,8 +185,6 @@ Deno.test("the comment and edit_work powers offer exactly their own tools", () =
     [
       "artifactComments.create",
       "artifactComments.update",
-      "draftComments.create",
-      "draftComments.update",
     ],
   );
   assertEquals(

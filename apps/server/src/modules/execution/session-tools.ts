@@ -96,15 +96,20 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "storageFolderEntries.list": "files.read",
     "storageFiles.content": "files.read",
     // Comments and work-item edits (#448 S9a, chapter 25 section 18.2: "the
-    // same operations as people"). Off by default like every other write: the
+    // same operations as people"). Draft comments are not offered: they run
+    // through the draft routes' own staged execution, which a session call does
+    // not enter. Off by default like every other write: the
     // scope is minted where a person granted the workflow the comment or
     // edit_work power, and the gateway checks that grant again on every call.
     // The operation still authorizes the call as the person the run is for.
     "artifactComments.create": "comments.write",
     "artifactComments.update": "comments.write",
-    "draftComments.create": "comments.write",
-    "draftComments.update": "comments.write",
     "tasks.update": "work.write",
+    // Connection drafts (#448 S9b): an agent prepares a connection and a person
+    // completes it. The operations refuse a secret, an organization-wide
+    // connection and switching one on whenever an agent is the caller.
+    "mcpConnections.create": "connections.draft",
+    "mcpConnections.update": "connections.draft",
   });
 
 /**
@@ -123,6 +128,7 @@ export const POWER_SESSION_SCOPES: Readonly<
   steer_reviewer: Object.freeze([]),
   comment: Object.freeze(["comments.write"]),
   edit_work: Object.freeze(["work.write"]),
+  draft_connection: Object.freeze(["connections.draft"]),
 });
 
 /**

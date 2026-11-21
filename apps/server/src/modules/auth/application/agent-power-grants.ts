@@ -43,6 +43,11 @@ export const AgentPower = Object.freeze(
      * edits) from a session, as the person the run is for.
      */
     EditWork: "edit_work",
+    /**
+     * Draft a connection from a session: a personal one with no secret that
+     * stays off until the person it acts for completes and enables it.
+     */
+    DraftConnection: "draft_connection",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];
