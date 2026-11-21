@@ -876,6 +876,9 @@ export const PluginInstallImplementedAction = Object.freeze(
     PluginStateGet: "pluginState.get",
     PluginStateItemsList: "pluginStateItems.list",
     PluginStatePut: "pluginState.put",
+    PluginPagesList: "pluginPages.list",
+    PluginPagesGet: "pluginPages.get",
+    PluginPageDocumentsGet: "pluginPageDocuments.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const pluginInstallImplementedActions = Object.freeze(

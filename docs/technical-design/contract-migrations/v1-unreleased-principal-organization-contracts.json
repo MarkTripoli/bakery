@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a18996e1a14acc6d966c15602cef84d16acfca06"
+    "3f14137d0dd427997c84cc218f94b379edf6396b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dc0e50dee3f8fbdcd915d83169e5beee71e65a90f28cd461af6ec861e619be75",
-  "reason": "#58 batches slice 3a rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main a18996e1a14acc6d966c15602cef84d16acfca06: BatchIssue gains issueNumber and issueTitle (nullable, always present; a read join); BatchQuery gains an optional state filter; BatchStartableQuery, BatchStartableIssue and BatchStartable are new for batches.startable. Main's approval is displaced, kept unchanged.",
+  "targetCompatibilityDigest": "sha256:2faab4e9a06dac179b8cea4f14b8d780bfbb6765d9439579a1c58695ba9ca689",
+  "reason": "#58 batches slice 3a rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 3f14137d0dd427997c84cc218f94b379edf6396b: BatchIssue gains issueNumber and issueTitle (nullable, always present; a read join); BatchQuery gains an optional state filter; BatchStartableQuery, BatchStartableIssue and BatchStartable are new for batches.startable. Main's approval is displaced, kept unchanged.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "ad5241ce6670eff3c31661b68d533e613cbccf0b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1c141ac78d679b2bc98ce7f6ce69d5aa91aeed6c893e5f18fa8e264b319de2c3",
+      "reason": "#76 plugin pages main-merge rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main ad5241ce6670eff3c31661b68d533e613cbccf0b: the #76 server half (plugin pages served sealed) re-bound after a conflict-only merge of main. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

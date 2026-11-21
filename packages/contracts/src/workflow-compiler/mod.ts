@@ -120,6 +120,7 @@ export {
   readsOnlyInputs,
   resolveStepFiles,
   SEALED_STEP_FILES,
+  sealedByDefault,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_TREE_READ_AREAS,
   WORKFLOW_FILE_TREE_WRITE_AREAS,
