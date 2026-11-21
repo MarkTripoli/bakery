@@ -1,5 +1,5 @@
 {
-  "revision": "86506c8dd3e9e0d98060986869a840a259537a64a774bb8d0c979f88f4c7ccd1",
+  "revision": "21d77e28555c4b021eb3c9b965af89558d6e76dc01f8f4935f02adb73b7b8d94",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21221,7 +21221,7 @@
       "coverage": {
         "automated": {
           "theme:light": [
-            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
           ],
           "theme:dark": [
             "suite:storybook.canonical-dark-axe"
@@ -21233,10 +21233,10 @@
             "suite:storybook.canonical-reflow"
           ],
           "layout:rail": [
-            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
           ],
           "pointer:fine": [
-            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
           ],
           "pointer:coarse": [
             "suite:storybook.coarse-targets"
