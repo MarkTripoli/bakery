@@ -101,6 +101,9 @@ struct ToastTarget {
 struct DownloadState {
     id: u64,
     done: bool,
+    name: String,
+    /// Where the webview wrote the file while it came in: a private folder of the app's own.
+    temp: PathBuf,
 }
 
 #[derive(Default)]
@@ -238,36 +241,34 @@ impl Shell {
             message.push(' ');
         }
         message.push_str(&view.shown);
+        let primary = view.buttons.iter().find(|b| b.primary).cloned();
+        let other = view.buttons.iter().find(|b| !b.primary).cloned();
+        let (Some(primary), Some(other)) = (primary, other) else { return };
+        // Harness only: an answer chosen in advance in place of a person, because a run cannot press
+        // the system's dialog.
+        if let Ok(label) = std::env::var("BAKERY_DESKTOP_DIALOG_ANSWER") {
+            let pressed = view.buttons.iter().find(|b| b.label == label).map(|b| b.id);
+            self.answer_system_dialog(&dialog, pressed);
+            return;
+        }
+        // Two buttons, the design's names, never a bare "OK". The plugin shows it without blocking the
+        // window, and the answer comes back to this closure.
+        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+        // On Linux the dialog reads its text as a format string, so a `%` in a link (every encoded
+        // address has them) would be eaten: it is doubled there, and left alone elsewhere.
+        #[cfg(target_os = "linux")]
+        let message = message.replace('%', "%%");
         let shell = Arc::clone(self);
-        let _ = self.app.run_on_main_thread(move || {
-            // Two buttons, the design's names, never a bare "OK". Harness only: an answer chosen in
-            // advance in place of a person, because a run cannot press the system's dialog.
-            let pressed = match std::env::var("BAKERY_DESKTOP_DIALOG_ANSWER") {
-                Ok(label) => view.buttons.iter().find(|b| b.label == label).map(|b| b.id),
-                Err(_) => {
-                    let primary = view.buttons.iter().find(|b| b.primary);
-                    let other = view.buttons.iter().find(|b| !b.primary);
-                    let (Some(primary), Some(other)) = (primary, other) else { return };
-                    let answer = rfd::MessageDialog::new()
-                        .set_level(rfd::MessageLevel::Info)
-                        .set_title(&view.title)
-                        .set_description(&message)
-                        .set_buttons(rfd::MessageButtons::OkCancelCustom(
-                            primary.label.clone(),
-                            other.label.clone(),
-                        ))
-                        .show();
-                    match answer {
-                        rfd::MessageDialogResult::Custom(label) => {
-                            view.buttons.iter().find(|b| b.label == label).map(|b| b.id)
-                        }
-                        rfd::MessageDialogResult::Ok => Some(primary.id),
-                        _ => Some(other.id),
-                    }
-                }
-            };
-            shell.answer_system_dialog(&dialog, pressed);
-        });
+        self.report("system_dialog_opening", json!({ "kind": view.kind }));
+        self.app
+            .dialog()
+            .message(message)
+            .title(view.title.clone())
+            .kind(MessageDialogKind::Info)
+            .buttons(MessageDialogButtons::OkCancelCustom(primary.label.clone(), other.label.clone()))
+            .show(move |ok| {
+                shell.answer_system_dialog(&dialog, Some(if ok { primary.id } else { other.id }));
+            });
     }
 
     /// What a pressed button of a system dialog does. Copy copies the whole text and closes it.
@@ -323,10 +324,32 @@ impl Shell {
         self.report("toast", json!({ "text": toast.text, "shown": shown }));
     }
 
-    /// A page offered a file from the connected server and the person chose where to put it.
-    pub fn download_started(self: &Arc<Self>, url: &str, name: &str) {
+    /// A notice with sample words, for the stills of the states a run cannot wait for.
+    pub fn preview_toast(&self, kind: &str) {
         let id = self.new_toast_id();
-        self.downloads.lock().unwrap().insert(url.to_string(), DownloadState { id, done: false });
+        match kind {
+            "saving" => self.show_toast(Toast {
+                id,
+                tone: Tone::Information,
+                text: saved_file::saving("quarterly-report.pdf"),
+                detail: None,
+                tooltip: None,
+                actions: vec![],
+                goes_after: None,
+            }),
+            "failed" => self.save_failed(id, "quarterly-report.pdf", "/files/quarterly-report.pdf", saved_file::Failure::Stopped),
+            "nopermission" => self.save_failed(id, "quarterly-report.pdf", "/files/quarterly-report.pdf", saved_file::Failure::NoPermission),
+            _ => {}
+        }
+    }
+
+    /// A page offered a file from the connected server and the person chose where to put it.
+    pub fn download_started(self: &Arc<Self>, url: &str, name: &str, temp: PathBuf) {
+        let id = self.new_toast_id();
+        self.downloads.lock().unwrap().insert(
+            url.to_string(),
+            DownloadState { id, done: false, name: name.to_string(), temp },
+        );
         let shell = Arc::clone(self);
         let (url, name) = (url.to_string(), name.to_string());
         // Only a save that takes more than a second says so.
@@ -347,41 +370,85 @@ impl Shell {
         });
     }
 
-    /// The webview finished, or gave up on, a file.
-    pub fn download_finished(&self, url: &str, path: Option<PathBuf>, success: bool) {
-        let id = {
+    /// The webview finished, or gave up on, a file. The file came in to a private folder of the app's
+    /// own; only now is the person asked where to keep it, and nothing is written anywhere else.
+    pub fn download_finished(self: &Arc<Self>, url: &str, success: bool) {
+        let (id, name, temp) = {
             let mut downloads = self.downloads.lock().unwrap();
             match downloads.get_mut(url) {
                 Some(d) => {
                     d.done = true;
-                    d.id
+                    (d.id, d.name.clone(), d.temp.clone())
                 }
                 None => return,
             }
         };
-        let name = path
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "The file".into());
-        if success {
-            let folder = path.as_ref().and_then(|p| p.parent()).map(|p| p.to_string_lossy().to_string());
-            self.toasts.lock().unwrap().insert(id, ToastTarget { path: path.clone(), retry_url: None });
-            self.show_toast(Toast {
-                id,
-                tone: Tone::Success,
-                text: saved_file::saved(&name, &folder.as_deref().map(saved_file::folder_name).unwrap_or_default()),
-                detail: None,
-                tooltip: folder,
-                actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
-                goes_after: Some(saved_file::SAVED_NOTICE_SECONDS),
-            });
-        } else {
+        if !success {
             // The part file is deleted: nothing is kept.
-            if let Some(p) = &path {
-                let _ = std::fs::remove_file(p);
-            }
+            let gone = saved_file::discard_partial(&temp);
+            self.report("partial_file", json!({ "removed": gone }));
             self.save_failed(id, &name, url, saved_file::Failure::Stopped);
+            return;
+        }
+        // Harness only: a folder chosen in advance, in place of the dialog a run cannot answer.
+        if let Ok(dir) = std::env::var("BAKERY_DESKTOP_DOWNLOAD_TO") {
+            if dir == "-" {
+                // ... or the dialog cancelled: nothing is kept and nothing is said.
+                let _ = saved_file::discard_partial(&temp);
+                self.report("download_cancelled", json!({ "name": name }));
+                return;
+            }
+            self.keep_download(id, &name, url, &temp, PathBuf::from(dir).join(&name));
+            return;
+        }
+        use tauri_plugin_dialog::DialogExt;
+        let mut dialog = self.app.dialog().file().set_file_name(&name);
+        if let Ok(dir) = self.app.path().download_dir() {
+            dialog = dialog.set_directory(dir);
+        }
+        let shell = Arc::clone(self);
+        let (url, name) = (url.to_string(), name.clone());
+        dialog.save_file(move |chosen| match chosen.and_then(|c| c.into_path().ok()) {
+            Some(path) => shell.keep_download(id, &name, &url, &temp, path),
+            None => {
+                // Cancelled or closed: nothing is written, nothing is said.
+                let _ = saved_file::discard_partial(&temp);
+                shell.report("download_cancelled", json!({ "name": name }));
+            }
+        });
+    }
+
+    /// Moves a finished file from the app's private folder to where the person chose.
+    fn keep_download(&self, id: u64, name: &str, url: &str, temp: &std::path::Path, to: PathBuf) {
+        let moved = std::fs::rename(temp, &to).or_else(|_| {
+            // Another disk: copy, then remove the original.
+            std::fs::copy(temp, &to).map(|_| ()).and_then(|_| std::fs::remove_file(temp))
+        });
+        match moved {
+            Ok(()) => {
+                let folder = to.parent().map(|p| p.to_string_lossy().to_string());
+                self.toasts.lock().unwrap().insert(id, ToastTarget { path: Some(to.clone()), retry_url: None });
+                self.show_toast(Toast {
+                    id,
+                    tone: Tone::Success,
+                    text: saved_file::saved(name, &folder.as_deref().map(saved_file::folder_name).unwrap_or_default()),
+                    detail: None,
+                    tooltip: folder,
+                    actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
+                    goes_after: Some(saved_file::SAVED_NOTICE_SECONDS),
+                });
+                self.report("download_saved", json!({ "name": name }));
+            }
+            Err(error) => {
+                let _ = saved_file::discard_partial(temp);
+                let _ = saved_file::discard_partial(&to);
+                let why = match error.kind() {
+                    std::io::ErrorKind::PermissionDenied => saved_file::Failure::NoPermission,
+                    std::io::ErrorKind::StorageFull => saved_file::Failure::DiskFull,
+                    _ => saved_file::Failure::Stopped,
+                };
+                self.save_failed(id, name, url, why);
+            }
         }
     }
 
@@ -917,6 +984,13 @@ impl Shell {
                                 })
                                 .await;
                         }
+                        continue;
+                    }
+                    // `toast-saving` or `toast-failed`: shows that notice with sample words, for the
+                    // stills of states a run cannot wait for. Harness only.
+                    if let Some(kind) = name.strip_prefix("toast-") {
+                        let _ = std::fs::remove_file(entry.path());
+                        shell.preview_toast(kind);
                         continue;
                     }
                     // `eval-<anything>`: the file's text runs in the window, as a person's click would

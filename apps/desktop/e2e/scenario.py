@@ -11,6 +11,7 @@ import json
 import os
 import re
 import socket
+import shutil
 import subprocess
 import sys
 import threading
@@ -744,8 +745,9 @@ def phase_web_download():
     probe = ("const a=document.createElement('a');a.href='/favicon.svg';a.download='bakery-probe.svg';"
              "document.body.appendChild(a);a.click()")
     for label, extra in (("[download] with a folder chosen", {"BAKERY_DESKTOP_DOWNLOAD_TO": drop}),
+                         ("[download] with the dialog cancelled", {"BAKERY_DESKTOP_DOWNLOAD_TO": "-"}),
                          ("[download] with the dialog", {})):
-        p = os.path.join(OUT, "n-download-" + ("hook" if extra else "dialog"))
+        p = os.path.join(OUT, "n-download-" + label.split("with ")[1].replace(" ", "-"))
         clear_store(web)
         if os.path.exists(os.path.join(drop, "bakery-probe.svg")):
             os.remove(os.path.join(drop, "bakery-probe.svg"))
@@ -760,9 +762,10 @@ def phase_web_download():
             continue
         time.sleep(3)
         eval_in_window(p, probe)
-        if extra:
+        incoming = os.path.join("/tmp", f"bakery-incoming-{app.pid}")
+        if extra.get("BAKERY_DESKTOP_DOWNLOAD_TO") == drop:
             check(label + ": the file is saved there", wait_until(lambda: os.path.exists(os.path.join(drop, "bakery-probe.svg")), timeout=20))
-            check(label + ": the app reports the save", wait_report(p, "download_finished", 1, timeout=20))
+            check(label + ": the app reports the save", wait_report(p, "download_saved", 1, timeout=20))
             check(label + ": a notice says where it was saved",
                   wait_report(p, "toast", 1, timeout=20)
                   and [e["data"]["text"] for e in reports(p) if e["event"] == "toast"][-1] == "Saved bakery-probe.svg to downloads.",
@@ -781,24 +784,128 @@ def phase_web_download():
             check(label + ": an action address without the nonce is refused",
                   sum(1 for e in reports(p) if e["event"] == "toast_action") == 1
                   and not any(e["event"] == "view" and e["data"].get("link_dialog") for e in reports(p)))
+        elif extra:
+            check(label + ": the app reports it cancelled", wait_report(p, "download_cancelled", 1, timeout=20))
+            time.sleep(1)
+            check(label + ": nothing was written anywhere, not even where the file came in",
+                  not os.path.exists(os.path.join(drop, "bakery-probe.svg")) and not os.path.exists("/work/bakery-probe.svg")
+                  and not [f for f in os.listdir(incoming)] if os.path.isdir(incoming) else True,
+                  str(os.listdir(incoming)) if os.path.isdir(incoming) else "no incoming folder")
+            check(label + ": and no notice was shown",
+                  not any(e["event"] == "toast" for e in reports(p)))
         else:
-            # Without the harness, the system's save dialog opens and waits: nothing is written yet.
+            # Without the harness the system's save dialog opens and waits for the person: the file has
+            # come in to the app's own folder and nowhere else, and nothing is reported as saved.
             time.sleep(6)
-            check(label + ": nothing was written before the person answered",
-                  not os.path.exists("/work/bakery-probe.svg") and not os.path.exists(os.path.join(drop, "bakery-probe.svg")) and
-                  sum(1 for e in reports(p) if e["event"] == "download_started") == 0)
-            tree = subprocess.run("xwininfo -root -tree 2>/dev/null | grep -iE 'save|bakery-probe' | head -3",
-                                  shell=True, capture_output=True, text=True).stdout.strip()
-            print("INFO the save dialog's window: " + (tree or "not found by name (xwininfo may be missing)"), flush=True)
+            check(label + ": nothing was written where the person has not chosen",
+                  not os.path.exists("/work/bakery-probe.svg") and not os.path.exists(os.path.join(drop, "bakery-probe.svg"))
+                  and not any(e["event"] in ("download_saved", "toast") for e in reports(p)))
+            check(label + ": the file waits in the app's own folder",
+                  os.path.isdir(incoming) and any(f.endswith("bakery-probe.svg") for f in os.listdir(incoming)),
+                  str(os.listdir(incoming)) if os.path.isdir(incoming) else "no incoming folder")
         stop_app()
+
+
+def shot(name):
+    """The whole screen as it is now, for the stills a state needs that the app's own preview cannot show
+    (a notice or a system dialog over the server's page). The screen is a file the virtual display keeps
+    in the X dump format, so no screenshot tool is needed. The container has no window manager."""
+    os.makedirs(os.path.join(OUT, "shots"), exist_ok=True)
+    xwd = os.path.join(OUT, "shots", name + ".xwd")
+    png = os.path.join(OUT, "shots", name + ".png")
+    shutil.copyfile("/tmp/xfb/Xvfb_screen0", xwd)
+    done = subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, png], capture_output=True, text=True).stdout.strip()
+    try:
+        os.remove(xwd)
+    except OSError:
+        pass
+    print(f"SHOT {name}: {done}", flush=True)
+
+
+def phase_web_shots():
+    """With E2E_SHOTS=1: screenshots of what the app draws over a server page, light and dark: the saved,
+    saving, failed and cannot-save notices, the system's save dialog and the four link dialogs."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web or not os.environ.get("E2E_SHOTS"):
+        return
+    drop = os.path.join(OUT, "shots-downloads")
+    os.makedirs(drop, exist_ok=True)
+    probe = ("const a=document.createElement('a');a.href='/favicon.svg';a.download='bakery-probe.svg';"
+             "document.body.appendChild(a);a.click()")
+    for theme in ("light", "dark"):
+        env = {"GTK_THEME": "Adwaita:dark" if theme == "dark" else "Adwaita"}
+        p = os.path.join(OUT, "o-shots-" + theme + "-signin")
+        clear_store(web)
+        start_app(p, server=web, extra=env)
+        url = sign_in_to_waiting(p, f"[shots {theme}]")
+        if not url:
+            return
+        deliver(confirm(request_id_of(url), session_cookie()))
+        if not wait_report(p, "server_page_opened", 1, timeout=40):
+            check(f"[shots {theme}] the server's page opens", False)
+            stop_app()
+            continue
+        stop_app()  # the sign-in stays saved: every shot below starts signed in
+        cases = [
+            ("toast-saved", dict(env, BAKERY_DESKTOP_DOWNLOAD_TO=drop), "saved"),
+            ("toast-saving", env, "toast-saving"),
+            ("toast-failed", env, "toast-failed"),
+            ("toast-no-permission", env, "toast-nopermission"),
+            ("save-dialog", env, "download"),
+            ("dialog-cant-open", env, "bakery://open?path=%2Fv1%2Ftasks"),
+            ("dialog-not-web", env, "file"),
+            ("dialog-other-server", env, "bakery://open?path=%2Ftasks&server=https%3A%2F%2Fother.example"),
+            ("dialog-browser-did-not-open", env, "browser"),
+        ]
+        for name, case_env, how in cases:
+            if os.environ.get("E2E_SHOT_ONLY") and os.environ["E2E_SHOT_ONLY"] not in name:
+                continue
+            p = os.path.join(OUT, f"o-shots-{theme}-{name}")
+            start_app(p, server=web, extra=case_env)
+            ok = wait_report(p, "server_page_opened", 1, timeout=40)
+            time.sleep(4)
+            if not ok:
+                check(f"[shots {theme}] {name}: the server's page opens", False)
+                stop_app()
+                continue
+            if how == "saved":
+                if os.path.exists(os.path.join(drop, "bakery-probe.svg")):
+                    os.remove(os.path.join(drop, "bakery-probe.svg"))
+                eval_in_window(p, probe)
+                wait_report(p, "toast", 1, timeout=20)
+                time.sleep(1)
+            elif how.startswith("toast-"):
+                open(os.path.join(p, "cmd", how), "w").close()
+                wait_report(p, "toast", 1, timeout=20)
+                time.sleep(1)
+            elif how == "download":
+                eval_in_window(p, probe)
+                time.sleep(4)
+            elif how.startswith("bakery://"):
+                deliver(how)
+                wait_report(p, "system_dialog", 1, timeout=20)
+                time.sleep(2)
+            elif how == "file":
+                eval_in_window(p, "location.href = 'file:///etc/hostname'")
+                wait_report(p, "system_dialog", 1, timeout=20)
+                time.sleep(2)
+            elif how == "browser":
+                eval_in_window(p, "location.href = 'https://example.org/docs'")
+                wait_report(p, "system_dialog", 1, timeout=20)
+                time.sleep(2)
+            shot(f"{name}-{theme}")
+            stop_app()
 
 
 def main():
     print(f"server {SERVER}", flush=True)
+    only = [s for s in os.environ.get("E2E_PHASES", "").split(",") if s]
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_web_pages, phase_web_download):
+                  phase_open_links, phase_web_pages, phase_web_download, phase_web_shots):
+        if only and not any(s in phase.__name__ for s in only):
+            continue
         try:
             phase()
         except Exception as e:  # a phase that breaks is a failed check, not a silent skip

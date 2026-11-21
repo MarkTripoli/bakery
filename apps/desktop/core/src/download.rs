@@ -44,7 +44,9 @@ pub fn failure_reason(failure: Failure) -> &'static str {
     match failure {
         Failure::NoPermission => "You cannot save to that folder. Choose another.",
         Failure::DiskFull => "There is not enough space on this disk.",
-        Failure::Stopped => "The download stopped before it finished. Nothing was kept.",
+        Failure::Stopped => {
+            "The download stopped before it finished. Nothing was kept. Check your connection and the space on this disk."
+        }
     }
 }
 
@@ -54,6 +56,15 @@ pub const SHOW_IN_FOLDER: &str = if cfg!(target_os = "macos") {
     "Show in folder"
 };
 pub const TRY_AGAIN: &str = "Try again";
+
+/// Deletes what a failed save left behind, so nothing is kept. True when nothing remains: a file that
+/// is already gone counts, a file that cannot be removed does not.
+pub fn discard_partial(path: &std::path::Path) -> bool {
+    match std::fs::remove_file(path) {
+        Ok(()) => true,
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    }
+}
 
 /// How long a "Saved" notice stays when the pointer and focus are away from it.
 pub const SAVED_NOTICE_SECONDS: u64 = 8;
@@ -77,7 +88,7 @@ mod tests {
         assert_eq!(failure_title("report.pdf"), "report.pdf could not be saved.");
         assert_eq!(
             failure_reason(Failure::Stopped),
-            "The download stopped before it finished. Nothing was kept."
+            "The download stopped before it finished. Nothing was kept. Check your connection and the space on this disk."
         );
         assert_eq!(
             failure_reason(Failure::DiskFull),
@@ -87,6 +98,21 @@ mod tests {
             failure_reason(Failure::NoPermission),
             "You cannot save to that folder. Choose another."
         );
+    }
+
+    #[test]
+    fn a_failed_save_leaves_no_file_behind() {
+        let dir = std::env::temp_dir().join(format!("bakery-partial-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let part = dir.join("report.pdf");
+        std::fs::write(&part, b"half a file").unwrap();
+        assert!(part.exists());
+        assert!(discard_partial(&part));
+        assert!(!part.exists());
+        // Already gone is fine; a path that cannot be removed is reported.
+        assert!(discard_partial(&part));
+        assert!(!discard_partial(&dir));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
