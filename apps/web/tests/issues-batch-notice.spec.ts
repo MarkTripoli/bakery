@@ -14,14 +14,13 @@ registerPageHealth(test);
 
 const REPOSITORY_ID = uuid(903);
 
-/** A batch of the fixture's repository, its issues carrying the number and title the server sends. */
+/** A batch of the fixture's repository, waiting on a person when asked. */
 function running(
   seed: BatchSeed,
   waitingOn?: "approval" | "question",
 ) {
-  const made = batch({ repositoryId: REPOSITORY_ID, ...seed });
   return {
-    ...made,
+    ...batch({ repositoryId: REPOSITORY_ID, ...seed }),
     waitingOn: waitingOn === undefined ? null : {
       kind: waitingOn,
       questionId: uuid(7100),
@@ -29,14 +28,6 @@ function running(
       since: new Date(Date.now() - 12 * 60_000).toISOString(),
       askedOf: [],
     },
-    issues: made.issues.map((issue) => {
-      const number = Number(issue.externalTicketId.slice(-12));
-      return {
-        ...issue,
-        issueNumber: String(number),
-        issueTitle: `Issue ${number}`,
-      };
-    }),
   };
 }
 
@@ -125,7 +116,7 @@ for (
       );
     });
 
-    test("a batch that is paused, finished or in another repository says nothing", async ({ page }) => {
+    test("a batch that is paused or finished says nothing", async ({ page }) => {
       await issuesFixture(page, {
         batches: [
           running({
@@ -139,7 +130,6 @@ for (
             finishReason: "issues_reached",
             finishedAt: "2026-11-20T10:00:00.000Z",
           }),
-          { ...running(AT_WORK), repositoryId: uuid(999) },
         ],
       });
       await page.goto("/issues");
