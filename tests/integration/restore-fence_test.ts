@@ -249,11 +249,13 @@ Deno.test("while the restore is held every guarded door refuses with a non-retry
     await fence(fixture);
 
     await withPgTransaction(fixture.pgDatabase, async (transaction) => {
-      const error = await assertRejects(() => assertNotQuiesced(transaction));
+      const error = await assertRejects(() =>
+        assertNotQuiesced(transaction, "intake")
+      );
       assert(error instanceof StandardError);
       assertEquals(error.code, "INSTALLATION_RESTORING");
       // The route consumers leave their work alone while held.
-      assertEquals(await isQuiesced(transaction), true);
+      assertEquals(await isQuiesced(transaction, "intake"), true);
     });
 
     const fresh = await registeredWorker(fixture, { name: "restore-fresh" });
@@ -293,8 +295,8 @@ Deno.test("while the restore is held every guarded door refuses with a non-retry
       `update bakery.installation_restores set released_at = now()`,
     );
     await withPgTransaction(fixture.pgDatabase, async (transaction) => {
-      await assertNotQuiesced(transaction);
-      assertEquals(await isQuiesced(transaction), false);
+      await assertNotQuiesced(transaction, "intake");
+      assertEquals(await isQuiesced(transaction, "intake"), false);
     });
     const open = claimBody(fresh.registration.workerHostId);
     const claimed = await workerRequest(
