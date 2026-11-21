@@ -335,6 +335,17 @@ Deno.test("#31 AC1 and AC3: the parent completes only when every child does, and
       const admitted = await fx.admit(sourceId, { number });
       const request = admitted.request!;
       const [first, second] = await targetsOf(fx, request.id);
+      if (outcome === "completed") {
+        // Issue 32: finished children are delivered once their work merged.
+        for (const [index, child] of [first, second].entries()) {
+          await fx.registerPullRequest({
+            sourceId,
+            taskId: child.child_task_id!,
+            number: 1000 + number * 10 + index,
+            status: "merged",
+          });
+        }
+      }
       await finishChild(fx, first, "completed");
       // One child done is not the parent done.
       await fx.recheck(request.externalTicketId);

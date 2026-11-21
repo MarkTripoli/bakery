@@ -10,6 +10,7 @@ import {
   type TicketRequestDisposition,
   type TicketRequestIntent,
 } from "@bakery/contracts/ticket-admission";
+import type { TicketDeliveryVerdict } from "./ticket-delivery.ts";
 
 /**
  * The disposition machine of a ticket request: which moves are legal and what
@@ -51,6 +52,13 @@ export type RecheckCurrent = {
    * set, the plan's projection of its child tasks decides the outcome.
    */
   planStatus?: string | null;
+  /**
+   * Whether the source's completion policy is met by the evidence found now
+   * (see `ticketDeliveryVerdict`). A finished run ends the request as
+   * completed only when it is: until then the request stays open, and a run
+   * that failed or was canceled still ends it.
+   */
+  delivery: TicketDeliveryVerdict;
 };
 
 export type RecheckDecision =
@@ -139,7 +147,32 @@ function planOutcome(status: string): RecheckDecision | null {
   return null;
 }
 
+/** Whether the work behind the request ended successfully, as the recheck reads it. */
+export function requestWorkFinished(
+  current: Pick<
+    RecheckCurrent,
+    "hasRun" | "runStatus" | "taskStatus" | "planStatus"
+  >,
+): boolean {
+  if (current.planStatus != null) return current.planStatus === "completed";
+  if (current.hasRun && finishedDisposition(current.runStatus) !== null) {
+    return current.runStatus === "completed";
+  }
+  return current.taskStatus === "completed";
+}
+
 function terminalOutcome(current: RecheckCurrent): RecheckDecision | null {
+  const outcome = endedOutcome(current);
+  // A finished run is not delivery: the request stays open until the source's
+  // completion policy is met, so nothing reads "done" before it is true.
+  if (
+    outcome?.action === "terminal" && outcome.disposition === "completed" &&
+    !current.delivery.delivered
+  ) return null;
+  return outcome;
+}
+
+function endedOutcome(current: RecheckCurrent): RecheckDecision | null {
   if (current.planStatus != null) return planOutcome(current.planStatus);
   const run = current.hasRun ? finishedDisposition(current.runStatus) : null;
   if (run !== null) {
@@ -340,8 +373,10 @@ export type TicketRequestProgress =
 /**
  * The progress the ticket page shows. A terminal disposition, `pending` and
  * `suspended` are shown as stored. Otherwise the run decides, because the
- * recheck that moves the disposition runs on its own schedule: a finished run
- * shows its end, a queued run `admitted`, a paused run `suspended`, a run
+ * recheck that moves the disposition runs on its own schedule: a run that
+ * failed or was canceled shows its end, a completed one shows completed only
+ * once the source's completion policy is met (`delivered`), and active until
+ * then, a queued run `admitted`, a paused run `suspended`, a run
  * waiting for input, capacity or a block `waiting`, and a running or stopping
  * run `active`. With no run the disposition stands. Unknown run statuses
  * leave the disposition as stored.
@@ -349,13 +384,16 @@ export type TicketRequestProgress =
 export function ticketRequestProgress(
   disposition: TicketRequestDisposition,
   runStatus: string | null,
+  delivered: boolean,
 ): TicketRequestProgress {
   if (
     !isNonterminalTicketDisposition(disposition) ||
     disposition === "suspended" || runStatus === null
   ) return disposition;
   switch (runStatus) {
+    // A finished run whose delivery is not proven yet is still open work.
     case "completed":
+      return delivered ? "completed" : "active";
     case "failed":
     case "canceled":
       return runStatus;

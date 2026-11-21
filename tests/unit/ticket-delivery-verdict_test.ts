@@ -12,7 +12,6 @@ function evidence(
     pullRequests: [],
     deployment: null,
     manuallyConfirmed: false,
-    issueClosed: false,
     ...overrides,
   };
 }
@@ -41,7 +40,7 @@ Deno.test("merged: a pull request closed unmerged is named, never delivery", () 
   assertEquals(
     ticketDeliveryVerdict(
       "merged",
-      evidence({ pullRequests: [{ status: "closed" }], issueClosed: true }),
+      evidence({ pullRequests: [{ status: "closed" }] }),
     ),
     { delivered: false, waitingFor: "merge", closedUnmerged: true },
   );
@@ -49,7 +48,7 @@ Deno.test("merged: a pull request closed unmerged is named, never delivery", () 
 
 Deno.test("merged: no pull request at all is not delivery", () => {
   assertEquals(
-    ticketDeliveryVerdict("merged", evidence({ issueClosed: true })),
+    ticketDeliveryVerdict("merged", evidence()),
     { delivered: false, waitingFor: "merge", closedUnmerged: false },
   );
 });
@@ -80,7 +79,7 @@ Deno.test("deployed_healthy: a merge without healthy release evidence is not del
     assertEquals(
       ticketDeliveryVerdict(
         "deployed_healthy",
-        evidence({ pullRequests: merged, deployment, issueClosed: true }),
+        evidence({ pullRequests: merged, deployment }),
       ),
       { delivered: false, waitingFor: "deployment", closedUnmerged: false },
     );
@@ -94,7 +93,6 @@ Deno.test("deployed_healthy: a closed issue or an unmerged pull request never co
       evidence({
         pullRequests: [{ status: "closed" }],
         deployment: { healthy: true },
-        issueClosed: true,
       }),
     ),
     { delivered: false, waitingFor: "merge", closedUnmerged: true },
@@ -136,7 +134,6 @@ Deno.test("work that has not finished is never delivered, whatever else is true"
           pullRequests: [{ status: "merged" }],
           deployment: { healthy: true },
           manuallyConfirmed: true,
-          issueClosed: true,
         }),
       ),
       { delivered: false, waitingFor: "work", closedUnmerged: false },

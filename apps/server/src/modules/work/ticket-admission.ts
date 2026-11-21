@@ -63,8 +63,13 @@ import {
   type ReadinessSourceFacts,
 } from "./ticket-readiness.ts";
 import {
+  readRequestDeliveryFacts,
+  requestDeliveryVerdict,
+} from "./ticket-delivery-store.ts";
+import {
   decideRecheck,
   type RecheckDecision,
+  requestWorkFinished,
   resumeTarget,
   suspensionReason,
 } from "./ticket-request-state.ts";
@@ -2023,6 +2028,11 @@ async function recheckWithin(
     organizationId,
     existing.id,
   );
+  const deliveryFacts = (await readRequestDeliveryFacts(
+    transaction,
+    organizationId,
+    [existing.id],
+  )).get(existing.id);
   const decide = (current: TicketRequest): RecheckDecision =>
     decideRecheck({
       disposition: current.disposition,
@@ -2035,6 +2045,15 @@ async function recheckWithin(
       pinnedRequirementsDigest: current.requirementsDigest,
       pauseRequestedAt: current.pauseRequestedAt?.toISOString() ?? null,
       planStatus,
+      delivery: requestDeliveryVerdict(
+        deliveryFacts,
+        requestWorkFinished({
+          hasRun: current.workflowRunId !== null,
+          runStatus,
+          taskStatus: task.status,
+          planStatus,
+        }),
+      ),
     }, report);
 
   const first = decide(request);

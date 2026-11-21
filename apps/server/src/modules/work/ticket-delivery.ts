@@ -3,9 +3,10 @@
  * completion policy (#32, docs/technical-design/10-tickets.md "Progress
  * visible in both places"). Pure: the caller reads the evidence.
  *
- * A finished run is not delivery. A closed issue is not delivery. A pull
- * request closed without a merge is not delivery. Each policy names what it
- * waits for, so the ticket's progress can say so in plain words.
+ * A finished run is not delivery. A pull request closed without a merge is not
+ * delivery. The state of the provider issue is not an input at all: closing a
+ * ticket proves nothing was delivered. Each policy names what it waits for, so
+ * the ticket's progress can say so in plain words.
  */
 
 /** What a source requires before its ticket counts as delivered. */
@@ -21,12 +22,6 @@ export type TicketDeliveryEvidence = {
   deployment: { healthy: boolean } | null;
   /** A person confirmed delivery by hand. */
   manuallyConfirmed: boolean;
-  /**
-   * The provider issue is closed. It is carried so a closed issue is visibly
-   * ignored: no policy reads it, because closing a ticket proves nothing was
-   * delivered.
-   */
-  issueClosed: boolean;
 };
 
 /** What a delivered ticket's progress still waits for. */

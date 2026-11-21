@@ -1827,6 +1827,7 @@ Deno.test("issue 82 unit readiness: a cut label list waits as provider_unavailab
     approvalAvailable: false,
     pinnedRequirementsDigest: pinned,
     pauseRequestedAt: null,
+    delivery: { delivered: true },
   };
   assertEquals(decideRecheck(running, report), {
     action: "suspend",

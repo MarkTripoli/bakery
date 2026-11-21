@@ -671,7 +671,7 @@ Deno.test("issue 82 recheck: an explicit resume clears the pause mark, so the ne
     );
   }));
 
-Deno.test("issue 82 recheck: a finished run ends the request; a ticket without a nonterminal request is left alone", () =>
+Deno.test("issue 82 recheck: a finished run ends the request once its work is merged; a ticket without a nonterminal request is left alone", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: fx.policy() });
     setIssue(fx, 801);
@@ -680,6 +680,27 @@ Deno.test("issue 82 recheck: a finished run ends the request; a ticket without a
       `update bakery.workflow_runs set status = 'completed', finished_at = now()
         where organization_id = $1 and id = $2`,
       [fx.organizationId, admitted.request!.workflowRunId],
+    );
+    // Issue 32: a completed run is not delivery, and neither is a pull request
+    // closed without a merge.
+    const open = () =>
+      fx.owner.query<{ disposition: string }>(
+        "select disposition from bakery.ticket_requests where id = $1",
+        [admitted.request!.id],
+      ).then((result) => result.rows[0].disposition);
+    const before = await open();
+    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: admitted.request!.taskId,
+      number: 91,
+      status: "closed",
+    });
+    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
+    assertEquals(await open(), before, "still open: nothing was merged");
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where provider_number = 91 and organization_id = $1",
+      [fx.organizationId],
     );
     const ended = await fx.recheck(admitted.ticketId!);
     assertEquals(ended.applied, ["terminal"]);
@@ -695,6 +716,45 @@ Deno.test("issue 82 recheck: a finished run ends the request; a ticket without a
     assertEquals(none.applied, []);
     assertEquals(none.request, null);
     assertEquals((await fx.counts(sourceId)).reports, reports);
+  }));
+
+Deno.test("issue 32 recheck: under deployed_healthy a merge is not delivery, and a closed issue or an unmerged pull request never is", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ completion: "deployed_healthy" }),
+    });
+    setIssue(fx, 811);
+    const admitted = await fx.admit(sourceId, { number: 811, intent: "start" });
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed', finished_at = now()
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, admitted.request!.workflowRunId],
+    );
+    setIssue(fx, 811, { state: "closed", stateReason: "completed" });
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: admitted.request!.taskId,
+      number: 92,
+      status: "closed",
+    });
+    // A closed issue stops new work (the request is suspended); it is not
+    // delivery, and neither is a pull request closed without a merge.
+    const notDelivered = async (why: string) => {
+      const result = await fx.recheck(admitted.ticketId!);
+      assertEquals(result.applied.includes("terminal"), false, why);
+      const stored = await fx.owner.query<{ disposition: string }>(
+        "select disposition from bakery.ticket_requests where id = $1",
+        [admitted.request!.id],
+      );
+      assertEquals(stored.rows[0].disposition !== "completed", true, why);
+    };
+    await notDelivered("a closed issue and an unmerged pull request");
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where provider_number = 92 and organization_id = $1",
+      [fx.organizationId],
+    );
+    // Merged, but no healthy release is recorded: still not delivered.
+    await notDelivered("a merge without healthy release evidence");
   }));
 
 Deno.test("issue 82 recheck: a suspended request's task refuses runs.create, and a run started by hand once it resumes is linked, not duplicated", () =>
