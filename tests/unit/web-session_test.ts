@@ -343,6 +343,7 @@ function fakeApi(
     listMemoryRevisions: rejecting,
     listMentionCandidates: rejecting,
     listConversationAccess: rejecting,
+    listConversationSharers: rejecting,
     revokeConversationAccess: rejecting,
     listEvaluationBatches: rejecting,
     getEvaluationBatch: rejecting,
