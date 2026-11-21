@@ -81,9 +81,9 @@ Deno.test("the runner's report sets the window; a late report never shrinks it; 
     );
     assertEquals(late.latestRestorableAt, report.latestArchivedAt);
 
-    const off = await json(await put(o, false, 2));
+    const off = await json(await put(o, false, 1));
     assertEquals([off.enabled, off.latestRestorableAt], [false, null]);
-    const on = await json(await put(o, true, 3));
+    const on = await json(await put(o, true, 2));
     assertEquals(on.latestRestorableAt, null);
   });
 });
