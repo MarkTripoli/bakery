@@ -103,10 +103,17 @@ def stop_app():
         try:
             app.wait(10)
         except Exception:
+            print("NOTE the app did not end within ten seconds and was killed", flush=True)
             app.kill()
+            try:
+                app.wait(5)
+            except Exception:
+                pass
     app = None
     # A server change restarts the app as a new process this harness did not start: end it too.
     subprocess.run(["pkill", "-f", BIN], capture_output=True)
+    # The next start must not meet the old one's single-instance name on the session bus.
+    time.sleep(2)
 
 
 def press(path, button):
@@ -217,8 +224,8 @@ def request_id_of(url):
     return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["request"][0]
 
 
-def stored():
-    r = subprocess.run(["secret-tool", "lookup", "service", SERVICE, "username", USER],
+def stored(user=None):
+    r = subprocess.run(["secret-tool", "lookup", "service", SERVICE, "username", user or USER],
                        capture_output=True, text=True)
     return r.stdout.strip() if r.returncode == 0 else ""
 
@@ -628,11 +635,58 @@ def phase_open_links():
         deliver(link)
     check("[links] every address that is not a plain page of the server is refused",
           wait_report(p, "link_refused", len(bad)))
-    check("[links] a refused address asks for no page and shows nothing",
-          sum(1 for e in reports(p) if e["event"] == "link_open_requested") == 1
-          and all(not v[0].startswith("refusal") for v in views(p)), str(views(p)))
+    shown = [e["data"].get("link_dialog") for e in reports(p) if e["event"] == "view"]
+    check("[links] a refused address asks for no page and shows the can't-open dialog over the window",
+          sum(1 for e in reports(p) if e["event"] == "link_open_requested") == 1 and "cant_open" in shown, str(shown))
     check("[links] a link that is not a sign-in answer leaves the window as it was",
           stored() == "" and views(p)[-1][0] == "sign_in", str(views(p)))
+    stop_app()
+
+
+def eval_in_window(path, script):
+    """Runs a script in the app's window, as a person acting in the page would."""
+    tmp = os.path.join(path, "cmd", "tmp-eval")
+    with open(tmp, "w") as f:
+        f.write(script)
+    os.rename(tmp, os.path.join(path, "cmd", "eval-" + str(int(time.time() * 1000))))
+
+
+def page_loads(path):
+    return [(e["data"].get("host"), e["data"].get("path")) for e in reports(path) if e["event"] == "page_loaded"]
+
+
+def phase_web_pages():
+    """With the built web app on the connected server's own address: a real page opens after sign-in,
+    and signing out in the web ends the app's sign-in."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        print("SKIP the web phase: no built web app (run with E2E_WEB=1)", flush=True)
+        return
+    host = web.split("//", 1)[1].split(":")[0]
+    p = os.path.join(OUT, "m-web")
+    clear_store()
+    start_app(p, server=web)
+    url = sign_in_to_waiting(p, "[web]")
+    if not url:
+        return
+    deliver(confirm(request_id_of(url), session_cookie()))
+    check("[web] the app finishes and opens the server's page", wait_report(p, "server_page_opened", 1, timeout=40))
+    end = time.time() + 40
+    while time.time() < end and not any(h == host and not (pth or "").startswith("/sign-in") for h, pth in page_loads(p)):
+        time.sleep(1)
+    loads = page_loads(p)
+    check("[web] a real page of the web app loads, signed in (not the sign-in page)",
+          any(h == host and not (pth or "").startswith("/sign-in") for h, pth in loads), str(loads[-4:]))
+    check("[web] the sign-in was saved for the web address", stored(web).startswith("bkd_"), "before sign-out")
+    check("[web] the window's one-use code is in no report",
+          not any("handoff" in json.dumps(e) and "code=" in json.dumps(e) for e in reports(p)))
+    # The web's own Sign out: a full navigation to the web's sign-out page, as its link does.
+    eval_in_window(p, "location.assign('/sign-out')")
+    check("[web] signing out in the web ends the app's sign-in and returns to the sign-in panel",
+          wait_report(p, "web_sign_out_seen", 1, timeout=40) and wait_window(p, "signed_out", timeout=40) is not None,
+          str(views(p)[-3:]))
+    check("[web] the saved sign-in is gone", stored(web) == "")
+    check("[web] the window is back on the app's own panel", wait_report(p, "panels_shown", 1, timeout=20))
     stop_app()
 
 
@@ -641,7 +695,7 @@ def main():
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links):
+                  phase_open_links, phase_web_pages):
         try:
             phase()
         except Exception as e:  # a phase that breaks is a failed check, not a silent skip

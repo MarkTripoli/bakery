@@ -366,6 +366,8 @@ impl Shell {
                     if self.navigate(&url) {
                         self.window_page.lock().unwrap().on_server = true;
                         self.report("server_page_opened", json!({ "path": path }));
+                        let shell = Arc::clone(self);
+                        std::thread::spawn(move || shell.watch_server_page());
                     }
                 }
                 None => {
@@ -383,6 +385,31 @@ impl Shell {
                 let origin = bakery_desktop_core::platform::web_view_origin(std::env::consts::OS);
                 self.navigate(&format!("{origin}/"));
                 self.report("panels_shown", json!({}));
+            }
+        }
+    }
+
+    /// While the server's pages are in the window, watches which page it is on. The web's own Sign
+    /// out, or a sign-in page after a good page was shown, means the person signed out of the web:
+    /// the app ends its own sign-in the same way slice 4's Sign out does. The pages cannot talk to
+    /// the app, and a route change inside the page is not a navigation, so the address is read.
+    fn watch_server_page(self: Arc<Self>) {
+        let mut shown_a_page = false;
+        loop {
+            std::thread::sleep(Duration::from_millis(700));
+            if !self.window_page.lock().unwrap().on_server {
+                return;
+            }
+            let Some(window) = self.app.get_webview_window("main") else { return };
+            let Ok(url) = window.url() else { continue };
+            let path = url.path();
+            let sign_in_or_out = path == "/sign-in" || path.starts_with("/sign-in/") || path == "/sign-out";
+            if !sign_in_or_out {
+                shown_a_page = true;
+            } else if shown_a_page {
+                self.report("web_sign_out_seen", json!({}));
+                tauri::async_runtime::block_on(self.dispatch(Event::SignOutPressed));
+                return;
             }
         }
     }
@@ -628,6 +655,18 @@ impl Shell {
                                 })
                                 .await;
                         }
+                        continue;
+                    }
+                    // `eval-<anything>`: the file's text runs in the window, as a person's click would
+                    // act in a page. Harness only.
+                    if name.starts_with("eval-") {
+                        let script = std::fs::read_to_string(entry.path()).unwrap_or_default();
+                        let _ = std::fs::remove_file(entry.path());
+                        let ran = shell
+                            .app
+                            .get_webview_window("main")
+                            .is_some_and(|w| w.eval(&script).is_ok());
+                        shell.report("command", json!({ "eval": ran }));
                         continue;
                     }
                     let Some(id) = name.strip_prefix("press-") else {

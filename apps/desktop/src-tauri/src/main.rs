@@ -219,6 +219,19 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
                 }
             }
         })
+        .on_page_load(|webview, payload| {
+            if !matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                return;
+            }
+            let url = payload.url();
+            if let Some(shell) = webview.try_state::<Arc<Shell>>() {
+                // Where the window is, never the query: a one-use code travels in it.
+                shell.report(
+                    "page_loaded",
+                    json!({ "host": url.host_str(), "path": url.path() }),
+                );
+            }
+        })
         .build()
 }
 
