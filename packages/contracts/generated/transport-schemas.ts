@@ -12043,9 +12043,9 @@ const transportSchemas = {
       "fields": [
         {
           "name": "power",
-          "type": "enum(decide|run_control|run_start|steer|steer_reviewer)",
+          "type": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
           "required": true,
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) or steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
         },
         {
           "name": "workflowId",
@@ -13963,6 +13963,121 @@ const transportSchemas = {
           "description": "The organization whose storage tree holds the file. A caller must send the organization it is already acting in; it is stated rather than inferred so a file id from elsewhere cannot be probed by accident."
         }
       ]
+    },
+    "BackupDrillReport": {
+      "fields": [
+        {
+          "name": "drillId",
+          "type": "uuid",
+          "required": true,
+          "description": "Chosen by the runner for this drill. Reporting the same drill again returns the stored record; the same id with different content answers 409 STATE_CONFLICT."
+        },
+        {
+          "name": "backupName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": "The directory name of the backup set that was restored into the isolated database."
+        },
+        {
+          "name": "startedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When the drill began, on the host clock."
+        },
+        {
+          "name": "outcome",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "Whether every required check passed."
+        },
+        {
+          "name": "failureCode",
+          "type": "enum",
+          "required": false,
+          "nullable": true,
+          "enum": [
+            "set_incomplete",
+            "key_mismatch",
+            "migration_unsupported",
+            "cutoff_mismatch",
+            "restore_failed",
+            "references_missing",
+            "drill_error"
+          ],
+          "description": "Why a failed drill failed, as a stable code; null when it passed."
+        },
+        {
+          "name": "detail",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 1000
+          },
+          "description": "Plain words saying what to do about a failure, with no path, key or restored data in it; null when it passed."
+        },
+        {
+          "name": "cutoffAt",
+          "type": "timestamp",
+          "required": false,
+          "nullable": true,
+          "description": "The database-clock cutoff the restored set recorded; null for a set that recorded none."
+        },
+        {
+          "name": "rpoSeconds",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "min": 0,
+            "max": 31536000
+          },
+          "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup, which is the data a failure at that moment would have lost. Null exactly when cutoffAt is null."
+        },
+        {
+          "name": "rtoSeconds",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 604800
+          },
+          "description": "Whole seconds from the start of the drill to the end of its last check: how long restoring this set took on this host."
+        },
+        {
+          "name": "checksPassed",
+          "type": "string[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 16
+          },
+          "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff."
+        },
+        {
+          "name": "checksFailed",
+          "type": "string[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 16
+          },
+          "description": "The checks that failed, by the same names; empty when the drill passed."
+        }
+      ],
+      "rules": [
+        "A passed drill has no failure code, no detail and no failed check, and every required check is in checksPassed.",
+        "A failed drill has a failure code, a detail and at least one failed check.",
+        "A check name is one of the nine listed, appears once, and is in only one of the two lists.",
+        "rpoSeconds is present exactly when cutoffAt is."
+      ],
+      "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
     }
   },
   "projections": {
@@ -32225,7 +32340,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "power": "enum(decide|run_control|run_start|steer|steer_reviewer)",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
         "workflowId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
@@ -32239,7 +32354,7 @@ const transportSchemas = {
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control, run_start, steer or steer_reviewer.",
+        "power": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection.",
         "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
@@ -32252,41 +32367,113 @@ const transportSchemas = {
         "routeId",
         "provider",
         "model",
+        "providerName",
+        "modelName",
         "harness",
         "billingRoute",
         "health",
-        "eligible",
-        "ineligibleReason"
+        "priced",
+        "estimatedIncrementalCost"
       ],
       "nullableFields": [
-        "ineligibleReason"
+        "estimatedIncrementalCost"
       ],
       "fieldTypes": {
         "routeId": "uuid",
         "provider": "string",
         "model": "string",
+        "providerName": "string",
+        "modelName": "string",
         "harness": "enum(pi|claude_code|codex|mastra)",
         "billingRoute": "enum(subscription|api_metered|local)",
         "health": "enum(healthy|degraded|open|unverified)",
-        "eligible": "boolean",
-        "ineligibleReason": "enum(different_harness|route_not_active|route_open)"
+        "priced": "boolean",
+        "estimatedIncrementalCost": "decimal|null"
       },
-      "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went.",
+      "description": "One route a stalled step may continue on. Only usable routes are listed: active, on the step's own harness and not paused behind their own incident. Routes that cannot be used are counted in the offer's unavailable groups instead, so an organization with a hundred routes is not sent a hundred rows.",
       "fieldDescriptions": {
-        "routeId": "UUID of the candidate provider route.",
-        "provider": "Provider key the candidate route sends to.",
-        "model": "Model identifier the candidate route pins; a continuation runs the step on this model.",
-        "harness": "Harness path the candidate route executes on: pi, claude_code, codex or mastra.",
-        "billingRoute": "Billing route the candidate route's spend follows: subscription, api_metered or local.",
-        "health": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it.",
-        "eligible": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused.",
-        "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+        "routeId": "UUID of the target provider route; the id a continuation submission names.",
+        "provider": "Provider key the target route sends to.",
+        "model": "Model identifier the target route pins; a continuation runs the step on this model.",
+        "providerName": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider.",
+        "modelName": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model.",
+        "harness": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the target route's spend follows: subscription, api_metered or local.",
+        "health": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it.",
+        "priced": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable.",
+        "estimatedIncrementalCost": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
+      }
+    },
+    "RouteContinuationUnavailable": {
+      "fields": [
+        "reason",
+        "count",
+        "harnesses",
+        "routes"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "reason": "enum(different_harness|route_not_active|route_open)",
+        "count": "integer",
+        "harnesses": "RouteContinuationHarnessCount[]",
+        "routes": "RouteContinuationRouteName[]"
+      },
+      "description": "One reason routes of the organization cannot take a stalled step, with how many routes it covers. Counts, not rows: a person reads why routes are missing without being sent every one.",
+      "fieldDescriptions": {
+        "reason": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open.",
+        "count": "How many routes this reason covers, at least 1.",
+        "harnesses": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+        "routes": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness."
+      },
+      "optionalFields": [
+        "harnesses",
+        "routes"
+      ]
+    },
+    "RouteContinuationHarnessCount": {
+      "fields": [
+        "harness",
+        "count"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "count": "integer"
+      },
+      "description": "How many routes of the organization run on one other harness, so a person sees which coding agents have routes this step cannot use.",
+      "fieldDescriptions": {
+        "harness": "The other harness path: pi, claude_code, codex or mastra.",
+        "count": "How many routes run on that harness, at least 1."
+      }
+    },
+    "RouteContinuationRouteName": {
+      "fields": [
+        "provider",
+        "model",
+        "providerName",
+        "modelName"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "providerName": "string",
+        "modelName": "string"
+      },
+      "description": "The name of one route that cannot be used right now, as a provider and model a person recognises.",
+      "fieldDescriptions": {
+        "provider": "Provider key of the route.",
+        "model": "Model identifier of the route.",
+        "providerName": "The provider as a person reads it; the key itself when Bakery does not know the provider.",
+        "modelName": "The model as a person reads it; the model key, since Bakery has no model catalog."
       }
     },
     "RouteContinuationSource": {
       "fields": [
         "provider",
         "model",
+        "providerName",
+        "modelName",
         "harness",
         "billingRoute",
         "health"
@@ -32295,6 +32482,8 @@ const transportSchemas = {
       "fieldTypes": {
         "provider": "string",
         "model": "string",
+        "providerName": "string",
+        "modelName": "string",
         "harness": "enum(pi|claude_code|codex|mastra)",
         "billingRoute": "enum(subscription|api_metered|local)",
         "health": "enum(healthy|degraded|open|unverified)"
@@ -32303,6 +32492,8 @@ const transportSchemas = {
       "fieldDescriptions": {
         "provider": "Provider key the source route sends to.",
         "model": "Model identifier the source route pins; the model the step is waiting on.",
+        "providerName": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider.",
+        "modelName": "The source model as a person reads it; the model key, since Bakery has no model catalog.",
         "harness": "Harness path (agent) the step runs on: pi, claude_code, codex or mastra.",
         "billingRoute": "How the source route's spend is paid: subscription, api_metered or local.",
         "health": "The source route's current circuit state: open while its incident is an outage, degraded while it still serves some work."
@@ -32320,12 +32511,11 @@ const transportSchemas = {
         "since",
         "nextCheckAt",
         "runVersion",
-        "estimatedIncrementalCost",
-        "targets"
+        "targets",
+        "unavailable"
       ],
       "nullableFields": [
-        "nextCheckAt",
-        "estimatedIncrementalCost"
+        "nextCheckAt"
       ],
       "fieldTypes": {
         "runStepId": "uuid",
@@ -32338,8 +32528,8 @@ const transportSchemas = {
         "since": "timestamp",
         "nextCheckAt": "timestamp|null",
         "runVersion": "integer",
-        "estimatedIncrementalCost": "decimalString|null",
-        "targets": "RouteContinuationTarget[]"
+        "targets": "RouteContinuationTarget[]",
+        "unavailable": "RouteContinuationUnavailable[]"
       },
       "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing.",
       "fieldDescriptions": {
@@ -32353,8 +32543,8 @@ const transportSchemas = {
         "since": "When the incident the step is waiting behind was opened.",
         "nextCheckAt": "When the source route is next checked, or null when no check is scheduled.",
         "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
-        "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
-        "targets": "Every other route of the organization, each marked eligible or not with the reason."
+        "targets": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate.",
+        "unavailable": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list."
       }
     },
     "RouteContinuationOffers": {
@@ -35207,6 +35397,61 @@ const transportSchemas = {
         "limit": "The byte limit the probe hit, when the code names one, so a reader can say how far over the file is instead of merely that it is too large.",
         "probedAt": "When the answer was recorded, so a reader can say how fresh it is. Null when nobody has probed the file."
       }
+    },
+    "BackupDrill": {
+      "fields": [
+        "id",
+        "backupName",
+        "startedAt",
+        "recordedAt",
+        "outcome",
+        "failureCode",
+        "detail",
+        "cutoffAt",
+        "rpoSeconds",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "backupName": "string",
+        "startedAt": "timestamp",
+        "recordedAt": "timestamp",
+        "outcome": "enum(passed|failed)",
+        "failureCode": "enum(set_incomplete|key_mismatch|migration_unsupported|cutoff_mismatch|restore_failed|references_missing|drill_error)|null",
+        "detail": "string|null",
+        "cutoffAt": "timestamp|null",
+        "rpoSeconds": "integer|null",
+        "rtoSeconds": "integer",
+        "checksPassed": "string[]",
+        "checksFailed": "string[]"
+      },
+      "nullableFields": [
+        "failureCode",
+        "detail",
+        "cutoffAt",
+        "rpoSeconds"
+      ],
+      "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here.",
+      "fieldDescriptions": {
+        "id": "The drill's id, chosen by the runner.",
+        "backupName": "The directory name of the backup set that was restored.",
+        "startedAt": "When the drill began, on the host clock.",
+        "recordedAt": "When the server recorded the report, on the database clock.",
+        "outcome": "passed when every required check passed, otherwise failed.",
+        "failureCode": "Why a failed drill failed, as a stable code; null when it passed.",
+        "detail": "Plain words saying what to do about a failure; null when it passed.",
+        "cutoffAt": "The database-clock cutoff the set recorded; null when it recorded none.",
+        "rpoSeconds": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff.",
+        "rtoSeconds": "Whole seconds the restore and its checks took on this host.",
+        "checksPassed": "The checks that passed, by name.",
+        "checksFailed": "The checks that failed, by name; empty when the drill passed."
+      }
+    },
+    "Page<BackupDrill>": {
+      "pageOf": "BackupDrill",
+      "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     }
   },
   "pageEnvelope": {

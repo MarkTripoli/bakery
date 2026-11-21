@@ -204,6 +204,10 @@ export type ExternalTicketListResponse =
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourcePersonResponse = ClientOutputMap["TicketSourcePerson"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type BatchResponse = ClientOutputMap["Batch"];
+export type BatchListResponse = ClientOutputMap["Page<Batch>"];
+export type BatchIssueResponse = BatchResponse["issues"][number];
+export type BatchCreateInput = ClientInputMap["BatchCreate"];
 export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
 export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
@@ -962,6 +966,46 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallResponse>>;
+  };
+  /** Bounded runs of issues: start one, watch it, pause, resume or stop it. */
+  readonly batches: {
+    /** `GET /v1/batches`: batches newest first, optionally for one repository. */
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly repositoryId?: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchListResponse>>;
+    /** `GET /v1/batches/{id}`: one batch with the issues it considered. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
+    /** `POST /v1/batches`: starts a batch in one repository. */
+    readonly create: (options: {
+      readonly organizationId: string;
+      readonly input: BatchCreateInput;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
+    /** `POST /v1/batches/{id}/pause`, `resume`, `start-next` and `finish`: nothing to send but the batch. */
+    readonly control: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly action: "pause" | "resume" | "startNext" | "finish";
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
+    /** `POST /v1/batches/{id}/stop`: stops a batch; `cancelCurrent` also cancels the issue being worked on. */
+    readonly stop: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly cancelCurrent: boolean;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
   };
   /** GitHub issues Bakery has read, and the repositories it takes them from. */
   readonly tickets: {
@@ -2212,6 +2256,7 @@ export type BakeryApiClient = {
       | "withdrawn"
       | "superseded";
     readonly limit?: number;
+    readonly cursor?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<QuestionListResponse>>;
   readonly answerQuestion: (options: {
@@ -2743,6 +2788,67 @@ export function createBakeryApiClient({
               ...options.change,
             }, {
               ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+    },
+    batches: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.list"]({
+              repositoryId: options.repositoryId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      get(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.get"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      create(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.create"](options.input, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      control(options) {
+        const name = {
+          pause: "batches.pause",
+          resume: "batches.resume",
+          startNext: "batches.startNext",
+          finish: "batches.finish",
+        }[options.action] as "batches.pause";
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions[name]({ id: options.id }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      stop(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.stop"]({
+              id: options.id,
+              cancelCurrent: options.cancelCurrent,
+            }, {
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
@@ -5158,6 +5264,7 @@ export function createBakeryApiClient({
             taskId: options.taskId,
             ...(options.status === undefined ? {} : { status: options.status }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
           },
           { signal: options.signal },
         );

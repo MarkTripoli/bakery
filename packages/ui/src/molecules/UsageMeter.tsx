@@ -44,6 +44,7 @@ export function UsageMeter(
       {...props}
       data-state={state}
       data-ui-component="usageMeter"
+      data-variant="default"
     >
       <div
         aria-label={label}

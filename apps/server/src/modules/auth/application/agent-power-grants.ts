@@ -33,6 +33,22 @@ export const AgentPower = Object.freeze(
      * labelled steered and does not count as independent.
      */
     SteerReviewer: "steer_reviewer",
+    /**
+     * Write comments on documents and drafts from a session, as the person the
+     * run is for. The call is still judged as that person; the power only
+     * offers the tools, and a revoked grant stops the next call.
+     */
+    Comment: "comment",
+    /**
+     * Edit work items (title, description and the other task fields a person
+     * edits) from a session, as the person the run is for.
+     */
+    EditWork: "edit_work",
+    /**
+     * Draft a connection from a session: a personal one with no secret that
+     * stays off until the person it acts for completes and enables it.
+     */
+    DraftConnection: "draft_connection",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];

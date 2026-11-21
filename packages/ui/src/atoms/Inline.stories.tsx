@@ -50,6 +50,10 @@ export const Contract: StoryObj = {
         <Text>Three</Text>
         <Text>Four</Text>
       </Inline>
+      <Inline variant="aside">
+        <Text>Pick list</Text>
+        <Text>What it picks</Text>
+      </Inline>
       <Inline variant="actions">
         <Button variant="secondary">Cancel</Button>
         <Button>Confirm</Button>

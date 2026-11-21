@@ -9420,6 +9420,31 @@
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/installation/backups/drills",
+      "action": "backups.drills.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<BackupDrill>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/backups/status",
       "action": "backups.status",
       "access": "Installation administrator",
@@ -9722,6 +9747,31 @@
         "AUTH_FORBIDDEN",
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/drills",
+      "action": "backupRunner.drill",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupDrillReport",
+      "output": "BackupDrill",
+      "event": "",
+      "mcp": "",
+      "idempotency": "safe to repeat: the first report records the drill, later reports with the same id return the same record",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "STATE_CONFLICT",
         "BODY_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
@@ -14080,6 +14130,7 @@
     "backups.list",
     "backups.status",
     "backups.start",
+    "backups.drills.list",
     "backupRunnerCredential.issue",
     "backupSchedule.get",
     "backupSchedule.put",
@@ -14091,6 +14142,7 @@
     "backupRunner.report",
     "backupRunner.maintain",
     "backupRunner.cutoff",
+    "backupRunner.drill",
     "telemetryDestinations.list",
     "telemetryDestinations.get",
     "telemetryDestinations.dropped",
@@ -37977,6 +38029,59 @@
           }
         }
       },
+      "/v1/installation/backups/drills": {
+        "get": {
+          "operationId": "backups.drills.list",
+          "parameters": [
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<BackupDrill>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/installation/backups/status": {
         "get": {
           "operationId": "backups.status",
@@ -38413,6 +38518,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BackupRunCutoff"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/backup-runner/drills": {
+        "post": {
+          "operationId": "backupRunner.drill",
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/BackupDrill"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupDrillReport"
                 }
               }
             }
@@ -55779,6 +55924,7 @@
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
                 "backups.list",
+                "backups.drills.list",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -55791,6 +55937,7 @@
                 "backupRunner.report",
                 "backupRunner.maintain",
                 "backupRunner.cutoff",
+                "backupRunner.drill",
                 "backupRunner.settings",
                 "telemetryDestinations.list",
                 "telemetryDestinations.get",
@@ -76889,9 +77036,12 @@
                 "run_control",
                 "run_start",
                 "steer",
-                "steer_reviewer"
+                "steer_reviewer",
+                "comment",
+                "edit_work",
+                "draft_connection"
               ],
-              "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) or steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent)."
+              "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
             },
             "workflowId": {
               "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -79845,6 +79995,141 @@
           ],
           "additionalProperties": false,
           "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
+        },
+        "BackupDrillReport": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "drillId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Chosen by the runner for this drill. Reporting the same drill again returns the stored record; the same id with different content answers 409 STATE_CONFLICT."
+            },
+            "backupName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "The directory name of the backup set that was restored into the isolated database. BackupDrillReport.backupName must contain at least 1 characters. BackupDrillReport.backupName must contain at most 128 characters."
+            },
+            "startedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the drill began, on the host clock."
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "passed",
+                "failed"
+              ],
+              "description": "Whether every required check passed."
+            },
+            "failureCode": {
+              "description": "BackupDrillReport.failureCode may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "set_incomplete",
+                    "key_mismatch",
+                    "migration_unsupported",
+                    "cutoff_mismatch",
+                    "restore_failed",
+                    "references_missing",
+                    "drill_error"
+                  ],
+                  "description": "Why a failed drill failed, as a stable code; null when it passed."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "detail": {
+              "description": "BackupDrillReport.detail may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000,
+                  "description": "Plain words saying what to do about a failure, with no path, key or restored data in it; null when it passed. BackupDrillReport.detail must contain at most 1000 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "cutoffAt": {
+              "description": "BackupDrillReport.cutoffAt may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "The database-clock cutoff the restored set recorded; null for a set that recorded none."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "rpoSeconds": {
+              "description": "BackupDrillReport.rpoSeconds may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 31536000,
+                  "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup, which is the data a failure at that moment would have lost. Null exactly when cutoffAt is null. BackupDrillReport.rpoSeconds must be at least 0. BackupDrillReport.rpoSeconds must be at most 31536000."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "rtoSeconds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 604800,
+              "description": "Whole seconds from the start of the drill to the end of its last check: how long restoring this set took on this host. BackupDrillReport.rtoSeconds must be at least 0. BackupDrillReport.rtoSeconds must be at most 604800."
+            },
+            "checksPassed": {
+              "maxItems": 16,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. Each array item follows this format."
+              },
+              "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. BackupDrillReport.checksPassed must contain at most 16 items."
+            },
+            "checksFailed": {
+              "maxItems": 16,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The checks that failed, by the same names; empty when the drill passed. Each array item follows this format."
+              },
+              "description": "The checks that failed, by the same names; empty when the drill passed. BackupDrillReport.checksFailed must contain at most 16 items."
+            }
+          },
+          "required": [
+            "drillId",
+            "backupName",
+            "startedAt",
+            "outcome",
+            "rtoSeconds",
+            "checksPassed",
+            "checksFailed"
+          ],
+          "additionalProperties": false,
+          "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -105886,6 +106171,7 @@
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
                 "backups.list",
+                "backups.drills.list",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -105898,6 +106184,7 @@
                 "backupRunner.report",
                 "backupRunner.maintain",
                 "backupRunner.cutoff",
+                "backupRunner.drill",
                 "backupRunner.settings",
                 "telemetryDestinations.list",
                 "telemetryDestinations.get",
@@ -106538,6 +106825,7 @@
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
                 "backups.list",
+                "backups.drills.list",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -106550,6 +106838,7 @@
                 "backupRunner.report",
                 "backupRunner.maintain",
                 "backupRunner.cutoff",
+                "backupRunner.drill",
                 "backupRunner.settings",
                 "telemetryDestinations.list",
                 "telemetryDestinations.get",
@@ -107190,6 +107479,7 @@
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
                 "backups.list",
+                "backups.drills.list",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -107202,6 +107492,7 @@
                 "backupRunner.report",
                 "backupRunner.maintain",
                 "backupRunner.cutoff",
+                "backupRunner.drill",
                 "backupRunner.settings",
                 "telemetryDestinations.list",
                 "telemetryDestinations.get",
@@ -152741,6 +153032,7 @@
                       "skillStorageSettings.put",
                       "skillStorageSettings.verify",
                       "backups.list",
+                      "backups.drills.list",
                       "backups.status",
                       "backups.start",
                       "backupRunnerCredential.issue",
@@ -152753,6 +153045,7 @@
                       "backupRunner.report",
                       "backupRunner.maintain",
                       "backupRunner.cutoff",
+                      "backupRunner.drill",
                       "backupRunner.settings",
                       "telemetryDestinations.list",
                       "telemetryDestinations.get",
@@ -249378,9 +249671,12 @@
                 "run_control",
                 "run_start",
                 "steer",
-                "steer_reviewer"
+                "steer_reviewer",
+                "comment",
+                "edit_work",
+                "draft_connection"
               ],
-              "description": "The power granted: decide, run_control, run_start, steer or steer_reviewer."
+              "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection."
             },
             "workflowId": {
               "anyOf": [
@@ -249451,17 +249747,27 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "UUID of the candidate provider route."
+              "description": "UUID of the target provider route; the id a continuation submission names."
             },
             "provider": {
               "type": "string",
               "maxLength": 65536,
-              "description": "Provider key the candidate route sends to."
+              "description": "Provider key the target route sends to."
             },
             "model": {
               "type": "string",
               "maxLength": 65536,
-              "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+              "description": "Model identifier the target route pins; a continuation runs the step on this model."
+            },
+            "providerName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+            },
+            "modelName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model."
             },
             "harness": {
               "type": "string",
@@ -249471,7 +249777,7 @@
                 "codex",
                 "mastra"
               ],
-              "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+              "description": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra."
             },
             "billingRoute": {
               "type": "string",
@@ -249480,7 +249786,7 @@
                 "api_metered",
                 "local"
               ],
-              "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+              "description": "Billing route the target route's spend follows: subscription, api_metered or local."
             },
             "health": {
               "type": "string",
@@ -249490,43 +249796,198 @@
                 "open",
                 "unverified"
               ],
-              "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+              "description": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it."
             },
-            "eligible": {
+            "priced": {
               "type": "boolean",
-              "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+              "description": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable."
             },
-            "ineligibleReason": {
+            "estimatedIncrementalCost": {
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "different_harness",
-                    "route_not_active",
-                    "route_open"
-                  ],
-                  "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                  "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                  "description": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
                 },
                 {
                   "type": "null",
-                  "description": "Null indicates that the projected value is unavailable."
+                  "description": "Null indicates that the value is unavailable."
                 }
               ],
-              "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+              "description": "RouteContinuationTarget.estimatedIncrementalCost may be null in this transport value."
             }
           },
           "required": [
             "routeId",
             "provider",
             "model",
+            "providerName",
+            "modelName",
             "harness",
             "billingRoute",
             "health",
-            "eligible",
-            "ineligibleReason"
+            "priced",
+            "estimatedIncrementalCost"
           ],
           "additionalProperties": false,
-          "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went."
+          "description": "One route a stalled step may continue on. Only usable routes are listed: active, on the step's own harness and not paused behind their own incident. Routes that cannot be used are counted in the offer's unavailable groups instead, so an organization with a hundred routes is not sent a hundred rows."
+        },
+        "RouteContinuationUnavailable": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "different_harness",
+                "route_not_active",
+                "route_open"
+              ],
+              "description": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many routes this reason covers, at least 1."
+            },
+            "harnesses": {
+              "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "harness": {
+                    "type": "string",
+                    "enum": [
+                      "pi",
+                      "claude_code",
+                      "codex",
+                      "mastra"
+                    ],
+                    "description": "The other harness path: pi, claude_code, codex or mastra."
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "How many routes run on that harness, at least 1."
+                  }
+                },
+                "required": [
+                  "harness",
+                  "count"
+                ],
+                "additionalProperties": false,
+                "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason. Each array item follows this format."
+              }
+            },
+            "routes": {
+              "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Provider key of the route."
+                  },
+                  "model": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Model identifier of the route."
+                  },
+                  "providerName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+                  },
+                  "modelName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model",
+                  "providerName",
+                  "modelName"
+                ],
+                "additionalProperties": false,
+                "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
+              }
+            }
+          },
+          "required": [
+            "reason",
+            "count"
+          ],
+          "additionalProperties": false,
+          "description": "One reason routes of the organization cannot take a stalled step, with how many routes it covers. Counts, not rows: a person reads why routes are missing without being sent every one."
+        },
+        "RouteContinuationHarnessCount": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "harness": {
+              "type": "string",
+              "enum": [
+                "pi",
+                "claude_code",
+                "codex",
+                "mastra"
+              ],
+              "description": "The other harness path: pi, claude_code, codex or mastra."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many routes run on that harness, at least 1."
+            }
+          },
+          "required": [
+            "harness",
+            "count"
+          ],
+          "additionalProperties": false,
+          "description": "How many routes of the organization run on one other harness, so a person sees which coding agents have routes this step cannot use."
+        },
+        "RouteContinuationRouteName": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider key of the route."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Model identifier of the route."
+            },
+            "providerName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+            },
+            "modelName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "providerName",
+            "modelName"
+          ],
+          "additionalProperties": false,
+          "description": "The name of one route that cannot be used right now, as a provider and model a person recognises."
         },
         "RouteContinuationSource": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -249541,6 +250002,16 @@
               "type": "string",
               "maxLength": 65536,
               "description": "Model identifier the source route pins; the model the step is waiting on."
+            },
+            "providerName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+            },
+            "modelName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The source model as a person reads it; the model key, since Bakery has no model catalog."
             },
             "harness": {
               "type": "string",
@@ -249575,6 +250046,8 @@
           "required": [
             "provider",
             "model",
+            "providerName",
+            "modelName",
             "harness",
             "billingRoute",
             "health"
@@ -249628,6 +250101,16 @@
                   "maxLength": 65536,
                   "description": "Model identifier the source route pins; the model the step is waiting on."
                 },
+                "providerName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                },
+                "modelName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The source model as a person reads it; the model key, since Bakery has no model catalog."
+                },
                 "harness": {
                   "type": "string",
                   "enum": [
@@ -249661,6 +250144,8 @@
               "required": [
                 "provider",
                 "model",
+                "providerName",
+                "modelName",
                 "harness",
                 "billingRoute",
                 "health"
@@ -249707,20 +250192,6 @@
               "maximum": 9007199254740991,
               "description": "The run's version when this offer was made, so a submission can be refused if the run changed in between."
             },
-            "estimatedIncrementalCost": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "pattern": "^(?:0|[1-9][0-9]*)$",
-                  "description": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "RouteContinuationOffer.estimatedIncrementalCost may be null in this transport value."
-            },
             "targets": {
               "type": "array",
               "items": {
@@ -249730,17 +250201,27 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "UUID of the candidate provider route."
+                    "description": "UUID of the target provider route; the id a continuation submission names."
                   },
                   "provider": {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Provider key the candidate route sends to."
+                    "description": "Provider key the target route sends to."
                   },
                   "model": {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+                    "description": "Model identifier the target route pins; a continuation runs the step on this model."
+                  },
+                  "providerName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                  },
+                  "modelName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model."
                   },
                   "harness": {
                     "type": "string",
@@ -249750,7 +250231,7 @@
                       "codex",
                       "mastra"
                     ],
-                    "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+                    "description": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra."
                   },
                   "billingRoute": {
                     "type": "string",
@@ -249759,7 +250240,7 @@
                       "api_metered",
                       "local"
                     ],
-                    "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+                    "description": "Billing route the target route's spend follows: subscription, api_metered or local."
                   },
                   "health": {
                     "type": "string",
@@ -249769,45 +250250,141 @@
                       "open",
                       "unverified"
                     ],
-                    "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+                    "description": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it."
                   },
-                  "eligible": {
+                  "priced": {
                     "type": "boolean",
-                    "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+                    "description": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable."
                   },
-                  "ineligibleReason": {
+                  "estimatedIncrementalCost": {
                     "anyOf": [
                       {
                         "type": "string",
-                        "enum": [
-                          "different_harness",
-                          "route_not_active",
-                          "route_open"
-                        ],
-                        "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                        "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                        "description": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
                       },
                       {
                         "type": "null",
-                        "description": "Null indicates that the projected value is unavailable."
+                        "description": "Null indicates that the value is unavailable."
                       }
                     ],
-                    "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+                    "description": "RouteContinuationTarget.estimatedIncrementalCost may be null in this transport value."
                   }
                 },
                 "required": [
                   "routeId",
                   "provider",
                   "model",
+                  "providerName",
+                  "modelName",
                   "harness",
                   "billingRoute",
                   "health",
-                  "eligible",
-                  "ineligibleReason"
+                  "priced",
+                  "estimatedIncrementalCost"
                 ],
                 "additionalProperties": false,
-                "description": "Every other route of the organization, each marked eligible or not with the reason. Each array item follows this format."
+                "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate. Each array item follows this format."
               },
-              "description": "Every other route of the organization, each marked eligible or not with the reason."
+              "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate."
+            },
+            "unavailable": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "different_harness",
+                      "route_not_active",
+                      "route_open"
+                    ],
+                    "description": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open."
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "How many routes this reason covers, at least 1."
+                  },
+                  "harnesses": {
+                    "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "harness": {
+                          "type": "string",
+                          "enum": [
+                            "pi",
+                            "claude_code",
+                            "codex",
+                            "mastra"
+                          ],
+                          "description": "The other harness path: pi, claude_code, codex or mastra."
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "How many routes run on that harness, at least 1."
+                        }
+                      },
+                      "required": [
+                        "harness",
+                        "count"
+                      ],
+                      "additionalProperties": false,
+                      "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason. Each array item follows this format."
+                    }
+                  },
+                  "routes": {
+                    "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Provider key of the route."
+                        },
+                        "model": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Model identifier of the route."
+                        },
+                        "providerName": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+                        },
+                        "modelName": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "model",
+                        "providerName",
+                        "modelName"
+                      ],
+                      "additionalProperties": false,
+                      "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
+                    }
+                  }
+                },
+                "required": [
+                  "reason",
+                  "count"
+                ],
+                "additionalProperties": false,
+                "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list. Each array item follows this format."
+              },
+              "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list."
             }
           },
           "required": [
@@ -249821,8 +250398,8 @@
             "since",
             "nextCheckAt",
             "runVersion",
-            "estimatedIncrementalCost",
-            "targets"
+            "targets",
+            "unavailable"
           ],
           "additionalProperties": false,
           "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing."
@@ -249884,6 +250461,16 @@
                         "maxLength": 65536,
                         "description": "Model identifier the source route pins; the model the step is waiting on."
                       },
+                      "providerName": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                      },
+                      "modelName": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The source model as a person reads it; the model key, since Bakery has no model catalog."
+                      },
                       "harness": {
                         "type": "string",
                         "enum": [
@@ -249917,6 +250504,8 @@
                     "required": [
                       "provider",
                       "model",
+                      "providerName",
+                      "modelName",
                       "harness",
                       "billingRoute",
                       "health"
@@ -249963,20 +250552,6 @@
                     "maximum": 9007199254740991,
                     "description": "The run's version when this offer was made, so a submission can be refused if the run changed in between."
                   },
-                  "estimatedIncrementalCost": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "pattern": "^(?:0|[1-9][0-9]*)$",
-                        "description": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "RouteContinuationOffer.estimatedIncrementalCost may be null in this transport value."
-                  },
                   "targets": {
                     "type": "array",
                     "items": {
@@ -249986,17 +250561,27 @@
                           "type": "string",
                           "format": "uuid",
                           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "description": "UUID of the candidate provider route."
+                          "description": "UUID of the target provider route; the id a continuation submission names."
                         },
                         "provider": {
                           "type": "string",
                           "maxLength": 65536,
-                          "description": "Provider key the candidate route sends to."
+                          "description": "Provider key the target route sends to."
                         },
                         "model": {
                           "type": "string",
                           "maxLength": 65536,
-                          "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+                          "description": "Model identifier the target route pins; a continuation runs the step on this model."
+                        },
+                        "providerName": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                        },
+                        "modelName": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model."
                         },
                         "harness": {
                           "type": "string",
@@ -250006,7 +250591,7 @@
                             "codex",
                             "mastra"
                           ],
-                          "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+                          "description": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra."
                         },
                         "billingRoute": {
                           "type": "string",
@@ -250015,7 +250600,7 @@
                             "api_metered",
                             "local"
                           ],
-                          "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+                          "description": "Billing route the target route's spend follows: subscription, api_metered or local."
                         },
                         "health": {
                           "type": "string",
@@ -250025,45 +250610,141 @@
                             "open",
                             "unverified"
                           ],
-                          "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+                          "description": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it."
                         },
-                        "eligible": {
+                        "priced": {
                           "type": "boolean",
-                          "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+                          "description": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable."
                         },
-                        "ineligibleReason": {
+                        "estimatedIncrementalCost": {
                           "anyOf": [
                             {
                               "type": "string",
-                              "enum": [
-                                "different_harness",
-                                "route_not_active",
-                                "route_open"
-                              ],
-                              "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                              "description": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
                             },
                             {
                               "type": "null",
-                              "description": "Null indicates that the projected value is unavailable."
+                              "description": "Null indicates that the value is unavailable."
                             }
                           ],
-                          "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+                          "description": "RouteContinuationTarget.estimatedIncrementalCost may be null in this transport value."
                         }
                       },
                       "required": [
                         "routeId",
                         "provider",
                         "model",
+                        "providerName",
+                        "modelName",
                         "harness",
                         "billingRoute",
                         "health",
-                        "eligible",
-                        "ineligibleReason"
+                        "priced",
+                        "estimatedIncrementalCost"
                       ],
                       "additionalProperties": false,
-                      "description": "Every other route of the organization, each marked eligible or not with the reason. Each array item follows this format."
+                      "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate. Each array item follows this format."
                     },
-                    "description": "Every other route of the organization, each marked eligible or not with the reason."
+                    "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate."
+                  },
+                  "unavailable": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "different_harness",
+                            "route_not_active",
+                            "route_open"
+                          ],
+                          "description": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open."
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "How many routes this reason covers, at least 1."
+                        },
+                        "harnesses": {
+                          "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "harness": {
+                                "type": "string",
+                                "enum": [
+                                  "pi",
+                                  "claude_code",
+                                  "codex",
+                                  "mastra"
+                                ],
+                                "description": "The other harness path: pi, claude_code, codex or mastra."
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991,
+                                "description": "How many routes run on that harness, at least 1."
+                              }
+                            },
+                            "required": [
+                              "harness",
+                              "count"
+                            ],
+                            "additionalProperties": false,
+                            "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason. Each array item follows this format."
+                          }
+                        },
+                        "routes": {
+                          "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Provider key of the route."
+                              },
+                              "model": {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Model identifier of the route."
+                              },
+                              "providerName": {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+                              },
+                              "modelName": {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "providerName",
+                              "modelName"
+                            ],
+                            "additionalProperties": false,
+                            "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
+                          }
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "count"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list. Each array item follows this format."
+                    },
+                    "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list."
                   }
                 },
                 "required": [
@@ -250077,8 +250758,8 @@
                   "since",
                   "nextCheckAt",
                   "runVersion",
-                  "estimatedIncrementalCost",
-                  "targets"
+                  "targets",
+                  "unavailable"
                 ],
                 "additionalProperties": false,
                 "description": "The open choices, empty when no step of the run is stalled behind an incident. Each array item follows this format."
@@ -264112,6 +264793,352 @@
           "additionalProperties": false,
           "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
         },
+        "BackupDrill": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The drill's id, chosen by the runner."
+            },
+            "backupName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The directory name of the backup set that was restored."
+            },
+            "startedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the drill began, on the host clock."
+            },
+            "recordedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the server recorded the report, on the database clock."
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "passed",
+                "failed"
+              ],
+              "description": "passed when every required check passed, otherwise failed."
+            },
+            "failureCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "set_incomplete",
+                    "key_mismatch",
+                    "migration_unsupported",
+                    "cutoff_mismatch",
+                    "restore_failed",
+                    "references_missing",
+                    "drill_error"
+                  ],
+                  "description": "Why a failed drill failed, as a stable code; null when it passed."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "BackupDrill.failureCode may be null in this transport value."
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Plain words saying what to do about a failure; null when it passed."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "BackupDrill.detail may be null in this transport value."
+            },
+            "cutoffAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "The database-clock cutoff the set recorded; null when it recorded none."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "BackupDrill.cutoffAt may be null in this transport value."
+            },
+            "rpoSeconds": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "BackupDrill.rpoSeconds may be null in this transport value."
+            },
+            "rtoSeconds": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Whole seconds the restore and its checks took on this host."
+            },
+            "checksPassed": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The checks that passed, by name. Each array item follows this format."
+              },
+              "description": "The checks that passed, by name."
+            },
+            "checksFailed": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+              },
+              "description": "The checks that failed, by name; empty when the drill passed."
+            }
+          },
+          "required": [
+            "id",
+            "backupName",
+            "startedAt",
+            "recordedAt",
+            "outcome",
+            "failureCode",
+            "detail",
+            "cutoffAt",
+            "rpoSeconds",
+            "rtoSeconds",
+            "checksPassed",
+            "checksFailed"
+          ],
+          "additionalProperties": false,
+          "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+        },
+        "Page<BackupDrill>": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The drill's id, chosen by the runner."
+                  },
+                  "backupName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The directory name of the backup set that was restored."
+                  },
+                  "startedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the drill began, on the host clock."
+                  },
+                  "recordedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the server recorded the report, on the database clock."
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "passed",
+                      "failed"
+                    ],
+                    "description": "passed when every required check passed, otherwise failed."
+                  },
+                  "failureCode": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "set_incomplete",
+                          "key_mismatch",
+                          "migration_unsupported",
+                          "cutoff_mismatch",
+                          "restore_failed",
+                          "references_missing",
+                          "drill_error"
+                        ],
+                        "description": "Why a failed drill failed, as a stable code; null when it passed."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "BackupDrill.failureCode may be null in this transport value."
+                  },
+                  "detail": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Plain words saying what to do about a failure; null when it passed."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "BackupDrill.detail may be null in this transport value."
+                  },
+                  "cutoffAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "The database-clock cutoff the set recorded; null when it recorded none."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "BackupDrill.cutoffAt may be null in this transport value."
+                  },
+                  "rpoSeconds": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "BackupDrill.rpoSeconds may be null in this transport value."
+                  },
+                  "rtoSeconds": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Whole seconds the restore and its checks took on this host."
+                  },
+                  "checksPassed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The checks that passed, by name. Each array item follows this format."
+                    },
+                    "description": "The checks that passed, by name."
+                  },
+                  "checksFailed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+                    },
+                    "description": "The checks that failed, by name; empty when the drill passed."
+                  }
+                },
+                "required": [
+                  "id",
+                  "backupName",
+                  "startedAt",
+                  "recordedAt",
+                  "outcome",
+                  "failureCode",
+                  "detail",
+                  "cutoffAt",
+                  "rpoSeconds",
+                  "rtoSeconds",
+                  "checksPassed",
+                  "checksFailed"
+                ],
+                "additionalProperties": false,
+                "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+              },
+              "description": "BackupDrill items in this cursor page. Page<BackupDrill>.items must contain at most 100 items."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Opaque continuation cursor value."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that no continuation page remains."
+                }
+              ],
+              "description": "Opaque continuation cursor, or null at the end."
+            },
+            "prevCursor": {
+              "description": "Page<BackupDrill>.prevCursor may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<BackupDrill>.prevCursor must contain at most 512 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 512
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "highwater": {
+              "description": "Page<BackupDrill>.highwater may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Page<BackupDrill>.highwater is a bounded decimal string.",
+                  "x-bigint-minimum": "0"
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "nextCursor"
+          ],
+          "additionalProperties": false,
+          "description": "Cursor page of BackupDrill."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -265962,7 +266989,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:c952182366df89ab38661348ea6ead755d1fc3197deaa63d14bd66c29cfccb1e",
+  "compatibilityDigest": "sha256:7e11b98c1e857b93243c135ec2aafed7dbfbeffde21223c24227ded966fc472d",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -273609,6 +274636,7 @@
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -273621,6 +274649,7 @@
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -294787,9 +295816,12 @@
             "run_control",
             "run_start",
             "steer",
-            "steer_reviewer"
+            "steer_reviewer",
+            "comment",
+            "edit_work",
+            "draft_connection"
           ],
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) or steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
         },
         "workflowId": {
           "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -297755,6 +298787,141 @@
       ],
       "additionalProperties": false,
       "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
+    },
+    "BackupDrillReport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "drillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Chosen by the runner for this drill. Reporting the same drill again returns the stored record; the same id with different content answers 409 STATE_CONFLICT."
+        },
+        "backupName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "The directory name of the backup set that was restored into the isolated database. BackupDrillReport.backupName must contain at least 1 characters. BackupDrillReport.backupName must contain at most 128 characters."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the drill began, on the host clock."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "Whether every required check passed."
+        },
+        "failureCode": {
+          "description": "BackupDrillReport.failureCode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "set_incomplete",
+                "key_mismatch",
+                "migration_unsupported",
+                "cutoff_mismatch",
+                "restore_failed",
+                "references_missing",
+                "drill_error"
+              ],
+              "description": "Why a failed drill failed, as a stable code; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "detail": {
+          "description": "BackupDrillReport.detail may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "Plain words saying what to do about a failure, with no path, key or restored data in it; null when it passed. BackupDrillReport.detail must contain at most 1000 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "cutoffAt": {
+          "description": "BackupDrillReport.cutoffAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the restored set recorded; null for a set that recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "rpoSeconds": {
+          "description": "BackupDrillReport.rpoSeconds may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 31536000,
+              "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup, which is the data a failure at that moment would have lost. Null exactly when cutoffAt is null. BackupDrillReport.rpoSeconds must be at least 0. BackupDrillReport.rpoSeconds must be at most 31536000."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "rtoSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800,
+          "description": "Whole seconds from the start of the drill to the end of its last check: how long restoring this set took on this host. BackupDrillReport.rtoSeconds must be at least 0. BackupDrillReport.rtoSeconds must be at most 604800."
+        },
+        "checksPassed": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. Each array item follows this format."
+          },
+          "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. BackupDrillReport.checksPassed must contain at most 16 items."
+        },
+        "checksFailed": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that failed, by the same names; empty when the drill passed. Each array item follows this format."
+          },
+          "description": "The checks that failed, by the same names; empty when the drill passed. BackupDrillReport.checksFailed must contain at most 16 items."
+        }
+      },
+      "required": [
+        "drillId",
+        "backupName",
+        "startedAt",
+        "outcome",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "additionalProperties": false,
+      "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -323890,6 +325057,7 @@
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -323902,6 +325070,7 @@
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -324542,6 +325711,7 @@
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -324554,6 +325724,7 @@
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -325194,6 +326365,7 @@
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -325206,6 +326378,7 @@
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -370895,6 +372068,7 @@
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
                   "backups.list",
+                  "backups.drills.list",
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
@@ -370907,6 +372081,7 @@
                   "backupRunner.report",
                   "backupRunner.maintain",
                   "backupRunner.cutoff",
+                  "backupRunner.drill",
                   "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.get",
@@ -467666,9 +468841,12 @@
             "run_control",
             "run_start",
             "steer",
-            "steer_reviewer"
+            "steer_reviewer",
+            "comment",
+            "edit_work",
+            "draft_connection"
           ],
-          "description": "The power granted: decide, run_control, run_start, steer or steer_reviewer."
+          "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection."
         },
         "workflowId": {
           "anyOf": [
@@ -467739,17 +468917,27 @@
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the candidate provider route."
+          "description": "UUID of the target provider route; the id a continuation submission names."
         },
         "provider": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Provider key the candidate route sends to."
+          "description": "Provider key the target route sends to."
         },
         "model": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+          "description": "Model identifier the target route pins; a continuation runs the step on this model."
+        },
+        "providerName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+        },
+        "modelName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model."
         },
         "harness": {
           "type": "string",
@@ -467759,7 +468947,7 @@
             "codex",
             "mastra"
           ],
-          "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+          "description": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra."
         },
         "billingRoute": {
           "type": "string",
@@ -467768,7 +468956,7 @@
             "api_metered",
             "local"
           ],
-          "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+          "description": "Billing route the target route's spend follows: subscription, api_metered or local."
         },
         "health": {
           "type": "string",
@@ -467778,43 +468966,198 @@
             "open",
             "unverified"
           ],
-          "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+          "description": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it."
         },
-        "eligible": {
+        "priced": {
           "type": "boolean",
-          "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+          "description": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable."
         },
-        "ineligibleReason": {
+        "estimatedIncrementalCost": {
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "different_harness",
-                "route_not_active",
-                "route_open"
-              ],
-              "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
             },
             {
               "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
+              "description": "Null indicates that the value is unavailable."
             }
           ],
-          "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+          "description": "RouteContinuationTarget.estimatedIncrementalCost may be null in this transport value."
         }
       },
       "required": [
         "routeId",
         "provider",
         "model",
+        "providerName",
+        "modelName",
         "harness",
         "billingRoute",
         "health",
-        "eligible",
-        "ineligibleReason"
+        "priced",
+        "estimatedIncrementalCost"
       ],
       "additionalProperties": false,
-      "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went."
+      "description": "One route a stalled step may continue on. Only usable routes are listed: active, on the step's own harness and not paused behind their own incident. Routes that cannot be used are counted in the offer's unavailable groups instead, so an organization with a hundred routes is not sent a hundred rows."
+    },
+    "RouteContinuationUnavailable": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": [
+            "different_harness",
+            "route_not_active",
+            "route_open"
+          ],
+          "description": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many routes this reason covers, at least 1."
+        },
+        "harnesses": {
+          "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "harness": {
+                "type": "string",
+                "enum": [
+                  "pi",
+                  "claude_code",
+                  "codex",
+                  "mastra"
+                ],
+                "description": "The other harness path: pi, claude_code, codex or mastra."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many routes run on that harness, at least 1."
+              }
+            },
+            "required": [
+              "harness",
+              "count"
+            ],
+            "additionalProperties": false,
+            "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason. Each array item follows this format."
+          }
+        },
+        "routes": {
+          "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Provider key of the route."
+              },
+              "model": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Model identifier of the route."
+              },
+              "providerName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+              },
+              "modelName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+              }
+            },
+            "required": [
+              "provider",
+              "model",
+              "providerName",
+              "modelName"
+            ],
+            "additionalProperties": false,
+            "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
+          }
+        }
+      },
+      "required": [
+        "reason",
+        "count"
+      ],
+      "additionalProperties": false,
+      "description": "One reason routes of the organization cannot take a stalled step, with how many routes it covers. Counts, not rows: a person reads why routes are missing without being sent every one."
+    },
+    "RouteContinuationHarnessCount": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "harness": {
+          "type": "string",
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "The other harness path: pi, claude_code, codex or mastra."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many routes run on that harness, at least 1."
+        }
+      },
+      "required": [
+        "harness",
+        "count"
+      ],
+      "additionalProperties": false,
+      "description": "How many routes of the organization run on one other harness, so a person sees which coding agents have routes this step cannot use."
+    },
+    "RouteContinuationRouteName": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider key of the route."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Model identifier of the route."
+        },
+        "providerName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+        },
+        "modelName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "providerName",
+        "modelName"
+      ],
+      "additionalProperties": false,
+      "description": "The name of one route that cannot be used right now, as a provider and model a person recognises."
     },
     "RouteContinuationSource": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -467829,6 +469172,16 @@
           "type": "string",
           "maxLength": 65536,
           "description": "Model identifier the source route pins; the model the step is waiting on."
+        },
+        "providerName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+        },
+        "modelName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The source model as a person reads it; the model key, since Bakery has no model catalog."
         },
         "harness": {
           "type": "string",
@@ -467863,6 +469216,8 @@
       "required": [
         "provider",
         "model",
+        "providerName",
+        "modelName",
         "harness",
         "billingRoute",
         "health"
@@ -467916,6 +469271,16 @@
               "maxLength": 65536,
               "description": "Model identifier the source route pins; the model the step is waiting on."
             },
+            "providerName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+            },
+            "modelName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The source model as a person reads it; the model key, since Bakery has no model catalog."
+            },
             "harness": {
               "type": "string",
               "enum": [
@@ -467949,6 +469314,8 @@
           "required": [
             "provider",
             "model",
+            "providerName",
+            "modelName",
             "harness",
             "billingRoute",
             "health"
@@ -467995,20 +469362,6 @@
           "maximum": 9007199254740991,
           "description": "The run's version when this offer was made, so a submission can be refused if the run changed in between."
         },
-        "estimatedIncrementalCost": {
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "RouteContinuationOffer.estimatedIncrementalCost may be null in this transport value."
-        },
         "targets": {
           "type": "array",
           "items": {
@@ -468018,17 +469371,27 @@
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the candidate provider route."
+                "description": "UUID of the target provider route; the id a continuation submission names."
               },
               "provider": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Provider key the candidate route sends to."
+                "description": "Provider key the target route sends to."
               },
               "model": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+                "description": "Model identifier the target route pins; a continuation runs the step on this model."
+              },
+              "providerName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+              },
+              "modelName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model."
               },
               "harness": {
                 "type": "string",
@@ -468038,7 +469401,7 @@
                   "codex",
                   "mastra"
                 ],
-                "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+                "description": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra."
               },
               "billingRoute": {
                 "type": "string",
@@ -468047,7 +469410,7 @@
                   "api_metered",
                   "local"
                 ],
-                "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+                "description": "Billing route the target route's spend follows: subscription, api_metered or local."
               },
               "health": {
                 "type": "string",
@@ -468057,45 +469420,141 @@
                   "open",
                   "unverified"
                 ],
-                "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+                "description": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it."
               },
-              "eligible": {
+              "priced": {
                 "type": "boolean",
-                "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+                "description": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable."
               },
-              "ineligibleReason": {
+              "estimatedIncrementalCost": {
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": [
-                      "different_harness",
-                      "route_not_active",
-                      "route_open"
-                    ],
-                    "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
                   },
                   {
                     "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
+                    "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+                "description": "RouteContinuationTarget.estimatedIncrementalCost may be null in this transport value."
               }
             },
             "required": [
               "routeId",
               "provider",
               "model",
+              "providerName",
+              "modelName",
               "harness",
               "billingRoute",
               "health",
-              "eligible",
-              "ineligibleReason"
+              "priced",
+              "estimatedIncrementalCost"
             ],
             "additionalProperties": false,
-            "description": "Every other route of the organization, each marked eligible or not with the reason. Each array item follows this format."
+            "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate. Each array item follows this format."
           },
-          "description": "Every other route of the organization, each marked eligible or not with the reason."
+          "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate."
+        },
+        "unavailable": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "different_harness",
+                  "route_not_active",
+                  "route_open"
+                ],
+                "description": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many routes this reason covers, at least 1."
+              },
+              "harnesses": {
+                "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "harness": {
+                      "type": "string",
+                      "enum": [
+                        "pi",
+                        "claude_code",
+                        "codex",
+                        "mastra"
+                      ],
+                      "description": "The other harness path: pi, claude_code, codex or mastra."
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "How many routes run on that harness, at least 1."
+                    }
+                  },
+                  "required": [
+                    "harness",
+                    "count"
+                  ],
+                  "additionalProperties": false,
+                  "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason. Each array item follows this format."
+                }
+              },
+              "routes": {
+                "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Provider key of the route."
+                    },
+                    "model": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Model identifier of the route."
+                    },
+                    "providerName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+                    },
+                    "modelName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "model",
+                    "providerName",
+                    "modelName"
+                  ],
+                  "additionalProperties": false,
+                  "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
+                }
+              }
+            },
+            "required": [
+              "reason",
+              "count"
+            ],
+            "additionalProperties": false,
+            "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list. Each array item follows this format."
+          },
+          "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list."
         }
       },
       "required": [
@@ -468109,8 +469568,8 @@
         "since",
         "nextCheckAt",
         "runVersion",
-        "estimatedIncrementalCost",
-        "targets"
+        "targets",
+        "unavailable"
       ],
       "additionalProperties": false,
       "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing."
@@ -468172,6 +469631,16 @@
                     "maxLength": 65536,
                     "description": "Model identifier the source route pins; the model the step is waiting on."
                   },
+                  "providerName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                  },
+                  "modelName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The source model as a person reads it; the model key, since Bakery has no model catalog."
+                  },
                   "harness": {
                     "type": "string",
                     "enum": [
@@ -468205,6 +469674,8 @@
                 "required": [
                   "provider",
                   "model",
+                  "providerName",
+                  "modelName",
                   "harness",
                   "billingRoute",
                   "health"
@@ -468251,20 +469722,6 @@
                 "maximum": 9007199254740991,
                 "description": "The run's version when this offer was made, so a submission can be refused if the run changed in between."
               },
-              "estimatedIncrementalCost": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "pattern": "^(?:0|[1-9][0-9]*)$",
-                    "description": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "RouteContinuationOffer.estimatedIncrementalCost may be null in this transport value."
-              },
               "targets": {
                 "type": "array",
                 "items": {
@@ -468274,17 +469731,27 @@
                       "type": "string",
                       "format": "uuid",
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                      "description": "UUID of the candidate provider route."
+                      "description": "UUID of the target provider route; the id a continuation submission names."
                     },
                     "provider": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "Provider key the candidate route sends to."
+                      "description": "Provider key the target route sends to."
                     },
                     "model": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+                      "description": "Model identifier the target route pins; a continuation runs the step on this model."
+                    },
+                    "providerName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                    },
+                    "modelName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model."
                     },
                     "harness": {
                       "type": "string",
@@ -468294,7 +469761,7 @@
                         "codex",
                         "mastra"
                       ],
-                      "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+                      "description": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra."
                     },
                     "billingRoute": {
                       "type": "string",
@@ -468303,7 +469770,7 @@
                         "api_metered",
                         "local"
                       ],
-                      "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+                      "description": "Billing route the target route's spend follows: subscription, api_metered or local."
                     },
                     "health": {
                       "type": "string",
@@ -468313,45 +469780,141 @@
                         "open",
                         "unverified"
                       ],
-                      "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+                      "description": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it."
                     },
-                    "eligible": {
+                    "priced": {
                       "type": "boolean",
-                      "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+                      "description": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable."
                     },
-                    "ineligibleReason": {
+                    "estimatedIncrementalCost": {
                       "anyOf": [
                         {
                           "type": "string",
-                          "enum": [
-                            "different_harness",
-                            "route_not_active",
-                            "route_open"
-                          ],
-                          "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                          "description": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
                         },
                         {
                           "type": "null",
-                          "description": "Null indicates that the projected value is unavailable."
+                          "description": "Null indicates that the value is unavailable."
                         }
                       ],
-                      "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+                      "description": "RouteContinuationTarget.estimatedIncrementalCost may be null in this transport value."
                     }
                   },
                   "required": [
                     "routeId",
                     "provider",
                     "model",
+                    "providerName",
+                    "modelName",
                     "harness",
                     "billingRoute",
                     "health",
-                    "eligible",
-                    "ineligibleReason"
+                    "priced",
+                    "estimatedIncrementalCost"
                   ],
                   "additionalProperties": false,
-                  "description": "Every other route of the organization, each marked eligible or not with the reason. Each array item follows this format."
+                  "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate. Each array item follows this format."
                 },
-                "description": "Every other route of the organization, each marked eligible or not with the reason."
+                "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate."
+              },
+              "unavailable": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "different_harness",
+                        "route_not_active",
+                        "route_open"
+                      ],
+                      "description": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open."
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "How many routes this reason covers, at least 1."
+                    },
+                    "harnesses": {
+                      "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "harness": {
+                            "type": "string",
+                            "enum": [
+                              "pi",
+                              "claude_code",
+                              "codex",
+                              "mastra"
+                            ],
+                            "description": "The other harness path: pi, claude_code, codex or mastra."
+                          },
+                          "count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "How many routes run on that harness, at least 1."
+                          }
+                        },
+                        "required": [
+                          "harness",
+                          "count"
+                        ],
+                        "additionalProperties": false,
+                        "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason. Each array item follows this format."
+                      }
+                    },
+                    "routes": {
+                      "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Provider key of the route."
+                          },
+                          "model": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Model identifier of the route."
+                          },
+                          "providerName": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+                          },
+                          "modelName": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "providerName",
+                          "modelName"
+                        ],
+                        "additionalProperties": false,
+                        "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
+                      }
+                    }
+                  },
+                  "required": [
+                    "reason",
+                    "count"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list. Each array item follows this format."
+                },
+                "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list."
               }
             },
             "required": [
@@ -468365,8 +469928,8 @@
               "since",
               "nextCheckAt",
               "runVersion",
-              "estimatedIncrementalCost",
-              "targets"
+              "targets",
+              "unavailable"
             ],
             "additionalProperties": false,
             "description": "The open choices, empty when no step of the run is stalled behind an incident. Each array item follows this format."
@@ -482421,6 +483984,352 @@
       ],
       "additionalProperties": false,
       "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
+    },
+    "BackupDrill": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The drill's id, chosen by the runner."
+        },
+        "backupName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The directory name of the backup set that was restored."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the drill began, on the host clock."
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the server recorded the report, on the database clock."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "passed when every required check passed, otherwise failed."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "set_incomplete",
+                "key_mismatch",
+                "migration_unsupported",
+                "cutoff_mismatch",
+                "restore_failed",
+                "references_missing",
+                "drill_error"
+              ],
+              "description": "Why a failed drill failed, as a stable code; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.failureCode may be null in this transport value."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Plain words saying what to do about a failure; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.detail may be null in this transport value."
+        },
+        "cutoffAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the set recorded; null when it recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.cutoffAt may be null in this transport value."
+        },
+        "rpoSeconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.rpoSeconds may be null in this transport value."
+        },
+        "rtoSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Whole seconds the restore and its checks took on this host."
+        },
+        "checksPassed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that passed, by name. Each array item follows this format."
+          },
+          "description": "The checks that passed, by name."
+        },
+        "checksFailed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+          },
+          "description": "The checks that failed, by name; empty when the drill passed."
+        }
+      },
+      "required": [
+        "id",
+        "backupName",
+        "startedAt",
+        "recordedAt",
+        "outcome",
+        "failureCode",
+        "detail",
+        "cutoffAt",
+        "rpoSeconds",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "additionalProperties": false,
+      "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+    },
+    "Page<BackupDrill>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The drill's id, chosen by the runner."
+              },
+              "backupName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The directory name of the backup set that was restored."
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the drill began, on the host clock."
+              },
+              "recordedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the server recorded the report, on the database clock."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed"
+                ],
+                "description": "passed when every required check passed, otherwise failed."
+              },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "set_incomplete",
+                      "key_mismatch",
+                      "migration_unsupported",
+                      "cutoff_mismatch",
+                      "restore_failed",
+                      "references_missing",
+                      "drill_error"
+                    ],
+                    "description": "Why a failed drill failed, as a stable code; null when it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.failureCode may be null in this transport value."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Plain words saying what to do about a failure; null when it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.detail may be null in this transport value."
+              },
+              "cutoffAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "The database-clock cutoff the set recorded; null when it recorded none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.cutoffAt may be null in this transport value."
+              },
+              "rpoSeconds": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.rpoSeconds may be null in this transport value."
+              },
+              "rtoSeconds": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Whole seconds the restore and its checks took on this host."
+              },
+              "checksPassed": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The checks that passed, by name. Each array item follows this format."
+                },
+                "description": "The checks that passed, by name."
+              },
+              "checksFailed": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+                },
+                "description": "The checks that failed, by name; empty when the drill passed."
+              }
+            },
+            "required": [
+              "id",
+              "backupName",
+              "startedAt",
+              "recordedAt",
+              "outcome",
+              "failureCode",
+              "detail",
+              "cutoffAt",
+              "rpoSeconds",
+              "rtoSeconds",
+              "checksPassed",
+              "checksFailed"
+            ],
+            "additionalProperties": false,
+            "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+          },
+          "description": "BackupDrill items in this cursor page. Page<BackupDrill>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<BackupDrill>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<BackupDrill>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<BackupDrill>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<BackupDrill>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of BackupDrill."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
