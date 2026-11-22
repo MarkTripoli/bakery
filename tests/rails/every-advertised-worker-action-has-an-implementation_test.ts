@@ -23,13 +23,18 @@ import {
 
 const root = new URL("../../", import.meta.url);
 
-/** Actions in the table that no worker implements yet. Remove one when it is. */
-const ADVERTISED_WITHOUT_WORKER = [
-  "mcp.discover",
-  "rpi.design",
-  "session.call",
-  "session.tools",
-];
+/**
+ * Actions in the table that no worker implements yet, each owned by the open v1
+ * issue that will build it. Remove one when it is implemented. A new
+ * unimplemented action must name its owning issue here, so none is left
+ * advertised without someone to build it.
+ */
+const ADVERTISED_WITHOUT_WORKER: Readonly<Record<string, string>> = {
+  "mcp.discover": "#441",
+  "rpi.design": "#24",
+  "session.call": "#436",
+  "session.tools": "#436",
+};
 
 /** Named by string because the worker declares them inline rather than exporting them. */
 const INLINE_ACTIONS = [
@@ -63,9 +68,15 @@ Deno.test("every worker action in the table is implemented or pinned as not yet"
   ).sort();
   assertEquals(
     without,
-    ADVERTISED_WITHOUT_WORKER,
+    Object.keys(ADVERTISED_WITHOUT_WORKER).sort(),
     "the worker actions with no implementation changed; implement the new one, or take an implemented one off the list",
   );
+  for (const [action, owner] of Object.entries(ADVERTISED_WITHOUT_WORKER)) {
+    assert(
+      /^#[1-9]\d*$/.test(owner),
+      `${action} must name the open issue that owns it, like #24; got "${owner}"`,
+    );
+  }
 });
 
 Deno.test("an action the rail takes on trust by name is still named in the worker", async () => {

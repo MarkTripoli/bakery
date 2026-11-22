@@ -921,6 +921,13 @@ async function freeformRun(
   body: string,
   input: Record<string, unknown> = {},
   timeLimitMs = 5_000,
+  brief?:
+    & Omit<Awaited<ReturnType<typeof pinnedBrief>>, "readAttemptContext">
+    & {
+      readAttemptContext?: Awaited<
+        ReturnType<typeof pinnedBrief>
+      >["readAttemptContext"];
+    },
 ) {
   const scratch = await prepareScratchRepository("bakery-pi-freeform-");
   const argsPath = `${scratch.dir}/pi-args.txt`;
@@ -977,7 +984,11 @@ done
     piAgentSourceDir: syntheticAuthSource("auth.json"),
     capabilities: ["stream"],
     timeLimitMs,
-  }).execute(value, new AbortController().signal);
+    readAttemptContext: brief?.readAttemptContext,
+  }).execute(
+    brief === undefined ? value : brief.withContext(value),
+    new AbortController().signal,
+  );
   const read = async (path: string) =>
     await Deno.readTextFile(path).catch(() => "");
   return {
@@ -1090,6 +1101,60 @@ Deno.test({
     });
     assertEquals(freeformResult(run.outcome).status, "timed_out");
     assertStringIncludes(run.published[0], "slow start");
+  },
+});
+
+Deno.test({
+  name:
+    "Pi freeform ends at the step's own timeout, not at the worker's longer limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const started = Date.now();
+    const run = await freeformRun(
+      [turn("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+      30_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "timed_out");
+    assertStringIncludes(run.published[0], "slow start");
+    assert(
+      Date.now() - started < 15_000,
+      "the step's 1s timeout ended the run, not the worker's 30s limit",
+    );
+  },
+});
+
+Deno.test({
+  name:
+    "Pi freeform materializes the step's pinned inputs before the session starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [turn("done"), settled].join("\n"),
+      {},
+      5_000,
+      brief,
+    );
+    assertEquals(freeformResult(run.outcome).status, "completed");
+    assertStringIncludes(run.prompt, "brief.md");
+    assertStringIncludes(run.prompt, brief.digest);
+  },
+});
+
+Deno.test({
+  name: "Pi freeform refuses pinned inputs when no reader is wired",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [turn("done"), settled].join("\n"),
+      {},
+      5_000,
+      { ...brief, readAttemptContext: undefined },
+    );
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(run.prompt, "", "no prompt reached the CLI");
   },
 });
 

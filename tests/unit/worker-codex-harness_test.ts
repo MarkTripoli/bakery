@@ -486,6 +486,13 @@ async function freeformRun(
   body: string,
   input: Record<string, unknown> = {},
   timeLimitMs = 5_000,
+  brief?:
+    & Omit<Awaited<ReturnType<typeof pinnedBrief>>, "readAttemptContext">
+    & {
+      readAttemptContext?: Awaited<
+        ReturnType<typeof pinnedBrief>
+      >["readAttemptContext"];
+    },
 ) {
   const scratch = await prepareScratchRepository("bakery-codex-freeform-");
   const executable = `${scratch.dir}/fake-codex`;
@@ -514,6 +521,7 @@ ${body}
     input: { ...FREEFORM_INPUT, ...input },
   } as JobAssignment;
   const outcome = await createCodexHarnessExecutor({
+    readAttemptContext: brief?.readAttemptContext,
     publishFor: () => async (request) => {
       published.push(request.bytes);
       return {
@@ -526,7 +534,10 @@ ${body}
     codexExecutable: executable,
     authSourceDir: syntheticAuthSource("auth.json"),
     timeLimitMs,
-  }).execute(value, new AbortController().signal);
+  }).execute(
+    brief === undefined ? value : brief.withContext(value),
+    new AbortController().signal,
+  );
   const read = async (path: string) =>
     await Deno.readTextFile(path).catch(() => "");
   return {
@@ -625,6 +636,60 @@ Deno.test({
     );
     assertEquals(freeformResult(run.outcome).status, "timed_out");
     assert(run.published[0].includes("slow start"));
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform ends at the step's own timeout, not at the worker's longer limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const started = Date.now();
+    const run = await freeformRun(
+      [item("agent_message"), answer("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+      30_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "timed_out");
+    assert(run.published[0].includes("slow start"));
+    assert(
+      Date.now() - started < 15_000,
+      "the step's 1s timeout ended the run, not the worker's 30s limit",
+    );
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform materializes the step's pinned inputs before the session starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [item("agent_message"), answer("done"), turnDone()].join("\n"),
+      {},
+      5_000,
+      brief,
+    );
+    assertEquals(freeformResult(run.outcome).status, "completed");
+    assert(run.prompt.includes("brief.md"), "the index names the path");
+    assert(run.prompt.includes(brief.digest), "the index names the digest");
+  },
+});
+
+Deno.test({
+  name: "Codex freeform refuses pinned inputs when no reader is wired",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [item("agent_message"), answer("done"), turnDone()].join("\n"),
+      {},
+      5_000,
+      { ...brief, readAttemptContext: undefined },
+    );
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(run.args, "", "the CLI never started");
   },
 });
 

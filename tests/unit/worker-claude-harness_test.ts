@@ -1073,6 +1073,26 @@ Deno.test({
 
 Deno.test({
   name:
+    "Claude freeform ends at the step's own timeout, not at the worker's longer limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const started = Date.now();
+    const run = await freeformRun(
+      [INIT, assistant("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+      30_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "timed_out");
+    assert(run.published[0].includes("slow start"));
+    assert(
+      Date.now() - started < 15_000,
+      "the step's 1s timeout ended the run, not the worker's 30s limit",
+    );
+  },
+});
+
+Deno.test({
+  name:
     "Claude freeform refuses a tool the harness does not offer, before any process starts",
   ...RUN_PERMISSIONS,
   fn: async () => {
