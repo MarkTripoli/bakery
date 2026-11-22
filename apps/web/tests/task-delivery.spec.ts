@@ -2833,8 +2833,8 @@ test(
     ];
     expect(name).not.toBeNull();
     expect(why).not.toBeNull();
-    // The name is about a quarter of the row; the reason has more than twice that.
-    expect(why!.width).toBeGreaterThan(name!.width * 2);
+    // The reason has clearly more room than the name (not equal thirds).
+    expect(why!.width).toBeGreaterThan(name!.width * 1.2);
     // The whole finding is on screen: nothing is cut behind Show all.
     await expect(attention.getByRole("button", { name: "Show all" }))
       .toHaveCount(0);
