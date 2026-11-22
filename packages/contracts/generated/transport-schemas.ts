@@ -21491,7 +21491,8 @@ const transportSchemas = {
         "finishedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "handoffManifest"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21506,13 +21507,15 @@ const transportSchemas = {
         "finishedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "handoffManifest": "RunStepHandoffManifest|null"
       },
       "nullableFields": [
         "output",
         "error",
         "startedAt",
-        "finishedAt"
+        "finishedAt",
+        "handoffManifest"
       ],
       "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body.",
       "fieldDescriptions": {
@@ -21528,8 +21531,27 @@ const transportSchemas = {
         "finishedAt": "UTC timestamp when processing finished.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "handoffManifest": "The newest handoff manifest an attempt of this step saved, so a reader can tell the step has somewhere to continue from; null until one is saved. Read the whole manifest with GET /v1/handoff-manifests/{id}."
       }
+    },
+    "RunStepHandoffManifest": {
+      "fields": [
+        "id",
+        "status",
+        "savedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "status": "enum(pending|continued|blocked)",
+        "savedAt": "timestamp"
+      },
+      "fieldDescriptions": {
+        "id": "Stable UUID of the stored manifest, the id GET /v1/handoff-manifests/{id} reads.",
+        "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
+        "savedAt": "UTC timestamp when the source attempt saved the manifest."
+      },
+      "description": "Summary of the newest handoff manifest saved for a run step: which manifest, its continuation status and when it was saved. It is a record to be re-verified, never the authority for run state."
     },
     "CheckRun": {
       "projection": "check_runs",

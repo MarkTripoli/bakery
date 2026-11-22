@@ -1721,6 +1721,7 @@ export type ContractOutputName =
   | "RunRequestPerson"
   | "RunRequests"
   | "RunStep"
+  | "RunStepHandoffManifest"
   | "RunStepNote"
   | "RunStepWritesReverted"
   | "ScimConnection"
