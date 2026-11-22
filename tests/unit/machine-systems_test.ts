@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
 import {
+  isSupportedSystem as serverSupports,
+  SUPPORTED_WORKER_SYSTEMS,
+} from "../../apps/server/src/modules/execution/link-codes.ts";
+import {
   CODING_AGENTS,
   defaultSystemRow,
   hasSetupSteps,
@@ -87,4 +91,27 @@ Deno.test("a machine stored as x64 finds the x86_64 row, so the table and the se
   assertEquals(isSupportedSystem("linux", "x64"), false);
   assertEquals(isSupportedSystem("linux", "aarch64"), true);
   assertEquals(hasSetupSteps("linux"), true);
+});
+
+// The web table copies the server's list of systems it can set up. These tests
+// fail the moment the two disagree, in either direction.
+
+Deno.test("the systems the web table calls supported are exactly the server's list", () => {
+  const web = SYSTEM_ROWS.filter((row) => row.supported).map((row) =>
+    `${row.os}/${row.architecture}`
+  ).sort();
+  const server = SUPPORTED_WORKER_SYSTEMS.map((system) =>
+    `${system.os}/${normalizeArchitecture(system.architecture)}`
+  ).sort();
+  assertEquals(web, server);
+});
+
+Deno.test("every web row agrees with the server on whether its system is supported", () => {
+  for (const row of SYSTEM_ROWS) {
+    assertEquals(
+      serverSupports(row.os, row.architecture),
+      row.supported,
+      row.id,
+    );
+  }
 });
