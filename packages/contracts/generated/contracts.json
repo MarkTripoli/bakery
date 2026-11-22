@@ -101124,6 +101124,21 @@
               ],
               "description": "Skill.activeVersionId may be null in this transport value."
             },
+            "activeRevision": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "Skill.activeRevision may be null in this transport value."
+            },
             "enabled": {
               "type": "boolean",
               "description": "Whether the record is enabled."
@@ -101207,6 +101222,7 @@
             "slug",
             "name",
             "activeVersionId",
+            "activeRevision",
             "enabled",
             "scope",
             "ownerPrincipalId",
@@ -153534,6 +153550,21 @@
                     ],
                     "description": "Skill.activeVersionId may be null in this transport value."
                   },
+                  "activeRevision": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Skill.activeRevision may be null in this transport value."
+                  },
                   "enabled": {
                     "type": "boolean",
                     "description": "Whether the record is enabled."
@@ -153617,6 +153648,7 @@
                   "slug",
                   "name",
                   "activeVersionId",
+                  "activeRevision",
                   "enabled",
                   "scope",
                   "ownerPrincipalId",
@@ -278967,7 +278999,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:983ed3ad3c4aadf360b7319a7a96ac3580e369d9dc3fd94ef6dd011501691a20",
+  "compatibilityDigest": "sha256:5d80c418459b0d5865f0de9e6b8952cc0930ab9e4aa457760c3bcc56873a9378",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -329135,6 +329167,21 @@
           ],
           "description": "Skill.activeVersionId may be null in this transport value."
         },
+        "activeRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.activeRevision may be null in this transport value."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether the record is enabled."
@@ -329218,6 +329265,7 @@
         "slug",
         "name",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
@@ -381725,6 +381773,21 @@
                 ],
                 "description": "Skill.activeVersionId may be null in this transport value."
               },
+              "activeRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.activeRevision may be null in this transport value."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether the record is enabled."
@@ -381808,6 +381871,7 @@
               "slug",
               "name",
               "activeVersionId",
+              "activeRevision",
               "enabled",
               "scope",
               "ownerPrincipalId",

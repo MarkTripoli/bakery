@@ -20,6 +20,19 @@ Deno.test("a skill version named in upper case is collected in the lower case th
   assertEquals(refs.map((ref) => ref.versionId), [version]);
 });
 
+Deno.test("a step as authored (uses) is collected like a compiled one (action)", () => {
+  const authored = collectStepSkills({
+    steps: [{ id: "write", uses: "harness.implement", skills: [version] }],
+  });
+  assertEquals(authored.map((ref) => ref.versionId), [version]);
+  assertEquals(authored.map((ref) => ref.segments), [["steps", 0]]);
+  // Neither marker, no step: a bare list of ids elsewhere is not a skill reference.
+  assertEquals(
+    collectStepSkills({ steps: [{ id: "x", skills: [version] }] }),
+    [],
+  );
+});
+
 Deno.test("a definition that names more skill versions than the check reads is refused, not truncated", () => {
   const skills = Array.from(
     { length: 257 },

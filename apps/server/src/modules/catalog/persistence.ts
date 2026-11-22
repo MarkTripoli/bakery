@@ -51,10 +51,11 @@ import {
 const PAGE_ORDERING = "createdAt:desc,id:desc";
 const SOURCE_COLUMNS = `id, source_type, locator, publisher, license,
   last_checked_at, enabled, created_at, updated_at, version`;
-export const SKILL_COLUMNS =
-  `id, source_id, slug, name, active_version_id, enabled,
-  scope, owner_principal_id, copied_from_skill_id, copied_from_version_id,
-  created_at, updated_at, version`;
+export const SKILL_COLUMNS = `id, source_id, slug, name, active_version_id,
+  (select revision from bakery.skill_versions as active_version
+    where active_version.id = active_version_id) as active_revision,
+  enabled, scope, owner_principal_id, copied_from_skill_id,
+  copied_from_version_id, created_at, updated_at, version`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
   run.repository_profile_revision, run.repository_profile_digest,
@@ -152,6 +153,7 @@ export type SkillRow = {
   slug: string;
   name: string;
   active_version_id: string | null;
+  active_revision: number | null;
   enabled: boolean;
   scope: "global" | "organization" | "personal";
   owner_principal_id: string | null;
@@ -199,6 +201,7 @@ export function toSkill(row: SkillRow) {
     slug: row.slug,
     name: row.name,
     activeVersionId: row.active_version_id,
+    activeRevision: row.active_revision,
     enabled: row.enabled,
     scope: row.scope,
     ownerPrincipalId: row.owner_principal_id,
