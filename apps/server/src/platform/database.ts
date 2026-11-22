@@ -4,6 +4,7 @@ export {
   closePgDatabase,
   openDatabase,
   openPgDatabase,
+  SERVER_POOL_MAX,
   withPgTransaction,
 } from "@bakery/persistence";
 export type {

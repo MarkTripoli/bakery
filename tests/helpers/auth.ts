@@ -28,6 +28,7 @@ import {
   openDatabase,
   openPgDatabase,
   type PgDatabase,
+  SERVER_POOL_MAX,
 } from "../../apps/server/src/platform/database.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import {
@@ -239,7 +240,8 @@ export async function openAuthFixture(options: {
       );
     }
     runtimeDatabase = openDatabase(appUrl);
-    runtimePgDatabase = openPgDatabase(appUrl);
+    // The in-process server pool is sized like the real server's.
+    runtimePgDatabase = openPgDatabase(appUrl, SERVER_POOL_MAX);
     const config = readRuntimeConfig({
       BAKERY_ENV: "test",
       BAKERY_APP_DATABASE_URL: appUrl,
