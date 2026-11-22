@@ -1824,3 +1824,156 @@ for (
     });
   });
 }
+
+/**
+ * A workflow whose repeat repairs and ends in an independent review is the
+ * "Fix until it passes" block (#62); a plain repeat beside it keeps "Repeat".
+ */
+const FIXING: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "repeat",
+          max: 2,
+          steps: [
+            { kind: "action", id: "repair", uses: "harness.repair" },
+            { kind: "action", id: "check", uses: "quality.check" },
+            { kind: "action", id: "review", uses: "review.independent" },
+          ],
+        },
+        {
+          kind: "repeat",
+          max: 3,
+          steps: [{ kind: "action", id: "again", uses: "agent.review" }],
+        },
+      ],
+    },
+  ],
+};
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the Fix until it passes block`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("a repeat that repairs and reviews is named with its limit; another repeat keeps its word", async ({ page }) => {
+      await libraryFixture(page, FIXING);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1004)}`,
+      );
+      const fix = page.locator("[data-group=fix]");
+      await expect(fix).toHaveCount(1);
+      await expect(fix).toContainText("Fix until it passes");
+      await expect(fix).toContainText("At most 2 tries");
+      await expect(fix).toContainText("Fix problems");
+      // The other repeat is still just a repeat, with no limit claimed.
+      const plain = page.locator("[data-group=repeat]");
+      await expect(plain).toHaveCount(1);
+      await expect(plain).toContainText("Repeat");
+      await expect(plain).not.toContainText("tries");
+      // A read-only page never says "Edited in code".
+      await expect(page.getByTestId("workflow-steps")).not.toContainText(
+        "Edited in code",
+      );
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-fix-block");
+    });
+
+    test("the built-in page draws the repair loop as the same block, with its limit", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      // The server's real read: the repair loop's steps name their repeat.
+      const inLoop = { repeatId: "repair", repeatMax: 2 };
+      await page.route(
+        (url) => url.pathname === "/v1/workflow-presets",
+        (route) =>
+          route.fulfill({
+            json: {
+              items: [{
+                id: "fixed-coding-reviewed",
+                revision: 3,
+                digest: "b".repeat(64),
+                nameKey: "workflowPresets.fixedCodingReviewed.name",
+                steps: [
+                  { id: "flow.brief", uses: "task.brief" },
+                  { id: "flow.implement", uses: "harness.implement" },
+                  { id: "flow.check", uses: "quality.check" },
+                  { id: "flow.review", uses: "review.independent" },
+                  {
+                    id: "repair.repair_implement",
+                    uses: "harness.repair",
+                    ...inLoop,
+                  },
+                  {
+                    id: "repair.repair_check",
+                    uses: "quality.check",
+                    ...inLoop,
+                  },
+                  {
+                    id: "repair.repair_review",
+                    uses: "review.independent",
+                    ...inLoop,
+                  },
+                ],
+                defaultBudgetLimitUsd: "8.00",
+                availability: null,
+              }],
+              nextCursor: null,
+            },
+          }),
+      );
+      await page.goto("/library/built-in/fixed-coding-reviewed");
+      const steps = page.getByTestId("workflow-steps");
+      const fix = steps.locator("[data-group=fix]");
+      await expect(fix).toHaveCount(1);
+      await expect(fix).toContainText("Fix until it passes");
+      await expect(fix).toContainText("At most 2 tries");
+      // Every step is still drawn: four before the loop, three inside it.
+      await expect(steps.locator("[data-card]:not([data-card=start])"))
+        .toHaveCount(7);
+      await expect(fix.locator("[data-card]")).toHaveCount(3);
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-built-in-fix-block");
+    });
+
+    test("in the editor the block says what it does and its limit as text, with no field", async ({ page }) => {
+      await libraryFixture(page, FIXING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const fix = page.locator("[data-group=fix]");
+      await expect(fix).toContainText("Fix until it passes");
+      await expect(fix).toContainText("At most 2 tries");
+      await expect(fix).toContainText("Edited in code");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toContainText("Fix until it passes");
+      await expect(panel).toContainText(
+        "Fixes what the checks and the review found, then checks and reviews again.",
+      );
+      await expect(panel).toContainText(
+        "If the first review is already clean, this block is skipped.",
+      );
+      // The limit is said once, on the block, not again in the panel.
+      await expect(panel).not.toContainText("At most");
+      await expect(panel.getByRole("textbox")).toHaveCount(0);
+      await expect(panel.getByRole("spinbutton")).toHaveCount(0);
+      // The other repeat's panel claims nothing of the kind.
+      await page.locator("[data-group=repeat]").getByRole("button", {
+        name: "Repeat",
+      }).click();
+      await expect(panel).not.toContainText("At most");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-fix-block-editor");
+    });
+  });
+}
