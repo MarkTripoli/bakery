@@ -70,6 +70,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   otherwise: "library.editor.group.otherwise",
   together: "library.editor.group.together",
   repeat: "library.editor.group.repeat",
+  fix: "library.editor.group.fixUntilPasses",
   wait: "library.editor.group.wait",
 };
 
@@ -345,6 +346,15 @@ export function WorkflowDiagram(
   ): ReactNode => (
     <div data-group-label={node.id}>
       {groupWord(node)}
+      {node.max === undefined
+        ? null
+        : (
+          <UI.Text variant="caption" data-fix-limit="true">
+            {translate("library.editor.group.fixLimit" as never, {
+              max: node.max,
+            })}
+          </UI.Text>
+        )}
       {editedInCode === undefined
         ? null
         : <UI.Text variant="caption">{editedInCode}</UI.Text>}

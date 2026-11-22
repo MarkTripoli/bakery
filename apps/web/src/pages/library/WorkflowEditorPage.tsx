@@ -95,6 +95,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   otherwise: "library.editor.group.otherwise",
   together: "library.editor.group.together",
   repeat: "library.editor.group.repeat",
+  fix: "library.editor.group.fixUntilPasses",
   wait: "library.editor.group.wait",
 };
 
@@ -510,6 +511,12 @@ export function WorkflowEditorPage(
         kind: "codeOnly",
         name: translate(GROUP_LABEL[group.label] as never),
         problem: undefined,
+        ...(group.max === undefined ? {} : {
+          help: translate("library.editor.group.fixHelp" as never),
+          limit: translate("library.editor.group.fixLimit" as never, {
+            max: group.max,
+          }),
+        }),
       };
     }
     const step = stepsOfTree(tree).find((held) => held.id === selectedId);
