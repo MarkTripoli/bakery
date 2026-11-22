@@ -35,7 +35,6 @@ const root = new URL("../../", import.meta.url);
  */
 const ADVERTISED_WITHOUT_WORKER: Readonly<Record<string, string>> = {
   "mcp.discover": "#441",
-  "plugin.job": "#29",
   "session.call": "#436",
   "session.tools": "#436",
 };
