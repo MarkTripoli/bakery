@@ -6119,5 +6119,6 @@
   "tasks.preview.older.lead": "⟦Ŧĥïš þŕëṽïëŵ šĥôŵš àñ ôļðëŕ çôɱɱïŧ. ŧëšŧ çôþÿŧ⟧",
   "tasks.preview.older.now": "⟦Ŧĥë çĥàñĝë ïš ñôŵ àŧ ŧëšŧ⟧",
   "tasks.preview.older.rest": "⟦Ŵĥàŧ ÿôû šëë ĥëŕë ïš ñôŧ ŵĥàŧ ŵôûļð ƀë ŕëļëàšëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "tasks.preview.openAnyway": "⟦Ôþëñ þŕëṽïëŵ àñÿŵàÿ ŧëšŧ⟧"
+  "tasks.preview.openAnyway": "⟦Ôþëñ þŕëṽïëŵ àñÿŵàÿ ŧëšŧ⟧",
+  "tasks.preview.disabled.lost": "⟦Ñôŧ àṽàïļàƀļë ŵĥïļë ŧĥë þŕëṽïëŵ ïš ôƒƒļïñë. ŧëšŧ çôþÿ ŧëš⟧"
 }

@@ -5854,6 +5854,7 @@
   "tasks.preview.unavailable.admin": "An administrator sets the preview address in the deployment settings.",
   "tasks.preview.disabled.starting": "Available once the app is running.",
   "tasks.preview.disabled.checking": "Available once this has been checked.",
+  "tasks.preview.disabled.lost": "Not available while the preview is offline.",
   "tasks.preview.badge.older": "Older commit",
   "tasks.preview.older.lead": "This preview shows an older commit.",
   "tasks.preview.older.now": "The change is now at",

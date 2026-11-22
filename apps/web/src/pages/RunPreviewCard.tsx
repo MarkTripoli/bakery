@@ -99,6 +99,8 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
   const reasonId = useId();
   const openDisabledReason: MessageKey | null = state.kind === "starting"
     ? "tasks.preview.disabled.starting"
+    : state.kind === "lost"
+    ? "tasks.preview.disabled.lost"
     : checking
     ? "tasks.preview.disabled.checking"
     : null;
@@ -283,7 +285,7 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
           )
           : null}
 
-        {live
+        {live || state.kind === "lost"
           ? (
             <UI.Inline gap="compact">
               {open.kind === "ready"

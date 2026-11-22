@@ -253,6 +253,18 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
 
 const card = (page: Page) => page.getByTestId("run-preview");
 
+/**
+ * A still of the card alone, with the card centred first so the sticky header of
+ * the run pane (on a phone it sits over the top of the column) never covers its
+ * heading.
+ */
+async function cardStill(page: Page, name: string) {
+  await card(page).evaluate((element) =>
+    element.scrollIntoView({ block: "center" })
+  );
+  await still(page, name, card(page), { scrollTo: card(page) });
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   testInfo.setTimeout(laneBudgetMs(60_000));
   if (testInfo.project.name === "desktop") {
@@ -297,7 +309,7 @@ test("a running preview names its commit, says it is not a release, and offers P
   const text = await page.locator("body").innerText();
   expect(text).not.toContain("localhost:8789");
   expect(text).not.toContain("preview-0123456789");
-  await still(page, "run-preview-running", card(page));
+  await cardStill(page, "run-preview-running");
   await still(page, "run-preview-in-pane");
 });
 
@@ -308,7 +320,7 @@ test("opening is two steps and the grant travels in a form body to the preview's
   const open = card(page).getByRole("button", { name: "Open preview" });
   await expect(open).toBeVisible();
   await expect(card(page).getByRole("timer")).toContainText("expires in");
-  await still(page, "run-preview-ready", card(page));
+  await cardStill(page, "run-preview-ready");
 
   const posted = page.context().waitForEvent(
     "request",
@@ -339,7 +351,7 @@ test("opening is two steps and the grant travels in a form body to the preview's
   await expect(page.locator(`input[value="${"G".repeat(43)}"]`)).toHaveCount(0);
   await expect(card(page).getByRole("button", { name: "Open again" }))
     .toBeVisible();
-  await still(page, "run-preview-opened", card(page));
+  await cardStill(page, "run-preview-opened");
 });
 
 test("stopping ends it for everyone, says who, and moves focus to the heading", async ({ page }) => {
@@ -365,7 +377,7 @@ test("stopping ends it for everyone, says who, and moves focus to the heading", 
   )
     .toBeVisible();
   expect(world.stopped).toBe(1);
-  await still(page, "run-preview-stopped", card(page));
+  await cardStill(page, "run-preview-stopped");
 });
 
 const REASONS: {
@@ -474,19 +486,26 @@ for (const reason of REASONS) {
     );
     // One status region announces the state, whichever notice shows it too.
     await expect(card(page).getByRole("status")).toHaveCount(1);
-    if (reason.name === "starting") {
-      // Open is off, with its reason as the description, until the app runs.
+    if (reason.name === "starting" || reason.name === "the machine was lost") {
+      // Open is off, with its reason as the description, until the app runs
+      // (starting) or a preview is back (not reachable). Nothing else to press.
       const prepareButton = card(page).getByRole("button", {
         name: "Prepare preview",
       });
       await expect(prepareButton).toBeDisabled();
       await expect(prepareButton).toHaveAccessibleDescription(
-        "Available once the app is running.",
+        reason.name === "starting"
+          ? "Available once the app is running."
+          : "Not available while the preview is offline.",
       );
+      await expect(card(page).getByRole("button")).toHaveCount(1);
       await expect(card(page).getByRole("button", { name: "Stop preview" }))
         .toHaveCount(0);
-    } else {
-      await expect(card(page).getByRole("button")).toHaveCount(0);
+    }
+    if (reason.name !== "starting") {
+      if (reason.name !== "the machine was lost") {
+        await expect(card(page).getByRole("button")).toHaveCount(0);
+      }
       // The not-reachable card already says a new preview may appear.
       await expect(
         card(page).getByText(
@@ -498,16 +517,16 @@ for (const reason of REASONS) {
       ).toHaveCount(reason.tabs ? 1 : 0);
     }
     if (reason.name === "starting") {
-      await still(page, "run-preview-starting", card(page));
+      await cardStill(page, "run-preview-starting");
     }
     if (reason.name === "the run was cancelled") {
-      await still(page, "run-preview-cancelled", card(page));
+      await cardStill(page, "run-preview-cancelled");
     }
     if (reason.name === "the machine was lost") {
-      await still(page, "run-preview-lost", card(page));
+      await cardStill(page, "run-preview-lost");
     }
     if (reason.name === "its time limit passed") {
-      await still(page, "run-preview-ended", card(page));
+      await cardStill(page, "run-preview-ended");
     }
   });
 }
@@ -529,7 +548,7 @@ test("a deployment with no preview address says Not set up and offers nothing", 
     ),
   ).toBeVisible();
   await expect(card(page).getByRole("button")).toHaveCount(0);
-  await still(page, "run-preview-not-set-up", card(page));
+  await cardStill(page, "run-preview-not-set-up");
 });
 
 test("a run with no preview shows no card", async ({ page }) => {
@@ -552,7 +571,7 @@ test("a preview that could not be opened says so and can be tried again", async 
   await expect(card(page).getByRole("button", { name: "Prepare preview" }))
     .toBeEnabled();
   expect(world.accessCalls).toBe(1);
-  await still(page, "run-preview-open-failed", card(page));
+  await cardStill(page, "run-preview-open-failed");
   // It tries again, and this time the grant comes.
   world.accessStatus = 201;
   await card(page).getByRole("button", { name: "Prepare preview" }).click();
@@ -571,7 +590,7 @@ test("a stop that fails says so, keeps the preview running and can be tried agai
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeEnabled();
   expect(world.stopped).toBe(1);
-  await still(page, "run-preview-stop-failed", card(page));
+  await cardStill(page, "run-preview-stop-failed");
   world.stopStatus = 201;
   await card(page).getByRole("button", { name: "Stop preview" }).click();
   await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible();
@@ -591,7 +610,7 @@ test("a grant that is not used in its 30 seconds is dropped and the card says to
   await expect(card(page).getByRole("button", { name: "Open preview" }))
     .toHaveCount(0);
   await expect(page.locator(`input[value="${"G".repeat(43)}"]`)).toHaveCount(0);
-  await still(page, "run-preview-link-expired", card(page));
+  await cardStill(page, "run-preview-link-expired");
 });
 
 test("a preview that reaches its time limit while the page is open changes without a reload", async ({ page }) => {
@@ -624,7 +643,7 @@ test("when the live reads drop the card says it is checking and Open stays off u
   await expect(card(page).getByTestId("run-preview-checking")).toHaveText(
     "Checking whether this is still running…",
   );
-  await still(page, "run-preview-checking", card(page));
+  await cardStill(page, "run-preview-checking");
   const prepareButton = card(page).getByRole("button", {
     name: "Prepare preview",
   });
@@ -692,7 +711,7 @@ test("a preview of an older commit says so, and still opens when the person choo
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeVisible();
   await expect(card(page).getByRole("status")).toHaveCount(1);
-  await still(page, "run-preview-older-commit", card(page));
+  await cardStill(page, "run-preview-older-commit");
   await still(page, "run-preview-older-commit-in-pane");
   // Opening anyway is still the two-step control, with the choice in its words.
   await card(page).getByRole("button", { name: "Prepare preview" }).click();

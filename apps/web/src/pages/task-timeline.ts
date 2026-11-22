@@ -1,13 +1,41 @@
-import type * as UI from "@bakery/ui";
 import type { Translator } from "@bakery/i18n";
 import type { RunResponse, RunStepListResponse } from "../api/client.ts";
 
 type RunStep = RunStepListResponse["items"][number];
 
+/**
+ * A timeline row as RunTimeline in @bakery/ui reads it. Declared here, as plain
+ * strings, so this module loads without the UI package and its styles (a unit
+ * test imports it). TaskRunSection hands the rows to RunTimeline, so the
+ * compiler checks they still fit.
+ */
+export type TimelineRow = {
+  description?: string;
+  id: string;
+  status?:
+    | "queued"
+    | "active"
+    | "waiting"
+    | "failed"
+    | "complete"
+    | "canceled"
+    | "skipped"
+    | "blocked";
+  scope?: "step" | "run" | "control";
+  reason?: string;
+  time?: string;
+  /** The time as the person reads it; `time` stays the machine value. */
+  timeLabel?: string;
+  title: string;
+};
+
 /** The deterministic worker fault when no coding harness is installed. */
 export const HARNESS_UNAVAILABLE_CODE = "DETERMINISTIC_EVIDENCE_UNAVAILABLE";
 
-const STEP_STATUS: Record<RunStep["status"], UI.RunTimelineEvent["status"]> = {
+const STEP_STATUS: Record<
+  RunStep["status"],
+  NonNullable<TimelineRow["status"]>
+> = {
   pending: "queued",
   running: "active",
   waiting: "waiting",
@@ -79,8 +107,8 @@ export function runTimelineEvents(
   waiting: ReadonlyMap<string, string> = new Map(),
   /** How a time reads for the person; without it the record's own text shows. */
   formatTime: (iso: string) => string = (iso) => iso,
-): UI.RunTimelineEvent[] {
-  const events: UI.RunTimelineEvent[] = [];
+): TimelineRow[] {
+  const events: TimelineRow[] = [];
   if (page.first) {
     events.push(
       run.status === "blocked"
