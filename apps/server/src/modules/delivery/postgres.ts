@@ -280,7 +280,7 @@ export const REVIEW_CYCLE_COLUMNS =
  */
 export const ACCEPTANCE_COLUMNS =
   "acceptance.decided_by as accepted_by, acceptance.decided_at as accepted_at, " +
-  "acceptance.reason as accept_reason";
+  "acceptance.reason as accept_reason, acceptor.display_name as accepted_by_name";
 
 export const ACCEPTANCE_JOIN = `
   left join lateral (
@@ -291,7 +291,8 @@ export const ACCEPTANCE_JOIN = `
        and entry.subject_id = review_cycles.id
      order by entry.decided_at desc, entry.id desc
      limit 1
-  ) as acceptance on true`;
+  ) as acceptance on true
+  left join bakery.principals as acceptor on acceptor.id = acceptance.decided_by`;
 
 const DELIVERY_DECISION_COLUMNS =
   "id, run_id, ordinal, review_cycle_id, decision, reason, head_sha, " +
@@ -318,6 +319,7 @@ export type ReviewCycleRow = {
   accepted_by: string | null;
   accepted_at: Date | string | null;
   accept_reason: string | null;
+  accepted_by_name: string | null;
 };
 
 type DeliveryDecisionRow = {
@@ -373,6 +375,7 @@ export function toReviewCycle(row: ReviewCycleRow) {
     blockingCount: row.blocking_count,
     artifactVersionId: null,
     acceptedBy: row.accepted_by,
+    acceptedByName: row.accepted_by_name,
     acceptedAt: row.accepted_at === null ? null : toIso(row.accepted_at),
     acceptReason: row.accept_reason,
     createdAt,
