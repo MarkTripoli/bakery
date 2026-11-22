@@ -64,7 +64,14 @@ Deno.test(
   "restoring the migrated baseline returns rows, seeds and sequences to the migrated state",
   async () => {
     await withDatabase(async (owner, ownerPg) => {
-      await resetToMigratedBaseline(owner, ownerPg, resetOptions);
+      // Start from a real rebuild: a database that already holds a baseline
+      // (any earlier fixture in the lane) would make this first call a restore,
+      // and the comparison below would then check a restore against itself.
+      await resetTestDatabase(owner, resetOptions);
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "rebuilt",
+      );
       const migrated = await stateOf(owner);
       assertEquals(
         Object.values(migrated.counts).some((rows) => rows > 0),
@@ -118,6 +125,25 @@ Deno.test(
         "restored",
         "the rebuild captured a fresh baseline",
       );
+    });
+  },
+);
+
+Deno.test(
+  "a table the baseline does not know refuses it and the database is rebuilt",
+  async () => {
+    await withDatabase(async (owner, ownerPg) => {
+      await resetToMigratedBaseline(owner, ownerPg, resetOptions);
+      await owner.unsafe(
+        "create table bakery.baseline_extra_table (id int primary key)",
+      );
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "rebuilt",
+      );
+      const [extra] = await owner<{ present: boolean }[]>`
+        select to_regclass('bakery.baseline_extra_table') is not null as present`;
+      assertEquals(extra?.present, false);
     });
   },
 );

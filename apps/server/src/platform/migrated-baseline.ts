@@ -74,22 +74,6 @@ async function columnsOf(db: Queryable, table: TableRef): Promise<string> {
   return rows.map((row) => identifier(row.name)).join(", ");
 }
 
-async function sequenceStates(
-  db: Queryable,
-): Promise<Map<string, number | null>> {
-  const rows = await db.unsafe<
-    { schema: string; name: string; last: string | null }[]
-  >(`
-    select schemaname as schema, sequencename as name, last_value::text as last
-    from pg_sequences where schemaname in ('bakery', 'public')`);
-  return new Map(
-    rows.map((row) => [
-      `${row.schema}.${row.name}`,
-      row.last === null ? null : Number(row.last),
-    ]),
-  );
-}
-
 /**
  * Records the migrated state of the database as the baseline later resets
  * restore. Call it right after a full reset and migration, before any test data.
@@ -106,9 +90,6 @@ export async function captureMigratedBaseline(db: Database): Promise<void> {
         schema_name text not null, table_name text not null,
         is_ledger boolean not null, copy_name text, columns text,
         primary key (schema_name, table_name))`);
-    await transaction.unsafe(`
-      create table ${BASELINE_SCHEMA}.sequences (
-        sequence_key text primary key, last_value bigint)`);
     await transaction.unsafe(`
       create table ${BASELINE_SCHEMA}.meta (ledger_fingerprint text not null)`);
     let copies = 0;
@@ -133,12 +114,6 @@ export async function captureMigratedBaseline(db: Database): Promise<void> {
       await transaction.unsafe(
         `insert into ${BASELINE_SCHEMA}.tables values ($1, $2, $3, $4, $5)`,
         [table.schema, table.name, ledger, copyName, columns],
-      );
-    }
-    for (const [sequence, last] of await sequenceStates(transaction)) {
-      await transaction.unsafe(
-        `insert into ${BASELINE_SCHEMA}.sequences values ($1, $2)`,
-        [sequence, last],
       );
     }
     await transaction.unsafe(
@@ -238,6 +213,9 @@ export async function restoreMigratedBaseline(
     ) return false;
     const emptied = current.filter((table) => !LEDGER_TABLES.has(key(table)));
     if (emptied.length > 0) {
+      // `restart identity` also returns every sequence a data table owns to its
+      // start, which is the migrated state: the schema has no sequence that a
+      // table does not own, so none is restored separately.
       await transaction.unsafe(
         `truncate table ${
           emptied.map(qualified).join(", ")
@@ -253,29 +231,6 @@ export async function restoreMigratedBaseline(
       await transaction.unsafe(
         `insert into ${target} (${table.columns}) overriding system value
          select ${table.columns} from ${BASELINE_SCHEMA}.${table.copy_name}`,
-      );
-    }
-    const wanted = new Map(
-      (await transaction.unsafe<
-        { sequence_key: string; last_value: string | null }[]
-      >(
-        `select sequence_key, last_value::text as last_value from ${BASELINE_SCHEMA}.sequences`,
-      )).map((
-        row,
-      ) => [
-        row.sequence_key,
-        row.last_value === null ? null : Number(row.last_value),
-      ]),
-    );
-    for (const [sequence, last] of await sequenceStates(transaction)) {
-      if (!wanted.has(sequence) || wanted.get(sequence) === last) continue;
-      const [schema, name] = sequence.split(".");
-      const target = qualified({ schema: schema ?? "", name: name ?? "" });
-      const goal = wanted.get(sequence);
-      await transaction.unsafe(
-        goal === null || goal === undefined
-          ? `alter sequence ${target} restart`
-          : `select setval('${target}', ${goal}, true)`,
       );
     }
     return true;
