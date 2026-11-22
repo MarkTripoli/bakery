@@ -197,6 +197,7 @@ Deno.test("the consumer admits a firing for a matching event once, in its own tr
         versionId: automation.versionId,
         result: "admitted",
       }],
+      starts: [],
     });
     const [firing] = await firingRows(f, task.organizationId);
     assertEquals(
@@ -502,6 +503,7 @@ Deno.test("authority is read again: a connection or repository that lost it by t
       status: "ignored",
       code: "connection_not_enabled",
       firings: [],
+      starts: [],
     });
     await f.pgDatabase.query(
       `update bakery.integration_connections set status = 'enabled' where id = $1`,
@@ -537,6 +539,7 @@ Deno.test("a failure rolls the work back whole and defers the route; a later pas
       status: "deferred",
       code: AutomationRouteCode.Error,
       firings: [],
+      starts: [],
     });
     assertEquals((await firingRows(f, task.organizationId)).length, 0);
     const deferred = await routeState(f, route.id);
