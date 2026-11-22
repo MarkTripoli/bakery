@@ -2330,3 +2330,114 @@ for (
     });
   });
 }
+
+/**
+ * A forEach is the "For each item" block (#417): one bordered block with its
+ * steps drawn once and its limit beside the name. A forEach with no steps and
+ * one inside a repeat sit beside it.
+ */
+const EACHING: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "forEach",
+          items: "issues",
+          as: "issue",
+          max: 12,
+          steps: [
+            { kind: "action", id: "implement", uses: "harness.implement" },
+            { kind: "action", id: "check", uses: "quality.check" },
+          ],
+        },
+        { kind: "action", id: "review", uses: "review.independent" },
+        { kind: "forEach", items: "files", as: "file", max: 3, steps: [] },
+        {
+          kind: "repeat",
+          max: 2,
+          steps: [{
+            kind: "forEach",
+            items: "notes",
+            as: "note",
+            max: 1,
+            steps: [{ kind: "action", id: "again", uses: "agent.review" }],
+          }],
+        },
+      ],
+    },
+  ],
+};
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the For each item block`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("a forEach is one block with its steps once and its limit; an empty one and a nested one read the same way", async ({ page }) => {
+      await libraryFixture(page, EACHING);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1004)}`,
+      );
+      const each = page.locator("[data-group=each]");
+      await expect(each).toHaveCount(3);
+      await expect(each.first()).toContainText("For each item");
+      await expect(each.first()).toContainText("At most 12 items");
+      // Its steps are drawn once, inside it; the list and the item name are not drawn.
+      await expect(each.first().locator("[data-card]")).toHaveCount(2);
+      await expect(each.first()).not.toContainText("issues");
+      // One with no steps keeps the existing line.
+      await expect(each.nth(1)).toContainText("At most 3 items");
+      await expect(each.nth(1)).toContainText("No steps");
+      // One inside a repeat is a block inside that block, and one item is singular.
+      const repeat = page.locator("[data-group=repeat]");
+      await expect(repeat).toHaveCount(1);
+      await expect(repeat.locator("[data-group=each]")).toHaveCount(1);
+      await expect(repeat.locator("[data-group=each]")).toContainText(
+        "At most 1 item",
+      );
+      await expect(repeat.locator("[data-group=each]")).not.toContainText(
+        "At most 1 items",
+      );
+      // A read-only page never says "Edited in code".
+      await expect(page.getByTestId("workflow-steps")).not.toContainText(
+        "Edited in code",
+      );
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-for-each");
+    });
+
+    test("in the editor the block says what it does as text, with no field for the limit", async ({ page }) => {
+      await libraryFixture(page, EACHING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const each = page.locator("[data-group=each]").first();
+      await expect(each).toContainText("For each item");
+      await expect(each).toContainText("At most 12 items");
+      await expect(each).toContainText("Edited in code");
+      await each.getByRole("button", { name: "For each item" }).click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toContainText("For each item");
+      await expect(panel).toContainText(
+        "Runs these steps once for each item in a list, one item at a time.",
+      );
+      await expect(panel).toContainText(
+        "A list with more items than the limit fails the run before any step starts.",
+      );
+      // The limit is said once, on the block, not again in the panel.
+      await expect(panel).not.toContainText("At most");
+      await expect(panel.getByRole("textbox")).toHaveCount(0);
+      await expect(panel.getByRole("spinbutton")).toHaveCount(0);
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-for-each-editor");
+    });
+  });
+}

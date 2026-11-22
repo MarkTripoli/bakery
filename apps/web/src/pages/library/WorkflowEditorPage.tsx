@@ -103,6 +103,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   together: "library.editor.group.together",
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
+  each: "library.editor.group.each",
   wait: "library.editor.group.wait",
 };
 
@@ -701,9 +702,11 @@ export function WorkflowEditorPage(
         kind: "codeOnly",
         name: translate(GROUP_LABEL[group.label] as never),
         problem: undefined,
-        ...(group.max === undefined ? {} : {
-          help: translate("library.editor.group.fixHelp" as never),
-        }),
+        ...(group.label === "each"
+          ? { help: translate("library.editor.group.eachHelp" as never) }
+          : group.max === undefined
+          ? {}
+          : { help: translate("library.editor.group.fixHelp" as never) }),
       };
     }
     // The Skills section a step's panel draws: its rows and the picker that attaches one.

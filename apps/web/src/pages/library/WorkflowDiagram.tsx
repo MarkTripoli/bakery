@@ -71,6 +71,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   together: "library.editor.group.together",
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
+  each: "library.editor.group.each",
   wait: "library.editor.group.wait",
 };
 
@@ -353,9 +354,12 @@ export function WorkflowDiagram(
         ? null
         : (
           <UI.Text variant="caption" data-fix-limit="true">
-            {translate("library.editor.group.fixLimit" as never, {
-              max: node.max,
-            })}
+            {translate(
+              (node.label === "each"
+                ? "library.editor.group.eachLimit"
+                : "library.editor.group.fixLimit") as never,
+              { max: node.max },
+            )}
           </UI.Text>
         )}
       {editedInCode === undefined

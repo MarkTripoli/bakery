@@ -6352,5 +6352,8 @@
   "issues.work.progress.stopping": "⟪Stopping…⟫",
   "issues.work.stop.slow": "⟪Bakery is stopping this. It can take up to 5 minutes to show here.⟫",
   "issues.work.stop.failed": "⟪Work could not be stopped. Try again.⟫",
-  "issues.work.stop.beforeStart": "⟪To stop this before it starts, remove the label on GitHub.⟫"
+  "issues.work.stop.beforeStart": "⟪To stop this before it starts, remove the label on GitHub.⟫",
+  "library.editor.group.each": "⟪For each item⟫",
+  "library.editor.group.eachLimit": "⟪At most {max, plural, one {# item} other {# items}}⟫",
+  "library.editor.group.eachHelp": "⟪Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.⟫"
 }
