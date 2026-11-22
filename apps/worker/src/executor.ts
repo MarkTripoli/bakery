@@ -857,6 +857,28 @@ export function nativeSandboxArguments(spec: NativeSandboxSpec): string[] {
   return args;
 }
 
+/**
+ * The environment a native action's sandbox gets, derived here and nowhere else.
+ *
+ * It is a closed map on purpose, and this is the function that says so: an action
+ * is Bakery's own tool, not a session, so it carries no session credential and no
+ * gateway address. The baked `bakery` command is mounted and on `PATH`, and it
+ * refuses there for want of those two variables - which is the intended answer,
+ * not a gap. Exported so a test can pin the closed map instead of trusting a
+ * reader to notice an added key.
+ */
+export function nativeActionEnvironment(
+  serializedSkillRoots: string | undefined,
+): Readonly<Record<string, string>> {
+  if (serializedSkillRoots === undefined) return NATIVE_ENVIRONMENT;
+  const skillRoots = JSON.parse(serializedSkillRoots) as string[];
+  if (skillRoots.length === 0) return NATIVE_ENVIRONMENT;
+  return Object.freeze({
+    ...NATIVE_ENVIRONMENT,
+    [NATIVE_SKILL_ROOTS_ENV]: serializedSkillRoots,
+  });
+}
+
 function actionSandboxSpec(
   definition: NativeActionDefinition,
   serializedSkillRoots: string | undefined,
@@ -866,12 +888,7 @@ function actionSandboxSpec(
   const skillRoots = serializedSkillRoots === undefined
     ? []
     : JSON.parse(serializedSkillRoots) as string[];
-  const environment = skillRoots.length === 0
-    ? NATIVE_ENVIRONMENT
-    : Object.freeze({
-      ...NATIVE_ENVIRONMENT,
-      [NATIVE_SKILL_ROOTS_ENV]: serializedSkillRoots,
-    });
+  const environment = nativeActionEnvironment(serializedSkillRoots);
   return {
     executable: definition.executable,
     args: [...definition.args],

@@ -10,7 +10,10 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
-import { SESSION_CLI_PATH } from "../../apps/worker/src/executor.ts";
+import {
+  nativeActionEnvironment,
+  SESSION_CLI_PATH,
+} from "../../apps/worker/src/executor.ts";
 
 const repository = new URL("../../", import.meta.url);
 
@@ -97,4 +100,30 @@ Deno.test("the sandbox binds the command read-only and never a host path", async
     bound.sort(),
     ["/usr/bin/deno", "/usr/bin/true", SESSION_CLI_PATH].sort(),
   );
+});
+
+Deno.test("a native action's sandbox has no session, so bakery refuses there", () => {
+  // The command is mounted and on PATH inside an action's sandbox, and that is
+  // deliberate: an action that wants it can have it. What an action does not get
+  // is a session. Its environment is a closed map with no credential path and no
+  // gateway address, so the command answers "not in a session" and stops. The
+  // product decision is that an action is Bakery's own tool, not an agent's turn,
+  // and this test is where that stops being an accident of wiring.
+  for (const skillRoots of [undefined, JSON.stringify(["/tmp/one"])]) {
+    const environment = nativeActionEnvironment(skillRoots);
+    for (const name of Object.keys(environment)) {
+      assert(
+        !name.startsWith("BAKERY_SESSION_") && name !== "BAKERY_URL",
+        `an action's sandbox carries ${name}, so bakery would think it has a session`,
+      );
+    }
+    // The map is closed: PATH and the Deno cache, plus skill roots when a step
+    // pinned some. A new key here is a visible decision, not an addition.
+    assertEquals(
+      Object.keys(environment).sort(),
+      skillRoots === undefined
+        ? ["DENO_DIR", "PATH"]
+        : ["BAKERY_WORKER_SKILL_ROOTS", "DENO_DIR", "PATH"],
+    );
+  }
 });
