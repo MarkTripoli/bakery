@@ -110,6 +110,12 @@
   }
 }
 
+/* A notice with an action: at a very narrow width (a 320px screen at 200%
+   zoom) the action drops to its own row instead of pushing past the edge. */
+.ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) {
+  flex-wrap: wrap;
+}
+
 .ui-inline-notice__icon {
   /* auth.css:8 `.icon` is inline-flex, so the box is exactly the glyph: an
      inline box would add the line's descender space and make a one-line
