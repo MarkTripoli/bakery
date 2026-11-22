@@ -1,13 +1,33 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8cad16fd684a429cb8026ca22c26945ab8eb8511"
+    "9e3fd53ee7d92968f99c0a55f0101903d8d24205"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:92052ff2e5de048db0cee867d9aa0d1d03ae165af0835507e2780c4fd10ad8f7",
-  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:79321f03096a9faf63c2a082aeb4d87ef287bccdc86ab2c33a1298e698d024ff",
+  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 9e3fd53ee7d92968f99c0a55f0101903d8d24205: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "db286b23bef74fb5e122814f49ddc43079619d2b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
+      "reason": "#72 handoff read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main db286b23bef74fb5e122814f49ddc43079619d2b: RunStep gains a required, nullable handoffManifest {id, status, savedAt} so the UI can tell a step has a saved handoff manifest. Main's own #59 slice 3 approval it displaces is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8cad16fd684a429cb8026ca22c26945ab8eb8511"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a8721cd04c1c5c1fc4036cd270953f30dada8993bfc16abdc29bca0373c60f74",
+      "reason": "#59 slice 3 by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: InstallationSettings (the administrator's settings read) gains a required updateFailurePolicy, go_back or ask, and the settings update gains it as optional; installationStatus gains a required release; the update history adds three installation administrator reads and one dismiss. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
