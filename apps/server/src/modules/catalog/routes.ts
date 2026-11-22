@@ -26,6 +26,7 @@ import {
   createSkillDraftPublishActionRegistry,
   createSkillSourceUpdateActionRegistry,
   createSkillVersionActionRegistry,
+  type SkillFileContent,
 } from "./actions.ts";
 import {
   admitReviewedSkillUpdate,
@@ -366,18 +367,16 @@ export function createCatalogRoutes(options: {
         id: context.req.param("id")?.toLowerCase(),
         path: context.req.param("path"),
       });
+      // The authority runner answers `unknown`, so one cast is unavoidable here.
+      // It names the handler's own type rather than repeating its fields: a field
+      // added to `readSkillFile` arrives typed instead of drifting out of a
+      // hand-written copy that still compiles.
       const file = await postgresAuthority.run(
         registry.get(CatalogImplementedAction.SkillFilesGet),
         actionContext(context),
         input,
         (authorized) => handlers.readSkillFile(authorized, input),
-      ) as {
-        path: string;
-        contentType: string;
-        contentLength: number;
-        contentDigest: string;
-        content: Uint8Array;
-      };
+      ) as SkillFileContent;
       return new Response(new Uint8Array(file.content).buffer as ArrayBuffer, {
         status: 200,
         headers: {

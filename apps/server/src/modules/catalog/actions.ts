@@ -25,6 +25,21 @@ import {
   catalogImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 
+/**
+ * One file's verified bytes and the facts that describe them.
+ *
+ * Named because two places need it: the handler that produces it and the route
+ * that turns it into a raw response. The route used to carry its own copy of
+ * this shape, which is a cast that compiles until someone adds a field.
+ */
+export type SkillFileContent = {
+  readonly path: string;
+  readonly contentType: string;
+  readonly contentLength: number;
+  readonly contentDigest: string;
+  readonly content: Uint8Array;
+};
+
 export type CatalogActionHandlers = {
   listSources: (
     context: ActionContext,
@@ -154,13 +169,7 @@ export type CatalogActionHandlers = {
   readSkillFile: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.SkillFilePath>,
-  ) => Promise<{
-    path: string;
-    contentType: string;
-    contentLength: number;
-    contentDigest: string;
-    content: Uint8Array;
-  }>;
+  ) => Promise<SkillFileContent>;
   searchLibrary: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.LibrarySearchQuery>,

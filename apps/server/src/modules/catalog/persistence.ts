@@ -762,6 +762,38 @@ async function readStoredFile(
   }
 }
 
+/**
+ * One published version of a skill this principal may see, or nothing.
+ *
+ * Both reads of a version go through here, because they must give the same
+ * answer: a caller who may see the record may read its bytes, and a caller who
+ * may not gets `RESOURCE_NOT_FOUND` from either. Two copies of the same clause
+ * would be two answers waiting to disagree, and visibility is exactly the kind
+ * of rule that gets fixed in one place and not the other.
+ *
+ * The rule is the skill's, expressed through `SKILL_VISIBLE_TO` so there is one
+ * statement of what visible means. A draft is not a version yet: the listing
+ * does not show one, so a direct read does not confirm one exists.
+ */
+async function visibleSkillVersion(
+  transaction: Pick<PgTransactionClient, "query">,
+  organizationId: string,
+  versionId: string,
+  principalId: string,
+): Promise<SkillVersionRow | undefined> {
+  const result = await transaction.query<SkillVersionRow>(
+    `select ${VERSION_COLUMNS}
+       from bakery.skill_versions
+      where organization_id = $1 and id = $2 and status <> 'draft'
+        and skill_id in (
+          select id from bakery.skills
+           where organization_id = $1 and ${SKILL_VISIBLE_TO("$3")}
+        )`,
+    [organizationId, versionId, principalId],
+  );
+  return result.rows[0];
+}
+
 export function createCatalogHandlers(
   secret: string,
   options: Readonly<{
@@ -1337,17 +1369,12 @@ export function createCatalogHandlers(
     async getSkillVersion(context: ActionContext) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
-      const result = await transaction.query<SkillVersionRow>(
-        `select ${VERSION_COLUMNS}
-           from bakery.skill_versions
-          where organization_id = $1 and id = $2 and status <> 'draft'
-            and skill_id in (
-              select id from bakery.skills
-               where organization_id = $1 and ${SKILL_VISIBLE_TO("$3")}
-            )`,
-        [organizationId, idFromPath(context), principalId],
+      const row = await visibleSkillVersion(
+        transaction,
+        organizationId,
+        idFromPath(context),
+        principalId,
       );
-      const row = result.rows[0];
       if (row === undefined) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
@@ -1370,18 +1397,16 @@ export function createCatalogHandlers(
       if (options.skillFileStore === undefined) {
         throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
       }
-      // The same fence the version read uses, so a caller who may see the
-      // record may read its bytes and one who may not gets the same answer.
-      const version = await transaction.query<{ id: string }>(
-        `select id from bakery.skill_versions
-          where organization_id = $1 and id = $2 and status <> 'draft'
-            and skill_id in (
-              select id from bakery.skills
-               where organization_id = $1 and ${SKILL_VISIBLE_TO("$3")}
-            )`,
-        [organizationId, versionId, principalId],
+      // The same fence the version read uses, by calling the same lookup: a
+      // caller who may see the record may read its bytes, and one who may not
+      // gets the same answer from both.
+      const version = await visibleSkillVersion(
+        transaction,
+        organizationId,
+        versionId,
+        principalId,
       );
-      if (version.rows.length === 0) {
+      if (version === undefined) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
       const file = (await transaction.query<{
