@@ -6,6 +6,7 @@ import type { JobAssignment } from "../../apps/worker/src/types.ts";
 import { localAssignment } from "../helpers/worker-execution/recovery-support.ts";
 import { prepareScratchRepository } from "../helpers/harness.ts";
 import { syntheticAuthSource } from "../helpers/harness-auth.ts";
+import { pinnedBrief } from "../helpers/harness-context-fixture.ts";
 
 const RUN_PERMISSIONS = {
   sanitizeResources: false,
@@ -468,5 +469,70 @@ Deno.test({
     } finally {
       await Deno.remove(empty, { recursive: true });
     }
+  },
+});
+
+Deno.test({
+  name: "Codex gets a step's pinned inputs as files and an index in the prompt",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-codex-context-");
+    const capturePath = `${scratch.dir}/captured.txt`;
+    const executable = `${scratch.dir}/fake-codex`;
+    // The prompt reaches the CLI on stdin or as an argument; keep both.
+    await Deno.writeTextFile(
+      executable,
+      `#!/bin/sh
+if [ "\${1:-}" = "--version" ]; then echo 'codex-cli 0.0.0-fake'; exit 0; fi
+printf '%s\\n' "$@" > '${capturePath}'
+cat >> '${capturePath}'
+exit 0
+`,
+    );
+    await Deno.chmod(executable, 0o755);
+    const brief = await pinnedBrief();
+    const executor = createCodexHarnessExecutor({
+      publishFor: () => async (request) => ({
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: await sha256Hex(request.bytes),
+      }),
+      repositoryFor: () => scratch.dir,
+      codexExecutable: executable,
+      authSourceDir: syntheticAuthSource("auth.json"),
+      timeLimitMs: 5_000,
+      readAttemptContext: brief.readAttemptContext,
+    });
+    const outcome = await executor.execute(
+      brief.withContext(await assignment(scratch.dir)),
+      new AbortController().signal,
+    );
+    assertEquals(outcome.status, "completed", JSON.stringify(outcome));
+    const captured = await Deno.readTextFile(capturePath);
+    assert(captured.includes("Do not change any file."), "task text kept");
+    assert(captured.includes("brief.md"), "the index names the path");
+    assert(
+      captured.includes(brief.digest),
+      "the index names the pinned digest",
+    );
+  },
+});
+
+Deno.test({
+  name: "Codex refuses a step with pinned inputs when no reader is wired",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-codex-noreader-");
+    const fake = await fakeCodex(
+      scratch.dir,
+      "echo 'codex-cli 0.0.0-fake'; exit 0",
+    );
+    const brief = await pinnedBrief();
+    const outcome = await executorFor(scratch.dir, fake.executable).execute(
+      brief.withContext(await assignment(scratch.dir)),
+      new AbortController().signal,
+    );
+    assertEquals(outcome.status, "failed");
+    assertFalse(await exists(fake.execMarker), "the CLI never started");
   },
 });

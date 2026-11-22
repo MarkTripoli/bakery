@@ -852,6 +852,8 @@ export type PlanDispatch = Readonly<{
   input: unknown;
   requires: readonly string[];
   agentVersionId?: string;
+  /** Input slots the step declared, each with the value the engine resolved. */
+  inputs?: readonly Readonly<{ slot: string; value: unknown }>[];
   retry: Readonly<{ maxAttempts: number }>;
 }>;
 
@@ -877,6 +879,14 @@ export function planDispatchFromRow(value: unknown): PlanDispatch {
     record.requires.some((entry) => typeof entry !== "string") ||
     (record.agentVersionId !== undefined &&
       typeof record.agentVersionId !== "string") ||
+    (record.inputs !== undefined &&
+      (!Array.isArray(record.inputs) ||
+        record.inputs.some((entry) =>
+          entry === null || typeof entry !== "object" ||
+          Array.isArray(entry) ||
+          typeof (entry as JsonRecord).slot !== "string" ||
+          !Object.hasOwn(entry as JsonRecord, "value")
+        ))) ||
     retry === null || typeof retry !== "object" || Array.isArray(retry) ||
     !Number.isSafeInteger((retry as JsonRecord).maxAttempts) ||
     Number((retry as JsonRecord).maxAttempts) < 1
@@ -888,6 +898,12 @@ export function planDispatchFromRow(value: unknown): PlanDispatch {
     ...(record.agentVersionId === undefined
       ? {}
       : { agentVersionId: record.agentVersionId as string }),
+    ...(record.inputs === undefined ? {} : {
+      inputs: (record.inputs as JsonRecord[]).map((entry) => ({
+        slot: entry.slot as string,
+        value: entry.value,
+      })),
+    }),
     retry: { maxAttempts: Number((retry as JsonRecord).maxAttempts) },
   };
 }

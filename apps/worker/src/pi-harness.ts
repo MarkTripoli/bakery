@@ -1,6 +1,10 @@
 import { join, relative, resolve } from "node:path";
 import { withStepNotes } from "./step-notes-prompt.ts";
 import {
+  prepareHarnessContext,
+  type ReadAttemptContext,
+} from "./harness-context.ts";
+import {
   boundedNativeDiagnostic,
   enforceWorkerFixedPolicy,
   type ExecutionOutcome,
@@ -92,6 +96,8 @@ export type PiHarnessControl = {
 };
 
 export type PiHarnessOptions = {
+  /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
+  readonly readAttemptContext?: ReadAttemptContext;
   /** Configured output redaction secrets; also withheld from published patches. */
   readonly redactionSecrets?: readonly string[];
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
@@ -1541,6 +1547,23 @@ async function executePiHarness(
   let rpc: PiRpcRun | undefined;
   let timer: number | undefined;
   try {
+    const context = await prepareHarnessContext({
+      assignment,
+      attemptRoot: config.root,
+      goal: repair !== undefined
+        ? "Repair the blocking findings named in the prompt."
+        : basePrompt,
+      workDir: worktree,
+      readAttemptContext: options.readAttemptContext,
+    });
+    if (!context.ok) {
+      return piHarnessFault(
+        `PI_HARNESS_${context.code}`,
+        context.detail,
+        context.status,
+        context.retryable,
+      );
+    }
     try {
       await preparePiAuth(options.piAgentSourceDir, config.agentDir);
     } catch (error) {
@@ -1674,7 +1697,7 @@ async function executePiHarness(
       }
       const promptResponse = await rpc.send({
         type: "prompt",
-        message: prompt,
+        message: `${prompt}${context.promptSection}`,
       });
       if (promptResponse.success !== true) {
         return piHarnessFault(
