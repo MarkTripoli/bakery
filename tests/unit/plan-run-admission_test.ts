@@ -500,7 +500,12 @@ Deno.test("an event wait or a group with lanes of several repository aliases is 
     branch: { when: "$input.on == true", then, else: other, outputs: {} },
   });
   const inputs = { on: { type: "boolean", required: true } };
+  const loop = (steps: object[]) => ({
+    id: "cases",
+    forEach: { items: "$step.prepare.cases", max: 2, as: "case", steps },
+  });
   const found: [string, object[]][] = [
+    ["wait in a forEach body", [noop("prepare"), loop([noop("run"), wait])]],
     ["top-level wait", [wait]],
     ["top-level parallel", [parallel]],
     ["two groups naming different aliases", [
@@ -587,6 +592,8 @@ Deno.test("an event wait or a group with lanes of several repository aliases is 
       steps: [{ id: "inner", steps: [sleep] }],
     }]],
     ["sequence", [{ id: "seq", steps: [noop("alpha"), noop("beta")] }]],
+    ["a forEach of actions", [noop("prepare"), loop([noop("run")])]],
+    ["duration wait in a forEach body", [noop("prepare"), loop([sleep])]],
     ["branch", [branch([noop("left_x")], [noop("right_y")])]],
     ["repeat with a mapping seed", [repeat({}, mapping)]],
     ["repeat with a sequence seed", [

@@ -222,34 +222,49 @@ Deno.test("the engine never names a preset slug or imports the presets module", 
 
 // --- (c) ticket admission names no preset
 
-/** Ticket admission today pins fixed-coding by name. */
+/**
+ * Ticket admission runs a built-in workflow by id: fixed-coding by default,
+ * or the one the source policy or a person's Start work names (#61).
+ */
 const TICKET_ALLOWED: readonly Allowed[] = Object.freeze([
   // #399 points ticket admission at the republished fixed-coding definition.
   ...[
-    'import { FIXED_CODING_PRESET } from "@bakery/contracts/workflow-presets";',
-    'id: FIXED_CODING_PRESET.id as TicketPresetPin["id"],',
-    "revision: FIXED_CODING_PRESET.revision,",
-    "digest: FIXED_CODING_PRESET.digest,",
     'import { presetAvailability } from "./workflow-presets.ts";',
     "FIXED_CODING_PRESET,",
-    "FIXED_CODING_PRESET.defaultBudgetLimitUsd,",
-    'presetId: "fixed-coding",',
   ].map((line) => ({
     file: "apps/server/src/modules/work/ticket-admission.ts",
     line,
     issue: "#399",
   })),
-  // #407 makes the ticket source policy name a workflow instead of a preset.
+  // #61 lets a source policy or one Start work choose a built-in workflow;
+  // the request pins it and every run it starts uses the pin.
   ...[
-    'const policyPresetSchema = z.literal("fixed-coding").describe(',
-    '"Fixed workflow preset every admission of this source runs; always fixed-coding, the only preset admission runs, even if the workflow preset catalog gains others.",',
+    "workflowPresetById,",
+    '} from "@bakery/contracts/workflow-presets";',
+    "const preset = workflowPresetById(id);",
+    "export const TICKET_PRESET_ID: string = FIXED_CODING_PRESET.id;",
+  ].map((line) => ({
+    file: "apps/server/src/modules/work/ticket-admission.ts",
+    line,
+    issue: "#61",
+  })),
+  // #407 makes the ticket source policy name a published workflow too.
+  ...[
     'preset: "fixed-coding",',
-    'id: z.literal("fixed-coding").describe(',
-    '"Workflow preset id; always fixed-coding, the only preset admission runs.",',
   ].map((line) => ({
     file: "packages/contracts/src/ticket-admission.ts",
     line,
     issue: "#407",
+  })),
+  ...[
+    'import { WORKFLOW_PRESET_IDS } from "./workflow-presets.ts";',
+    "const policyPresetSchema = z.enum(WORKFLOW_PRESET_IDS).describe(",
+    '"Built-in workflow every admission of this source runs unless a person\'s Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",',
+    "id: z.enum(WORKFLOW_PRESET_IDS).describe(",
+  ].map((line) => ({
+    file: "packages/contracts/src/ticket-admission.ts",
+    line,
+    issue: "#61",
   })),
 ]);
 

@@ -582,14 +582,14 @@ Deno.test("unknown with keys and nested json keys are reported at the field, not
     code: "reference_root_unknown",
   }]);
   const nested = await failures(
-    `{"apiVersion":"bakery.dev/v1","kind":"workflow","steps":[{"id":"first","uses":"integration.action","with":{"arguments":{"${SENTINEL}":{"deep":1},"__proto__":{"x":1}}}}]}`,
+    `{"apiVersion":"bakery.dev/v1","kind":"workflow","steps":[{"id":"first","uses":"tool.call","with":{"arguments":{"${SENTINEL}":{"deep":1},"__proto__":{"x":1}}}}]}`,
   );
   assertEquals(nested, [{
     path: "/steps/0/with",
     code: "definition_key_forbidden",
   }]);
   const nestedUnsafe = await failures(
-    `{"apiVersion":"bakery.dev/v1","kind":"workflow","steps":[{"id":"first","uses":"integration.action","with":{"arguments":{"${SENTINEL}":{"constructor":1}}}}]}`,
+    `{"apiVersion":"bakery.dev/v1","kind":"workflow","steps":[{"id":"first","uses":"tool.call","with":{"arguments":{"${SENTINEL}":{"constructor":1}}}}]}`,
   );
   assertEquals(nestedUnsafe, [{
     path: "/steps/0/with",
@@ -1034,10 +1034,11 @@ function sinks(reference: string): [string, Def][] {
         source,
         action({
           id: "reader",
-          uses: "integration.action",
+          uses: "tool.call",
           with: {
-            actionId: "notify",
-            actionVersion: 1,
+            connectionId: "00000000-0000-4000-8000-000000000001",
+            tool: "notify",
+            toolVersion: 1,
             resourceId: "00000000-0000-4000-8000-000000000000",
             arguments: reference,
           },
@@ -1419,7 +1420,7 @@ function keyProbes(bad: unknown): [string, Def][] {
     [
       "with field",
       workflow([action({
-        uses: "integration.action",
+        uses: "tool.call",
         with: { arguments: candidate },
       })]),
     ],
@@ -1531,7 +1532,7 @@ Deno.test("alphanumeric keys below a value slot never enter a pointer (JSON text
     }
   }
   const duplicate = await compileWorkflowDocument(
-    `{"apiVersion":"bakery.dev/v1","kind":"workflow","steps":[{"id":"first","uses":"integration.action","with":{"arguments":{"${KEY}":1,"${KEY}":2}}}]}`,
+    `{"apiVersion":"bakery.dev/v1","kind":"workflow","steps":[{"id":"first","uses":"tool.call","with":{"arguments":{"${KEY}":1,"${KEY}":2}}}]}`,
   );
   assert(!duplicate.ok);
   assertEquals(leaked(duplicate), false);
@@ -1598,7 +1599,7 @@ Deno.test("oversized value lists report a diagnostic instead of throwing", async
   for (const catalog of [undefined, createDesignCatalog()]) {
     const result = await compileWorkflowDocument(
       workflow([action({
-        uses: "integration.action",
+        uses: "tool.call",
         with: { arguments: items },
       })]),
       { catalog },
@@ -2079,7 +2080,7 @@ Deno.test("a 90k all-caps key compiles without a hang (no catalog, text and obje
 
 Deno.test("a 90k all-caps nested literal key compiles without a hang (design catalog)", async () => {
   const definition = workflow([action({
-    uses: "integration.action",
+    uses: "tool.call",
     with: { arguments: { x: "$input.target", n: { [ALLCAPS]: 1 } } },
   })]);
   const started = performance.now();

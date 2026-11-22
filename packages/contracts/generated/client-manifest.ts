@@ -11482,6 +11482,32 @@ export const clientManifest = {
     },
     {
       "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-requests/{id}/cancellations",
+      "action": "ticketRequests.cancel",
+      "access": "Developer+admission authority",
+      "permission": "ticketRequest:write",
+      "input": "TicketRequestCancel",
+      "output": "TicketRequestView",
+      "event": "ticket.request.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "GET",
       "path": "/v1/ticket-requests/{id}",
       "action": "ticketRequests.get",
@@ -20018,6 +20044,7 @@ export const clientManifest = {
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -26311,6 +26338,13 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26383,6 +26417,14 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 200,
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria. TicketRequestCreate.requirementsDigest must contain at most 200 characters."
+        },
+        "preset": {
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
         }
       },
       "required": [
@@ -28010,7 +28052,7 @@ export const clientManifest = {
         "arguments"
       ],
       "additionalProperties": false,
-      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph.",
+      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -28159,7 +28201,7 @@ export const clientManifest = {
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -49277,6 +49319,7 @@ export const clientManifest = {
                   "ticketTaskLinks.create",
                   "ticketTaskLinks.list",
                   "ticketRequests.list",
+                  "ticketRequests.cancel",
                   "ticketRequests.get",
                   "ticketSources.labels",
                   "ticketTaskLinks.resyncNote",
@@ -71999,6 +72042,7 @@ export const clientManifest = {
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -75962,7 +76006,7 @@ export const clientManifest = {
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -76125,7 +76169,7 @@ export const clientManifest = {
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -76484,7 +76528,7 @@ export const clientManifest = {
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -85362,6 +85406,12 @@ export const clientManifest = {
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "openQuestionCount": {
+          "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -85971,6 +86021,12 @@ export const clientManifest = {
               },
               "linkedTaskCount": {
                 "description": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it. ExternalTicket.linkedTaskCount must be at least 0.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "openQuestionCount": {
+                "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
@@ -87461,9 +87517,10 @@ export const clientManifest = {
                 "run_canceled",
                 "task_completed",
                 "task_failed",
-                "task_canceled"
+                "task_canceled",
+                "request_canceled"
               ],
-              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
             },
             {
               "type": "null",
@@ -87535,6 +87592,49 @@ export const clientManifest = {
             }
           ],
           "description": "TicketRequestView.workflowRunId may be null in this transport value."
+        },
+        "stoppedByPrincipalId": {
+          "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "stoppedByName": {
+          "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "presetId": {
+          "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
+        },
+        "presetRevision": {
+          "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "createdAt": {
           "type": "string",
@@ -87782,9 +87882,10 @@ export const clientManifest = {
                       "run_canceled",
                       "task_completed",
                       "task_failed",
-                      "task_canceled"
+                      "task_canceled",
+                      "request_canceled"
                     ],
-                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                   },
                   {
                     "type": "null",
@@ -87856,6 +87957,49 @@ export const clientManifest = {
                   }
                 ],
                 "description": "TicketRequestView.workflowRunId may be null in this transport value."
+              },
+              "stoppedByPrincipalId": {
+                "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "stoppedByName": {
+                "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "presetId": {
+                "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+                "type": "string",
+                "enum": [
+                  "fixed-coding",
+                  "fixed-coding-reviewed"
+                ]
+              },
+              "presetRevision": {
+                "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
               },
               "createdAt": {
                 "type": "string",
@@ -91670,6 +91814,12 @@ export const clientManifest = {
               "minimum": 0,
               "maximum": 9007199254740991,
               "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+            },
+            "labeledBeforeWindow": {
+              "description": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it. TicketPreviewCounts.labeledBeforeWindow must be at least 0.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": [

@@ -277,6 +277,7 @@ type PreviewResult = {
     planOnly: number;
     held: number;
     blocked: number;
+    labeledBeforeWindow?: number;
   };
   issues: {
     number: number;
@@ -341,6 +342,7 @@ Deno.test("issue 69 preview: the saved policy and a draft are judged with counts
       planOnly: 0,
       held: 1,
       blocked: 2,
+      labeledBeforeWindow: 0,
     });
     assertEquals(saved.issues[0].verdict, "ready");
     assertEquals(saved.issues[0].reasons, []);
@@ -388,6 +390,7 @@ Deno.test("issue 69 preview: the saved policy and a draft are judged with counts
       planOnly: 1,
       held: 1,
       blocked: 1,
+      labeledBeforeWindow: 0,
     });
     assertEquals(await fx.counts(sourceId), NOTHING_STORED);
     const stored = await read<SourceView>(

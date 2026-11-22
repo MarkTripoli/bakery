@@ -610,6 +610,10 @@ export function createTicketSourcePreviewHandler(
     }
     const { issues } = ticketReads(context, "preview");
     const entries: PreviewResult["issues"] = [];
+    const judged: {
+      entry: PreviewResult["issues"][number];
+      beforeWindow: boolean;
+    }[] = [];
     let skipped = 0;
     for (const [number, prefetch] of issues) {
       const labels = prefetch.issue.kind === "present"
@@ -643,18 +647,30 @@ export function createTicketSourcePreviewHandler(
               trace: { requestId: context.requestId, traceId: context.traceId },
             }, draft),
         );
-        entries.push(previewEntry(number, prefetch, report, policy));
+        const entry = previewEntry(number, prefetch, report, policy);
+        entries.push(entry);
+        judged.push({
+          entry,
+          beforeWindow: labeledBeforeWindow(entry, report),
+        });
       } catch (error) {
         if (!(error instanceof StandardError)) throw error;
         skipped += 1;
       }
     }
-    const counts = { wouldStart: 0, planOnly: 0, held: 0, blocked: 0 };
-    for (const entry of entries) {
+    const counts = {
+      wouldStart: 0,
+      planOnly: 0,
+      held: 0,
+      blocked: 0,
+      labeledBeforeWindow: 0,
+    };
+    for (const { entry, beforeWindow } of judged) {
       if (entry.outcome === "would_start") counts.wouldStart += 1;
       else if (entry.outcome === "plan_only") counts.planOnly += 1;
       else if (entry.outcome === "held") counts.held += 1;
       else counts.blocked += 1;
+      if (beforeWindow) counts.labeledBeforeWindow += 1;
     }
     await recordSourceFact(
       context,
@@ -675,6 +691,23 @@ export function createTicketSourcePreviewHandler(
       skipped,
     };
   };
+}
+
+/**
+ * Whether a blocked issue waits only because its request label was applied
+ * before automatic starts were turned on (`automatic.since`, #61): its one
+ * failing check is the label's `adoption_required` with the window's
+ * `since:` evidence, so a person's Start work would admit it. An unverified
+ * label or automatic starts that are off are not this cause.
+ */
+function labeledBeforeWindow(
+  entry: PreviewResult["issues"][number],
+  report: TicketReadinessReport,
+): boolean {
+  if (entry.outcome !== "blocked") return false;
+  const failing = report.checks.filter((check) => check.status !== "pass");
+  return failing.length === 1 && failing[0].reason === "adoption_required" &&
+    failing[0].evidence.some(({ ref }) => ref.startsWith("since:"));
 }
 
 /** One issue's bucket: the hold wins, then a ready verdict by its label's intent, else blocked. */
