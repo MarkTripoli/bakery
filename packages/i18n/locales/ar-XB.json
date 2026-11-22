@@ -6108,5 +6108,6 @@
   "library.workflow.editor.skills.toast.removed": "⟪Removed {skill} from this step.⟫",
   "library.workflow.editor.skills.toast.removedPublished": "⟪Removed {skill} from this step. A published version of this workflow still uses it.⟫",
   "library.workflow.editor.skills.toast.undo": "⟪Undo⟫",
-  "library.workflow.editor.skills.toast.attachFailed": "⟪{skill} was not attached. Try again.⟫"
+  "library.workflow.editor.skills.toast.attachFailed": "⟪{skill} was not attached. Try again.⟫",
+  "library.workflow.editor.skills.picker.allAttached": "⟪Every skill that fits this step is attached. More are made in the Library.⟫"
 }

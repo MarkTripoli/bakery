@@ -5112,6 +5112,7 @@
   "library.workflow.editor.skills.picker.loading": "Loading skills…",
   "library.workflow.editor.skills.picker.failed": "The skills did not load.",
   "library.workflow.editor.skills.picker.empty": "No skills fit this kind of step. Skills are made in the Library.",
+  "library.workflow.editor.skills.picker.allAttached": "Every skill that fits this step is attached. More are made in the Library.",
   "library.workflow.editor.skills.remove.action": "Remove",
   "library.workflow.editor.skills.remove.label": "Remove {name}",
   "library.workflow.editor.skills.removeOther.title": "Remove {owner}'s private skill?",

@@ -1604,6 +1604,28 @@ for (
       expect(seen.catalogReads).toBeGreaterThan(before);
     });
 
+    test("when every skill on offer is attached the picker gives way to a line, and returns on remove", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: { items: [] },
+        catalog: [catalogSkill({})],
+      });
+      const picker = skills.getByLabel("Attach a skill");
+      await picker.selectOption({ label: "Code style · Version 2" });
+      await expect(skills).toContainText(
+        "Every skill that fits this step is attached. More are made in the Library.",
+      );
+      await expect(picker).toHaveCount(0);
+      // Not the "nothing fits" line: something does fit, and it is on the step.
+      await expect(skills).not.toContainText(
+        "No skills fit this kind of step.",
+      );
+      await skills.getByRole("button", { name: "Remove Code style" }).click();
+      await expect(picker).toBeVisible();
+      await expect(picker.locator("option", { hasText: "Code style" }))
+        .toHaveCount(1);
+      await expect(skills).not.toContainText("Every skill that fits this step");
+    });
+
     test("with no skill to offer the picker says so", async ({ page }) => {
       const { skills } = await openSkills(page, {
         skills: { items: [] },

@@ -643,6 +643,7 @@ export function WorkflowEditorPage(
             : catalog.isPending
             ? "loading"
             : "ready",
+          offered: (catalog.data ?? []).length,
           choices: (catalog.data ?? [])
             .filter((skill) =>
               !(live.skills ?? []).includes(skill.activeVersionId as string)

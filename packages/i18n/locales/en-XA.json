@@ -6108,5 +6108,6 @@
   "library.workflow.editor.skills.toast.removed": "⟦Ŕëɱôṽëð {skill} ƒŕôɱ ŧĥïš šŧëþ. ŧëšŧ çôþ⟧",
   "library.workflow.editor.skills.toast.removedPublished": "⟦Ŕëɱôṽëð {skill} ƒŕôɱ ŧĥïš šŧëþ. À þûƀļïšĥëð ṽëŕšïôñ ôƒ ŧĥïš ŵôŕķƒļôŵ šŧïļļ ûšëš ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.workflow.editor.skills.toast.undo": "⟦Ûñðô⟧",
-  "library.workflow.editor.skills.toast.attachFailed": "⟦{skill} ŵàš ñôŧ àŧŧàçĥëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧"
+  "library.workflow.editor.skills.toast.attachFailed": "⟦{skill} ŵàš ñôŧ àŧŧàçĥëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧",
+  "library.workflow.editor.skills.picker.allAttached": "⟦Ëṽëŕÿ šķïļļ ŧĥàŧ ƒïŧš ŧĥïš šŧëþ ïš àŧŧàçĥëð. Ṁôŕë àŕë ɱàðë ïñ ŧĥë Ļïƀŕàŕÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

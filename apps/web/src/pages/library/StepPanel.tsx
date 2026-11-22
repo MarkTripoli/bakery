@@ -52,6 +52,8 @@ export type SkillChoice = {
 export type StepAttach = {
   readonly state: "loading" | "failed" | "ready";
   readonly choices: readonly SkillChoice[];
+  /** How many skills fit this step before the attached ones are taken out of the choices. */
+  readonly offered: number;
   readonly onRetry: () => void;
   readonly onChoose: (value: string) => void;
 };
@@ -304,7 +306,12 @@ function AttachSkill(
     );
   }
   if (attach.state === "ready" && attach.choices.length === 0) {
-    return <UI.Text variant="muted">{t("picker.empty")}</UI.Text>;
+    // Nothing fits this kind of step, or everything that fits is already on it.
+    return (
+      <UI.Text variant="muted">
+        {t(attach.offered === 0 ? "picker.empty" : "picker.allAttached")}
+      </UI.Text>
+    );
   }
   const optionsOf = (group: SkillChoice["group"]) => {
     const inGroup = attach.choices.filter((choice) => choice.group === group);
