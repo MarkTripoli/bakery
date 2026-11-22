@@ -223724,6 +223724,12 @@
                       "maxLength": 65536,
                       "description": "Registered action input entry."
                     },
+                    "versionId": {
+                      "description": "Registered action input versionId.",
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
                     "repositoryProfile": {
                       "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
                       "type": "object",
@@ -289404,7 +289410,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee",
+  "compatibilityDigest": "sha256:31c11df1e68e06b4961905fa4b3f452a304d1f8e20b4da6d415236e497c176cc",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -461448,6 +461454,12 @@
                   "type": "string",
                   "maxLength": 65536,
                   "description": "Registered action input entry."
+                },
+                "versionId": {
+                  "description": "Registered action input versionId.",
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 },
                 "repositoryProfile": {
                   "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
