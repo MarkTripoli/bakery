@@ -107,8 +107,14 @@ import type {
   RunStepListResponse,
   SavedDataPage,
   ScimConnection,
+  SkillListResponse,
   SkillResponse,
+  SkillScope,
+  SkillSource,
   SkillStorageSettings,
+  SkillUsageListResponse,
+  SkillUseGrantListResponse,
+  SkillVersionListResponse,
   StorageFileAtVersion,
   StorageFileUsePage,
   StorageFileVersionPage,
@@ -2787,6 +2793,190 @@ export function agentQueryOptions(
         }),
       );
     },
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The Skills tab of the Library (#74): the skills the caller can see, of one
+ * scope or all, optionally those whose name holds `q`, a page at a time.
+ */
+export function skillsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkills">,
+  scope: ApiScope,
+  filter: { readonly scope?: SkillScope; readonly q?: string },
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillListResponse,
+    ApiFailure,
+    { pages: SkillListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skills.list", {
+      scope: filter.scope ?? null,
+      q: filter.q ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkills({
+          organizationId: requireOrganization(scope),
+          ...(filter.scope === undefined ? {} : { scope: filter.scope }),
+          ...(filter.q === undefined ? {} : { q: filter.q }),
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One skill, for its page. */
+export function skillQueryOptions(
+  client: Pick<BakeryApiClient, "getSkill">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<SkillResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skills.one", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkill({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The versions of one skill, a page at a time. */
+export function skillVersionsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillVersions">,
+  scope: ApiScope,
+  skillId: string,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillVersionListResponse,
+    ApiFailure,
+    { pages: SkillVersionListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skillVersions.list", {
+      skillId,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkillVersions({
+          organizationId: requireOrganization(scope),
+          skillId,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The agent and workflow versions that use one skill, a page at a time. */
+export function skillUsedByQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillUsedBy">,
+  scope: ApiScope,
+  skillId: string,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillUsageListResponse,
+    ApiFailure,
+    { pages: SkillUsageListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skills.usedBy", { skillId, limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkillUsedBy({
+          organizationId: requireOrganization(scope),
+          skillId,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The shared workflow steps a private skill may be used by; only its owner may read them. */
+export function skillUseGrantsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillUseGrants">,
+  scope: ApiScope,
+  skillId: string,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillUseGrantListResponse,
+    ApiFailure,
+    { pages: SkillUseGrantListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skills.useGrants.list", {
+      skillId,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkillUseGrants({
+          organizationId: requireOrganization(scope),
+          skillId,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Where a skill came from, when it was added from a source. */
+export function skillSourceQueryOptions(
+  client: Pick<BakeryApiClient, "getSkillSource">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<SkillSource, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillSources.one", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkillSource({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
     retry: retryNetworkOnce,
   });
 }
