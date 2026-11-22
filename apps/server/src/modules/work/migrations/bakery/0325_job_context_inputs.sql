@@ -9,10 +9,6 @@
 alter table bakery.jobs
   add column context_inputs jsonb not null default '[]'::jsonb;
 
-alter table bakery.jobs
-  add constraint jobs_context_inputs_array_check
-  check (jsonb_typeof(context_inputs) = 'array');
-
 -- Admission writes the list once with the job; no update grant is given, so a
 -- pin cannot change under a claimed attempt.
 grant insert (context_inputs) on bakery.jobs to bakery_app;
