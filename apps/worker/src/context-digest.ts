@@ -112,3 +112,124 @@ function defaultReader(contextDir: string): ContextFileReader {
   const root = resolve(contextDir);
   return (relativePath) => Deno.readFile(join(root, relativePath));
 }
+
+/**
+ * One way a step's context tree differs from the index it was given.
+ *
+ * A superset of the input comparison above, because a step can also add a file
+ * beside its inputs or delete one. Both are changes to what the step read: an
+ * added file is an input nobody pinned, and a deleted one is an input that is
+ * now missing from an output that cites it.
+ */
+export type ContextTreeFault =
+  | ContextVerificationFault
+  | {
+    readonly reason: "context_entry_unexpected";
+    /** The path found in the tree that the index does not declare. */
+    readonly path: string;
+  }
+  | {
+    readonly reason: "context_entry_missing";
+    /** The slot whose declared path is gone. */
+    readonly slot: string;
+    readonly path: string;
+  };
+
+/** The index file's own name, which is part of the tree but not an input. */
+const CONTEXT_INDEX_FILE = "CONTEXT.md";
+
+/**
+ * Compares the whole tree with the index, not just the inputs it names.
+ *
+ * The index is the step's statement of what it was given. So the tree must hold
+ * exactly those paths, plus the index itself, and nothing else: a new file is a
+ * read the step invented, and it would otherwise be invisible to every later
+ * check because no pin ever mentioned it.
+ *
+ * Unreadable entries are skipped rather than reported: a host that cannot list a
+ * directory is a fault of the host, and this function's job is to answer about
+ * the run. The exceptions inside it still surface as a throw.
+ */
+export async function verifyContextTree(options: {
+  readonly contextDir: string;
+  readonly document: ContextDocument;
+  readonly read?: ContextFileReader;
+}): Promise<readonly ContextTreeFault[]> {
+  const declared = new Set(options.document.inputs.map((input) => input.path));
+  const faults: ContextTreeFault[] = [];
+  const read = options.read ??
+    ((relativePath: string) =>
+      Deno.readFile(join(options.contextDir, relativePath)));
+  // Each input is read here rather than delegated, because the two functions
+  // disagree about a missing file: `verifyContextDocument` treats it as a broken
+  // directory and throws, while for this caller a missing input is exactly the
+  // statement it was asked for. Delegating would turn a finding into a crash.
+  for (const input of options.document.inputs) {
+    if (!isSafeRelativePath(input.path)) {
+      faults.push({
+        reason: "context_input_path_unsafe",
+        slot: input.slot,
+        path: input.path,
+      });
+      continue;
+    }
+    let bytes: Uint8Array;
+    try {
+      bytes = await read(input.path);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        faults.push({
+          reason: "context_entry_missing",
+          slot: input.slot,
+          path: input.path,
+        });
+        continue;
+      }
+      throw error;
+    }
+    const actual = await sha256Hex(bytes);
+    if (actual !== input.digest) {
+      faults.push({
+        reason: "context_input_digest_mismatch",
+        slot: input.slot,
+        path: input.path,
+        declared: input.digest,
+        actual,
+      });
+    }
+  }
+  const seen = new Set<string>();
+  const walk = async (relative: string): Promise<void> => {
+    const directory = relative === ""
+      ? options.contextDir
+      : join(options.contextDir, relative);
+    for await (const entry of Deno.readDir(directory)) {
+      const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
+      if (path === CONTEXT_INDEX_FILE) continue;
+      if (entry.isDirectory) {
+        await walk(path);
+        continue;
+      }
+      seen.add(path);
+      if (!declared.has(path)) {
+        faults.push({ reason: "context_entry_unexpected", path });
+      }
+    }
+  };
+  await walk("");
+  for (const input of options.document.inputs) {
+    if (!seen.has(input.path) && isSafeRelativePath(input.path)) {
+      const already = faults.some((fault) =>
+        fault.reason === "context_entry_missing" && fault.path === input.path
+      );
+      if (!already) {
+        faults.push({
+          reason: "context_entry_missing",
+          slot: input.slot,
+          path: input.path,
+        });
+      }
+    }
+  }
+  return faults;
+}

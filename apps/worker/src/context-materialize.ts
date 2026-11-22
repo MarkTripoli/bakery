@@ -108,17 +108,45 @@ export async function materializeContext(
     }
     checked.push(input);
   }
+  await Deno.mkdir(contextDir, { recursive: true, mode: 0o700 });
+  const written: string[] = [];
   for (const input of checked) {
     const target = join(contextDir, input.entry.path);
     await Deno.mkdir(dirname(target), { recursive: true, mode: 0o700 });
     await Deno.writeFile(target, input.bytes, { mode: 0o600 });
+    written.push(target);
   }
   // Last, deliberately: the index is the promise that the bytes above are all
   // there, so it is only written once they are.
-  await Deno.writeTextFile(
-    join(contextDir, "CONTEXT.md"),
-    renderContextDocument(document),
-    { mode: 0o600 },
-  );
+  const index = join(contextDir, "CONTEXT.md");
+  await Deno.writeTextFile(index, renderContextDocument(document), {
+    mode: 0o600,
+  });
+  written.push(index);
+  await sealContextDirectory(contextDir, written);
   return { document, faults: [] };
+}
+
+/**
+ * Closes a step's inputs so it cannot quietly overwrite one.
+ *
+ * The files go 0400 and the index with them. Directories are left writable on
+ * purpose: removing an attempt's private root walks it, and a 0500 directory
+ * cannot be walked for deletion, so closing directories would trade one fault for
+ * a leak on every failed cleanup. A step can therefore add a file beside its
+ * inputs. That is caught, and named, by the tree check in `context-digest.ts`
+ * after the step ends - an added file is as much a change to the tree as an
+ * edited one.
+ *
+ * Like the modes, this is a barrier against a mistake rather than against a
+ * decision: the step runs as the same user and can chmod its way back. The check
+ * after the run is what actually holds.
+ */
+export async function sealContextDirectory(
+  _contextDir: string,
+  files: readonly string[],
+): Promise<void> {
+  for (const file of files) {
+    await Deno.chmod(file, 0o400).catch(() => undefined);
+  }
 }

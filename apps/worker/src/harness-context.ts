@@ -18,6 +18,8 @@
 
 import { join } from "node:path";
 import type { WorkerContextInput } from "./client.ts";
+import type { ContextDocument } from "./context-document.ts";
+import { type ContextTreeFault, verifyContextTree } from "./context-digest.ts";
 import {
   describeSeedingFault,
   fetcherForAttempt,
@@ -39,6 +41,12 @@ export type HarnessContext =
     ok: true;
     /** The directory the inputs were written to; absent when there are none. */
     contextDir?: string;
+    /**
+     * The index the step was given, kept in memory so the check after the step
+     * ends compares the disk against what the worker wrote rather than against
+     * whatever the disk now says.
+     */
+    document?: ContextDocument;
     /** Text to append to the prompt; empty when there are no inputs. */
     promptSection: string;
   }>
@@ -112,6 +120,7 @@ export async function prepareHarnessContext(options: {
     return {
       ok: true,
       contextDir,
+      document: seeding.document,
       promptSection:
         `\n\nContext for this step (CONTEXT.md in ${contextDir}):\n\n${
           renderContextDocument(seeding.document)
@@ -130,4 +139,46 @@ export async function prepareHarnessContext(options: {
       retryable: true,
     };
   }
+}
+
+/**
+ * Compares the context tree after the step with the index the step was given.
+ *
+ * This is what makes "read-only" a fact rather than an intention. The tree is
+ * sealed before the step starts, but the step runs as the same user, so the modes
+ * are a barrier against a mistake and not against a decision. A step that
+ * rewrote its inputs and published an answer derived from the new bytes would be
+ * answering a different question than the one admission pinned, and the write
+ * set would record an output with no honest input to match it.
+ *
+ * The comparison is against the in-memory document, not against `CONTEXT.md` on
+ * disk: a step that edited both would otherwise pass. A fault is returned rather
+ * than thrown, because it is a statement about this run; a directory that cannot
+ * be read at all still throws, inside `verifyContextDocument`.
+ */
+export async function verifyHarnessContext(
+  context: HarnessContext,
+): Promise<readonly ContextTreeFault[]> {
+  if (!context.ok || context.contextDir === undefined) return [];
+  const document = context.document;
+  if (document === undefined) return [];
+  return await verifyContextTree({ contextDir: context.contextDir, document });
+}
+
+/** One line naming what the step did to its inputs, for a refusal. */
+export function describeContextTampering(
+  faults: readonly ContextTreeFault[],
+): string {
+  return faults.map((fault) => {
+    switch (fault.reason) {
+      case "context_input_digest_mismatch":
+        return `${fault.path} is not the version the step was pinned to`;
+      case "context_entry_unexpected":
+        return `${fault.path} was added beside the step's inputs`;
+      case "context_entry_missing":
+        return `${fault.path} is missing from the step's inputs`;
+      case "context_input_path_unsafe":
+        return `${fault.path} is not a path inside the context directory`;
+    }
+  }).join("; ");
 }
