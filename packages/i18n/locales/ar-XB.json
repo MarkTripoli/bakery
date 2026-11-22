@@ -6431,5 +6431,18 @@
   "installation.updates.notHealthy.stayNobody": "⟪{when} no one could be asked, so Bakery stayed on it. To go back, run {command}.⟫",
   "installation.updates.held.title": "⟪Held outside actions⟫",
   "installation.updates.policy.lockedHeld": "⟪You can change this after the restore is finished.⟫",
-  "installation.updates.policy.lockedPaused": "⟪You can change this when the update ends.⟫"
+  "installation.updates.policy.lockedPaused": "⟪You can change this when the update ends.⟫",
+  "core.reference.kind.commit": "⟪Commit⟫",
+  "core.reference.kind.release": "⟪Release⟫",
+  "core.reference.kind.pullRequest": "⟪Pull request⟫",
+  "core.reference.kind.issue": "⟪Issue⟫",
+  "core.reference.kind.task": "⟪Task⟫",
+  "core.reference.kind.run": "⟪Run⟫",
+  "core.reference.kind.machine": "⟪Machine⟫",
+  "core.reference.kind.person": "⟪Person⟫",
+  "core.reference.copy": "⟪Copy⟫",
+  "core.reference.copied": "⟪Copied⟫",
+  "core.reference.copyFailed": "⟪Could not copy. Select the id above.⟫",
+  "core.reference.opensNewTab": "⟪(opens in a new tab)⟫",
+  "core.reference.opensOnGitHub": "⟪Opens on GitHub in a new tab.⟫"
 }

@@ -6431,5 +6431,18 @@
   "installation.updates.notHealthy.stayNobody": "⟦{when} ñô ôñë çôûļð ƀë àšķëð, šô Ɓàķëŕÿ šŧàÿëð ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "installation.updates.held.title": "⟦Ĥëļð ôûŧšïðë àçŧïôñš ŧëšŧ⟧",
   "installation.updates.policy.lockedHeld": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš àƒŧëŕ ŧĥë ŕëšŧôŕë ïš ƒïñïšĥëð. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "installation.updates.policy.lockedPaused": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš ŵĥëñ ŧĥë ûþðàŧë ëñðš. ŧëšŧ çôþÿ ŧë⟧"
+  "installation.updates.policy.lockedPaused": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš ŵĥëñ ŧĥë ûþðàŧë ëñðš. ŧëšŧ çôþÿ ŧë⟧",
+  "core.reference.kind.commit": "⟦Çôɱɱïŧ…⟧",
+  "core.reference.kind.release": "⟦Ŕëļëàšë…⟧",
+  "core.reference.kind.pullRequest": "⟦Þûļļ ŕëǫûëšŧ ŧë⟧",
+  "core.reference.kind.issue": "⟦Ïššûë⟧",
+  "core.reference.kind.task": "⟦Ŧàšķ⟧",
+  "core.reference.kind.run": "⟦Ŕûñ⟧",
+  "core.reference.kind.machine": "⟦Ṁàçĥïñë…⟧",
+  "core.reference.kind.person": "⟦Þëŕšôñ…⟧",
+  "core.reference.copy": "⟦Çôþÿ⟧",
+  "core.reference.copied": "⟦Çôþïëð…⟧",
+  "core.reference.copyFailed": "⟦Çôûļð ñôŧ çôþÿ. Šëļëçŧ ŧĥë ïð àƀôṽë. ŧëšŧ çôþÿŧ⟧",
+  "core.reference.opensNewTab": "⟦(ôþëñš ïñ à ñëŵ ŧàƀ) ŧëšŧ⟧",
+  "core.reference.opensOnGitHub": "⟦Ôþëñš ôñ ĜïŧĤûƀ ïñ à ñëŵ ŧàƀ. ŧëšŧ çôþ⟧"
 }
