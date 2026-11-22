@@ -10,6 +10,12 @@ import {
 } from "./merge-entries.ts";
 import { listMergeAttempts } from "./merge-attempts.ts";
 import {
+  createDeployment,
+  type DeploymentCreateInput,
+  listDeployments,
+  rollbackDeployment,
+} from "./deployments.ts";
+import {
   type MergeDispatchDependencies,
   mergePullRequest,
   reconcileMergeAttempts,
@@ -87,5 +93,46 @@ export function createDeliveryHandlers(
       mergePullRequest(merge, context, input),
     mergeAttemptsReconcile: (context, input) =>
       reconcileMergeAttempts(merge, context, input),
+    deploymentsList: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas["Page<Deployment>"].parse(
+        await listDeployments(
+          transaction,
+          organizationId,
+          principalId,
+          secret,
+          input,
+        ),
+      );
+    },
+    deploymentsCreate: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas.Deployment.parse(
+        await createDeployment(transaction, organizationId, principalId, {
+          requestId: context.requestId,
+          traceId: context.traceId,
+          create: input as DeploymentCreateInput,
+        }),
+      );
+    },
+    deploymentsRollback: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas.Deployment.parse(
+        await rollbackDeployment(
+          transaction,
+          organizationId,
+          principalId,
+          context.params.id,
+          {
+            requestId: context.requestId,
+            traceId: context.traceId,
+            reason: input.reason,
+          },
+        ),
+      );
+    },
   };
 }

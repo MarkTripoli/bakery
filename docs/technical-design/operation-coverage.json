@@ -42,21 +42,6 @@
         "contains": "/v1/collaboration"
       }
     },
-    "deployments.create": {
-      "state": "unbuilt",
-      "owner": "#43",
-      "reason": "Deployment records arrive with immutable release deployment."
-    },
-    "deployments.list": {
-      "state": "unbuilt",
-      "owner": "#43",
-      "reason": "Deployment records arrive with immutable release deployment."
-    },
-    "deployments.rollback": {
-      "state": "unbuilt",
-      "owner": "#43",
-      "reason": "Rollback arrives with immutable release deployment."
-    },
     "evaluationResults.list": {
       "state": "unbuilt",
       "owner": "#427",
@@ -441,11 +426,6 @@
       "merge_entry_checks": {
         "state": "implemented-as",
         "implementedAs": "merge_entry_check_runs"
-      },
-      "deployments": {
-        "state": "unbuilt",
-        "owner": "#43",
-        "reason": "Deployment records arrive with immutable release deployment."
       },
       "evaluation_runs": {
         "state": "implemented-as",
