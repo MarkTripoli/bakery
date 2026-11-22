@@ -27,6 +27,7 @@ const EXPECTED: Record<string, Record<Privilege, readonly string[]>> = {
       "available_at",
       "base_sha",
       "billing",
+      "context_inputs",
       "conversation_turn_id",
       "id",
       "input",

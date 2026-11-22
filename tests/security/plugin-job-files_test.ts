@@ -257,10 +257,34 @@ Deno.test("a job cannot be handed the code of an install that lives in another o
         where id = $1`,
       [assignment.jobId, foreign.install],
     );
-    await refused(
-      await files(fixture, worker, assignment),
-      "plugin_install_gone",
-    );
+    try {
+      await refused(
+        await files(fixture, worker, assignment),
+        "plugin_install_gone",
+      );
+    } finally {
+      // The copies are this test's, in an organization the fixture will delete
+      // at teardown. Left behind they block that delete with a foreign key
+      // violation, and every later test in the run pays for it.
+      const org = other.organizationId;
+      await fixture.pgDatabase.query(
+        `delete from bakery.plugin_install_grants
+          where organization_id = $1 and plugin_install_id = $2`,
+        [org, foreign.install],
+      );
+      await fixture.pgDatabase.query(
+        `delete from bakery.plugin_installs where organization_id = $1 and id = $2`,
+        [org, foreign.install],
+      );
+      await fixture.pgDatabase.query(
+        `delete from bakery.plugin_versions where organization_id = $1 and id = $2`,
+        [org, foreign.version],
+      );
+      await fixture.pgDatabase.query(
+        `delete from bakery.plugin_packages where organization_id = $1 and id = $2`,
+        [org, foreign.pkg],
+      );
+    }
   }));
 
 Deno.test("an uninstalled install is gone, not merely off", () =>

@@ -68,6 +68,8 @@ export type ArtifactCommentComposerModel = {
   readonly onSubmit: () => void;
   readonly submitLabel: string;
   readonly disabled: boolean;
+  /** Why the button is off while a mention waits on someone who can give access; null otherwise. */
+  readonly sendReason?: string | null;
   readonly inputRef?: Ref<HTMLTextAreaElement>;
   /** Mentions: the textarea's props, the picker above it and the chips below (design-ux #73). */
   readonly mentionField?: MentionField;
@@ -131,11 +133,28 @@ export function ArtifactCommentComposerView(
       {composer.mentionField?.row ?? null}
       {composer.mode.kind === "comment" ? composer.mode.anchor : null}
       <UI.Inline>
-        <UI.Button type="submit" disabled={composer.disabled}>
+        <UI.Button
+          type="submit"
+          aria-describedby={composer.sendReason
+            ? `${composer.id}-reason`
+            : undefined}
+          disabled={composer.disabled}
+        >
           {composer.submitLabel}
         </UI.Button>
         {composer.agentAction}
       </UI.Inline>
+      {composer.sendReason
+        ? (
+          <UI.Text
+            id={`${composer.id}-reason`}
+            role="status"
+            variant="caption"
+          >
+            {composer.sendReason}
+          </UI.Text>
+        )
+        : null}
     </form>
   );
 }

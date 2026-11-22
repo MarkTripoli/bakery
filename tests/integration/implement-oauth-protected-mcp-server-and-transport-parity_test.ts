@@ -162,6 +162,7 @@ Deno.test("a pre-registered client uses PKCE, calls tools, is listed, and revoke
       "bakery_tasks_list",
       "bakery_tasks_update",
       "bakery_usage_list",
+      "bakery_workflowDefinitionProposals_list",
       "organization_get",
       "whoami",
     ]);

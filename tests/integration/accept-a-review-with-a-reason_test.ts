@@ -30,6 +30,7 @@ type Accepted = {
   id: string;
   status: string;
   acceptedBy: string | null;
+  acceptedByName: string | null;
   acceptedAt: string | null;
   acceptReason: string | null;
 };
@@ -175,6 +176,13 @@ test("AC: an administrator accepts a review that requested changes, with a reaso
     });
     assertEquals(accepted.status, "changes_requested");
     assertEquals(accepted.acceptedBy, admin);
+    // The read names who accepted, from the principal's own display name.
+    const name = (await h.owner.query<{ display_name: string }>(
+      "select display_name from bakery.principals where id = $1",
+      [admin],
+    )).rows[0].display_name;
+    assert(name.trim() !== "");
+    assertEquals(accepted.acceptedByName, name);
     assertEquals(
       accepted.acceptReason,
       "The finding is a style preference; shipping as is.",
@@ -190,6 +198,7 @@ test("AC: an administrator accepts a review that requested changes, with a reaso
       item.id === reviewId
     );
     assertEquals(listed?.acceptedBy, admin);
+    assertEquals(listed?.acceptedByName, name, "the list names them too");
     assertEquals(
       listed?.acceptReason,
       "The finding is a style preference; shipping as is.",

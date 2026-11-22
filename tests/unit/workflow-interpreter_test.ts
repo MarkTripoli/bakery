@@ -573,6 +573,44 @@ Deno.test("a repeat that reaches max without satisfying until is exhausted, and 
   });
 });
 
+Deno.test("the host may allow a repeat more iterations than its document holds, and only the repeat it names", async () => {
+  const document = await compiled([
+    counter({ until: "$repeat.currentCandidate.n >= 99", max: 2 }),
+    noop("report", {
+      with: {
+        o: "$step.loop.outcome",
+        i: "$step.loop.iterations",
+      },
+    }),
+  ]);
+  const held = drive(document, bump);
+  assertEquals(held.trace, ["loop@1.bump", "loop@2.bump", "report"]);
+  assertEquals((held.dispatched[2] as ActionDispatch).input, {
+    o: "exhausted",
+    i: 2,
+  });
+  const allowed = drive(document, bump, { repeatExtra: { loop: 1 } });
+  assertEquals(allowed.trace, [
+    "loop@1.bump",
+    "loop@2.bump",
+    "loop@3.bump",
+    "report",
+  ]);
+  assertEquals((allowed.dispatched[3] as ActionDispatch).input, {
+    o: "exhausted",
+    i: 3,
+  });
+  // A repeat the host did not name keeps the document's own bound.
+  const other = drive(document, bump, { repeatExtra: { elsewhere: 5 } });
+  assertEquals(other.trace, held.trace);
+  // The allowance never ends a repeat early: a satisfied until still ends it.
+  const satisfied = await compiled([counter({ max: 2 })]);
+  assertEquals(
+    drive(satisfied, bump, { repeatExtra: { loop: 3 } }).trace,
+    ["loop@1.bump", "loop@2.bump"],
+  );
+});
+
 Deno.test("a failed, canceled or timed-out iteration leaves the prior accumulator and becomes the repeat's outcome", async () => {
   for (const status of ["failed", "canceled", "timed_out"] as const) {
     const document = await compiled([

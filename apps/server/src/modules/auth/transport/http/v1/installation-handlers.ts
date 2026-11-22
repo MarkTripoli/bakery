@@ -134,6 +134,7 @@ export async function installationSettingsUpdate(
     details: {
       registrationMode: updated.registrationMode,
       organizationCreationPolicy: updated.organizationCreationPolicy,
+      updateFailurePolicy: updated.updateFailurePolicy,
       version: updated.version,
     },
   });

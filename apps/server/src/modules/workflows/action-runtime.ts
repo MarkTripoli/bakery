@@ -82,21 +82,6 @@ function workerDispatchHandler(
   };
 }
 
-/** `rpi.plan` is declared but has no worker contract, so it cannot run. */
-function unavailableHandler(
-  schemas: SchemaMap,
-  action: WorkflowActionName,
-): WorkflowActionHandler {
-  const { input } = WORKFLOW_ACTION_METADATA[action];
-  return (value) => {
-    parser(schemas, input).parse(value);
-    throw new StandardError({
-      code: "STATE_CONFLICT",
-      params: { reason: "workflow_action_unavailable" },
-    });
-  };
-}
-
 function handlerFor(
   schemas: SchemaMap,
   action: WorkflowActionName,
@@ -132,8 +117,22 @@ function handlerFor(
       });
     };
   }
-  if (action === WorkflowRuntimeImplementedAction.Plan) {
-    return unavailableHandler(schemas, action);
+  if (
+    action === WorkflowRuntimeImplementedAction.DeliveryPrepare ||
+    action === WorkflowRuntimeImplementedAction.DeliveryDeploy ||
+    action === WorkflowRuntimeImplementedAction.DeliveryHealth
+  ) {
+    // A delivery step calls a deployment target over time, so the engine
+    // settles it in its admission (workflow-adapter, delivery steps) and this
+    // handler only validates: running it here would deploy with no record.
+    const { input } = WORKFLOW_ACTION_METADATA[action];
+    return (value) => {
+      parser(schemas, input).parse(value);
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_delivery_step_settled_by_engine" },
+      });
+    };
   }
   return workerDispatchHandler(schemas, action);
 }

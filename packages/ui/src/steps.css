@@ -400,10 +400,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  /* The container is never wider than the column it sits in: on a phone the
-     arms stack instead of pushing the page sideways (#67 UX ruling
-     comment 6934081003 fix 1). */
-  inline-size: 100%;
+  /* As wide as its steps plus padding, and never wider than the column it sits
+     in: on a phone the arms stack instead of pushing the page sideways (#67 UX
+     ruling comment 6934081003 fix 1), and on a wide page the box no longer
+     runs about 1200px around 330px cards (#62 UX sign-off). */
+  inline-size: fit-content;
   max-inline-size: 100%;
   min-inline-size: 0;
   padding: var(--space-3);
@@ -424,12 +425,14 @@
 }
 [data-group-arm] {
   display: flex;
-  /* A 12rem floor is small enough for a phone and wide enough to read, so two
-     arms sit side by side when there is room and stack when there is not. */
-  flex: 1 1 12rem;
+  /* An arm is as wide as its steps, with a 12rem floor that is small enough for
+     a phone and wide enough to read. The box around the arms is as wide as
+     both of them, so two arms sit side by side when there is room and stack
+     when there is not; they do not stretch to fill the page (#62 UX sign-off). */
+  flex: 0 1 auto;
   flex-direction: column;
   gap: var(--space-2);
-  min-inline-size: 0;
+  min-inline-size: 12rem;
   overflow-wrap: anywhere;
 }
 
@@ -437,7 +440,8 @@
    area, so the whole row is the target (#67 UX ruling 6934081003 fix 2). The
    spans are spans, not text paragraphs: a paragraph cannot sit inside a
    button. */
-[data-pick-step] {
+[data-pick-step],
+[data-pick-skill] {
   align-items: start;
   display: flex;
   /* Each row keeps its own height when the list is shorter than its contents:
@@ -574,7 +578,8 @@
 }
 /* The list is the only part that scrolls; the search field above it and Cancel
    below it are siblings, so they stay visible at both ends of the popover. */
-[data-testid="step-picker"] > [data-picker-list="true"] {
+[data-testid="step-picker"] > [data-picker-list="true"],
+[data-testid="skill-picker"] > [data-picker-list="true"] {
   flex: 0 1 auto;
   min-block-size: 0;
   overflow-y: auto;
@@ -621,13 +626,15 @@
  * useful the popover opens above its trigger instead (`data-flip`). The list
  * inside scrolls; the search field and Cancel never do.
  */
-.ui-popover__content:has([data-testid="step-picker"]) {
+.ui-popover__content:has([data-testid="step-picker"]),
+.ui-popover__content:has([data-testid="skill-picker"]) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 /* Too little room below: open above the "+" and grow upward instead. */
-.ui-popover__content:has([data-testid="step-picker"])[data-flip="true"] {
+.ui-popover__content:has([data-testid="step-picker"])[data-flip="true"],
+.ui-popover__content:has([data-testid="skill-picker"])[data-flip="true"] {
   inset-block-end: calc(100% + var(--space-2));
   inset-block-start: auto;
 }

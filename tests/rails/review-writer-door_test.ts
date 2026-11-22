@@ -2,8 +2,8 @@ import { assert, assertEquals } from "@std/assert";
 import { extname, join, posix, relative } from "node:path";
 
 /**
- * `bakery.review_cycles`, `bakery.review_findings` and
- * `bakery.delivery_decisions` are the evidence the delivery gate and the repair
+ * `bakery.review_cycles`, `bakery.review_findings`,
+ * `bakery.delivery_decisions` and `bakery.repair_allowances` are the evidence the delivery gate and the repair
  * loop trust (issue #94). The application database role may insert into them,
  * so the database cannot tell a verified row from a forged one: only the code
  * path decides. One module is allowed to write, `review-store.ts`, and its
@@ -61,6 +61,7 @@ const guardedTables = [
   "review_cycles",
   "review_findings",
   "delivery_decisions",
+  "repair_allowances",
 ] as const;
 
 /** Optional quoting and schema, then the table name. */

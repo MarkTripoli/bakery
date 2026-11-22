@@ -1,6 +1,26 @@
 import { join, relative, resolve } from "node:path";
 import { withStepNotes } from "./step-notes-prompt.ts";
 import {
+  executeRpiFreeform,
+  isRpiFreeformAction,
+  RPI_FREEFORM_ACTIONS,
+} from "./harness-rpi.ts";
+import {
+  conservativeCostUsd,
+  FREEFORM_ACTION,
+  FREEFORM_MAX_TIMEOUT_MS,
+  freeformOutcome,
+  type FreeformStop,
+  freeformTools,
+  isFreeformFault,
+  readFreeformRequest,
+  renderFreeformAnswer,
+} from "./harness-freeform.ts";
+import {
+  prepareHarnessContext,
+  type ReadAttemptContext,
+} from "./harness-context.ts";
+import {
   boundedNativeDiagnostic,
   enforceWorkerFixedPolicy,
   type ExecutionOutcome,
@@ -92,6 +112,14 @@ export type PiHarnessControl = {
 };
 
 export type PiHarnessOptions = {
+  /**
+   * Whether this worker has the design tool `rpi.design` declares (the
+   * `paper` capability). Off unless set: a worker without it refuses the step as
+   * capability_unavailable rather than doing design work with no tool.
+   */
+  designToolAvailable?: boolean;
+  /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
+  readonly readAttemptContext?: ReadAttemptContext;
   /** Configured output redaction secrets; also withheld from published patches. */
   readonly redactionSecrets?: readonly string[];
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
@@ -152,6 +180,14 @@ type PiStreamState = {
   currentMessage?: JsonObject;
   currentMessageBytes?: number;
   providerUsage: JsonObject | null;
+  /** Turns started so far (one `turn_start` per model turn). */
+  turns: number;
+  /** Text blocks of the assistant messages that ended, in order. */
+  answerText: string[];
+  /** Dollars the provider reported across ended messages. */
+  costUsd: number;
+  /** Tokens reported by ended messages that carried no dollar cost. */
+  unpricedTokens: number;
   promptDisposition?: string;
   settled: boolean;
   aborted: boolean;
@@ -477,6 +513,10 @@ class PiRpcParser {
   readonly state: PiStreamState = {
     events: [],
     providerUsage: null,
+    turns: 0,
+    answerText: [],
+    costUsd: 0,
+    unpricedTokens: 0,
     settled: false,
     aborted: false,
     providerFailure: false,
@@ -610,7 +650,10 @@ class PiRpcParser {
         return;
       }
       case "agent_start":
+        this.appendEvent({ type });
+        return;
       case "turn_start":
+        this.state.turns++;
         this.appendEvent({ type });
         return;
       case "message_start": {
@@ -646,6 +689,7 @@ class PiRpcParser {
         if (message) {
           this.setCurrentMessage(message);
           if (message.stopReason === "error") this.state.providerFailure = true;
+          this.recordEndedMessage(message);
         }
         this.appendEvent({ type, ...(message ? { message } : {}) });
         return;
@@ -706,6 +750,26 @@ class PiRpcParser {
       default:
         return;
     }
+  }
+
+  /** Keeps what a freeform session needs from an ended assistant message. */
+  private recordEndedMessage(message: JsonObject): void {
+    if (message.role !== "assistant") return;
+    for (const block of messageContent(message)) {
+      if (
+        isRecord(block) && block.type === "text" &&
+        typeof block.text === "string" && this.state.answerText.length < 200
+      ) this.state.answerText.push(block.text);
+    }
+    const usage = isRecord(message.usage) ? message.usage : undefined;
+    if (usage === undefined) return;
+    const cost = isRecord(usage.cost) ? usage.cost.total : undefined;
+    if (typeof cost === "number" && Number.isFinite(cost) && cost >= 0) {
+      this.state.costUsd += cost;
+    } else if (
+      typeof usage.totalTokens === "number" &&
+      Number.isFinite(usage.totalTokens)
+    ) this.state.unpricedTokens += usage.totalTokens;
   }
 
   private markStateOverflow(): void {
@@ -1541,6 +1605,23 @@ async function executePiHarness(
   let rpc: PiRpcRun | undefined;
   let timer: number | undefined;
   try {
+    const context = await prepareHarnessContext({
+      assignment,
+      attemptRoot: config.root,
+      goal: repair !== undefined
+        ? "Repair the blocking findings named in the prompt."
+        : basePrompt,
+      workDir: worktree,
+      readAttemptContext: options.readAttemptContext,
+    });
+    if (!context.ok) {
+      return piHarnessFault(
+        `PI_HARNESS_${context.code}`,
+        context.detail,
+        context.status,
+        context.retryable,
+      );
+    }
     try {
       await preparePiAuth(options.piAgentSourceDir, config.agentDir);
     } catch (error) {
@@ -1674,7 +1755,7 @@ async function executePiHarness(
       }
       const promptResponse = await rpc.send({
         type: "prompt",
-        message: prompt,
+        message: `${prompt}${context.promptSection}`,
       });
       if (promptResponse.success !== true) {
         return piHarnessFault(
@@ -1894,6 +1975,316 @@ async function executePiHarness(
   }
 }
 
+/** Read-only tools a freeform session may ask for, and the Pi tool each one means. */
+const PI_FREEFORM_TOOL_NAMES: Readonly<Record<string, string>> = Object.freeze({
+  Read: "read",
+  Glob: "find",
+  Grep: "grep",
+});
+const PI_FREEFORM_NAMING = Object.freeze({
+  prefix: "PI_HARNESS",
+  title: "The Pi harness could not complete the bounded task",
+});
+const PI_FREEFORM_POLL_MS = 50;
+
+/**
+ * Runs one `agent.freeform` session over Pi's RPC, in an empty directory beside
+ * the step's pinned inputs, with only the read tools it asked for. Pi has no
+ * turn or cost flag, so the stream is watched: a turn is a `turn_start`, cost is
+ * the dollars the provider reports on an ended message (or, for a message with
+ * no price, the conservative price of its tokens). Turns, cost and time are
+ * enforced live; a stop publishes what the session had produced.
+ */
+async function executePiFreeform(
+  assignment: JobAssignment,
+  signal: AbortSignal,
+  output: NativeOutputSink | undefined,
+  options: PiHarnessOptions,
+): Promise<ExecutionOutcome> {
+  await enforceWorkerFixedPolicy(assignment);
+  const request = readFreeformRequest(assignment, PI_FREEFORM_NAMING);
+  if (isFreeformFault(request)) return request;
+  const tools = freeformTools(
+    request,
+    Object.keys(PI_FREEFORM_TOOL_NAMES),
+    PI_FREEFORM_NAMING,
+  );
+  if (!Array.isArray(tools)) return tools as ExecutionOutcome;
+  if (options.stateDir && !safeStateSegment(assignment.attemptId)) {
+    return piHarnessFault(
+      "PI_HARNESS_INPUT_INVALID",
+      "The Pi harness needs a safe attempt identifier.",
+      500,
+      false,
+    );
+  }
+  if (assignment.agentSessionId === undefined) {
+    return piHarnessFault(
+      "PI_HARNESS_INPUT_INVALID",
+      "A freeform step needs the server-created agent session.",
+      500,
+      false,
+    );
+  }
+  if (signal.aborted) return provenCanceledOutcome();
+
+  const config = await piAttemptDirectory(options, assignment);
+  let rpc: PiRpcRun | undefined;
+  let timer: number | undefined;
+  let watcher: number | undefined;
+  try {
+    const workDir = join(config.root, "work");
+    await Deno.mkdir(workDir, { recursive: true, mode: 0o700 });
+    const context = await prepareHarnessContext({
+      assignment,
+      attemptRoot: config.root,
+      goal:
+        "Answer the prompt below; the step's inputs are the files listed here.",
+      workDir,
+      readAttemptContext: options.readAttemptContext,
+    });
+    if (!context.ok) {
+      return piHarnessFault(
+        `PI_HARNESS_${context.code}`,
+        context.detail,
+        context.status,
+        context.retryable,
+      );
+    }
+    try {
+      await preparePiAuth(options.piAgentSourceDir, config.agentDir);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "PI_HARNESS_AUTH_UNAVAILABLE"
+      ) {
+        return harnessCredentialUnavailable(
+          "PI",
+          "Pi",
+          "The Pi harness could not complete the bounded task",
+        );
+      }
+      return piHarnessFault(
+        "PI_HARNESS_INPUT_INVALID",
+        "Pi native authentication preparation was unavailable.",
+        500,
+        false,
+      );
+    }
+    let credentialSecrets: readonly string[];
+    try {
+      credentialSecrets = await harnessCredentialSecrets(
+        join(options.piAgentSourceDir, PI_AUTH_FILE),
+      );
+    } catch {
+      return harnessCredentialUnavailable(
+        "PI",
+        "Pi",
+        "The Pi harness could not complete the bounded task",
+      );
+    }
+    const childEnvironment = piChildEnvironment(config, assignment);
+    const versionProbe = await probeHarnessVersion(
+      options.piExecutable ?? "pi",
+      workDir,
+      childEnvironment,
+      signal,
+      PI_VERSION_WAIT_MS,
+    );
+    if (signal.aborted) return harnessCanceledOutcome(versionProbe.teardown);
+    if (
+      versionProbe.teardown !== "not-needed" &&
+      versionProbe.teardown.status === "unconfirmed"
+    ) {
+      return harnessTeardownFault("PI", versionProbe.teardown);
+    }
+    if (versionProbe.timedOut || !versionProbe.version) {
+      return piHarnessFault(
+        "PI_HARNESS_EXIT_NONZERO",
+        "The pinned Pi CLI version probe did not complete successfully.",
+        502,
+        false,
+      );
+    }
+    const modelPattern = options.model === undefined
+      ? undefined
+      : options.effort === undefined
+      ? options.model
+      : `${options.model}:${options.effort}`;
+    rpc = await createPiRpcRun({
+      executable: options.piExecutable ?? "pi",
+      cwd: workDir,
+      args: [
+        "--mode",
+        "rpc",
+        "--session-dir",
+        config.sessionDir,
+        "--no-context-files",
+        ...(tools.length === 0 ? ["--no-tools"] : [
+          "--tools",
+          tools.map((tool) => PI_FREEFORM_TOOL_NAMES[tool]).join(","),
+        ]),
+        ...(modelPattern === undefined ? [] : ["--model", modelPattern]),
+      ],
+      environment: childEnvironment,
+      output,
+      capabilities: options.capabilities ?? [],
+      eventRecorder: options.eventRecorder,
+      groupKillExecutable: options.groupKillExecutable,
+    });
+    const live = rpc;
+    let stop: FreeformStop | undefined;
+    const stopWith = (reason: FreeformStop) => {
+      if (stop !== undefined) return;
+      stop = reason;
+      void live.close(reason === "timeout" ? "timeout" : "abort");
+    };
+    const abort = () => {
+      void live.close("abort");
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) {
+      signal.removeEventListener("abort", abort);
+      const closed = await live.close("abort");
+      return harnessCanceledOutcome(closed.teardown);
+    }
+    timer = setTimeout(
+      () => stopWith("timeout"),
+      Math.min(
+        request.timeoutMs,
+        options.timeLimitMs ?? FREEFORM_MAX_TIMEOUT_MS,
+      ),
+    ) as unknown as number;
+    const exceeded = (): FreeformStop | undefined => {
+      const state = live.parser.state;
+      if (state.turns > request.maxTurns) return "max_turns";
+      const cost = state.costUsd + conservativeCostUsd(state.unpricedTokens);
+      return cost > request.maxCostUsd ? "max_cost" : undefined;
+    };
+    const bound = new Promise<void>((resolve) => {
+      watcher = setInterval(() => {
+        const reason = exceeded();
+        if (reason !== undefined) {
+          stopWith(reason);
+          resolve();
+        }
+      }, PI_FREEFORM_POLL_MS) as unknown as number;
+    });
+    try {
+      const stateResponse = await live.send(
+        { type: "get_state" },
+        PI_COMMAND_WAIT_MS,
+      );
+      if (stateResponse.success !== true) {
+        return piHarnessFault(
+          "PI_HARNESS_INPUT_INVALID",
+          "The Pi RPC session state could not be initialized.",
+          500,
+          false,
+        );
+      }
+      const promptResponse = await live.send({
+        type: "prompt",
+        message: `${request.prompt}${context.promptSection}`,
+      });
+      if (
+        promptResponse.success !== true ||
+        live.parser.state.promptDisposition === "handled"
+      ) {
+        return piHarnessFault(
+          "PI_HARNESS_INPUT_INVALID",
+          "The Pi RPC prompt was not accepted as an agent run.",
+          500,
+          false,
+        );
+      }
+      await Promise.race([live.waitForSettledOrExit(), bound]);
+    } finally {
+      signal.removeEventListener("abort", abort);
+    }
+    const run = await live.close(
+      signal.aborted || stop !== undefined
+        ? "abort"
+        : live.parser.state.settled
+        ? "normal"
+        : "abort",
+    );
+    if (
+      run.teardown !== "not-needed" && run.teardown.status === "unconfirmed"
+    ) return harnessTeardownFault("PI", run.teardown);
+    if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    live.parser.finish();
+    const state = live.parser.state;
+    if (stop === undefined && run.timedOut) stop = "timeout";
+    stop ??= exceeded();
+    if (
+      stop === undefined && (
+        run.code !== 0 || state.malformed || state.truncated ||
+        state.parseFailure || state.contradictory || !state.settled ||
+        state.aborted || state.providerFailure
+      )
+    ) {
+      return piHarnessFault(
+        "PI_HARNESS_EXIT_NONZERO",
+        "The Pi RPC stream did not contain one consistent settled successful run.",
+        502,
+        false,
+      );
+    }
+    let answer = stop === undefined
+      ? (state.answerText.findLast((text) => text.trim() !== "") ?? "")
+      : state.answerText.join("\n\n");
+    if (stop === undefined && answer.trim() === "") {
+      return piHarnessFault(
+        "PI_HARNESS_EXIT_NONZERO",
+        "The Pi run settled without a final message.",
+        502,
+        false,
+      );
+    }
+    for (
+      const secret of [
+        assignment.leaseToken,
+        ...credentialSecrets,
+        ...(
+          options.redactionSecrets ?? []
+        ),
+      ]
+    ) {
+      if (secret.length >= 8) answer = answer.replaceAll(secret, "[redacted]");
+    }
+    return await freeformOutcome({
+      assignment,
+      publish: options.publishFor(assignment),
+      signal,
+      bytes: renderFreeformAnswer({
+        answer,
+        stop,
+        turns: state.turns,
+        limits: request,
+      }),
+      stop,
+      source: "pi-harness",
+      extra: {
+        piVersion: versionProbe.version,
+        telemetry: {
+          cost_usd: state.costUsd,
+          unpriced_tokens: state.unpricedTokens,
+        },
+      },
+    });
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (watcher !== undefined) clearInterval(watcher);
+    if (rpc) {
+      await rpc.close(signal.aborted ? "abort" : "normal").catch(() =>
+        undefined
+      );
+    }
+    await Deno.remove(config.root, { recursive: true }).catch(() => undefined);
+  }
+}
+
 /** Opt-in Pi RPC executor; all non-Pi actions delegate to the wrapped executor. */
 export function createPiHarnessExecutor(
   options: PiHarnessOptions,
@@ -1907,6 +2298,8 @@ export function createPiHarnessExecutor(
       ...new Set([
         ...(inner?.supportedActions ?? PI_HARNESS_SUPPORTED_ACTIONS),
         HARNESS_REPAIR_ACTION,
+        FREEFORM_ACTION,
+        ...RPI_FREEFORM_ACTIONS,
       ]),
     ],
     capturesNativeOutput: inner?.capturesNativeOutput ?? true,
@@ -1923,7 +2316,11 @@ export function createPiHarnessExecutor(
         )
       : inner?.readinessChecks?.bind(inner),
     async credentialRedactionSecrets(assignment) {
-      if (!isHarnessEditAction(assignment.action)) {
+      if (
+        !isHarnessEditAction(assignment.action) &&
+        assignment.action !== FREEFORM_ACTION &&
+        !isRpiFreeformAction(assignment.action)
+      ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
       return await harnessCredentialSecrets(
@@ -1937,6 +2334,18 @@ export function createPiHarnessExecutor(
       return activeControl.send(action, messageId, body);
     },
     execute(assignment, signal, output, preparedSkills) {
+      if (assignment.action === FREEFORM_ACTION) {
+        // No repository is touched, so the shared worktree latch is not taken.
+        return executePiFreeform(assignment, signal, output, options);
+      }
+      if (isRpiFreeformAction(assignment.action)) {
+        // A design or a plan is a bounded freeform session over a pinned artifact.
+        return executeRpiFreeform(
+          assignment,
+          (derived) => executePiFreeform(derived, signal, output, options),
+          { designToolAvailable: options.designToolAvailable },
+        );
+      }
       if (!isHarnessEditAction(assignment.action)) {
         if (!inner) {
           return Promise.resolve(

@@ -431,6 +431,28 @@ async function writePrivate(path: string, content: string): Promise<void> {
   }
 }
 
+/**
+ * Records a one-paste link (#70) the way a pairing is recorded: the binding
+ * first, then the link code in the owner-only code file the worker reads when
+ * it registers. The binding never holds the code. A link is not an enrollment
+ * the terminal can name, so its enrollment field reads `link`.
+ */
+export async function recordLink(
+  root: string,
+  binding: Omit<PairingBinding, "version" | "enrollmentId">,
+  linkCode: string,
+): Promise<PairingBinding> {
+  if (!isAbsolute(root)) throw new BootstrapError("INSTALL_ROOT_INVALID");
+  const recorded: PairingBinding = {
+    version: 1,
+    ...binding,
+    enrollmentId: "link",
+  };
+  await writePrivate(join(root, PAIRING_FILE), `${JSON.stringify(recorded)}\n`);
+  await writePrivate(join(root, TOKEN_FILE), `${linkCode}\n`);
+  return recorded;
+}
+
 export type PairOptions = Readonly<{
   /** Absolute install root; the same one slice 1 installs into. */
   root: string;

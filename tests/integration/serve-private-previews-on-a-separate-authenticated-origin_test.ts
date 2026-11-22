@@ -27,6 +27,7 @@ type PreviewBody = {
   status: string;
   stopReason: string | null;
   stoppedBy: string | null;
+  stoppedByName: string | null;
   stoppedAt: string | null;
   expiresAt: string;
   routeKey?: unknown;
@@ -517,6 +518,12 @@ Deno.test("stopping a preview ends it for everyone and every open session", () =
     const body = await stopped.json() as PreviewBody;
     assertEquals([body.status, body.stopReason], ["stopped", "person"]);
     assertEquals(body.stoppedBy, fixture.principalId);
+    // The name is the stopper's display name as the organization has it now.
+    const named = await fixture.pgDatabase.query<{ display_name: string }>(
+      "select display_name from bakery.principals where id = $1",
+      [fixture.principalId],
+    );
+    assertEquals(body.stoppedByName, named.rows[0].display_name);
     assert(body.stoppedAt !== null);
     const revoked = await fixture.pgDatabase.query(
       `select (select revoked_at is not null from bakery.preview_grants where id = $1) as grant,
@@ -1448,6 +1455,70 @@ Deno.test("the grantor is re-authorized on every use: a demoted grantor cannot e
       await colleague.remove();
       await app.close();
     }
+  }, options));
+
+Deno.test("a registration and a person's stop tell the run's task, once each, and nothing else does", () =>
+  withWorkerFixture(async (fixture) => {
+    const events = async () =>
+      (await fixture.pgDatabase.query<
+        {
+          event_type: string;
+          task_id: string | null;
+          aggregate_id: string;
+          payload: { resourceId: string; resourceVersion: number };
+        }
+      >(
+        `select event_type, task_id, aggregate_id, payload
+           from bakery.domain_events
+          where organization_id = $1 and event_type like 'preview.%'
+          order by organization_sequence`,
+        [fixture.organizationId],
+      )).rows;
+    const { worker, assignment, job, preview } = await openPreview(
+      fixture,
+      "preview-events",
+    );
+    // The same registration replays, and a refused one registers nothing:
+    // neither tells anyone.
+    assertEquals((await register(fixture, worker, assignment)).status, 200);
+    assertEquals(
+      (await register(fixture, worker, assignment, { upstreamPort: 5174 }))
+        .status,
+      409,
+    );
+    const ready = await events();
+    assertEquals(ready.length, 1);
+    assertEquals(ready[0].event_type, "preview.ready");
+    assertEquals(ready[0].task_id, job.taskId);
+    assertEquals(ready[0].aggregate_id, preview.id);
+    assertEquals(ready[0].payload.resourceId, preview.id);
+    // The event names the preview and nothing of it.
+    assertEquals(Object.keys(ready[0].payload).sort(), [
+      "resourceId",
+      "resourceVersion",
+    ]);
+
+    // A person's stop tells the task; stopping again, and a preview that ends by
+    // itself, do not.
+    const stop = () =>
+      person(fixture, `/v1/previews/${preview.id}/stop`, {
+        method: "POST",
+        headers: { "idempotency-key": crypto.randomUUID() },
+      });
+    assertEquals((await stop()).status, 201);
+    assertEquals((await stop()).status, 201);
+    await fixture.pgDatabase.query(
+      "update bakery.jobs set cancel_requested_at = now() where id = $1",
+      [job.jobId],
+    );
+    const all = await events();
+    assertEquals(all.map((event) => event.event_type), [
+      "preview.ready",
+      "preview.stopped",
+    ]);
+    assertEquals(all[1].task_id, job.taskId);
+    assertEquals(all[1].aggregate_id, preview.id);
+    assert(all[1].payload.resourceVersion > all[0].payload.resourceVersion);
   }, options));
 
 // ---- WebSocket through the preview's own origin ----------------------------

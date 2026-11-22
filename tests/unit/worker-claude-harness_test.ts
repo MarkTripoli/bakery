@@ -823,3 +823,496 @@ sleep 60`,
     assertEquals(second.status, "completed", JSON.stringify(second));
   },
 });
+
+Deno.test({
+  name:
+    "Claude gets a step's pinned inputs as files, an index in the prompt and --add-dir",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-claude-context-");
+    const argsPath = `${scratch.dir}/args.txt`;
+    const promptPath = `${scratch.dir}/prompt.txt`;
+    const fake = await fakeClaude(
+      scratch.dir,
+      `cat > '${promptPath}'
+printf '%s\\n' "$@" > '${argsPath}'
+printf '%s\\n' '{"type":"system","subtype":"init","session_id":"${SESSION_ID}","claude_code_version":"2.1.0","model":"claude-sonnet","capabilities":[]}'
+printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_id":"${SESSION_ID}","total_cost_usd":0}'`,
+    );
+    const bytes = new TextEncoder().encode("# The brief");
+    const digest = await sha256Hex(bytes);
+    const served = {
+      artifactVersionId: crypto.randomUUID(),
+      artifactId: crypto.randomUUID(),
+      digest,
+      sizeBytes: bytes.length,
+      mediaType: "text/markdown",
+      contentBase64: btoa("# The brief"),
+    };
+    const value = {
+      ...await assignment(scratch.dir),
+      contextInputs: [{
+        slot: "brief",
+        path: "brief.md",
+        digest,
+        sizeBytes: bytes.length,
+        mediaType: "text/markdown",
+      }],
+    } as JobAssignment;
+    const executor = createClaudeHarnessExecutor({
+      publishFor: () => async (request) => ({
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: await sha256Hex(request.bytes),
+      }),
+      repositoryFor: () => scratch.dir,
+      claudeExecutable: fake,
+      stateDir: `${scratch.dir}/worker-state`,
+      authSourceDir: `${scratch.dir}/auth-source`,
+      timeLimitMs: 5_000,
+      readAttemptContext: () => Promise.resolve([served]),
+    });
+    const outcome = await executor.execute(
+      value,
+      new AbortController().signal,
+    );
+    assertEquals(outcome.status, "completed");
+    const prompt = await Deno.readTextFile(promptPath);
+    const args = await Deno.readTextFile(argsPath);
+    assert(prompt.includes("Do not change any file."), "task text kept");
+    assert(prompt.includes("brief.md"), "the index names the path");
+    assert(prompt.includes(digest), "the index names the pinned digest");
+    const contextDir =
+      args.split("\n")[args.split("\n").indexOf("--add-dir") + 1];
+    assert(contextDir?.endsWith("/context"), "the context directory is added");
+    assert(prompt.includes(contextDir!), "the prompt says where it is");
+  },
+});
+
+// #528: agent.freeform on the Claude harness.
+
+const FREEFORM_INPUT = {
+  prompt: "Summarise the files you were given.",
+  maxTurns: 3,
+  timeout: "30s",
+  maxCostUsd: 1,
+  allowedTools: ["Read"],
+};
+
+function freeformAssignment(
+  input: Record<string, unknown> = {},
+): JobAssignment {
+  return {
+    ...localAssignment(),
+    action: "agent.freeform",
+    agentSessionId: crypto.randomUUID(),
+    input: { ...FREEFORM_INPUT, ...input },
+  } as JobAssignment;
+}
+
+function freeformExecutor(
+  dir: string,
+  executable: string,
+  published: Uint8Array[],
+  timeLimitMs = 5_000,
+) {
+  return createClaudeHarnessExecutor({
+    publishFor: () => async (request) => {
+      published.push(request.bytes);
+      return {
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: await sha256Hex(request.bytes),
+      };
+    },
+    repositoryFor: () => dir,
+    claudeExecutable: executable,
+    stateDir: `${dir}/worker-state`,
+    authSourceDir: `${dir}/auth-source`,
+    timeLimitMs,
+  });
+}
+
+const INIT =
+  `printf '%s\\n' '{"type":"system","subtype":"init","session_id":"${SESSION_ID}","claude_code_version":"2.1.0","model":"m","capabilities":[]}'`;
+const assistant = (text: string) =>
+  `printf '%s\\n' '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"${text}"}]}}'`;
+const resultLine = (
+  extra = "",
+  result = "the final answer",
+  subtype = "success",
+) =>
+  `printf '%s\\n' '{"type":"result","subtype":"${subtype}","is_error":${
+    subtype === "success" ? "false" : "true"
+  },"session_id":"${SESSION_ID}","result":"${result}","total_cost_usd":0.25${extra}}'`;
+
+async function freeformRun(
+  body: string,
+  input: Record<string, unknown> = {},
+  timeLimitMs = 5_000,
+) {
+  const scratch = await prepareScratchRepository("bakery-claude-freeform-");
+  const argsPath = `${scratch.dir}/args.txt`;
+  const promptPath = `${scratch.dir}/prompt.txt`;
+  const fake = await fakeClaude(
+    scratch.dir,
+    `cat > '${promptPath}'
+printf '%s\\n' "$@" > '${argsPath}'
+${body}`,
+  );
+  const published: Uint8Array[] = [];
+  const value = freeformAssignment(input);
+  const outcome = await freeformExecutor(
+    scratch.dir,
+    fake,
+    published,
+    timeLimitMs,
+  ).execute(value, new AbortController().signal);
+  const read = async (path: string) =>
+    await Deno.readTextFile(path).catch(() => "");
+  return {
+    outcome,
+    value,
+    published: published.map((bytes) => new TextDecoder().decode(bytes)),
+    args: await read(argsPath),
+    prompt: await read(promptPath),
+  };
+}
+
+function freeformResult(
+  outcome: Awaited<ReturnType<typeof freeformRun>>["outcome"],
+) {
+  assertEquals(outcome.status, "completed");
+  if (outcome.status !== "completed") throw new Error("unreachable");
+  return outcome.result as {
+    sessionId: string;
+    status: string;
+    artifacts: unknown[];
+  };
+}
+
+Deno.test({
+  name:
+    "Claude freeform answers the prompt with read tools only and publishes the answer",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [INIT, assistant("thinking"), assistant("the final answer"), resultLine()]
+        .join("\n"),
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "completed");
+    assertEquals(result.sessionId, run.value.agentSessionId);
+    assertEquals(result.artifacts.length, 1);
+    assertEquals(run.published, ["the final answer"]);
+    assert(run.prompt.includes(FREEFORM_INPUT.prompt));
+    assert(run.args.includes("--tools\nRead\n"));
+    assert(run.args.includes("--allowedTools\nRead\n"));
+    assert(run.args.includes("--permission-mode\ndontAsk\n"));
+    assert(run.args.includes("--max-budget-usd\n1\n"));
+    assertFalse(run.args.includes("Edit"));
+    assertFalse(run.args.includes("Bash"));
+  },
+});
+
+Deno.test({
+  name: "Claude freeform stops a session that starts one turn too many",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistant("first"),
+        assistant("second"),
+        assistant("third"),
+        assistant("fourth"),
+        "sleep 60",
+      ].join("\n"),
+      { maxTurns: 3 },
+      20_000,
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "failed");
+    assertEquals(run.published.length, 1);
+    assert(run.published[0].includes("limit of 3 turns"));
+    assert(run.published[0].includes("first"), "the partial answer is kept");
+  },
+});
+
+// Claude Code writes one assistant record per content block, and the blocks of
+// one reply share a message id: a reply is one turn however many records it takes.
+const assistantBlock = (id: string, block: string) =>
+  `printf '%s\\n' '{"type":"assistant","message":{"id":"${id}","role":"assistant","content":[${block}]}}'`;
+const textBlock = (text: string) => `{"type":"text","text":"${text}"}`;
+const toolUse = (n: number) =>
+  `{"type":"tool_use","id":"tool-${n}","name":"Read","input":{}}`;
+
+Deno.test({
+  name:
+    "Claude freeform counts one reply as one turn, however many records carry its blocks",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistantBlock("msg-1", textBlock("reading")),
+        assistantBlock("msg-1", toolUse(1)),
+        assistantBlock("msg-1", toolUse(2)),
+        resultLine(),
+      ].join("\n"),
+      { maxTurns: 1 },
+    );
+    // Three records, one turn: a limit of one turn is not reached.
+    assertEquals(freeformResult(run.outcome).status, "completed");
+    assertEquals(run.published[0].includes("limit of"), false);
+  },
+});
+
+Deno.test({
+  name:
+    "Claude freeform counts a second message id as a second turn and stops there",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistantBlock("msg-1", textBlock("first")),
+        assistantBlock("msg-1", toolUse(1)),
+        assistantBlock("msg-2", textBlock("second")),
+        "sleep 60",
+      ].join("\n"),
+      { maxTurns: 1 },
+      20_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "failed");
+    assert(run.published[0].includes("limit of 1 turns after 2 turns"));
+  },
+});
+
+Deno.test({
+  name: "Claude freeform reports a session over its cost limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistant("costly"),
+        resultLine("", "costly", "error_max_budget_usd"),
+      ]
+        .join("\n"),
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "failed");
+    assert(run.published[0].includes("limit of 1 USD"));
+  },
+});
+
+Deno.test({
+  name: "Claude freeform reports a session that runs out of time as timed out",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [INIT, assistant("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "timed_out");
+    assert(run.published[0].includes("slow start"));
+  },
+});
+
+Deno.test({
+  name:
+    "Claude freeform ends at the step's own timeout, not at the worker's longer limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const started = Date.now();
+    const run = await freeformRun(
+      [INIT, assistant("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+      30_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "timed_out");
+    assert(run.published[0].includes("slow start"));
+    assert(
+      Date.now() - started < 15_000,
+      "the step's 1s timeout ended the run, not the worker's 30s limit",
+    );
+  },
+});
+
+Deno.test({
+  name:
+    "Claude freeform refuses a tool the harness does not offer, before any process starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(INIT, { allowedTools: ["Read", "Bash"] });
+    assertEquals(run.outcome.status, "failed");
+    if (run.outcome.status !== "failed") throw new Error("unreachable");
+    const fault = outcomeResult(run.outcome).fault as Record<string, unknown>;
+    assertEquals(fault.code, "CLAUDE_HARNESS_FREEFORM_TOOL_REFUSED");
+    assertEquals(run.args, "", "no process was started");
+  },
+});
+
+Deno.test({
+  name: "Claude freeform refuses an input without a bounded timeout",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    for (const timeout of ["0s", "forever", "PT0S"]) {
+      const run = await freeformRun(INIT, { timeout });
+      assertEquals(run.outcome.status, "failed");
+      if (run.outcome.status !== "failed") throw new Error("unreachable");
+      assertEquals(
+        (outcomeResult(run.outcome).fault as Record<string, unknown>).code,
+        "CLAUDE_HARNESS_INPUT_INVALID",
+        timeout,
+      );
+      assertEquals(run.args, "");
+    }
+  },
+});
+
+Deno.test({
+  name: "Claude freeform does not trust a stream that never produced a result",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun([INIT, assistant("half")].join("\n"));
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(run.published.length, 0);
+  },
+});
+
+Deno.test({
+  name:
+    "Claude freeform materializes the step's pinned inputs before the session starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository(
+      "bakery-claude-freeform-ctx-",
+    );
+    const argsPath = `${scratch.dir}/args.txt`;
+    const promptPath = `${scratch.dir}/prompt.txt`;
+    const fake = await fakeClaude(
+      scratch.dir,
+      `cat > '${promptPath}'
+printf '%s\\n' "$@" > '${argsPath}'
+${[INIT, assistant("done"), resultLine()].join("\n")}`,
+    );
+    const bytes = new TextEncoder().encode("# The brief");
+    const digest = await sha256Hex(bytes);
+    const published: Uint8Array[] = [];
+    const value = {
+      ...freeformAssignment(),
+      contextInputs: [{
+        slot: "brief",
+        path: "brief.md",
+        digest,
+        sizeBytes: bytes.length,
+        mediaType: "text/markdown",
+      }],
+    } as JobAssignment;
+    const executor = createClaudeHarnessExecutor({
+      publishFor: () => async (request) => {
+        published.push(request.bytes);
+        return {
+          artifactId: crypto.randomUUID(),
+          versionId: crypto.randomUUID(),
+          sha256: await sha256Hex(request.bytes),
+        };
+      },
+      repositoryFor: () => scratch.dir,
+      claudeExecutable: fake,
+      stateDir: `${scratch.dir}/worker-state`,
+      authSourceDir: `${scratch.dir}/auth-source`,
+      timeLimitMs: 5_000,
+      readAttemptContext: () =>
+        Promise.resolve([{
+          artifactVersionId: crypto.randomUUID(),
+          artifactId: crypto.randomUUID(),
+          digest,
+          sizeBytes: bytes.length,
+          mediaType: "text/markdown",
+          contentBase64: btoa("# The brief"),
+        }]),
+    });
+    const outcome = await executor.execute(
+      value,
+      new AbortController().signal,
+    );
+    assertEquals(freeformResult(outcome).status, "completed");
+    const prompt = await Deno.readTextFile(promptPath);
+    const args = await Deno.readTextFile(argsPath);
+    assert(prompt.includes("brief.md") && prompt.includes(digest));
+    assert(args.includes("--add-dir\n"), "the context directory is added");
+    // The pins are refused, not ignored, when the bytes differ from the pin.
+    const refused = await createClaudeHarnessExecutor({
+      publishFor: () => () => Promise.reject(new Error("not reached")),
+      repositoryFor: () => scratch.dir,
+      claudeExecutable: fake,
+      stateDir: `${scratch.dir}/worker-state`,
+      authSourceDir: `${scratch.dir}/auth-source`,
+      timeLimitMs: 5_000,
+      readAttemptContext: () =>
+        Promise.resolve([{
+          artifactVersionId: crypto.randomUUID(),
+          artifactId: crypto.randomUUID(),
+          digest,
+          sizeBytes: 5,
+          mediaType: "text/markdown",
+          contentBase64: btoa("other"),
+        }]),
+    }).execute(
+      { ...value, attemptId: crypto.randomUUID() } as JobAssignment,
+      new AbortController().signal,
+    );
+    assertEquals(refused.status, "failed");
+    if (refused.status !== "failed") throw new Error("unreachable");
+    assertEquals(
+      (outcomeResult(refused).fault as Record<string, unknown>).code,
+      "CLAUDE_HARNESS_CONTEXT_UNMATERIALIZABLE",
+    );
+    assertEquals(
+      published.length,
+      1,
+      "nothing published for the refused attempt",
+    );
+  },
+});
+
+// #24: rpi.plan and rpi.design on the Claude harness.
+
+Deno.test({
+  name:
+    "Claude advertises rpi.plan and rpi.design, and refuses a step with nothing pinned without starting the CLI",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-claude-rpi-");
+    const published: Uint8Array[] = [];
+    const executor = freeformExecutor(
+      scratch.dir,
+      `${scratch.dir}/never-run`,
+      published,
+    );
+    assert(executor.supportedActions?.includes("rpi.plan"));
+    assert(executor.supportedActions?.includes("rpi.design"));
+    const refuse = async (action: string, input: Record<string, unknown>) => {
+      const outcome = await executor.execute(
+        { ...freeformAssignment(), action, input } as unknown as JobAssignment,
+        new AbortController().signal,
+      );
+      assertEquals(outcome.status, "failed");
+      return (outcome as unknown as { fault: { code: string } }).fault.code;
+    };
+    assertEquals(
+      await refuse("rpi.plan", { designArtifact: crypto.randomUUID() }),
+      "RPI_INPUT_MISSING",
+    );
+    // Without the design tool the design step is refused before anything else.
+    assertEquals(
+      await refuse("rpi.design", { researchArtifact: crypto.randomUUID() }),
+      "RPI_CAPABILITY_UNAVAILABLE",
+    );
+    assertEquals(published, []);
+  },
+});

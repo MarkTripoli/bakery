@@ -1411,13 +1411,21 @@ prepare({repositoryId, headSha, profileRevision})
   -> {releaseId, artifactDigest, environment, status: "prepared"}
 deploy({releaseId, effectKey})
   -> {deploymentId, commitSha, effectId, status: "queued"|"deploying"|"unknown"|"failed"}
-status({deploymentId, effectKey})
-  -> {deploymentId, observedCommitSha?, effectId?, status: "queued"|"deploying"|"healthy"|"failed"|"unknown"}
+status({effectKey, deploymentId?})
+  -> {deploymentId|null, effectId|null, observedCommitSha?, status: "queued"|"deploying"|"healthy"|"degraded"|"failed"|"rolling_back"|"rolled_back"|"unknown"}
 health({deploymentId})
   -> {deploymentId, status: "healthy"|"degraded"|"failed", checkedAt, evidenceArtifactId}
 rollback({deploymentId, effectKey})
   -> {deploymentId, restoredCommitSha, effectId, status: "rolling_back"|"rolled_back"|"unknown"|"failed"}
 ```
+
+`status` takes the effect key alone because a lost answer to `deploy` leaves
+the caller without the provider's `deploymentId`; it answers for a deploy
+effect (`queued` to `degraded`, or `rolled_back` once restored) and for a
+rollback effect (`rolling_back`, `rolled_back`, `failed`). It answers
+`failed` only when it can prove the mutation did not happen (a key it never
+saw); otherwise `unknown`. A repeated effect key answers with the first call
+and never runs the mutation again.
 
 `delivery.merge` uses the same effect-key and read-after-write rule, returning
 the provider commit identity. An `unknown` deploy or rollback must call
@@ -1432,6 +1440,49 @@ provider deployment until `healthy`, `degraded`, or `failed`. Only `healthy` is
 a successful terminal outcome; `degraded` and `failed` terminalize the run and
 invoke `rollback` with a new stable effect key. An unknown rollback remains in
 reconciliation until its provider identity is confirmed.
+
+### Delivery steps in the engine
+
+`delivery.prepare`, `delivery.deploy` and `delivery.health` are engine-settled
+steps: no worker job, because the release directory of a local target lives on
+the server host. This is the one-engine rule of
+[chapter 25, "One engine (O1)"](25-one-engine.md#2-one-engine-o1) and its kernel
+rules K2 and K5 (the core names no pack; the step row exists before the effect;
+the effect has a key). It adds no node type: the actions are registered in the
+runtime set, and the engine gets one neutral port, `EngineStepRunner`, that a
+pack implements for the actions it owns.
+
+- **Admission.** The engine reads the step, calls the runner outside any
+  transaction, and records the answer in a second short one: `completed` writes
+  the output (audit `workflow.step.complete`), `failed` fails the step with a
+  stable code, `pending` leaves the row pending and stores the time of the next
+  look. A pending step reads as retryable until then, so the engine sleeps through
+  its existing retry path, then admits it again. With no runner configured the
+  step fails with `ENGINE_STEP_UNAVAILABLE`. The row also records when the step first
+  waited; a step still not done 30 minutes later fails with `ENGINE_STEP_TIMED_OUT`
+  (it has no job, so no attempt budget ends the wait).
+- **One effect key.** The step key `<runId>:<stepKey>:<iteration>` is the scope of
+  everything: the deployment record's request key, the target's `deploy:<scope>`
+  effect, and any rollback `rollback:<scope>:<n>`. The plan's own `effectKey`
+  input is validated but the target sees the stricter step identity. A replayed or
+  crashed step finds its record by that key and reads the target back; it never
+  deploys twice.
+- **Record, then act.** The deploy step creates the `deployments` row (queued)
+  before it calls the target, and the target journals the effect before it
+  switches. The `deployments` row is the durable effect record for the local
+  target. It does not write an `external_effects` row: that ledger is bound to
+  integration connections, grants and an adapter registry that reconcile it, none
+  of which a local directory target has.
+- **Steps.** `prepare` stages an immutable release. `deploy` makes it live and
+  stops there (`deploying`); an unknown answer keeps the step pending until the
+  same key reads back. `health` reads the running release, saves the observation
+  as an artifact version, and closes the record healthy, degraded or failed; a
+  degraded or failed release that replaced another is rolled back by the driver
+  under a new key, so there is no separate rollback step.
+- **Configuration.** `BAKERY_DELIVERY_RELEASE_ROOT`, `..._ARTIFACTS_DIR`,
+  `..._HEALTH_URL` and `..._ENVIRONMENT` come through `RuntimeConfig` together or
+  not at all. The target reads `<artifacts>/<sha>.artifact`, never builds, and
+  never runs a command.
 
 ## Schedules and event-triggered agents
 

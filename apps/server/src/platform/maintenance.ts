@@ -178,6 +178,28 @@ async function readHold(
 }
 
 /**
+ * Whether the launcher has paused work for an update right now (#59 ask 9):
+ * the switch is held, its lease is in the future, and its reason is `update`.
+ * A backup's hold is not an update, so it reads false here. Read on the
+ * database clock, so a pause whose lease lapsed reads false with nothing
+ * sweeping it.
+ */
+export async function updatePaused(
+  query: Pick<PgTransactionClient, "query">,
+): Promise<boolean> {
+  const result = await query.query<
+    { state: string; reason: string; leaseExpiresAt: Date; now: Date }
+  >(
+    `select state, reason, lease_expires_at as "leaseExpiresAt",
+            clock_timestamp() as "now"
+       from bakery.installation_maintenance where id = true`,
+  );
+  const row = result.rows[0];
+  return row !== undefined && row.reason === "update" &&
+    maintenanceIsActive(row, row.now);
+}
+
+/**
  * The shared guard. Call it first in the transaction of every entry point that
  * starts or changes work. A restore hold refuses with a 503
  * INSTALLATION_RESTORING that is not retryable (asking again does not help). A

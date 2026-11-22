@@ -1,13 +1,41 @@
-import type * as UI from "@bakery/ui";
 import type { Translator } from "@bakery/i18n";
-import type { RunResponse, RunStepListResponse } from "../api/client.ts";
+import type { RunStepListResponse } from "../api/client.ts";
 
 type RunStep = RunStepListResponse["items"][number];
+
+/**
+ * A timeline row as RunTimeline in @bakery/ui reads it. Declared here, as plain
+ * strings, so this module loads without the UI package and its styles (a unit
+ * test imports it). TaskRunSection hands the rows to RunTimeline, so the
+ * compiler checks they still fit.
+ */
+export type TimelineRow = {
+  description?: string;
+  id: string;
+  status?:
+    | "queued"
+    | "active"
+    | "waiting"
+    | "failed"
+    | "complete"
+    | "canceled"
+    | "skipped"
+    | "blocked";
+  scope?: "step" | "run" | "control";
+  reason?: string;
+  time?: string;
+  /** The time as the person reads it; `time` stays the machine value. */
+  timeLabel?: string;
+  title: string;
+};
 
 /** The deterministic worker fault when no coding harness is installed. */
 export const HARNESS_UNAVAILABLE_CODE = "DETERMINISTIC_EVIDENCE_UNAVAILABLE";
 
-const STEP_STATUS: Record<RunStep["status"], UI.RunTimelineEvent["status"]> = {
+const STEP_STATUS: Record<
+  RunStep["status"],
+  NonNullable<TimelineRow["status"]>
+> = {
   pending: "queued",
   running: "active",
   waiting: "waiting",
@@ -63,49 +91,24 @@ export function budgetFaultReason(
 }
 
 /**
- * Timeline rows from server records only: the run, its steps and their
- * recorded faults. Nothing is inferred from timing or order. `first` and
- * `last` place the run-level entries on the first and last step page.
+ * The step rows of a run, from server records only: its steps and their
+ * recorded faults. Nothing is inferred from timing or order. The run's own
+ * state (queued, completed, failed, blocked) is not a row: the run line says it
+ * once, so the list never repeats it.
  */
-export function runTimelineEvents(
-  run: Pick<
-    RunResponse,
-    "id" | "status" | "createdAt" | "updatedAt" | "finishedAt"
-  >,
+export function stepTimelineEvents(
   steps: readonly RunStep[],
   t: Translator,
-  page: { first: boolean; last: boolean } = { first: true, last: true },
   /** Steps waiting on a model, by id, with what their row says (#70). */
   waiting: ReadonlyMap<string, string> = new Map(),
-): UI.RunTimelineEvent[] {
-  const events: UI.RunTimelineEvent[] = [];
-  if (page.first) {
-    events.push(
-      run.status === "blocked"
-        ? {
-          id: `${run.id}:blocked`,
-          scope: "run",
-          status: "blocked",
-          title: t("tasks.timeline.blocked"),
-          // `blocked` is only ever set for an incomplete dependency, and a
-          // blocked run takes no controls and never starts by itself here.
-          reason: t("tasks.timeline.blockedDependency"),
-          time: run.updatedAt,
-        }
-        : {
-          id: `${run.id}:queued`,
-          scope: "run",
-          status: run.status === "queued" ? "queued" : "complete",
-          title: t("tasks.timeline.queued"),
-          time: run.createdAt,
-        },
-    );
-  }
-  for (const step of steps) {
+  /** How a time reads for the person; without it the record's own text shows. */
+  formatTime: (iso: string) => string = (iso) => iso,
+): TimelineRow[] {
+  return steps.map((step) => {
     const known = KNOWN_STEPS[step.stepKey as keyof typeof KNOWN_STEPS];
     const budgetKey = budgetFaultReason(step);
     const waitingText = waiting.get(step.id);
-    events.push({
+    return {
       id: step.id,
       title: known ? t(known) : step.stepKey,
       description: waitingText ?? t(`tasks.run.step.${step.status}`),
@@ -117,27 +120,10 @@ export function runTimelineEvents(
         ? t(budgetKey)
         : undefined,
       time: step.finishedAt ?? step.startedAt ?? step.createdAt,
-      status: waitingText === undefined ? STEP_STATUS[step.status] : "waiting",
-    });
-  }
-  if (
-    page.last &&
-    (run.status === "completed" || run.status === "failed" ||
-      run.status === "canceled")
-  ) {
-    events.push({
-      id: `${run.id}:terminal`,
-      scope: "run",
-      status: run.status === "completed" ? "complete" : run.status,
-      title: t(
-        run.status === "completed"
-          ? "tasks.timeline.terminal.complete"
-          : run.status === "failed"
-          ? "tasks.timeline.terminal.failed"
-          : "tasks.timeline.terminal.canceled",
+      timeLabel: formatTime(
+        step.finishedAt ?? step.startedAt ?? step.createdAt,
       ),
-      time: run.finishedAt ?? run.updatedAt,
-    });
-  }
-  return events;
+      status: waitingText === undefined ? STEP_STATUS[step.status] : "waiting",
+    };
+  });
 }

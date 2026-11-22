@@ -4133,6 +4133,50 @@ Deno.test("step skills, roles and slots each report their own code", async () =>
   }
 });
 
+Deno.test("a block that repairs must review its own result, and nothing merges before a review", async () => {
+  const repair: Def = { id: "repair", uses: "harness.repair" };
+  const review: Def = { id: "review", uses: "review.independent" };
+  const project: Def = { id: "project", uses: "delivery.candidate_evidence" };
+  const merge: Def = { id: "merge", uses: "delivery.merge" };
+  const block = (...steps: Def[]) => repeatNode({}, { steps });
+  await runCases([
+    [
+      "a repair block with no review",
+      workflow([block(repair, noop("after"))]),
+      [{ path: "/steps/0/repeat", code: "fix_loop_review_missing" }],
+    ],
+    [
+      "a review that is not the last step",
+      workflow([block(repair, review, noop("after"))]),
+      [{
+        path: "/steps/0/repeat/steps/1",
+        code: "fix_loop_review_not_last",
+      }],
+    ],
+    [
+      "a merge before the review",
+      workflow([merge, block(repair, review)]),
+      [{ path: "/steps/0", code: "merge_without_review" }],
+    ],
+    [
+      "a merge inside the block, before its review",
+      workflow([block(repair, merge, review)]),
+      [{
+        path: "/steps/0/repeat/steps/1",
+        code: "merge_without_review",
+      }],
+    ],
+  ]);
+  // The engine's own projection may follow the review; a merge after it is fine.
+  await accepted(workflow([block(repair, review, project), merge]));
+  await accepted(workflow([block(repair, review), merge]));
+  // Nothing changes for a workflow with no repair block.
+  await accepted(workflow([merge]));
+  await accepted(
+    workflow([repeatNode({}, { steps: [noop("try_one")] }), merge]),
+  );
+});
+
 Deno.test("every closed diagnostic code is exercised by this suite", () => {
   // Collector-only codes are exercised through the collector directly.
   const collector = createDiagnosticCollector(1);

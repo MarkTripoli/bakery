@@ -1,6 +1,8 @@
 import { assertEquals } from "@std/assert";
 import {
+  attemptCostKind,
   candidatePin,
+  costDetail,
   countLines,
   filterCount,
   gateCard,
@@ -10,6 +12,7 @@ import {
   resultStateFilter,
   resultWords,
   runBadge,
+  sampledScorers,
   stateChips,
   statesOfFilter,
 } from "../../apps/web/src/pages/library/evaluations-state.ts";
@@ -317,4 +320,70 @@ Deno.test("results group by test case on the candidate side only, in server orde
   assertEquals(groups.map((group) => group.caseId), ["c1", "c2"]);
   assertEquals(groups.map((group) => group.caseName), ["Case c1", "Case c2"]);
   assertEquals(groups[0].results.map((result) => result.id), ["1", "4"]);
+});
+
+Deno.test("an interrupted attempt reads as not scored, with its reason", () => {
+  assertEquals(
+    resultWords({ state: "interrupted", reason: "The worker stopped." }, false),
+    {
+      key: "library.evaluations.result.notScored",
+      values: { reason: "The worker stopped." },
+    },
+  );
+  assertEquals(
+    resultWords({ state: "interrupted", reason: null }, false).key,
+    "library.evaluations.result.notScoredBare",
+  );
+});
+
+const BUDGET = { settledUsd: "0", estimatedUsd: "0", unknownCount: 0 };
+
+Deno.test("the line under Spent says what is known about the cost, with an unknown cost first", () => {
+  // A cost that is not known is never worded as zero or as reported.
+  assertEquals(costDetail({ ...BUDGET, unknownCount: 2 }), "unknown");
+  assertEquals(
+    costDetail({ ...BUDGET, settledUsd: "5.00", unknownCount: 1 }),
+    "unknown",
+  );
+  assertEquals(costDetail(BUDGET), "none");
+  assertEquals(costDetail({ ...BUDGET, settledUsd: "0.000000" }), "none");
+  assertEquals(costDetail({ ...BUDGET, settledUsd: "12.40" }), "reported");
+  assertEquals(
+    costDetail({ ...BUDGET, settledUsd: "3.10", estimatedUsd: "3.10" }),
+    "estimated",
+  );
+  assertEquals(
+    costDetail({ ...BUDGET, settledUsd: "12.40", estimatedUsd: "3.10" }),
+    "partly",
+  );
+  // A sub-cent spend is still spend, not "no model call has finished".
+  assertEquals(costDetail({ ...BUDGET, settledUsd: "0.000001" }), "reported");
+});
+
+Deno.test("an attempt's cost reads as the measurement it carries, and a check has none", () => {
+  assertEquals(attemptCostKind(null), null);
+  assertEquals(attemptCostKind({ measurement: "reported" }), "reported");
+  assertEquals(attemptCostKind({ measurement: "estimated" }), "estimated");
+  assertEquals(attemptCostKind({ measurement: "unknown" }), "unknown");
+});
+
+Deno.test("the sampled scorers of a run are the pinned ones outside its quality gate", () => {
+  const pin = (slug: string, required: boolean) => ({
+    scorerId: "00000000-0000-4000-8000-0000000000" + (required ? "01" : "02"),
+    slug,
+    scorerRevision: 1,
+    evaluatorType: "model" as const,
+    required,
+  });
+  assertEquals(
+    sampledScorers({ scorers: [pin("a", true), pin("b", true)] }),
+    [],
+  );
+  assertEquals(
+    sampledScorers({ scorers: [pin("a", true), pin("b", false)] }).map((s) =>
+      s.slug
+    ),
+    ["b"],
+  );
+  assertEquals(sampledScorers({ scorers: [] }), []);
 });

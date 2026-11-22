@@ -41,6 +41,7 @@ import {
 } from "./library/library-state.ts";
 import { presetSource } from "./library/copy-workflow.ts";
 import { EvaluationsTab } from "./library/EvaluationsTab.tsx";
+import { SkillsTab } from "./library/SkillsTab.tsx";
 import { type LibraryRow, LibraryRows } from "./library/LibraryRows.tsx";
 import { ImportDialog } from "./library/ImportDialog.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
@@ -308,6 +309,8 @@ export function LibraryPage() {
 
   const content = tab === "evaluations"
     ? <EvaluationsTab />
+    : tab === "skills"
+    ? <SkillsTab />
     : forbidden
     ? (
       <UI.EmptyState
@@ -505,7 +508,8 @@ export function LibraryPage() {
             void navigate({
               to: "/library",
               search: {
-                tab: id === "agents" || id === "memory" || id === "evaluations"
+                tab: id === "agents" || id === "skills" || id === "memory" ||
+                    id === "evaluations"
                   ? id
                   : undefined,
               },
@@ -521,6 +525,11 @@ export function LibraryPage() {
               id: "agents",
               label: translate("library.tab.agents" as never),
               content: tab === "agents" ? content : null,
+            },
+            {
+              id: "skills",
+              label: translate("library.tab.skills"),
+              content: tab === "skills" ? content : null,
             },
             {
               id: "memory",

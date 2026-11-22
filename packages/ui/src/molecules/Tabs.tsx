@@ -1,4 +1,11 @@
-import { type KeyboardEvent, type ReactNode, useId } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import "../controls.css";
 
 export type Tab = {
@@ -33,6 +40,64 @@ export function Tabs(
   const selected = tabs.find((tab) => tab.id === selectedId && !tab.disabled) ??
     tabs.find((tab) => !tab.disabled);
   const tabDomId = (id: string) => `${instanceId}-tab-${id}`;
+  const listRef = useRef<HTMLDivElement>(null);
+  const firstScroll = useRef(true);
+  // Which edges of the list have more tabs beyond them. Physical sides, read
+  // from the real scroll position and the reading direction, so a fade shows
+  // only while tabs are hidden past that edge, and never when all fit.
+  const [fade, setFade] = useState({ left: false, right: false });
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const measure = () => {
+      const rtl = getComputedStyle(list).direction === "rtl";
+      const away = rtl ? -list.scrollLeft : list.scrollLeft;
+      const hidden = list.scrollWidth - list.clientWidth;
+      const before = away > 1;
+      const after = hidden - away > 1;
+      const next = { left: rtl ? after : before, right: rtl ? before : after };
+      setFade((current) =>
+        current.left === next.left && current.right === next.right
+          ? current
+          : next
+      );
+    };
+    measure();
+    list.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => {
+      list.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [tabs.length]);
+  // The selected tab is brought fully into view when the page opens and when
+  // the selection changes: sideways only (the page itself never moves), clear
+  // of the fade, and without animation for someone who asked for less motion.
+  const selectedKey = selected?.id;
+  useEffect(() => {
+    const list = listRef.current;
+    const tab = selectedKey === undefined
+      ? null
+      : document.getElementById(tabDomId(selectedKey));
+    if (!list || !tab) return;
+    const inset = Number.parseFloat(
+      getComputedStyle(list).getPropertyValue("--space-6"),
+    ) || 0;
+    const box = list.getBoundingClientRect();
+    const at = tab.getBoundingClientRect();
+    const delta = at.left < box.left + inset
+      ? at.left - box.left - inset
+      : at.right > box.right - inset
+      ? at.right - box.right + inset
+      : 0;
+    const calm = firstScroll.current ||
+      globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    firstScroll.current = false;
+    if (delta !== 0) {
+      list.scrollBy({ left: delta, behavior: calm ? "auto" : "smooth" });
+    }
+  }, [selectedKey]);
   const panelDomId = (id: string) => `${instanceId}-panel-${id}`;
   const moveFocus = (
     event: KeyboardEvent<HTMLButtonElement>,
@@ -67,7 +132,14 @@ export function Tabs(
       data-variant={variant}
     >
       <div className="ui-tabs__bar">
-        <div aria-label={ariaLabel} className="ui-tabs__list" role="tablist">
+        <div
+          aria-label={ariaLabel}
+          className="ui-tabs__list"
+          data-fade-left={fade.left ? "true" : undefined}
+          data-fade-right={fade.right ? "true" : undefined}
+          ref={listRef}
+          role="tablist"
+        >
           {tabs.map((tab, index) => (
             <button
               aria-controls={panelDomId(tab.id)}

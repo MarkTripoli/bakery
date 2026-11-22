@@ -22,7 +22,6 @@ import {
   isAgentVersionSelector,
   selectStepAgentVersion,
 } from "../../packages/persistence/src/action-admission.ts";
-import { StandardError } from "../../packages/contracts/src/http.ts";
 import { createWorkflowActionRuntime } from "../../apps/server/src/modules/workflows/action-runtime.ts";
 import { createWorkflowActionRoutes } from "../../apps/server/src/modules/workflow-actions/routes.ts";
 import {
@@ -531,6 +530,9 @@ Deno.test("WorkflowStepBinding publishes four sources and a bare sha256 digest",
 
 const runtimeSet = [
   "agent.freeform",
+  "delivery.deploy",
+  "delivery.health",
+  "delivery.prepare",
   "evaluation.check",
   "evaluation.score",
   "harness.implement",
@@ -580,7 +582,8 @@ Deno.test("worker-dispatched declarations pin outputSchema to the registry and t
   for (const name of runtimeSet) {
     if (
       name === "workflow.noop" || name === "rpi.plan" ||
-      name === "workflow.stop" || name === "human.approval"
+      name === "workflow.stop" || name === "human.approval" ||
+      name.startsWith("delivery.")
     ) continue;
     const metadata = WORKFLOW_ACTION_METADATA[name as "quality.check"];
     const { handler } = runtime.get(name as "quality.check");
@@ -606,15 +609,21 @@ Deno.test("harness.implement handler admits valid input and rejects model or unk
   assertThrows(() => handle({}));
 });
 
-Deno.test("rpi.plan handler fails workflow_action_unavailable", () => {
+Deno.test("rpi.plan is a worker job: its handler admits a design artifact and dispatches", () => {
   const { handle } = createWorkflowActionRuntime().get("rpi.plan").handler;
-  const error = assertThrows(
-    () => handle({ designArtifact: validImplement.planArtifact }),
-    StandardError,
-  );
-  assertEquals(error.code, "STATE_CONFLICT");
-  assertEquals(error.params, { reason: "workflow_action_unavailable" });
+  const request = handle({ designArtifact: validImplement.planArtifact });
+  assertEquals(request, {
+    dispatch: "worker_job",
+    action: "rpi.plan",
+    version: 1,
+    input: { designArtifact: validImplement.planArtifact },
+  });
+  // Only the registered input: no design artifact, no job.
   assertThrows(() => handle({}));
+  assertThrows(() => handle({ designArtifact: "not-a-uuid" }));
+  assertThrows(() =>
+    handle({ designArtifact: validImplement.planArtifact, model: "x" })
+  );
 });
 
 Deno.test("runtime and discovery construction fail on schema drift", () => {
@@ -634,4 +643,33 @@ Deno.test("runtime and discovery construction fail on schema drift", () => {
     ImplementedActionRegistryError,
     "PlanInput",
   );
+});
+
+Deno.test("a delivery step handler validates its input and never runs the step itself (#43)", () => {
+  const runtime = createWorkflowActionRuntime();
+  const repositoryId = "00000000-0000-4000-8000-0000000000a1";
+  const valid: Record<string, unknown> = {
+    "delivery.prepare": {
+      repositoryId,
+      headSha: "a".repeat(40),
+      profileRevision: 1,
+    },
+    "delivery.deploy": {
+      releaseId: "r1",
+      environment: "staging",
+      effectKey: "k",
+    },
+    "delivery.health": { deploymentId: repositoryId },
+  };
+  for (const [name, input] of Object.entries(valid)) {
+    const { handle } = runtime.get(name as "delivery.prepare").handler;
+    const error = assertThrows(() => handle(input));
+    assertEquals(
+      (error as { params?: { reason?: string } }).params?.reason,
+      "workflow_delivery_step_settled_by_engine",
+      name,
+    );
+    // An input that is not the action's shape fails validation first.
+    assertThrows(() => handle({ extra: true }));
+  }
 });

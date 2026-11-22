@@ -17,6 +17,7 @@ export {
   isPgConnectionFailure,
   openDatabase,
   openPgDatabase,
+  SERVER_POOL_MAX,
   withPgTransaction,
 } from "./postgres.ts";
 export type { Database, PgDatabase, PgTransactionClient } from "./postgres.ts";
