@@ -1264,7 +1264,7 @@ for (
       await expect(skills).toContainText("Version 2 · comes with Bakery");
       await expect(skills).toContainText("Release notes");
       await expect(skills).toContainText(
-        "Version 3 · yours. This workflow may use it; its files stay private.",
+        "Version 3 · yours",
       );
       await expect(skills).toContainText("Security review");
       await expect(skills).toContainText(
@@ -1465,21 +1465,18 @@ for (
       });
       const picker = await openPicker(skills);
       // Two groups: the organization's skills, then the caller's own private ones.
-      await expect(picker.locator("button:disabled")).toHaveText([
-        "Your organization",
-        "Private to you",
-        "Attaching one shares its use, not its files.",
-      ]);
+      await expect(picker).toContainText("Your organization");
+      await expect(picker).toContainText("Private to you");
+      // The picker does not repeat what the confirmation says about files.
+      await expect(picker).not.toContainText("not its files");
       await shot(page, "workflow-editor-skills-picker");
       // The search field narrows the list and keeps a group's heading only while it has a match.
       const find = picker.getByLabel("Find a skill");
       await find.fill("release");
       await expect(picker.getByRole("button", { name: /Code style/ }))
         .toHaveCount(0);
-      await expect(picker.getByRole("button", { name: "Your organization" }))
-        .toHaveCount(0);
-      await expect(picker.getByRole("button", { name: "Private to you" }))
-        .toHaveCount(1);
+      await expect(picker.getByText("Your organization")).toHaveCount(0);
+      await expect(picker.getByText("Private to you")).toHaveCount(1);
       await find.fill("zzz");
       await expect(picker).toContainText('No skill matches "zzz".');
       await find.fill("");
@@ -1511,7 +1508,7 @@ for (
           }),
         ],
       });
-      await pickSkill(skills, "Release notes (Private) · Version 3");
+      await pickSkill(skills, "Release notes · Version 3");
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText(
         "Let this workflow use your private skill?",
@@ -1531,7 +1528,7 @@ for (
       await expect(skills.getByRole("listitem")).toHaveCount(0);
       expect(seen.draftSaves).toHaveLength(0);
       // Choosing again and confirming attaches it, says what it now allows, and names the confirmation in the save.
-      await pickSkill(skills, "Release notes (Private) · Version 3");
+      await pickSkill(skills, "Release notes · Version 3");
       await page.getByRole("alertdialog").getByRole("button", {
         name: "Attach and allow use",
       }).click();
@@ -1639,7 +1636,7 @@ for (
       const trigger = skills.getByRole("button", { name: "Attach a skill…" });
       await pickSkill(skills, "Code style · Version 2");
       await expect(skills).toContainText(
-        "Every skill that fits this step is attached. More are made in the Library.",
+        "No more skills to attach.",
       );
       await expect(trigger).toHaveCount(0);
       // Not the "nothing fits" line: something does fit, and it is on the step.
@@ -1651,7 +1648,7 @@ for (
       const back = await openPicker(skills);
       await expect(back.getByRole("button", { name: /Code style/ }))
         .toHaveCount(1);
-      await expect(skills).not.toContainText("Every skill that fits this step");
+      await expect(skills).not.toContainText("No more skills to attach.");
     });
 
     test("an edit made while a save is still answering waits, then saves on the version that save returned", async ({ page }) => {

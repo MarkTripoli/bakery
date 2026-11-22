@@ -311,7 +311,7 @@ function AttachSkill(
   if (attach.state === "ready" && attach.choices.length === 0) {
     // Nothing fits this kind of step, or everything that fits is already on it.
     return (
-      <UI.Text variant="muted">
+      <UI.Text variant={attach.offered === 0 ? "muted" : "caption"}>
         {t(attach.offered === 0 ? "picker.empty" : "picker.allAttached")}
       </UI.Text>
     );
@@ -324,52 +324,35 @@ function AttachSkill(
     );
   }
   const needle = query.trim().toLocaleLowerCase();
-  const items: UI.CommandItem[] = [];
-  for (const group of ["organization", "private"] as const) {
+  const matches = (choice: SkillChoice) =>
+    needle === "" ||
+    `${choice.name} ${choice.slug}`.toLocaleLowerCase().includes(needle);
+  const optionsOf = (group: SkillChoice["group"]) => {
     const inGroup = attach.choices.filter((choice) => choice.group === group);
-    const shown = inGroup.filter((choice) =>
-      needle === "" ||
-      `${choice.name} ${choice.slug}`.toLocaleLowerCase().includes(needle)
-    );
-    if (shown.length === 0) continue;
-    // A group's heading stays while any of its skills match what was typed.
-    items.push({
-      disabled: true,
-      id: `group-${group}`,
-      label: (
-        <strong>
-          {t(
-            group === "private"
-              ? "picker.groupPrivate"
-              : "picker.groupOrganization",
-          )}
-        </strong>
-      ),
-      searchText: query,
-    });
-    if (group === "private") {
-      items.push({
-        disabled: true,
-        id: "group-private-note",
-        label: t("picker.groupPrivateNote"),
-        searchText: query,
-      });
-    }
-    for (const choice of shown) {
+    return inGroup.filter(matches).map((choice) => {
       const same = inGroup.filter((other) => other.name === choice.name).length;
-      const label = t(
-        group === "private" ? "picker.optionPrivate" : "picker.option",
-        { name: choice.name, version: choice.revision },
+      return (
+        <UI.Button
+          data-pick-skill={choice.value}
+          key={choice.value}
+          onClick={() => {
+            setOpen(false);
+            setQuery("");
+            attach.onChoose(choice.value);
+          }}
+          variant="quiet"
+        >
+          <span>
+            {choice.name}
+            {t("picker.versionTail", { version: choice.revision })}
+            {same > 1 ? t("picker.slugTail", { slug: choice.slug }) : null}
+          </span>
+        </UI.Button>
       );
-      items.push({
-        id: choice.value,
-        label: same > 1
-          ? t("picker.withSlug", { label, slug: choice.slug })
-          : label,
-        searchText: `${choice.name} ${choice.slug}`,
-      });
-    }
-  }
+    });
+  };
+  const organization = optionsOf("organization");
+  const personal = optionsOf("private");
   return (
     <UI.Popover
       label={t("picker.label")}
@@ -382,19 +365,37 @@ function AttachSkill(
       triggerAppearance="toolbar"
       variant="interactive"
     >
-      <UI.Command
-        emptyMessage={t("picker.noMatch", { text: query })}
-        inputLabel={t("picker.find")}
-        items={items}
-        onQueryChange={setQuery}
-        onRun={(id) => {
-          setOpen(false);
-          setQuery("");
-          attach.onChoose(id);
-        }}
-        query={query}
-        variant="scoped"
-      />
+      <UI.Stack data-testid="skill-picker" gap="compact">
+        <UI.SearchField
+          aria-label={t("picker.find")}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          placeholder={t("picker.find")}
+          value={query}
+        />
+        <UI.Stack data-picker-list="true" gap="compact">
+          {organization.length === 0 && personal.length === 0
+            ? (
+              <UI.Text variant="muted">
+                {t("picker.noMatch", { text: query })}
+              </UI.Text>
+            )
+            : null}
+          {organization.length === 0 ? null : (
+            <>
+              <UI.Text variant="strong">
+                {t("picker.groupOrganization")}
+              </UI.Text>
+              {organization}
+            </>
+          )}
+          {personal.length === 0 ? null : (
+            <>
+              <UI.Text variant="strong">{t("picker.groupPrivate")}</UI.Text>
+              {personal}
+            </>
+          )}
+        </UI.Stack>
+      </UI.Stack>
     </UI.Popover>
   );
 }

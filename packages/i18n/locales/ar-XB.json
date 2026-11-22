@@ -6083,10 +6083,6 @@
   "library.workflow.editor.skills.picker.placeholder": "⟪Attach a skill…⟫",
   "library.workflow.editor.skills.picker.groupOrganization": "⟪Your organization⟫",
   "library.workflow.editor.skills.picker.groupPrivate": "⟪Private to you⟫",
-  "library.workflow.editor.skills.picker.groupPrivateNote": "⟪Attaching one shares its use, not its files.⟫",
-  "library.workflow.editor.skills.picker.option": "⟪{name} · Version {version}⟫",
-  "library.workflow.editor.skills.picker.optionPrivate": "⟪{name} (Private) · Version {version}⟫",
-  "library.workflow.editor.skills.picker.withSlug": "⟪{label} · {slug}⟫",
   "library.workflow.editor.skills.picker.loading": "⟪Loading skills…⟫",
   "library.workflow.editor.skills.picker.failed": "⟪The skills did not load.⟫",
   "library.workflow.editor.skills.picker.empty": "⟪No skills fit this kind of step. Skills are made in the Library.⟫",
@@ -6112,5 +6108,7 @@
   "library.workflow.editor.skills.picker.allAttached": "⟪Every skill that fits this step is attached. More are made in the Library.⟫",
   "library.workflow.editor.skills.confirm.listLabel": "⟪What sharing this skill means⟫",
   "library.workflow.editor.skills.picker.find": "⟪Find a skill⟫",
-  "library.workflow.editor.skills.picker.noMatch": "⟪No skill matches \"{text}\".⟫"
+  "library.workflow.editor.skills.picker.noMatch": "⟪No skill matches \"{text}\".⟫",
+  "library.workflow.editor.skills.picker.versionTail": "⟪ · Version {version}⟫",
+  "library.workflow.editor.skills.picker.slugTail": "⟪ · {slug}⟫"
 }

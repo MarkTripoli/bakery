@@ -6083,10 +6083,6 @@
   "library.workflow.editor.skills.picker.placeholder": "⟦Àŧŧàçĥ à šķïļļ… ŧëš⟧",
   "library.workflow.editor.skills.picker.groupOrganization": "⟦Ÿôûŕ ôŕĝàñïžàŧïôñ ŧëš⟧",
   "library.workflow.editor.skills.picker.groupPrivate": "⟦Þŕïṽàŧë ŧô ÿôû ŧë⟧",
-  "library.workflow.editor.skills.picker.groupPrivateNote": "⟦Àŧŧàçĥïñĝ ôñë šĥàŕëš ïŧš ûšë, ñôŧ ïŧš ƒïļëš. ŧëšŧ çôþÿ ŧëš⟧",
-  "library.workflow.editor.skills.picker.option": "⟦{name} · Ṽëŕšïôñ {version} ŧëšŧ çô⟧",
-  "library.workflow.editor.skills.picker.optionPrivate": "⟦{name} (Þŕïṽàŧë) · Ṽëŕšïôñ {version} ŧëšŧ çôþÿŧ⟧",
-  "library.workflow.editor.skills.picker.withSlug": "⟦{label} · {slug} ŧëš⟧",
   "library.workflow.editor.skills.picker.loading": "⟦Ļôàðïñĝ šķïļļš… ŧëš⟧",
   "library.workflow.editor.skills.picker.failed": "⟦Ŧĥë šķïļļš ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
   "library.workflow.editor.skills.picker.empty": "⟦Ñô šķïļļš ƒïŧ ŧĥïš ķïñð ôƒ šŧëþ. Šķïļļš àŕë ɱàðë ïñ ŧĥë Ļïƀŕàŕÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
@@ -6112,5 +6108,7 @@
   "library.workflow.editor.skills.picker.allAttached": "⟦Ëṽëŕÿ šķïļļ ŧĥàŧ ƒïŧš ŧĥïš šŧëþ ïš àŧŧàçĥëð. Ṁôŕë àŕë ɱàðë ïñ ŧĥë Ļïƀŕàŕÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.workflow.editor.skills.confirm.listLabel": "⟦Ŵĥàŧ šĥàŕïñĝ ŧĥïš šķïļļ ɱëàñš ŧëšŧ çôþ⟧",
   "library.workflow.editor.skills.picker.find": "⟦Ƒïñð à šķïļļ ŧë⟧",
-  "library.workflow.editor.skills.picker.noMatch": "⟦Ñô šķïļļ ɱàŧçĥëš \"{text}\". ŧëšŧ çô⟧"
+  "library.workflow.editor.skills.picker.noMatch": "⟦Ñô šķïļļ ɱàŧçĥëš \"{text}\". ŧëšŧ çô⟧",
+  "library.workflow.editor.skills.picker.versionTail": "⟦ · Ṽëŕšïôñ {version} ŧëšŧ⟧",
+  "library.workflow.editor.skills.picker.slugTail": "⟦ · {slug} ŧ⟧"
 }
