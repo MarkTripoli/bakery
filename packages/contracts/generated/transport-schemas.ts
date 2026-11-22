@@ -8292,12 +8292,27 @@ const transportSchemas = {
           "type": "boolean",
           "required": false,
           "description": "True to clear the install's recorded last update failure without changing its version or status."
+        },
+        {
+          "name": "approveCapabilities",
+          "type": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 7
+          },
+          "description": "The capabilities the new version asks for that the version this install pins now did not, approved by the caller for this move: exactly those and no others. Without them, a version that asks for more is not activated and the install stays as it is. Only meaningful with a versionId that differs from the pinned one."
+        },
+        {
+          "name": "restoreState",
+          "type": "boolean",
+          "required": false,
+          "description": "True to move back to a version the install left by restoring the state as that version left it, discarding what was saved since. Only the version the install's snapshot was taken from can be restored, and only when it can read that state; only meaningful with a versionId that differs from the pinned one."
         }
       ],
       "rules": [
-        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
+        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that asks for capabilities the pinned one did not is activated only when approveCapabilities names exactly those (plugin_capabilities_not_approved, plugin_capability_approval_mismatch otherwise), and one that cannot read the state the install holds is not activated (plugin_state_incompatible) unless restoreState brings back the snapshot taken as the install left that version (plugin_state_snapshot_not_for_version when the snapshot is of another version). Moving takes a fresh snapshot of the state in the same transaction. approveCapabilities or restoreState without another version is VALIDATION_FAILED. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible, plugin_state_snapshot_not_for_version) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
       ],
-      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active; added capabilities need the caller's approval, and incompatible state blocks the move unless a restore is asked for. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "fields": [
@@ -28784,7 +28799,9 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -28800,13 +28817,16 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "lastUpdateFailure": "json|null"
+        "lastUpdateFailure": "json|null",
+        "stateCopy": "json|null",
+        "cannotReadVersionIds": "uuid[]"
       },
       "nullableFields": [
         "ownerPrincipalId",
         "activatedAt",
         "disabledAt",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy"
       ],
       "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
       "fieldDescriptions": {
@@ -28823,10 +28843,14 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this plugin install record.",
         "updatedAt": "Timestamp recording the last update to this plugin install record.",
         "version": "Monotonic revision used to order or conditionally update this plugin install record.",
-        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show.",
+        "stateCopy": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved.",
+        "cannotReadVersionIds": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it."
       },
       "optionalFields": [
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ]
     },
     "Page<PluginInstall>": {

@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "46f1ca889f9500aec2e8f992d6de4847929427e7"
+    "f5c4ca5dab467f7a98a0272b8fa9a1840b3f20d0"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:74cd9dbc5efe4ab6e8ddf44bd016fa24bcc95b07c43255cccde24f19183f763f",
-  "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 46f1ca889f9500aec2e8f992d6de4847929427e7: link codes and link requests on worker enrollment; link requests accept only linux or macos as os, and machine names, host names and architectures on the link and registration inputs refuse the control, separator, zero-width, text-direction, byte-order-mark and tag characters the link command refuses. The approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:5b14c5aabd7761f1d696045db2d449d51c16bab7e16bc893f464bcbae51e20be",
+  "reason": "#41 versioned evaluations by dev-bugfix on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main f5c4ca5dab467f7a98a0272b8fa9a1840b3f20d0: evaluation batches pin exact versions (kind, id, version only), model scorers can be optional so a scorer's required flag is now stated on every result, attempts can end interrupted, batches carry a pin digest, a model budget and a corpus report, and evaluationBatches.run is new. Main's own approval it displaces is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "46f1ca889f9500aec2e8f992d6de4847929427e7"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:74cd9dbc5efe4ab6e8ddf44bd016fa24bcc95b07c43255cccde24f19183f763f",
+      "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 46f1ca889f9500aec2e8f992d6de4847929427e7: link codes and link requests on worker enrollment; link requests accept only linux or macos as os, and machine names, host names and architectures on the link and registration inputs refuse the control, separator, zero-width, text-direction, byte-order-mark and tag characters the link command refuses. The approval it displaces is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
