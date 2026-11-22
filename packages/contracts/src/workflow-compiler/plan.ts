@@ -115,7 +115,7 @@ function flatten(
           seedSteps,
           child(marked, [
             ...frame.loops,
-            { repeat: joined, max: node.max, seed: true },
+            { kind: "repeat", repeat: joined, max: node.max, seed: true },
           ]),
           0,
           depth + 1,
@@ -125,7 +125,7 @@ function flatten(
           node.steps,
           child(marked, [
             ...frame.loops,
-            { repeat: joined, max: node.max, seed: false },
+            { kind: "repeat", repeat: joined, max: node.max, seed: false },
           ]),
           seedSteps.length,
           depth + 1,
@@ -139,7 +139,7 @@ function flatten(
           node.steps,
           child(`${node.id}${MARKER}`, [
             ...frame.loops,
-            { repeat: joined, max: node.max, seed: false },
+            { kind: "forEach", repeat: joined, max: node.max, seed: false },
           ]),
           0,
           depth + 1,

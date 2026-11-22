@@ -746,6 +746,9 @@ export const WorkflowPlanStepSchema = z.object({
   retry: retrySchema,
   loops: z.array(
     z.object({
+      kind: z.enum(["repeat", "forEach"]).describe(
+        "Which loop this is: a repeat (its @n counts tries; seed steps are iteration 0) or a forEach (its @n is the position of the item, 1-based, in the list it walks).",
+      ),
       repeat: z.string().max(2048).describe(
         "Qualified identifier of the enclosing repeat or forEach.",
       ),

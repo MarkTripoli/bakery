@@ -4053,10 +4053,13 @@ Deno.test("expandStepKeys refuses to exceed the step limit", async () => {
   const result = await accepted(workflow([repeatNode({}, { max: 2 })]));
   const [step] = result.plan.steps;
   assert(step);
+  // A repeat's loop entry says it is a repeat (#417).
+  assertEquals(step.loops.map((loop) => loop.kind), ["repeat"]);
   const big = {
     steps: [{
       ...step,
       loops: Array.from({ length: 4 }, () => ({
+        kind: "repeat" as const,
         repeat: "fix",
         max: 8,
         seed: false,
@@ -4221,7 +4224,12 @@ Deno.test("a forEach normalizes to a bounded loop whose steps run max times at w
     step.qualifiedId === "cases.run_case"
   );
   assertEquals(runCase?.keyTemplate, "cases@n.run_case");
-  assertEquals(runCase?.loops, [{ repeat: "cases", max: 3, seed: false }]);
+  assertEquals(runCase?.loops, [{
+    kind: "forEach",
+    repeat: "cases",
+    max: 3,
+    seed: false,
+  }]);
   assertEquals(result.plan.worstCase.steps, 1 + 3 + 1);
   // A literal list is a list too.
   await accepted(workflow([forEachNode({}, { items: ["a", "b"] })]));

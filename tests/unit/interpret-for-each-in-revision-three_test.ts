@@ -386,7 +386,12 @@ Deno.test("the plan allocates every key the loop can dispatch, max per step", as
     step.qualifiedId === "cases.run_case"
   )!;
   assertEquals(runCase.keyTemplate, "cases@n.run_case");
-  assertEquals(runCase.loops, [{ repeat: "cases", max: 3, seed: false }]);
+  assertEquals(runCase.loops, [{
+    kind: "forEach",
+    repeat: "cases",
+    max: 3,
+    seed: false,
+  }]);
   assertEquals(allocateStepKey(runCase, [2]), "cases@2.run_case");
   assertEquals(expandStepKeys(plan), [
     "prepare",
