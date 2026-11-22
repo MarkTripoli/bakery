@@ -6229,10 +6229,7 @@
   "library.skill.usedBy.empty": "⟪Nothing uses this skill yet.⟫",
   "library.skill.usedBy.error": "⟪What uses this skill did not load.⟫",
   "library.skill.access.title": "⟪Who can use it⟫",
-  "library.skill.access.shared": "⟪Only you can open this skill. You let these shared workflows use it.⟫",
-  "library.skill.access.line": "⟪Step “{step}” · version {number} · since {date}⟫",
   "library.skill.access.lineNoVersion": "⟪Step “{step}” · since {date}⟫",
-  "library.skill.access.empty": "⟪No shared workflow uses it. Attach it to a workflow step to let that workflow use it.⟫",
   "library.skill.access.error": "⟪Who can use this skill did not load.⟫",
   "library.skill.origin.title": "⟪Where it came from⟫",
   "library.skill.origin.written": "⟪Written here⟫",
@@ -6298,5 +6295,9 @@
   "library.evaluation.cost.exhausted.body": "⟪Checks still run, and they cost nothing.⟫",
   "library.evaluation.sampled.help": "⟪A model's opinion on a sample of the test cases.⟫",
   "library.evaluation.sampled.show": "⟪Show the {count, plural, one {# sampled result} other {# sampled results}}⟫",
-  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫"
+  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫",
+  "library.skill.usedBy.linePins": "⟪{name}, version {revision} · {count, plural, one {uses version {list}} other {uses versions {list}}}⟫",
+  "library.skill.access.shared": "⟪Only you can open this skill. These shared workflows are allowed to use it.⟫",
+  "library.skill.access.line": "⟪Step “{step}” · version {number} of this skill · since {date}⟫",
+  "library.skill.access.empty": "⟪No shared workflow is allowed to use it. Attach it to a workflow step to allow that workflow.⟫"
 }

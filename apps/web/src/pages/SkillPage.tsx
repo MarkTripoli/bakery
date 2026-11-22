@@ -31,6 +31,7 @@ import {
   fingerprint,
   licenseShownInFiles,
   manifestFiles,
+  pinnedRevisions,
   scopeWords,
   skillOrigin,
   sourceKindWords,
@@ -309,10 +310,15 @@ function VersionsCard(
   );
 }
 
-function UsedByCard({ skill }: { readonly skill: SkillResponse }) {
+function UsedByCard(
+  { skill, versions }: {
+    readonly skill: SkillResponse;
+    readonly versions: readonly SkillVersionResponse[];
+  },
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
   const usedBy = useInfiniteQuery(
     skillUsedByQueryOptions(api, scope, skill.id),
   );
@@ -328,10 +334,25 @@ function UsedByCard({ skill }: { readonly skill: SkillResponse }) {
             {rows.map((row) => (
               <div key={row.versionId} role="listitem">
                 <UI.Text>
-                  {translate("library.skill.usedBy.line", {
-                    name: row.definitionName,
-                    revision: row.revision,
-                  })}
+                  {(() => {
+                    // Which version of this skill the row pins, so "version 4"
+                    // is not read as a version of the skill.
+                    const pinned = pinnedRevisions(row, versions);
+                    return pinned.length === 0
+                      ? translate("library.skill.usedBy.line", {
+                        name: row.definitionName,
+                        revision: row.revision,
+                      })
+                      : translate("library.skill.usedBy.linePins", {
+                        name: row.definitionName,
+                        revision: row.revision,
+                        count: pinned.length,
+                        list: new Intl.ListFormat(locale, {
+                          style: "long",
+                          type: "conjunction",
+                        }).format(pinned.map(String)),
+                      });
+                  })()}
                 </UI.Text>
               </div>
             ))}
@@ -477,6 +498,7 @@ function CopiedLine(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate } = useI18n();
+  const navigate = useNavigate();
   const original = useQuery(skillQueryOptions(api, scope, skillId));
   // The original's versions name the revision the copy was made from.
   const versions = useInfiniteQuery({
@@ -489,7 +511,34 @@ function CopiedLine(
     : versions.data?.pages.flatMap((page) => page.items)
       .find((version) => version.id === versionId)?.revision ?? null;
   const words = copiedWords(original.data?.name ?? null, revision);
-  return <UI.Text>{translate(words.key, words.values)}</UI.Text>;
+  const name = original.data?.name ?? null;
+  if (name === null) {
+    return <UI.Text>{translate(words.key, words.values)}</UI.Text>;
+  }
+  // The reader can open the original: its name is a link to its page. The whole
+  // sentence stays one translation; the name is set apart and put back as the link.
+  const MARK = "\u2063";
+  const [before, after] = translate(words.key, { ...words.values, name: MARK })
+    .split(MARK);
+  const href = `/library/skills/${skillId}`;
+  return (
+    <UI.Text>
+      {before}
+      <UI.Link
+        href={href}
+        onClick={(event) => {
+          event.preventDefault();
+          void navigate({
+            to: "/library/skills/$skillId",
+            params: { skillId },
+          });
+        }}
+      >
+        {name}
+      </UI.Link>
+      {after ?? ""}
+    </UI.Text>
+  );
 }
 
 function SourceDetails({ sourceId }: { readonly sourceId: string }) {
@@ -570,7 +619,7 @@ function SkillBody({ skill }: { readonly skill: SkillResponse }) {
       aside={
         <UI.Stack gap="spacious">
           <VersionsCard skill={skill} state={state} />
-          <UsedByCard skill={skill} />
+          <UsedByCard skill={skill} versions={state.items} />
           {skill.scope === "personal"
             ? <AccessCard skill={skill} versions={state.items} />
             : null}

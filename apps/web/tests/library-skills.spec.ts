@@ -255,18 +255,27 @@ for (
         ),
       ).toBeVisible();
       const access = page.getByTestId("skill-access");
+      await expect(
+        access.getByText(
+          "Only you can open this skill. These shared workflows are allowed to use it.",
+        ),
+      ).toBeVisible();
       await expect(access.getByText("Weekly digest")).toBeVisible();
       await expect(
         access.getByText(
-          "Step “Draft the digest” · version 2 · since Nov 18, 2026",
+          "Step “Draft the digest” · version 2 of this skill · since Nov 18, 2026",
         ),
       ).toBeVisible();
       await expect(access.getByRole("button")).toHaveCount(0);
-      await expect(
-        page.getByTestId("skill-origin").getByText(
-          "Copied from Writing guide, version 1",
-        ),
-      ).toBeVisible();
+      // The original's name is a link to its page, in the same sentence.
+      const origin = page.getByTestId("skill-origin");
+      await expect(origin).toContainText(
+        "Copied from Writing guide, version 1",
+      );
+      await expect(origin.getByRole("link", { name: "Writing guide" }))
+        .toHaveAttribute("href", `${skillPage(IDS.writingGuide)}`);
+      await origin.getByRole("link", { name: "Writing guide" }).click();
+      await expect(page).toHaveURL(new RegExp(skillPage(IDS.writingGuide)));
       await expect(
         page.getByRole("button", {
           name: /Stop|Edit|Check for updates|Make a copy/,
@@ -291,10 +300,15 @@ for (
       ).toBeVisible();
       const usedBy = page.getByTestId("skill-used-by");
       await expect(usedBy.getByText("Agents")).toBeVisible();
-      await expect(usedBy.getByText("Reviewer, version 4")).toBeVisible();
+      // Each row says which version of this skill it pins.
+      await expect(usedBy.getByText("Reviewer, version 4 · uses version 1"))
+        .toBeVisible();
       await expect(usedBy.getByText("Workflows")).toBeVisible();
-      await expect(usedBy.getByText("Nightly build, version 7")).toBeVisible();
-      await expect(usedBy.getByText("Release, version 2")).toBeVisible();
+      await expect(
+        usedBy.getByText("Nightly build, version 7 · uses versions 1 and 2"),
+      ).toBeVisible();
+      await expect(usedBy.getByText("Release, version 2 · uses version 1"))
+        .toBeVisible();
       await expect(page.getByTestId("skill-access")).toHaveCount(0);
       await expect(page.getByTestId("skill-origin").getByText("Written here"))
         .toBeVisible();
@@ -411,6 +425,81 @@ for (
       await expect(page).toHaveURL(/tab=skills/);
     });
 
+    test("the filter and search share one row on a wide screen and stack on a phone", async ({ page }) => {
+      await skillsFixture(page);
+      await page.goto(LIST);
+      await expect(rows(page)).toHaveCount(7);
+      const search =
+        (await page.getByPlaceholder("Find a skill").boundingBox())!;
+      const filter = (await (viewport.phone
+        ? page.getByLabel("Show")
+        : page.getByRole("group", { name: "Show" })).boundingBox())!;
+      if (viewport.phone) {
+        // Stacked: the search sits under the filter, both the page's width.
+        expect(search.y).toBeGreaterThan(filter.y + filter.height - 1);
+      } else {
+        // One row: they overlap vertically, the filter at its own width and the
+        // search about 280px wide at the end.
+        expect(search.y).toBeLessThan(filter.y + filter.height);
+        expect(filter.y).toBeLessThan(search.y + search.height);
+        expect(search.x).toBeGreaterThan(filter.x + filter.width);
+        expect(search.width).toBeGreaterThan(240);
+        expect(search.width).toBeLessThan(330);
+        expect(filter.width).toBeLessThan(600);
+      }
+    });
+
+    test("every cell of a table row sits on one text line, with or without a badge", async ({ page }) => {
+      test.skip(viewport.phone, "The phone shows rows, not a table.");
+      await skillsFixture(page);
+      await page.goto(LIST);
+      await expect(rows(page)).toHaveCount(7);
+      for (const name of ["House style", "Old checklist"]) {
+        const tops = await rows(page).filter({ hasText: name }).locator("td")
+          .evaluateAll((cells) =>
+            cells.map((cell) => {
+              const walker = document.createTreeWalker(
+                cell,
+                NodeFilter.SHOW_TEXT,
+              );
+              let node = walker.nextNode();
+              while (node && (node.textContent ?? "").trim() === "") {
+                node = walker.nextNode();
+              }
+              const range = document.createRange();
+              range.selectNodeContents(node!);
+              return range.getBoundingClientRect().top;
+            })
+          );
+        expect(tops).toHaveLength(4);
+        for (const top of tops) {
+          expect(Math.abs(top - tops[0])).toBeLessThan(1);
+        }
+      }
+    });
+
+    test("the phone list draws one rule between rows, not two", async ({ page }) => {
+      test.skip(!viewport.phone, "A table has its own rules.");
+      await skillsFixture(page);
+      await page.goto(LIST);
+      await expect(rows(page)).toHaveCount(7);
+      const rules = await rows(page).evaluateAll((items) =>
+        items.map((item) => ({
+          top: getComputedStyle(item).borderBlockStartWidth,
+          bottom: getComputedStyle(item).borderBlockEndWidth,
+        }))
+      );
+      // Every row has its top rule; only the last has a bottom rule, so two
+      // rules never touch between rows.
+      for (const rule of rules) {
+        expect(rule.top).not.toBe("0px");
+      }
+      for (const rule of rules.slice(0, -1)) {
+        expect(rule.bottom).toBe("0px");
+      }
+      expect(rules.at(-1)!.bottom).not.toBe("0px");
+    });
+
     test("the Library tab strip shows that it scrolls and keeps the selected tab in view", async ({ page }) => {
       await skillsFixture(page);
       const list = page.getByRole("tablist", { name: "Library sections" });
@@ -423,7 +512,8 @@ for (
             .getBoundingClientRect();
           return tab.left >= box.left - 1 && tab.right <= box.right + 1;
         });
-      const pageScroll = () => page.evaluate(() => globalThis.scrollY);
+      const pageScroll = () =>
+        page.evaluate(() => globalThis.scrollY);
       // The tab the page opens on is fully inside the strip; a fade shows only
       // on a side that has more tabs, and never when every tab fits.
       for (

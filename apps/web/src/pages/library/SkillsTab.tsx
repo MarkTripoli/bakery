@@ -138,15 +138,25 @@ export function SkillsTab() {
       maxLength={SKILL_SEARCH_MAX}
       onChange={(event) => setText(event.currentTarget.value)}
       placeholder={translate("library.skills.search")}
+      size={32}
       value={text}
     />
   );
-  const toolbar = (
-    <UI.Stack gap="standard">
-      {filterControl}
-      {searchField}
-    </UI.Stack>
-  );
+  // One row on a wide screen, as the design draws it: the filter at its own
+  // width, the search about 280px at the end. Stacked on a phone.
+  const toolbar = phone
+    ? (
+      <UI.Stack gap="standard">
+        {filterControl}
+        {searchField}
+      </UI.Stack>
+    )
+    : (
+      <UI.Inline gap="standard" variant="between">
+        {filterControl}
+        {searchField}
+      </UI.Inline>
+    );
 
   let body;
   if (skills.isError) {
@@ -222,22 +232,22 @@ export function SkillsTab() {
         role="list"
       >
         {rows.map((skill) => (
-          <div data-skill={skill.id} key={skill.id} role="listitem">
-            <UI.ListRow
-              badge={badges(skill) ?? undefined}
-              controlLabel={translate("library.skills.openLabel", {
-                name: skill.name,
-              })}
-              detail={translate("library.skills.rowLine", {
-                belongsTo: words(belongsToWords(skill.scope)),
-                version: versionText(skill),
-                changed: changed(skill),
-              })}
-              onSelect={() =>
-                open(skill)}
-              title={skill.name}
-            />
-          </div>
+          <UI.ListRow
+            badge={badges(skill) ?? undefined}
+            controlLabel={translate("library.skills.openLabel", {
+              name: skill.name,
+            })}
+            data-skill={skill.id}
+            detail={translate("library.skills.rowLine", {
+              belongsTo: words(belongsToWords(skill.scope)),
+              version: versionText(skill),
+              changed: changed(skill),
+            })}
+            key={skill.id}
+            onSelect={() => open(skill)}
+            role="listitem"
+            title={skill.name}
+          />
         ))}
       </UI.Stack>
     );
@@ -246,12 +256,15 @@ export function SkillsTab() {
       {
         id: "name",
         header: translate("library.skills.column.name"),
-        cell: (skill) => (
-          <UI.Inline gap="compact">
-            <UI.Text>{skill.name}</UI.Text>
-            {badges(skill)}
-          </UI.Inline>
-        ),
+        // Plain text, as the other cells are, so all four share one text line;
+        // with a badge the pair is centred on that line.
+        cell: (skill) =>
+          badges(skill) === null ? skill.name : (
+            <UI.Inline gap="compact">
+              {skill.name}
+              {badges(skill)}
+            </UI.Inline>
+          ),
       },
       {
         id: "belongsTo",

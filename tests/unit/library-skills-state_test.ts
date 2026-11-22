@@ -8,6 +8,7 @@ import {
   fingerprint,
   licenseShownInFiles,
   manifestFiles,
+  pinnedRevisions,
   scopeWords,
   serverScope,
   skillBadges,
@@ -255,4 +256,24 @@ Deno.test("where a skill came from: a copy, then a source, else written here", (
   assertEquals(copiedWords(null, 2), {
     key: "library.skill.origin.copiedUnknown",
   });
+});
+
+Deno.test("a usage row names the versions of the skill it pins, once each, in order", () => {
+  const versions = [
+    { id: "v1", revision: 1 },
+    { id: "v2", revision: 2 },
+    { id: "v3", revision: 3 },
+  ];
+  assertEquals(pinnedRevisions({ skillVersionIds: ["v1"] }, versions), [1]);
+  // Order and repeats in the answer do not matter.
+  assertEquals(
+    pinnedRevisions({ skillVersionIds: ["v2", "v1", "v2"] }, versions),
+    [1, 2],
+  );
+  // A version the page cannot name is left out, never guessed.
+  assertEquals(
+    pinnedRevisions({ skillVersionIds: ["v3", "gone"] }, versions),
+    [3],
+  );
+  assertEquals(pinnedRevisions({ skillVersionIds: [] }, versions), []);
 });

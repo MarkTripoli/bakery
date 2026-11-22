@@ -388,7 +388,10 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
                 definitionName: "Nightly build",
                 versionId: uuid(613),
                 revision: 7,
-                skillVersionIds: [versionId(entry.id, 1)],
+                skillVersionIds: [
+                  versionId(entry.id, 2),
+                  versionId(entry.id, 1),
+                ],
                 createdAt: "2026-11-17T09:00:00.000Z",
               },
             ]

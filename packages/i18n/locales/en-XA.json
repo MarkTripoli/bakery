@@ -6229,10 +6229,7 @@
   "library.skill.usedBy.empty": "⟦Ñôŧĥïñĝ ûšëš ŧĥïš šķïļļ ÿëŧ. ŧëšŧ çô⟧",
   "library.skill.usedBy.error": "⟦Ŵĥàŧ ûšëš ŧĥïš šķïļļ ðïð ñôŧ ļôàð. ŧëšŧ çôþÿ⟧",
   "library.skill.access.title": "⟦Ŵĥô çàñ ûšë ïŧ ŧë⟧",
-  "library.skill.access.shared": "⟦Ôñļÿ ÿôû çàñ ôþëñ ŧĥïš šķïļļ. Ÿôû ļëŧ ŧĥëšë šĥàŕëð ŵôŕķƒļôŵš ûšë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "library.skill.access.line": "⟦Šŧëþ “{step}” · ṽëŕšïôñ {number} · šïñçë {date} ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.skill.access.lineNoVersion": "⟦Šŧëþ “{step}” · šïñçë {date} ŧëšŧ çô⟧",
-  "library.skill.access.empty": "⟦Ñô šĥàŕëð ŵôŕķƒļôŵ ûšëš ïŧ. Àŧŧàçĥ ïŧ ŧô à ŵôŕķƒļôŵ šŧëþ ŧô ļëŧ ŧĥàŧ ŵôŕķƒļôŵ ûšë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.skill.access.error": "⟦Ŵĥô çàñ ûšë ŧĥïš šķïļļ ðïð ñôŧ ļôàð. ŧëšŧ çôþÿŧ⟧",
   "library.skill.origin.title": "⟦Ŵĥëŕë ïŧ çàɱë ƒŕôɱ ŧëšŧ⟧",
   "library.skill.origin.written": "⟦Ŵŕïŧŧëñ ĥëŕë ŧë⟧",
@@ -6298,5 +6295,9 @@
   "library.evaluation.cost.exhausted.body": "⟦Çĥëçķš šŧïļļ ŕûñ, àñð ŧĥëÿ çôšŧ ñôŧĥïñĝ. ŧëšŧ çôþÿ ŧ⟧",
   "library.evaluation.sampled.help": "⟦À ɱôðëļ'š ôþïñïôñ ôñ à šàɱþļë ôƒ ŧĥë ŧëšŧ çàšëš. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.evaluation.sampled.show": "⟦Šĥôŵ ŧĥë {count, plural, one {# sampled result} other {# sampled results}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "library.evaluation.sampled.listLabel": "⟦Šàɱþļëð ŕëšûļŧš ŧëš⟧"
+  "library.evaluation.sampled.listLabel": "⟦Šàɱþļëð ŕëšûļŧš ŧëš⟧",
+  "library.skill.usedBy.linePins": "⟦{name}, ṽëŕšïôñ {revision} · {count, plural, one {uses version {list}} other {uses versions {list}}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.skill.access.shared": "⟦Ôñļÿ ÿôû çàñ ôþëñ ŧĥïš šķïļļ. Ŧĥëšë šĥàŕëð ŵôŕķƒļôŵš àŕë àļļôŵëð ŧô ûšë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "library.skill.access.line": "⟦Šŧëþ “{step}” · ṽëŕšïôñ {number} ôƒ ŧĥïš šķïļļ · šïñçë {date} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.skill.access.empty": "⟦Ñô šĥàŕëð ŵôŕķƒļôŵ ïš àļļôŵëð ŧô ûšë ïŧ. Àŧŧàçĥ ïŧ ŧô à ŵôŕķƒļôŵ šŧëþ ŧô àļļôŵ ŧĥàŧ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }

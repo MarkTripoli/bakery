@@ -260,6 +260,21 @@ export function usedByGroups(items: readonly SkillUsage[]): {
   };
 }
 
+/**
+ * The revisions of this skill that a usage row pins, once each and in order.
+ * One the page cannot name is left out, so the line never shows a guess.
+ */
+export function pinnedRevisions(
+  usage: Pick<SkillUsage, "skillVersionIds">,
+  versions: readonly Pick<SkillVersionResponse, "id" | "revision">[],
+): number[] {
+  const found = usage.skillVersionIds.flatMap((id) => {
+    const version = versions.find((item) => item.id === id);
+    return version === undefined ? [] : [version.revision];
+  });
+  return [...new Set(found)].sort((a, b) => a - b);
+}
+
 /** Where a skill came from, as the card reads it. */
 export type SkillOrigin =
   | { readonly kind: "written" }
