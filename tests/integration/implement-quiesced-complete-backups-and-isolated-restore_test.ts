@@ -14,6 +14,7 @@ import {
   executorFor,
   type FakeGithub,
   fakeGithub,
+  seededEffectRig,
   stageEffectRun,
 } from "../helpers/external-effects.ts";
 import {
@@ -383,21 +384,65 @@ Deno.test("AC3: ordered re-enable of a healthy restore preserves tasks, artifact
         stepKey: "b1503-restore",
       }),
     );
-    await database.query(
+    const artifactId = (await database.query<{ id: string }>(
       `insert into bakery.artifacts (organization_id, task_id, artifact_type, name)
-       values ($1, $2, 'plan', 'b1503 restored plan')`,
+       values ($1, $2, 'plan', 'b1503 restored plan') returning id`,
       [o.f.organizationId, run.taskId],
+    )).rows[0].id;
+    // Checkpoint rows are the easiest thing for a restore to drop: both
+    // tables digest as "empty" when unseeded, so seed one row of each.
+    const draftId = crypto.randomUUID();
+    await database.query(
+      `insert into bakery.artifact_drafts
+         (id, organization_id, artifact_id, task_id, epoch, server_sequence, status)
+       values ($1, $2, $3, $4, 1, 0, 'active')`,
+      [draftId, o.f.organizationId, artifactId, run.taskId],
+    );
+    await database.query(
+      `insert into bakery.artifact_draft_checkpoints
+         (id, organization_id, draft_id, epoch, server_sequence, state,
+          frontiers, text_content, text_digest)
+       values ($1, $2, $3, 1, 0, '\\x01', '\\x02', 'b1503 draft', 'digest')`,
+      [crypto.randomUUID(), o.f.organizationId, draftId],
+    );
+    const rig = await seededEffectRig(
+      database,
+      o.f.organizationId,
+      o.f.adminId,
+    );
+    await database.query(
+      `insert into bakery.integration_sync_checkpoints
+         (id, organization_id, connection_id, installation_id, resource_id,
+          stream, status)
+       select $1, $2, $3, installation_id, $4, 'issues', 'idle'
+         from bakery.integration_connections where id = $3`,
+      [
+        crypto.randomUUID(),
+        o.f.organizationId,
+        rig.connectionId,
+        rig.resourceId,
+      ],
     );
     const counted = await database.query<Record<string, string>>(
       `select
          (select count(*)::text from bakery.tasks where id = $1) as tasks,
          (select count(*)::text from bakery.artifacts where task_id = $1) as artifacts,
+         (select count(*)::text from bakery.artifact_draft_checkpoints
+           where organization_id = $5) as draft_checkpoints,
+         (select count(*)::text from bakery.integration_sync_checkpoints
+           where organization_id = $5) as sync_checkpoints,
          (select count(*)::text from bakery.workflow_runs where id = $2) as runs,
          (select count(*)::text from bakery.run_steps where run_id = $2) as steps,
          (select count(*)::text from bakery.budget_reservations
            where id = $3) as reservations,
          (select count(*)::text from bakery.principals where id = $4) as auth`,
-      [run.taskId, run.runId, run.runReservationId, o.f.adminId],
+      [
+        run.taskId,
+        run.runId,
+        run.runReservationId,
+        o.f.adminId,
+        o.f.organizationId,
+      ],
     );
     for (const [name, count] of Object.entries(counted.rows[0])) {
       assert(Number(count) >= 1, `${name} was seeded`);
