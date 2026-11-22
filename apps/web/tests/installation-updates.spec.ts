@@ -90,6 +90,8 @@ type Options = {
   restoreHeld?: boolean;
   /** An update is running: the launcher has paused work. */
   updatePaused?: boolean;
+  /** The saved choice for what happens when an update fails; "go_back" when absent. */
+  policy?: "go_back" | "ask";
   /** The updates status answer waits for this, so the loading state shows. */
   hold?: Promise<void>;
 };
@@ -101,7 +103,7 @@ async function updatesFixture(page: Page, options: Options = {}) {
   const settings = {
     registrationMode: "invitation",
     organizationCreationPolicy: "installation_admins",
-    updateFailurePolicy: "go_back",
+    updateFailurePolicy: options.policy ?? "go_back",
     version: 3,
     updatedByPrincipalId: null,
     updatedAt: "2026-11-01T10:00:00.000Z",
@@ -582,35 +584,53 @@ for (
       await still(page, "updates-held-one");
     });
 
-    test("held after a restore: the policy cannot change, with the way out", async ({ page }) => {
+    test("held after a restore: the choice is plain text, with the way out, and the hold is said once", async ({ page }) => {
       await updatesFixture(page, { failure: null, restoreHeld: true });
       await page.goto("/installation/updates");
-      await expect(
-        page.getByText(
-          "Bakery is held after a restore. Finish the restore first.",
-        ),
-      ).toBeVisible();
-      await expect(page.getByRole("radio", { name: "Stop and ask" }))
-        .toBeDisabled();
-      await expect(page.getByRole("button", { name: "Finish the restore" }))
+      const policy = page.locator("[data-section='policy']");
+      const row = policy.locator("[data-policy-locked='held']");
+      await expect.poll(() => said(row)).toContain("Go back by itself");
+      await expect.poll(() => said(row)).toContain(
+        "Bakery returns to the version that was running and resumes work.",
+      );
+      await expect(row.getByRole("button", { name: "Finish the restore" }))
         .toBeVisible();
+      await expect.poll(() => said(policy)).toContain(
+        "You can change this after the restore is finished.",
+      );
+      // No radios, faded or not, and no second sentence about the hold.
+      await expect(policy.getByRole("radio")).toHaveCount(0);
+      await expect(policy.getByRole("radiogroup")).toHaveCount(0);
+      await expect(page.getByText("Bakery is held after a restore"))
+        .toHaveCount(1);
       await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
       await page.mouse.move(5, 5);
       await still(page, "updates-policy-restore-held");
     });
 
-    test("an update is running: the policy cannot change and says why", async ({ page }) => {
-      await updatesFixture(page, { failure: null, updatePaused: true });
+    test("an update is running: the saved choice is plain text and the hint says when it unlocks", async ({ page }) => {
+      await updatesFixture(page, {
+        failure: null,
+        updatePaused: true,
+        policy: "ask",
+      });
       await page.goto("/installation/updates");
-      await expect(
-        page.getByText(
-          "An update is running. You can change this when it ends.",
-        ),
-      ).toBeVisible();
-      await expect(page.getByRole("radio", { name: "Stop and ask" }))
-        .toBeDisabled();
-      await expect(page.getByRole("radio", { name: "Go back by itself" }))
-        .toBeDisabled();
+      const policy = page.locator("[data-section='policy']");
+      const row = policy.locator("[data-policy-locked='paused']");
+      await expect.poll(() => said(row)).toContain("Stop and ask");
+      await expect.poll(() => said(row)).toContain(
+        "Bakery stays stopped until an administrator decides on the server. Work waits.",
+      );
+      // The other choice is not drawn, and there is no button: nothing to do but wait.
+      await expect(row).not.toContainText("Go back by itself");
+      await expect(row.getByRole("button")).toHaveCount(0);
+      await expect.poll(() => said(policy)).toContain(
+        "You can change this when the update ends.",
+      );
+      await expect(policy.getByRole("radio")).toHaveCount(0);
+      await expect(page.getByText("An update is running")).toHaveCount(0);
+      await expect(page.getByText("Bakery is about to be updated"))
+        .toHaveCount(1);
       await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
       await page.mouse.move(5, 5);
       await still(page, "updates-policy-update-running");

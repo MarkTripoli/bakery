@@ -6370,9 +6370,7 @@
   "installation.updates.policy.saved": "⟦Šàṽëð. Ïŧ àþþļïëš ƒŕôɱ ŧĥë ñëẋŧ ûþðàŧë. ŧëšŧ çôþÿ ŧ⟧",
   "installation.updates.policy.conflict": "⟦Šôɱëôñë ëļšë çĥàñĝëð ŧĥïš ĵûšŧ ñôŵ. Ŧĥë ļàŧëšŧ ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "installation.updates.policy.failed": "⟦Ŧĥë çĥôïçë ŵàš ñôŧ šàṽëð. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "installation.updates.policy.held": "⟦Ɓàķëŕÿ ïš ĥëļð àƒŧëŕ à ŕëšŧôŕë. Ƒïñïšĥ ŧĥë ŕëšŧôŕë ƒïŕšŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "installation.updates.policy.heldLink": "⟦Ƒïñïšĥ ŧĥë ŕëšŧôŕë ŧëšŧ⟧",
-  "installation.updates.policy.paused": "⟦Àñ ûþðàŧë ïš ŕûññïñĝ. Ÿôû çàñ çĥàñĝë ŧĥïš ŵĥëñ ïŧ ëñðš. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "installation.updates.history.title": "⟦Ĥïšŧôŕÿ…⟧",
   "installation.updates.history.when": "⟦Ŵĥëñ⟧",
   "installation.updates.history.what": "⟦Ŵĥàŧ ĥàþþëñëð ŧë⟧",
@@ -6431,5 +6429,7 @@
   "installation.updates.notHealthy.body": "⟦Ɓàķëŕÿ àñšŵëŕš, ƀûŧ {release} ïš ñôŧ ĥëàļŧĥÿ. Ôñ ŧĥë šëŕṽëŕ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "installation.updates.notHealthy.stay": "⟦{when} {by} çĥôšë ŧô šŧàÿ ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.updates.notHealthy.stayNobody": "⟦{when} ñô ôñë çôûļð ƀë àšķëð, šô Ɓàķëŕÿ šŧàÿëð ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "installation.updates.held.title": "⟦Ĥëļð ôûŧšïðë àçŧïôñš ŧëšŧ⟧"
+  "installation.updates.held.title": "⟦Ĥëļð ôûŧšïðë àçŧïôñš ŧëšŧ⟧",
+  "installation.updates.policy.lockedHeld": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš àƒŧëŕ ŧĥë ŕëšŧôŕë ïš ƒïñïšĥëð. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "installation.updates.policy.lockedPaused": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš ŵĥëñ ŧĥë ûþðàŧë ëñðš. ŧëšŧ çôþÿ ŧë⟧"
 }

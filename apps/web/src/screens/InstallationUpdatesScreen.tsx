@@ -428,52 +428,68 @@ function Policy(props: InstallationUpdatesScreenProps) {
       description: "installation.updates.policy.ask.description" as const,
     },
   ];
+  const saved = choices.find((choice) => choice.value === policy.value) ??
+    choices[0]!;
   return (
     <UI.SettingsSection
       data-section="policy"
       title={translate("installation.updates.policy.title")}
       variant="stack"
     >
-      {policy.lock === "held"
+      {locked
         ? (
-          <UI.InlineNotice
-            action={
-              <UI.Button onClick={props.onOpenRestore} variant="secondary">
-                {translate("installation.updates.policy.heldLink")}
-              </UI.Button>
-            }
-            tone="information"
+          <>
+            <UI.DescriptionList labels="quiet">
+              <UI.DescriptionItem
+                action={policy.lock === "held"
+                  ? (
+                    <UI.Button
+                      onClick={props.onOpenRestore}
+                      variant="secondary"
+                    >
+                      {translate("installation.updates.policy.heldLink")}
+                    </UI.Button>
+                  )
+                  : undefined}
+                actionPlacement="below"
+                data-policy-locked={policy.lock}
+                description={translate(saved.description)}
+                title={translate(saved.label)}
+              />
+            </UI.DescriptionList>
+            <UI.Text variant="hint">
+              {translate(
+                policy.lock === "held"
+                  ? "installation.updates.policy.lockedHeld"
+                  : "installation.updates.policy.lockedPaused",
+              )}
+            </UI.Text>
+          </>
+        )
+        : (
+          <UI.Stack
+            aria-label={translate("installation.updates.policy.title")}
+            gap="tight"
+            role="radiogroup"
           >
-            {translate("installation.updates.policy.held")}
-          </UI.InlineNotice>
-        )
-        : policy.lock === "paused"
-        ? (
-          <UI.InlineNotice tone="information">
-            {translate("installation.updates.policy.paused")}
-          </UI.InlineNotice>
-        )
-        : null}
-      <UI.Stack
-        aria-label={translate("installation.updates.policy.title")}
-        gap="tight"
-        role="radiogroup"
-      >
-        {choices.map((choice) => (
-          <UI.Stack gap="none" key={choice.value}>
-            <UI.Radio
-              checked={policy.value === choice.value}
-              disabled={disabled}
-              name="update-failure-policy"
-              onChange={() => props.onPolicyChange(choice.value)}
-              value={choice.value}
-            >
-              {translate(choice.label)}
-            </UI.Radio>
-            <UI.Text variant="hint">{translate(choice.description)}</UI.Text>
+            {choices.map((choice) => (
+              <UI.Stack gap="none" key={choice.value}>
+                <UI.Radio
+                  checked={policy.value === choice.value}
+                  disabled={disabled}
+                  name="update-failure-policy"
+                  onChange={() => props.onPolicyChange(choice.value)}
+                  value={choice.value}
+                >
+                  {translate(choice.label)}
+                </UI.Radio>
+                <UI.Text variant="hint">
+                  {translate(choice.description)}
+                </UI.Text>
+              </UI.Stack>
+            ))}
           </UI.Stack>
-        ))}
-      </UI.Stack>
+        )}
       <UI.Text variant="hint">
         {translate("installation.updates.policy.help")}
       </UI.Text>
