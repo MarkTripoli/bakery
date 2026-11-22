@@ -6193,7 +6193,7 @@
   "integrations.slack.credentials.status.clientIdRefused": "⟪Slack does not recognise this client ID. Replace the details.⟫",
   "integrations.slack.credentials.status.clientSecretRefused": "⟪Slack refused the client secret. It may have been regenerated in Slack. Replace the details.⟫",
   "integrations.slack.credentials.status.unreachable": "⟪Slack could not be reached. Nothing changed. Try again.⟫",
-  "integrations.slack.credentials.status.noRequest": "⟪No request from Slack yet. Paste the request URLs into the Slack app; Slack sends one as soon as you save them there.⟫",
+  "integrations.slack.credentials.status.noRequest": "⟪No request from Slack yet. Slack sends one as soon as you save the addresses in the Slack app.⟫",
   "integrations.slack.credentials.status.requestAccepted": "⟪Last accepted {time}⟫",
   "integrations.slack.credentials.status.requestFailed": "⟪A request on {time} did not match the signing secret. Replace the signing secret if it was regenerated in Slack.⟫",
   "integrations.slack.credentials.checkNow": "⟪Check now⟫",

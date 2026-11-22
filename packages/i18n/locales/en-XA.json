@@ -6193,7 +6193,7 @@
   "integrations.slack.credentials.status.clientIdRefused": "⟦Šļàçķ ðôëš ñôŧ ŕëçôĝñïšë ŧĥïš çļïëñŧ ÏÐ. Ŕëþļàçë ŧĥë ðëŧàïļš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "integrations.slack.credentials.status.clientSecretRefused": "⟦Šļàçķ ŕëƒûšëð ŧĥë çļïëñŧ šëçŕëŧ. Ïŧ ɱàÿ ĥàṽë ƀëëñ ŕëĝëñëŕàŧëð ïñ Šļàçķ. Ŕëþļàçë ŧĥë ðëŧàïļš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "integrations.slack.credentials.status.unreachable": "⟦Šļàçķ çôûļð ñôŧ ƀë ŕëàçĥëð. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "integrations.slack.credentials.status.noRequest": "⟦Ñô ŕëǫûëšŧ ƒŕôɱ Šļàçķ ÿëŧ. Þàšŧë ŧĥë ŕëǫûëšŧ ÛŔĻš ïñŧô ŧĥë Šļàçķ àþþ; Šļàçķ šëñðš ôñë àš šôôñ àš ÿôû šàṽë ŧĥëɱ ŧĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "integrations.slack.credentials.status.noRequest": "⟦No request from Slack yet. Slack sends one as soon as you save the addresses in the Slack app. — ŧëšŧ⟧",
   "integrations.slack.credentials.status.requestAccepted": "⟦Ļàšŧ àççëþŧëð {time} ŧëšŧ⟧",
   "integrations.slack.credentials.status.requestFailed": "⟦À ŕëǫûëšŧ ôñ {time} ðïð ñôŧ ɱàŧçĥ ŧĥë šïĝñïñĝ šëçŕëŧ. Ŕëþļàçë ŧĥë šïĝñïñĝ šëçŕëŧ ïƒ ïŧ ŵàš ŕëĝëñëŕàŧëð ïñ Šļàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "integrations.slack.credentials.checkNow": "⟦Çĥëçķ ñôŵ ŧ⟧",

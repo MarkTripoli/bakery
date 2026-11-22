@@ -179,6 +179,58 @@ Deno.test("a first save stores both secrets and reports only their dates", async
   });
 });
 
+Deno.test("two first saves that arrive together leave one row and one refusal", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const secretsKey = await key();
+    const draft = {
+      appId: appId(),
+      clientId: "1234567890.1111111111",
+      clientSecret: "client-secret-race",
+      signingSecret: "signing-secret-race",
+      expectedVersion: undefined,
+    };
+    // Neither save reads a row, so neither can quote a version: the insert's
+    // conflict clause is the only thing that decides, and the loser must be told
+    // it lost rather than handed a 500 or a second row.
+    const results = await Promise.allSettled([
+      save(fixture, secretsKey, draft),
+      save(fixture, secretsKey, draft),
+    ]);
+    try {
+      const saved = results.filter((result) => result.status === "fulfilled");
+      const refused = results.filter(
+        (result) => result.status === "rejected",
+      ) as PromiseRejectedResult[];
+      assertEquals(saved.length, 1);
+      assertEquals(refused.length, 1);
+      assertEquals(
+        (refused[0]!.reason as { code?: string }).code,
+        "PRECONDITION_FAILED",
+      );
+      const { rows } = await fixture.pgDatabase.query<{ count: string }>(
+        "select count(*)::text as count from bakery.slack_app_settings",
+      );
+      assertEquals(rows[0]?.count, "1");
+      // The refusal rolled back the secrets it had written: one app, two secrets.
+      const secrets = await fixture.pgDatabase.query<{ count: string }>(
+        "select count(*)::text as count from bakery.secrets where provider = 'slack'",
+      );
+      assertEquals(secrets.rows[0]?.count, "2");
+    } finally {
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          removeSlackApp(transaction, {
+            principalId: fixture.principalId,
+            operation: "integration.slack.credentials.remove",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+      );
+    }
+  });
+});
+
 Deno.test("a replaced secret is the only one written, and the other date stands", async () => {
   await withWorkerFixture(async (fixture) => {
     const secretsKey = await key();

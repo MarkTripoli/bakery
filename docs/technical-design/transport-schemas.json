@@ -3291,22 +3291,13 @@
             "default": 25
           },
           "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter."
         }
       ],
       "pagination": "pagination",
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "fields": [
@@ -4247,15 +4238,6 @@
           "type": "enum(organization|personal)",
           "required": false,
           "description": "Who the imported skill is for: organization (the default; visible to everyone in the organization, and importing into it needs the Admin role) or personal (shown as Private, owned by the person importing, who must be a person rather than an agent or a token)."
-        },
-        {
-          "name": "revision",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "maxLength": 255
-          },
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head."
         }
       ],
       "description": "Creates a durable import run that fetches a skill from a registered skill source at a pinned revision, and optional path, and publishes it as a new skill version."
@@ -14976,6 +14958,46 @@
       ],
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     },
+    "IntegrationSlackAppPut": {
+      "fields": [
+        {
+          "name": "appId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The Slack app's ID, as Slack shows it under Basic Information: the A followed by letters and digits that names this app in every Slack API call and in the event URLs Bakery shows back. Not a secret."
+        },
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The Slack app's client ID, as Slack shows it under Basic Information. Not a secret; it is shown back to installation administrators."
+        },
+        {
+          "name": "clientSecret",
+          "type": "secretString",
+          "required": false,
+          "description": "The Slack app's client secret. Write-only. Omitted means keep the stored one, which is how a person changes only the signing secret without re-pasting both."
+        },
+        {
+          "name": "signingSecret",
+          "type": "secretString",
+          "required": false,
+          "description": "The Slack app's signing secret, which verifies that an inbound request came from Slack. Write-only. Omitted means keep the stored one."
+        }
+      ],
+      "rules": [
+        "clientSecret and signingSecret are write-only and are never returned by any operation, audit row or log.",
+        "A secret that is omitted is kept, not cleared: the status date for that secret does not move.",
+        "Replacing a secret clears the last sign-in check, because a check of a secret that is gone says nothing about its replacement."
+      ],
+      "description": "Saves the details of this installation's Slack app: which app it is, and the two secrets Bakery needs to speak as it and to trust its requests. A replacement sends only what changed."
+    },
     "SkillActiveVersionSet": {
       "fields": [
         {
@@ -15050,46 +15072,6 @@
         "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
-    },
-    "IntegrationSlackAppPut": {
-      "fields": [
-        {
-          "name": "appId",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "maxLength": 200
-          },
-          "description": "The Slack app's ID, as Slack shows it under Basic Information: the A followed by letters and digits that names this app in every Slack API call and in the event URLs Bakery shows back. Not a secret."
-        },
-        {
-          "name": "clientId",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "maxLength": 200
-          },
-          "description": "The Slack app's client ID, as Slack shows it under Basic Information. Not a secret; it is shown back to installation administrators."
-        },
-        {
-          "name": "clientSecret",
-          "type": "secretString",
-          "required": false,
-          "description": "The Slack app's client secret. Write-only. Omitted means keep the stored one, which is how a person changes only the signing secret without re-pasting both."
-        },
-        {
-          "name": "signingSecret",
-          "type": "secretString",
-          "required": false,
-          "description": "The Slack app's signing secret, which verifies that an inbound request came from Slack. Write-only. Omitted means keep the stored one."
-        }
-      ],
-      "rules": [
-        "clientSecret and signingSecret are write-only and are never returned by any operation, audit row or log.",
-        "A secret that is omitted is kept, not cleared: the status date for that secret does not move.",
-        "Replacing a secret clears the last sign-in check, because a check of a secret that is gone says nothing about its replacement."
-      ],
-      "description": "Saves the details of this installation's Slack app: which app it is, and the two secrets Bakery needs to speak as it and to trust its requests. A replacement sends only what changed."
     }
   },
   "projections": {
@@ -17961,8 +17943,8 @@
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
-        "stoppedByName": "string",
-        "stoppedAt": "timestamp"
+        "stoppedAt": "timestamp",
+        "stoppedByName": "string"
       },
       "nullableFields": [
         "stopReason",
@@ -17978,12 +17960,12 @@
         "status": "status",
         "stopReason": "stop_reason",
         "stoppedBy": "stopped_by",
-        "stoppedByName": "stopped_by_name",
         "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "stoppedByName": "stopped_by_name"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -17998,8 +17980,8 @@
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
-        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
-        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
       }
     },
     "pull_requests": {
@@ -18454,7 +18436,7 @@
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -23200,10 +23182,6 @@
         "turnId"
       ]
     },
-    "Page<WorkflowDefinitionProposal>": {
-      "pageOf": "WorkflowDefinitionProposal",
-      "description": "Cursor page of one conversation's workflow definition proposals, oldest first (the order the coordinator proposed them), returned by GET /v1/conversations/{id}/workflow-definition-proposals. items and nextCursor are always present, with nextCursor=null marking the last page."
-    },
     "WorkflowDefinitionProposal": {
       "fields": [
         "id",
@@ -23237,12 +23215,12 @@
         "digest": "string",
         "state": "enum(waiting|accepted|rejected|superseded)",
         "decidedBy": "uuid|null",
-        "decidedByName": "string|null",
         "decidedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "supersededByVersionId": "uuid|null"
+        "supersededByVersionId": "uuid|null",
+        "decidedByName": "string|null"
       },
       "nullableFields": [
         "workflowId",
@@ -23264,12 +23242,12 @@
         "digest": "SHA-256 of the canonical proposed definition.",
         "state": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled.",
         "decidedBy": "Person who decided the proposal; null while waiting.",
-        "decidedByName": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name.",
         "decidedAt": "When the proposal was decided or superseded; null while waiting.",
         "createdAt": "When the proposal was recorded.",
         "updatedAt": "When the proposal last changed.",
         "version": "Optimistic-concurrency version a decision must name in If-Match.",
-        "supersededByVersionId": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
+        "supersededByVersionId": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise.",
+        "decidedByName": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name."
       }
     },
     "WorkflowVersion": {
@@ -24859,8 +24837,8 @@
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
-        "stoppedByName": "string",
-        "stoppedAt": "timestamp"
+        "stoppedAt": "timestamp",
+        "stoppedByName": "string"
       },
       "nullableFields": [
         "stopReason",
@@ -24881,8 +24859,8 @@
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
-        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
-        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
       }
     },
     "HandoffManifestRecord": {
@@ -25054,7 +25032,7 @@
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -37871,35 +37849,6 @@
         "finishedAt": "When the run reached its outcome; null while running."
       }
     },
-    "SkillImportResult": {
-      "fields": [
-        "runId",
-        "state",
-        "skillId",
-        "versionId",
-        "failureCode"
-      ],
-      "fieldTypes": {
-        "runId": "uuid",
-        "state": "enum(queued|resolved|reserved|stored|completed|failed)",
-        "skillId": "uuid|null",
-        "versionId": "uuid|null",
-        "failureCode": "string|null"
-      },
-      "nullableFields": [
-        "skillId",
-        "versionId",
-        "failureCode"
-      ],
-      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids.",
-      "fieldDescriptions": {
-        "runId": "Stable UUID of the import run, as skills.import returned it.",
-        "state": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed.",
-        "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
-        "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
-        "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
-      }
-    },
     "IntegrationSlackApp": {
       "fields": [
         "appId",
@@ -37972,6 +37921,39 @@
       "fieldDescriptions": {
         "result": "accepted, client_id_refused, client_secret_refused or unreachable.",
         "checkedAt": "When the check ran."
+      }
+    },
+    "Page<WorkflowDefinitionProposal>": {
+      "pageOf": "WorkflowDefinitionProposal",
+      "description": "Cursor page of one conversation's workflow definition proposals, oldest first (the order the coordinator proposed them), returned by GET /v1/conversations/{id}/workflow-definition-proposals. items and nextCursor are always present, with nextCursor=null marking the last page."
+    },
+    "SkillImportResult": {
+      "fields": [
+        "runId",
+        "state",
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "state": "enum(queued|resolved|reserved|stored|completed|failed)",
+        "skillId": "uuid|null",
+        "versionId": "uuid|null",
+        "failureCode": "string|null"
+      },
+      "nullableFields": [
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the import run, as skills.import returned it.",
+        "state": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed.",
+        "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
+        "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
+        "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
       }
     }
   },
@@ -38484,7 +38466,7 @@
         "resourceVersion": "integer"
       },
       "inngestTrigger": null,
-      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+      "description": "Authorized invalidation notification: a running-app preview was registered by its attempt's worker. Scoped to the run's task. Fetch the authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "principal.created": {
       "schemaVersion": 1,
