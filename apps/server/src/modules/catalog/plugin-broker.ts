@@ -137,8 +137,16 @@ export async function mintBrokerToken(
   claims: Omit<BrokerClaims, "issuedAt" | "expiresAt" | "tokenId"> & {
     now: number;
     ttlMs: number;
+    /**
+     * Where the job's run may reach. An offline run is never brokered: no token
+     * is minted, so its job can ask the host for nothing.
+     */
+    runEnvironment?: "live" | "offline";
   },
 ): Promise<{ token: string; claims: BrokerClaims }> {
+  if (claims.runEnvironment === "offline") {
+    throw new Error("BROKER_ENVIRONMENT_OFFLINE");
+  }
   if (key.byteLength < 32) throw new Error("BROKER_KEY_TOO_SHORT");
   for (
     const value of [
