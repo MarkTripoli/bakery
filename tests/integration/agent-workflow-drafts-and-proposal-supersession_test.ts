@@ -602,3 +602,147 @@ Deno.test("publishing a version stores its starts canonically, and an invalid st
       on: { cron: "0 9 * * *", kind: "schedule", timezone: "Europe/London" },
     }]);
   }));
+
+Deno.test("a draft save carries its starts, keeps them when omitted, and refuses a start no clock or matcher could run", () =>
+  withFixture(async (fixture) => {
+    // The publish case above writes the column directly because no route
+    // authored starts. This is the route: a save stores the whole list, an
+    // omitted list keeps it, an empty list clears it, and a list the contract
+    // or the scheduler refuses writes nothing, so the author hears at save and
+    // not only at publish.
+    const seed = await seedOrganization(fixture, "starts-save", {
+      role: "admin",
+    });
+    const person = { seed };
+    const { workflowId, draft } = await seedWorkflowDraft(
+      fixture,
+      person,
+      "starts-save-flow",
+    );
+    type Saved = Version & { version: number; starts: unknown };
+    const save = (
+      version: number,
+      body: Record<string, unknown>,
+      versionId = draft.id,
+    ) =>
+      send(
+        fixture,
+        person,
+        "PATCH",
+        `/v1/workflows/${workflowId}/versions/${versionId}`,
+        {
+          body: { definition: PUBLISHABLE, ...body },
+          ifMatch: version,
+        },
+      );
+    const starts = [
+      {
+        id: "on-ready",
+        on: {
+          kind: "event",
+          eventKind: "work_item.ready",
+          filter: { state: "open" },
+        },
+      },
+      {
+        id: "morning",
+        on: { kind: "schedule", cron: "0 9 * * *", timezone: "europe/london" },
+      },
+    ];
+    const stored = [
+      starts[0],
+      {
+        id: "morning",
+        on: { kind: "schedule", cron: "0 9 * * *", timezone: "Europe/London" },
+      },
+    ];
+
+    // A new draft starts nothing.
+    const listed = async () =>
+      (await json<{ items: Saved[] }>(
+        await send(
+          fixture,
+          person,
+          "GET",
+          `/v1/workflows/${workflowId}/versions`,
+        ),
+        200,
+      )).items.find((item) => item.status === "draft");
+    assertEquals((await listed())?.starts, []);
+
+    // Saving stores the list, with the zone in its canonical spelling, and the
+    // read shows it.
+    const first = await json<Saved>(await save(draft.version, { starts }), 200);
+    assertEquals(first.starts, stored);
+    assertEquals((await listed())?.starts, stored);
+    assertEquals(first.digest, draft.digest, "starts sit outside the digest");
+
+    // Omitting the list keeps it.
+    const kept = await json<Saved>(await save(first.version, {}), 200);
+    assertEquals(kept.starts, stored);
+
+    // A list the contract refuses is refused with its path, and nothing is
+    // written: the version does not move and the stored list is unchanged.
+    const bad = await save(kept.version, {
+      starts: [{
+        id: "Not An Id",
+        on: { kind: "event", eventKind: "", filter: {} },
+      }],
+    });
+    assertEquals(await refusal(bad), { status: 422, code: "UNPROCESSABLE" });
+    const duplicated = await save(kept.version, {
+      starts: [starts[0], starts[0]],
+    });
+    assertEquals(await refusal(duplicated), {
+      status: 422,
+      code: "UNPROCESSABLE",
+    });
+
+    // A schedule the scheduler cannot read is refused too.
+    for (
+      const on of [
+        { kind: "schedule", cron: "61 * * * *", timezone: "UTC" },
+        { kind: "schedule", cron: "0 9 * * *", timezone: "Europe/Nowhere" },
+      ]
+    ) {
+      const unreadable = await save(kept.version, {
+        starts: [{ id: "clock", on }],
+      });
+      assertEquals((await refusal(unreadable)).code, "VALIDATION_FAILED");
+    }
+    const after = await listed();
+    assertEquals(
+      after?.starts,
+      stored,
+      "a refused save leaves the stored list",
+    );
+    assertEquals(
+      after?.version,
+      kept.version,
+      "a refused save does not move the draft",
+    );
+
+    // What was authored is what publishes: the version holds the same list, and
+    // the digest is still the definition's.
+    const published = await json<Saved>(
+      await publish(fixture, person, workflowId, kept, {
+        expectedDigest: kept.digest,
+      }),
+      200,
+    );
+    assertEquals(published.starts, stored);
+    assertEquals(published.digest, draft.digest);
+
+    // A published version is immutable, its starts included.
+    const frozen = await save(published.version, { starts: [] }, published.id);
+    assertEquals(await refusal(frozen), {
+      status: 409,
+      code: "STATE_CONFLICT",
+    });
+    const row = await fixture.pgDatabase.query<{ starts: unknown }>(
+      `select starts from bakery.workflow_versions
+        where organization_id = $1 and id = $2`,
+      [seed.organizationId, published.id],
+    );
+    assertEquals(row.rows[0].starts, stored);
+  }));
