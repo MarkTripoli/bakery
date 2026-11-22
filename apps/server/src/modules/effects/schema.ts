@@ -15,6 +15,9 @@ export const MAX_RECONCILIATION_EVIDENCE_BYTES = 4_096;
 /** Target prefix that marks an effect aimed at an integration resource. */
 export const INTEGRATION_TARGET_PREFIX = "integration-resource:";
 
+/** Target prefix that marks a write to a tool on an MCP connection. */
+export const MCP_TARGET_PREFIX = "mcp-tool:";
+
 /** Describes a schema and, for nullable or optional wrappers, the wrapped node too, so the description audit passes. */
 function described<T extends z.ZodType>(schema: T, text: string): T {
   if (schema instanceof z.ZodNullable) {
@@ -236,6 +239,17 @@ export const ExternalEffectRowSchema = z.strictObject({
       if (value === null) {
         issue(name, "integration effects require this column");
       }
+    }
+  }
+  if (row.target.startsWith(MCP_TARGET_PREFIX)) {
+    // An MCP call names its connection and the snapshot digest the step pinned
+    // (kept in the adapter digest column, rechecked at claim); it carries no
+    // integration account, resource or install.
+    if (row.mcpConnectionId === null) {
+      issue("mcpConnectionId", "MCP effects require this column");
+    }
+    if (row.adapterManifestDigest === null) {
+      issue("adapterManifestDigest", "MCP effects require this column");
     }
   }
   const approval = [

@@ -10,6 +10,7 @@ import type {
   AuthoritySnapshotPort,
   BoundInvocation,
 } from "../catalog/integration-gate.ts";
+import { isMcpEffect, type McpEffectPort } from "./mcp.ts";
 import {
   approvalAdmission,
   authorityAdmission,
@@ -36,6 +37,8 @@ export type ClaimDeps = Readonly<{
   database: PgDatabase;
   registry: ActiveIntegrationRegistry;
   snapshotsFor(transaction: PgTransactionClient): AuthoritySnapshotPort;
+  /** Fresh authority for a write to an MCP tool; absent, such an effect is refused. */
+  mcp?: McpEffectPort;
   leaseSeconds?: number;
 }>;
 
@@ -56,7 +59,8 @@ export type ClaimResult =
   | Readonly<{
     outcome: "claimed";
     effect: ExternalEffectRow;
-    bound: BoundInvocation;
+    /** The bound integration invocation; null for a write to an MCP tool. */
+    bound: BoundInvocation | null;
   }>
   | Readonly<{
     outcome: "blocked";
@@ -68,6 +72,21 @@ export type ClaimResult =
     effect: ExternalEffectRow;
     reason: "not_prepared" | "not_due";
   }>;
+
+/** The claim's authority check for an MCP write: the port's fresh read, or a refusal when none is configured. */
+async function mcpAuthority(
+  port: McpEffectPort | undefined,
+  effect: ExternalEffectRow,
+): Promise<
+  | Readonly<{ ok: true; bound: null }>
+  | Readonly<{ ok: false; failureCode: EffectFailureCode }>
+> {
+  if (port === undefined) {
+    return { ok: false, failureCode: "authorization_denied" };
+  }
+  const admitted = await port.admit(effect);
+  return admitted.ok ? { ok: true, bound: null } : admitted;
+}
 
 /**
  * Claims one prepared effect for dispatch in a single short transaction. The
@@ -143,11 +162,13 @@ export async function claimEffect(
     // Authority is read-only and runs before the approval check, because the
     // approval check may consume the approval: a revoked grant must never
     // spend an approval on an effect that cannot dispatch.
-    const authority = await authorityAdmission(
-      deps.registry,
-      deps.snapshotsFor(tx),
-      effect,
-    );
+    const authority = isMcpEffect(effect)
+      ? await mcpAuthority(deps.mcp, effect)
+      : await authorityAdmission(
+        deps.registry,
+        deps.snapshotsFor(tx),
+        effect,
+      );
     if (!authority.ok) return await block(authority.failureCode);
     const approvalBlock = await approvalAdmission(tx, effect, run, {
       requestId,

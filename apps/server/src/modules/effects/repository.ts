@@ -171,22 +171,24 @@ export type PreparedEffectInsert = Readonly<{
   runStepId: string | null;
   automationDefinitionId: string | null;
   operation: string;
-  actionVersion: number;
+  actionVersion: number | null;
   target: string;
-  integrationConnectionId: string;
-  integrationResourceId: string;
-  integrationInstallId: string;
-  integrationGrantId: string;
-  adapterManifestDigest: string;
+  integrationConnectionId: string | null;
+  integrationResourceId: string | null;
+  /** The MCP connection of an MCP tool call; null for an integration effect. */
+  mcpConnectionId?: string | null;
+  integrationInstallId: string | null;
+  integrationGrantId: string | null;
+  adapterManifestDigest: string | null;
   requestingPrincipalId: string;
   actorRef: string;
   idempotencyKey: string;
   requestDigest: string;
   safeArguments: unknown;
-  externalAccountId: string;
-  externalResourceId: string;
+  externalAccountId: string | null;
+  externalResourceId: string | null;
   adapterVersion: string;
-  authorizationRevision: number;
+  authorizationRevision: number | null;
   budgetReservationId: string | null;
   approvalId: string | null;
   approvalStage: string | null;
@@ -210,10 +212,10 @@ export async function insertPreparedEffect(
        idempotency_key, request_digest, safe_arguments, external_account_id,
        external_resource_id, adapter_version, authorization_revision,
        budget_reservation_id, approval_id, approval_stage,
-       approval_policy_digest, status
+       approval_policy_digest, mcp_connection_id, status
      ) values (
        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-       $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25, 'prepared'
+       $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25, $26, 'prepared'
      )
      on conflict (organization_id, operation, target, idempotency_key)
      do nothing
@@ -244,6 +246,7 @@ export async function insertPreparedEffect(
       row.approvalId,
       row.approvalStage,
       row.approvalPolicyDigest,
+      row.mcpConnectionId ?? null,
     ],
   );
   return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);

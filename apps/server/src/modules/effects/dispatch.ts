@@ -18,6 +18,7 @@ import {
   type HandlerEnd,
   type RequestRecord,
 } from "./classify.ts";
+import { dispatchMcpEffect, isMcpEffect, type McpEffectPort } from "./mcp.ts";
 import { observeProviderRequests } from "./observe.ts";
 import { casOutcome, findEffectById } from "./repository.ts";
 import {
@@ -35,6 +36,8 @@ export type DispatchDeps = Readonly<{
   registry: ActiveIntegrationRegistry;
   snapshotsFor(transaction: PgTransactionClient): AuthoritySnapshotPort;
   providerRequests: ProviderRequestPort;
+  /** Sends and confirms writes to MCP tools; absent, such an effect is refused. */
+  mcp?: McpEffectPort;
   deadlineMs?: number;
   maxDispatchGenerations?: number;
 }>;
@@ -116,9 +119,22 @@ export async function runObserved(
  */
 export async function dispatchEffect(
   deps: DispatchDeps,
-  claimed: Readonly<{ effect: ExternalEffectRow; bound: BoundInvocation }>,
+  claimed: Readonly<{
+    effect: ExternalEffectRow;
+    bound: BoundInvocation | null;
+  }>,
 ): Promise<DispatchResult> {
   const { effect, bound } = claimed;
+  if (isMcpEffect(effect)) {
+    return await dispatchMcpEffect({
+      ...(deps.mcp === undefined ? {} : { mcp: deps.mcp }),
+      deadlineMs: deps.deadlineMs ?? DEFAULT_DEADLINE_MS,
+      ...(deps.maxDispatchGenerations === undefined
+        ? {}
+        : { maxDispatchGenerations: deps.maxDispatchGenerations }),
+    }, effect);
+  }
+  if (bound === null) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const action = deps.registry.findAction(
     bound.providerId,
     bound.actionRef.id,
