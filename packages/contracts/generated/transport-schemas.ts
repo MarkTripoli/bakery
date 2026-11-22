@@ -17895,6 +17895,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -17913,11 +17914,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "sourceColumns": {
@@ -17928,6 +17931,7 @@ const transportSchemas = {
         "status": "status",
         "stopReason": "stop_reason",
         "stoppedBy": "stopped_by",
+        "stoppedByName": "stopped_by_name",
         "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
@@ -17947,6 +17951,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
@@ -18402,7 +18407,7 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -24788,6 +24793,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -24806,11 +24812,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned.",
@@ -24826,6 +24834,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
@@ -24998,7 +25007,7 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -38354,7 +38363,7 @@ const transportSchemas = {
         "resourceVersion": "integer"
       },
       "inngestTrigger": null,
-      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+      "description": "Authorized invalidation notification: a running-app preview was registered by its attempt's worker. Scoped to the run's task. Fetch the authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "principal.created": {
       "schemaVersion": 1,
@@ -39327,6 +39336,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification for a skill use grant its owner revoked; consumers re-read the skill use grants list."
+    },
+    "preview.stopped": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification: a running-app preview was stopped by a person. Fetch the authoritative current preview through its REST operation. Previews that end by themselves (time limit, run cancelled or ended, lost machine) send nothing: the readers derive that state when they read."
     }
   },
   "workerActions": {

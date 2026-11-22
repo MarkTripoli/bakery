@@ -6766,7 +6766,7 @@
       "permission": "preview:access",
       "input": "IdPath",
       "output": "Preview",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
       "errors": [
@@ -8118,8 +8118,8 @@
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -8142,8 +8142,8 @@
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -8166,8 +8166,8 @@
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Installation administration",
@@ -14928,6 +14928,9 @@
     "pullRequests.merge",
     "mergeAttempts.list",
     "mergeAttempts.reconcile",
+    "deployments.list",
+    "deployments.create",
+    "deployments.rollback",
     "metrics.get",
     "metrics.sources",
     "evaluationDefinitions.list",
@@ -35757,6 +35760,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -35786,7 +35801,20 @@
         },
         "post": {
           "operationId": "deployments.create",
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -35836,6 +35864,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -120607,6 +120647,20 @@
               ],
               "description": "previews.stoppedBy may be null in the safe projection."
             },
+            "stoppedByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stoppedByName may be null in the safe projection."
+            },
             "stoppedAt": {
               "anyOf": [
                 {
@@ -120655,6 +120709,7 @@
             "status",
             "stopReason",
             "stoppedBy",
+            "stoppedByName",
             "stoppedAt",
             "expiresAt",
             "createdAt",
@@ -120737,6 +120792,20 @@
               ],
               "description": "previews.stoppedBy may be null in the safe projection."
             },
+            "stoppedByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stoppedByName may be null in the safe projection."
+            },
             "stoppedAt": {
               "anyOf": [
                 {
@@ -120785,6 +120854,7 @@
             "status",
             "stopReason",
             "stoppedBy",
+            "stoppedByName",
             "stoppedAt",
             "expiresAt",
             "createdAt",
@@ -120867,6 +120937,20 @@
               ],
               "description": "Preview.stoppedBy may be null in the safe projection."
             },
+            "stoppedByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "Preview.stoppedByName may be null in the safe projection."
+            },
             "stoppedAt": {
               "anyOf": [
                 {
@@ -120915,6 +120999,7 @@
             "status",
             "stopReason",
             "stoppedBy",
+            "stoppedByName",
             "stoppedAt",
             "expiresAt",
             "createdAt",
@@ -123704,7 +123789,9 @@
                 "deploying",
                 "verifying",
                 "healthy",
+                "degraded",
                 "failed",
+                "unknown",
                 "rolling_back",
                 "rolled_back"
               ],
@@ -123836,7 +123923,9 @@
                 "deploying",
                 "verifying",
                 "healthy",
+                "degraded",
                 "failed",
+                "unknown",
                 "rolling_back",
                 "rolled_back"
               ],
@@ -123968,7 +124057,9 @@
                 "deploying",
                 "verifying",
                 "healthy",
+                "degraded",
                 "failed",
+                "unknown",
                 "rolling_back",
                 "rolled_back"
               ],
@@ -162734,6 +162825,20 @@
                     ],
                     "description": "Preview.stoppedBy may be null in the safe projection."
                   },
+                  "stoppedByName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "Preview.stoppedByName may be null in the safe projection."
+                  },
                   "stoppedAt": {
                     "anyOf": [
                       {
@@ -162782,6 +162887,7 @@
                   "status",
                   "stopReason",
                   "stoppedBy",
+                  "stoppedByName",
                   "stoppedAt",
                   "expiresAt",
                   "createdAt",
@@ -164507,7 +164613,9 @@
                       "deploying",
                       "verifying",
                       "healthy",
+                      "degraded",
                       "failed",
+                      "unknown",
                       "rolling_back",
                       "rolled_back"
                     ],
@@ -280226,7 +280334,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:b7783aa18b7e646a6a052a3735b601fac76c9523d0b4b3eabc3509250d7a6250",
+  "compatibilityDigest": "sha256:3af5f05e8f0d74015f40a0313cb766f9d60a90a03ea987915b407b0482e81811",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -349469,6 +349577,20 @@
           ],
           "description": "previews.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -349517,6 +349639,7 @@
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -349599,6 +349722,20 @@
           ],
           "description": "previews.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -349647,6 +349784,7 @@
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -349729,6 +349867,20 @@
           ],
           "description": "Preview.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -349777,6 +349929,7 @@
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -352566,7 +352719,9 @@
             "deploying",
             "verifying",
             "healthy",
+            "degraded",
             "failed",
+            "unknown",
             "rolling_back",
             "rolled_back"
           ],
@@ -352698,7 +352853,9 @@
             "deploying",
             "verifying",
             "healthy",
+            "degraded",
             "failed",
+            "unknown",
             "rolling_back",
             "rolled_back"
           ],
@@ -352830,7 +352987,9 @@
             "deploying",
             "verifying",
             "healthy",
+            "degraded",
             "failed",
+            "unknown",
             "rolling_back",
             "rolled_back"
           ],
@@ -391732,6 +391891,20 @@
                 ],
                 "description": "Preview.stoppedBy may be null in the safe projection."
               },
+              "stoppedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedByName may be null in the safe projection."
+              },
               "stoppedAt": {
                 "anyOf": [
                   {
@@ -391780,6 +391953,7 @@
               "status",
               "stopReason",
               "stoppedBy",
+              "stoppedByName",
               "stoppedAt",
               "expiresAt",
               "createdAt",
@@ -393505,7 +393679,9 @@
                   "deploying",
                   "verifying",
                   "healthy",
+                  "degraded",
                   "failed",
+                  "unknown",
                   "rolling_back",
                   "rolled_back"
                 ],
