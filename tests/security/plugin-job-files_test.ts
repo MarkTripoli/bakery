@@ -249,6 +249,29 @@ Deno.test("a job that names a version of another package, or none, is handed no 
     }
   }));
 
+Deno.test("a job that names an unpublished version of its own package is handed no code", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment, published } = await setup(fixture, store);
+    const draft = await publishWithPages(
+      fixture,
+      store,
+      { name: "nightly-helper", requestedCapabilities: ["jobs.schedule"] },
+      { "jobs/nightly.js": "export default () => ({ draft: true });\n" },
+      published.packageId,
+    );
+    assertEquals(draft.response.status, 201, await draft.response.text());
+    // A version nobody published is not code a job may run, even in its own package.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set published_at = null where id = $1`,
+      [draft.versionId],
+    );
+    await nameVersion(fixture, assignment.jobId, draft.versionId);
+    await refused(
+      await files(fixture, worker, assignment),
+      "plugin_job_version_not_in_package",
+    );
+  }));
+
 Deno.test("a job that names no version is handed the install's current version", () =>
   withPluginFixture(async (fixture, store) => {
     const { worker, assignment } = await setup(fixture, store);
