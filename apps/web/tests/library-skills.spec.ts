@@ -443,8 +443,8 @@ for (
         expect(search.y).toBeLessThan(filter.y + filter.height);
         expect(filter.y).toBeLessThan(search.y + search.height);
         expect(search.x).toBeGreaterThan(filter.x + filter.width);
-        expect(search.width).toBeGreaterThan(240);
-        expect(search.width).toBeLessThan(330);
+        expect(search.width).toBeGreaterThan(250);
+        expect(search.width).toBeLessThan(300);
         expect(filter.width).toBeLessThan(600);
       }
     });

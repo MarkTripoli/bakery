@@ -138,7 +138,7 @@ export function SkillsTab() {
       maxLength={SKILL_SEARCH_MAX}
       onChange={(event) => setText(event.currentTarget.value)}
       placeholder={translate("library.skills.search")}
-      size={32}
+      size={28}
       value={text}
     />
   );
