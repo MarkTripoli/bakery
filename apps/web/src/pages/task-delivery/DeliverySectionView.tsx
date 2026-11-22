@@ -96,21 +96,42 @@ function nowCopy(
           body: t("tasks.delivery.now.checking.body"),
           action: null,
         };
-    case "fixing":
+    case "fixing": {
+      // What the running try was asked to fix, when the record says: it is the
+      // one place the headline names it, the list of tries gives each try's own.
+      const running = context.model.fixing?.tries.find((entry) =>
+        entry.running
+      );
+      const checks = running?.checkNames.length ?? 0;
+      const blocking = running?.blocking ?? 0;
+      const what = checks > 0 && blocking > 0
+        ? t("tasks.delivery.now.fixing.whatBoth", { checks, blocking })
+        : checks > 0
+        ? t("tasks.delivery.now.fixing.whatChecks", { checks })
+        : blocking > 0
+        ? t("tasks.delivery.now.fixing.whatFindings", { blocking })
+        : null;
+      const last = now.attempt >= now.max;
       return {
         title: t("tasks.delivery.now.fixing.title", {
           attempt: now.attempt,
           max: now.max,
         }),
-        // No count here: "What Bakery tried" says how many checks each try
-        // was asked to fix, so the headline says it once, there.
-        body: t(
-          now.attempt >= now.max
-            ? "tasks.delivery.now.fixing.bodyLast"
-            : "tasks.delivery.now.fixing.body",
-        ),
+        body: what === null
+          ? t(
+            last
+              ? "tasks.delivery.now.fixing.bodyLast"
+              : "tasks.delivery.now.fixing.body",
+          )
+          : t(
+            last
+              ? "tasks.delivery.now.fixing.bodyWhatLast"
+              : "tasks.delivery.now.fixing.bodyWhat",
+            { what },
+          ),
         action: null,
       };
+    }
     case "paused":
       return {
         title: t("tasks.delivery.now.paused.title"),
@@ -756,6 +777,7 @@ function ReadyView(
       {noticeAbove && mergeNoticeElement}
       <UI.AlertBanner
         action={action}
+        actionLayout="stretch"
         data-testid="delivery-now"
         tone={nowTone(model.now)}
       >

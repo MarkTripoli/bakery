@@ -34,7 +34,7 @@ import {
   RunRulesDetails,
   useRunRules,
 } from "./RunRules.tsx";
-import { runTimelineEvents, stepTitle } from "./task-timeline.ts";
+import { stepTimelineEvents, stepTitle } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
@@ -433,11 +433,9 @@ export function TaskRunSection(
     validRun && run.data && !steps.isPending && !steps.isError &&
       !invalidSteps && steps.data && steps.data.items.length > 0
       ? [
-        ...runTimelineEvents(
-          run.data,
+        ...stepTimelineEvents(
           steps.data.items,
           t,
-          { first: cursors.length === 1, last: !steps.data.nextCursor },
           new Map(
             waitingOffers.map((offer) =>
               [offer.runStepId, stepRowCopy(offer, t)] as const

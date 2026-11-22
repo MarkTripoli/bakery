@@ -1841,19 +1841,21 @@ test("a running run shows step progress without a terminal row", async ({ page }
     ],
   });
   await page.goto(`/tasks/${id}`);
-  // Newest first: the step being worked on is the top row.
+  // Newest first: the step being worked on is the top row. The run itself is
+  // not a row: the badge says it once.
   const items = timeline(page).getByRole("listitem");
-  await expect(items).toHaveCount(3);
+  await expect(items).toHaveCount(2);
   await expect(items.nth(0)).toContainText("Implement");
   await expect(items.nth(0)).toContainText("Running");
   await expect(items.nth(1)).toContainText("Write task brief");
   await expect(items.nth(1)).toContainText("Completed");
-  await expect(items.nth(2)).toContainText("Run queued");
-  await expect(timeline(page).getByText(/Run (completed|failed|canceled)/))
+  await expect(
+    timeline(page).getByText(/Run (queued|completed|failed|canceled)/),
+  )
     .toHaveCount(0);
 });
 
-test("a completed run ends with its terminal row on top and says how it went on the run line", async ({ page }) => {
+test("a completed run lists its steps only and says how it went on the run line", async ({ page }) => {
   await mockSession(page, {
     runStatus: "completed",
     finishedAt: "2026-01-01T00:01:00.000Z",
@@ -1861,14 +1863,10 @@ test("a completed run ends with its terminal row on top and says how it went on 
   });
   await page.goto(`/tasks/${id}`);
   const items = timeline(page).getByRole("listitem");
-  // Newest first: the finish is the top row. Four rows fold, so the oldest
-  // (the queued row) sits under "Earlier steps" and three show.
-  await expect(items).toHaveCount(3);
-  await expect(items.first()).toContainText("Run completed");
-  await expect(items.first().locator("time")).toHaveAttribute(
-    "datetime",
-    "2026-01-01T00:01:00.000Z",
-  );
+  // Newest first, and no "Run completed" row: the badge and the run line say it.
+  await expect(items).toHaveCount(2);
+  await expect(items.first()).toContainText("Implement");
+  await expect(timeline(page).getByText("Run completed")).toHaveCount(0);
   await expect(page.getByText("2 steps in 59 s", { exact: true }))
     .toBeVisible();
 });
@@ -1884,11 +1882,12 @@ test("a failed implement step shows the honest no-harness copy", async ({ page }
   });
   await page.goto(`/tasks/${id}`);
   const items = timeline(page).getByRole("listitem");
-  // Newest first: the run's end, then the failed step with the reason.
-  await expect(items.first()).toContainText("Run failed");
-  await expect(items.nth(1)).toContainText(
+  // Newest first: the failed step with the reason, then the step before it.
+  await expect(items).toHaveCount(2);
+  await expect(items.first()).toContainText(
     "No coding agent is installed on this machine yet.",
   );
+  await expect(timeline(page).getByText("Run failed")).toHaveCount(0);
   await expect(page.getByText("Send a message to try again.")).toBeVisible();
   await expect(page.getByText("Run completed")).toHaveCount(0);
 });
@@ -1903,7 +1902,7 @@ test("a failed step with another fault does not claim the harness is missing", a
     ],
   });
   await page.goto(`/tasks/${id}`);
-  await expect(timeline(page).getByRole("listitem").nth(1)).toContainText(
+  await expect(timeline(page).getByRole("listitem").first()).toContainText(
     "Failed",
   );
   await expect(page.getByText("No coding agent")).toHaveCount(0);
@@ -1924,25 +1923,22 @@ test("a run failed by the budget cap names the reason", async ({ page }) => {
     ],
   });
   await page.goto(`/tasks/${id}`);
-  await expect(timeline(page).getByRole("listitem").nth(1)).toContainText(
+  await expect(timeline(page).getByRole("listitem").first()).toContainText(
     "The run budget cannot cover this step's model reservation. Start a new run with a higher budget limit.",
   );
-  await expect(timeline(page).getByRole("listitem").first()).toContainText(
-    "Run failed",
-  );
+  await expect(timeline(page).getByText("Run failed")).toHaveCount(0);
   await expect(page.getByText("No coding agent")).toHaveCount(0);
 });
 
-test("a canceled run shows its canceled terminal row on top and says when on the run line", async ({ page }) => {
+test("a canceled run says when on the run line and adds no row of its own", async ({ page }) => {
   await mockSession(page, {
     runStatus: "canceled",
     finishedAt: "2026-01-01T00:01:00.000Z",
     steps: [stepOf("brief", "completed")],
   });
   await page.goto(`/tasks/${id}`);
-  await expect(timeline(page).getByRole("listitem").first()).toContainText(
-    "Run canceled",
-  );
+  await expect(timeline(page).getByRole("listitem")).toHaveCount(1);
+  await expect(timeline(page).getByText("Run canceled")).toHaveCount(0);
   await expect(page.getByText(/^Canceled .+\.$/)).toBeVisible();
 });
 
@@ -2034,6 +2030,66 @@ test("still: the run line when it is paused, with Resume run as the one button",
     .toHaveCount(0);
   await still(page, "run-line-paused");
 });
+
+test(
+  "the run section draws only what has something in it, and Run actions ends the run line",
+  async ({ page }, testInfo) => {
+    await mockSession(page, {
+      runStatus: "running",
+      steps: [
+        stepOf("brief", "completed"),
+        stepOf("implement", "running", { finishedAt: null }),
+      ],
+      capabilities: allowing("pause", "interrupt", "cancel"),
+    });
+    await quietTaskReads(page);
+    await page.goto(`/tasks/${id}`);
+    await expect(page.getByRole("heading", { name: "Current run" }))
+      .toBeVisible();
+    // Nothing recorded yet means nothing drawn: no empty box, no empty sentence,
+    // no empty pane section.
+    for (
+      const absent of [
+        "No artifacts to show.",
+        "Bakery has not recorded any changes for this run yet.",
+        "This run has published no artifact yet.",
+      ]
+    ) {
+      await expect(page.getByText(absent)).toHaveCount(0);
+    }
+    await expect(page.getByRole("heading", { name: "Changes" })).toHaveCount(0);
+    await expect(page.getByRole("complementary", { name: "Artifact" }))
+      .toHaveCount(0);
+    // Raw output is one click away, never open on its own.
+    for (
+      const raw of await page.locator("details", { hasText: "Raw output" })
+        .all()
+    ) {
+      await expect(raw).not.toHaveAttribute("open", "");
+    }
+    // The run notice replaces the mode hint inside the box on a wide screen; a
+    // phone has no hint, so its notice keeps the line above the box.
+    const composer = page.locator('[data-ui-region="composer"]');
+    await expect(composer.getByText(/^A run is in progress\./)).toBeVisible();
+    if (testInfo.project.name === "desktop") {
+      await expect(composer.locator(".ui-message-composer__hint"))
+        .toContainText(
+          "A run is in progress.",
+        );
+      await expect(composer.locator(".ui-inline-notice")).toHaveCount(0);
+      // The page's own Implementing pill is gone: the stage strip marks the stage.
+      await expect(page.getByText("Implementing", { exact: true })).toHaveCount(
+        0,
+      );
+      // Run actions sits at the end of the run line, level with the step list's end.
+      const trigger = (await runActionsTrigger(page).boundingBox())!;
+      const list = (await timeline(page).boundingBox())!;
+      expect(trigger.x + trigger.width).toBeGreaterThan(
+        list.x + list.width - 8,
+      );
+    }
+  },
+);
 
 test("still: the run line once it finished, with its steps folded", async ({ page }) => {
   await mockSession(page, {
@@ -2131,11 +2187,8 @@ test("cancel losing to completion with ALREADY_TERMINAL renders the server winne
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Completed",
   );
-  const terminal = timeline(page).locator('[data-scope="run"]').filter({
-    hasText: "Run completed",
-  });
-  await expect(terminal).toHaveCount(1);
-  await expect(terminal).toHaveAttribute("data-state", "complete");
+  // The finish is the badge and the run line, never a row of the list.
+  await expect(timeline(page).locator('[data-scope="run"]')).toHaveCount(0);
   const receipt = timeline(page).locator('[data-scope="control"]');
   await expect(receipt).toHaveCount(1);
   await expect(receipt).toContainText("Request cancellation");
@@ -2155,15 +2208,15 @@ test("offline and reconnecting are announced in the timeline banner, never as ro
   // The banner is a persistent status region beside the list, not a row of it.
   const banner = page.locator('[role="status"].ui-run-timeline__connectivity');
   await expect(banner).toHaveAttribute("aria-live", "polite");
-  await expect(timeline(page).getByRole("listitem")).toHaveCount(2);
+  await expect(timeline(page).getByRole("listitem")).toHaveCount(1);
   await context.setOffline(true);
   await expect(banner).toContainText(
     "Offline. Showing the last confirmed record.",
   );
-  await expect(timeline(page).getByRole("listitem")).toHaveCount(2);
+  await expect(timeline(page).getByRole("listitem")).toHaveCount(1);
   await context.setOffline(false);
   await expect(banner).not.toContainText("Offline.");
-  await expect(timeline(page).getByRole("listitem")).toHaveCount(2);
+  await expect(timeline(page).getByRole("listitem")).toHaveCount(1);
 });
 
 /**
@@ -2348,19 +2401,20 @@ test("an unsupported media type says preview unavailable and never asks for an e
   expect(extractRequests).toEqual([]);
 });
 
-test("a task with no artifact shows the empty pane", async ({ page }) => {
+test("a task with no artifact draws no artifact pane", async ({ page }) => {
   await mockSession(page, { runStatus: "queued", steps: [] });
   await page.goto(`/tasks/${id}`);
+  // The section appears with the run's first artifact, so an empty one is not
+  // drawn: no heading, no "published no artifact yet" sentence.
+  await expect(page.getByRole("heading", { name: "Current run" }))
+    .toBeVisible();
   const pane = page.getByRole("complementary", {
     name: "Artifact",
     exact: true,
   });
-  await expect(pane.getByRole("status")).toContainText(
-    "This run has published no artifact yet.",
-  );
-  await expect(pane.getByRole("link", { name: "Open", exact: true }))
+  await expect(pane).toHaveCount(0);
+  await expect(page.getByText("This run has published no artifact yet."))
     .toHaveCount(0);
-  await expect(pane.getByRole("combobox")).toHaveCount(0);
 });
 
 /**
@@ -2551,9 +2605,9 @@ test("an artifact published outside this run never becomes the aside card", asyn
   });
   await expect(pane.getByRole("heading", { name: "Prior run patch" }))
     .toHaveCount(0);
-  await expect(pane.getByRole("status")).toContainText(
-    "This run has published no artifact yet.",
-  );
+  // Nothing of this run to show: the pane is not drawn at all.
+  await expect(pane).toHaveCount(0);
+  await expect(page.getByText("Prior run patch")).toHaveCount(0);
 });
 
 test("a transcript log owned by this run never becomes the aside card", async ({ page }) => {
@@ -2571,10 +2625,8 @@ test("a transcript log owned by this run never becomes the aside card", async ({
     name: "Artifact",
     exact: true,
   });
-  await expect(pane.getByRole("status")).toContainText(
-    "This run has published no artifact yet.",
-  );
-  await expect(pane.getByText("output-transcript/session/segment"))
+  await expect(pane).toHaveCount(0);
+  await expect(page.getByText("output-transcript/session/segment"))
     .toHaveCount(0);
 });
 

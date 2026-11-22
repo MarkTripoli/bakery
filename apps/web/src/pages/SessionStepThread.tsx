@@ -65,7 +65,7 @@ export function SessionStepThread(
             ? translate("session.thread.noSession")
             : translate("session.thread.noSessionNamed", { step: stepName })}
         </UI.Text>
-        {raw(true)}
+        {raw(false)}
       </UI.Stack>
     );
   }

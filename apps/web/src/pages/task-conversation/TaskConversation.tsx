@@ -549,11 +549,6 @@ export function TaskConversation(
     t("tasks.conversation.subtitle.preset"),
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
-  const statusTone = runBlocked
-    ? "warning"
-    : stage === "discuss"
-    ? "neutral"
-    : "information";
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
   const planCard = (
     <UI.PlanSummaryCard
@@ -664,11 +659,6 @@ export function TaskConversation(
       {!phone && (
         <ShellSlot name="actions">
           <UI.Inline gap="standard">
-            <UI.StatusDot tone={statusTone}>
-              {runBlocked
-                ? t("tasks.conversation.status.blocked")
-                : t(`tasks.conversation.status.${stage}`)}
-            </UI.StatusDot>
             {coordinationLink && (
               <RouterLink
                 to="/tasks/$taskId/coordination"

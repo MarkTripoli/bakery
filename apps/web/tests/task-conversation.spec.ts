@@ -1286,7 +1286,7 @@ test("unsupported steering is explicit in the run controls while a run is active
 });
 
 test(
-  "the artifact section of a run with no artifact is an inset pane section",
+  "a run with no artifact draws no artifact section in the inspector",
   async ({ page }, testInfo) => {
     // The inspector is a sheet on a phone; the inline pane is the desktop surface.
     test.skip(testInfo.project.name === "mobile", "desktop inspector only");
@@ -1344,29 +1344,16 @@ test(
     );
     await page.goto(`/tasks/${taskId}`);
     const inspector = page.getByRole("complementary", { name: "Plan" });
-    const artifact = inspector.getByRole("complementary", { name: "Artifact" });
-    const notice = artifact.getByText(
-      "This run has published no artifact yet.",
-    );
-    await expect(notice).toBeVisible();
+    await expect(inspector).toBeVisible();
+    // The section appears with the run's first artifact: an empty one has no
+    // heading and no "published no artifact yet" sentence.
+    await expect(inspector.getByRole("complementary", { name: "Artifact" }))
+      .toHaveCount(0);
+    await expect(page.getByText("This run has published no artifact yet."))
+      .toHaveCount(0);
     // No stray brief heading: the brief is the first transcript entry.
     await expect(inspector.getByRole("heading", { name: "Task brief" }))
       .toHaveCount(0);
-    // The pane body and the notice both sit at least 16px inside the inspector.
-    const box = await inspector.boundingBox();
-    expect(box).not.toBeNull();
-    for (
-      const target of [
-        artifact.locator('[data-ui-component="artifactPane"]'),
-        notice,
-      ]
-    ) {
-      const inner = await target.boundingBox();
-      expect(inner).not.toBeNull();
-      expect(inner!.x - box!.x).toBeGreaterThanOrEqual(16);
-      expect(box!.x + box!.width - (inner!.x + inner!.width))
-        .toBeGreaterThanOrEqual(16);
-    }
     // Heading levels never skip: every inspector heading is an h2.
     const levels = await inspector.getByRole("heading").evaluateAll((nodes) =>
       nodes.map((node) => Number(node.tagName.slice(1)))

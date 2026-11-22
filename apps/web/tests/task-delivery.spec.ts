@@ -2788,3 +2788,163 @@ for (
     }
   }
 }
+
+// ---------------------------------------------------------------- #57: design-ux first pass
+
+/** One repair, running: it was asked to fix one check and one blocking finding. */
+const FIXING_ONE: Scenario = {
+  ...TRIES,
+  decisions: [
+    decisionRow(0, "repair", "repair_selected", OLD, [sha("1")], ["tests"]),
+  ],
+};
+
+test("the fixing headline names what the running try was asked to fix", async ({ page }) => {
+  const section = await openDelivery(page, FIXING_ONE);
+  const now = section.getByTestId("delivery-now");
+  await expect(now).toContainText(
+    "It is working on 1 check and 1 review finding. Nothing for you to do yet.",
+  );
+  // Not the last try: nothing about what happens if it fails.
+  await expect(now).not.toContainText("If this try fails");
+  await page.goto("about:blank");
+  // The last try says what happens next, and counts its own checks.
+  const last = await openDelivery(page, TRIES);
+  await expect(last.getByTestId("delivery-now")).toContainText(
+    "It is working on 2 checks. Nothing for you to do yet. If this try fails, Bakery stops and asks you.",
+  );
+});
+
+test(
+  "the reason takes the width the name does not, in the body colour, and the link ends the row",
+  async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "mobile",
+      "the table is a desktop layout",
+    );
+    const section = await openDelivery(page, STOPPED);
+    const attention = section.getByTestId("delivery-attention");
+    const cells = rowsOf(page, attention.getByTestId("delivery-attention-rows"))
+      .first().getByRole("cell");
+    const [name, why] = [
+      await cells.nth(0).boundingBox(),
+      await cells.nth(1).boundingBox(),
+    ];
+    expect(name).not.toBeNull();
+    expect(why).not.toBeNull();
+    // The name is about a quarter of the row; the reason has more than twice that.
+    expect(why!.width).toBeGreaterThan(name!.width * 2);
+    // The whole finding is on screen: nothing is cut behind Show all.
+    await expect(attention.getByRole("button", { name: "Show all" }))
+      .toHaveCount(0);
+    const finding = attention.getByText(
+      "Refund amount is not validated against the original charge.",
+    );
+    await expect(finding).toBeVisible();
+    // The body colour, not the muted grey of a caption.
+    const colours = await finding.evaluate((node) => {
+      const body = getComputedStyle(document.body).color;
+      return [getComputedStyle(node).color, body];
+    });
+    expect(colours[0]).toBe(colours[1]);
+  },
+);
+
+test(
+  "on a phone the headline button is as wide as the headline",
+  async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone layout");
+    const section = await openDelivery(page, STOPPED);
+    const now = (await section.getByTestId("delivery-now").boundingBox())!;
+    const button = (await section.getByTestId("delivery-now")
+      .getByRole("button", { name: "Tell Bakery what to change" })
+      .boundingBox())!;
+    // Full width inside the banner's own padding, and a 44px target.
+    expect(button.width).toBeGreaterThan(now.width - 64);
+    expect(button.height).toBeGreaterThanOrEqual(44);
+  },
+);
+
+test(
+  "the two links share one row, and the one that opens takes the whole row",
+  async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile", "a wide-screen layout");
+    const section = await openDelivery(page, STOPPED);
+    const summary = (testId: string) =>
+      section.getByTestId(testId).locator("summary").first();
+    const tried = (await summary("delivery-tried").boundingBox())!;
+    const details = (await summary("delivery-details").boundingBox())!;
+    expect(Math.abs(tried.y - details.y)).toBeLessThan(4);
+    expect(details.x).toBeGreaterThan(tried.x + tried.width);
+    // Open, "What Bakery tried" has the section's width, and Details moves under it.
+    await openLink(section, "delivery-tried");
+    const open = (await section.getByTestId("delivery-tried").boundingBox())!;
+    const attention =
+      (await section.getByTestId("delivery-attention").boundingBox())!;
+    expect(open.width).toBeGreaterThan(attention.width * 0.9);
+    const moved = (await summary("delivery-details").boundingBox())!;
+    expect(moved.y).toBeGreaterThan(open.y + open.height - 4);
+  },
+);
+
+test("a long accepted-anyway line wraps beside its icon, not under it", async ({ page }) => {
+  const section = await openDelivery(page, {
+    ...ACCEPTED,
+    review: {
+      ...ACCEPTED.review!,
+      accepted: {
+        at: "2026-01-01T12:00:00.000Z",
+        reason:
+          "The finding is about generated code that nobody edits by hand, so the check is noise here and the team agreed to accept it for this change.",
+        by: "Ana Ruiz",
+      },
+    },
+  });
+  const line = section.getByTestId("delivery-review-accepted");
+  const icon = (await line.locator(".ui-icon").first().boundingBox())!;
+  const text = (await line.locator(".ui-text").first().boundingBox())!;
+  // Every line of the text starts to the right of the icon.
+  expect(text.x).toBeGreaterThanOrEqual(icon.x + icon.width - 1);
+  expect(text.height).toBeGreaterThan(24);
+});
+
+// The states design-ux asked to see with both links open, desktop and phone.
+for (
+  const [name, scenario, approve] of [
+    ["tried", STOPPED, false],
+    ["out-of-date", FIXING, false],
+    ["approval", CLEAN, true],
+    ["first-check", {
+      checks: [{
+        name: "tests",
+        head: NEW,
+        result: "pending" as const,
+        minute: 1,
+      }],
+    }, false],
+  ] as const
+) {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      test(`still: open, ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await mockRun(page);
+        await mockDelivery(page, scenario);
+        if (approve) await mockApprovals(page, [approvalRow()]);
+        await page.goto(`/tasks/${id}`);
+        const section = page.getByTestId("delivery-section");
+        await expect(section).toBeVisible();
+        for (const link of ["delivery-tried", "delivery-details"]) {
+          if (await section.getByTestId(link).count() > 0) {
+            await openLink(section, link);
+          }
+        }
+        await page.setViewportSize({ width, height: TALL[size] });
+        await stillOfSection(page, `open-${name}-${size}-${scheme}.png`);
+      });
+    }
+  }
+}

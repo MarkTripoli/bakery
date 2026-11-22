@@ -52,6 +52,8 @@ type Column<Row> = Readonly<{
   header: string;
   cell: (row: Row) => ReactNode;
   width?: string;
+  /** `end` puts the cell's content at the end of the row. */
+  align?: "end";
 }>;
 
 /**
@@ -114,6 +116,7 @@ function Rows<Row>(
           header: column.header,
           id: column.id,
           width: column.width,
+          align: column.align,
         }))}
         getRowKey={rowKey}
         variant="ruled"
@@ -151,6 +154,7 @@ function Attention(
         <UI.ExpandableText
           hideLabel={t("tasks.delivery.showLess")}
           showLabel={t("tasks.delivery.showAll")}
+          variant="body"
         >
           {item.text}
         </UI.ExpandableText>
@@ -202,6 +206,7 @@ function Attention(
             header: t("tasks.delivery.attention.colLink"),
             cell: link,
             width: "22%",
+            align: "end",
           },
         ]}
         phone={(item) => ({
@@ -230,7 +235,7 @@ function Line(
   }>,
 ) {
   return (
-    <UI.Inline data-testid={testId} gap="compact">
+    <UI.Inline data-line="status" data-testid={testId} gap="compact">
       <UI.IconGlyph name={done ? "check" : "clock"} size="small" />
       {children}
     </UI.Inline>
@@ -295,10 +300,10 @@ function Settled({ model }: Readonly<{ model: DeliveryModel }>) {
     });
     lines.push(
       <Line done key="accepted" testId="delivery-review-accepted">
-        <UI.Text variant="strong">
-          {t("tasks.delivery.settled.acceptedLead")}
-        </UI.Text>
         <UI.Text>
+          <UI.Text variant="strong">
+            {t("tasks.delivery.settled.acceptedLead")}
+          </UI.Text>{" "}
           {review.accepted.by === null
             ? t("tasks.delivery.settled.acceptedNoName", {
               date,
@@ -720,12 +725,11 @@ export function DeliveryBody(
       <Attention items={attentionItems(model)} onOpenRules={onOpenRules} />
       <Settled model={model} />
       {model.checks.rows.length === 0 && model.review === null ? null : (
-        // Two closed links share one compact group: as siblings of the roomy
-        // section stack each took a full gap, a blank band between them.
-        <UI.Stack gap="compact">
+        // Two closed links share one row; one that opens takes the whole row.
+        <UI.Inline gap="standard">
           <Tried fixing={model.fixing} />
           <Details model={model} />
-        </UI.Stack>
+        </UI.Inline>
       )}
     </>
   );

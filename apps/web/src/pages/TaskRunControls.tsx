@@ -225,7 +225,7 @@ export function TaskRunControls(
     <>
       {/* One group, so Resume run and the menu wrap together, never apart. */}
       {(showResume || items.length > 0) && (
-        <UI.Inline gap="compact">
+        <UI.Inline data-placement="end" gap="compact">
           {showResume && (
             <UI.Button
               disabled={busy}
