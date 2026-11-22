@@ -677,6 +677,10 @@
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/bakery/0077_installation_settings.sql"
       },
+      "installation_update_history": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0319_installation_update_policy.sql"
+      },
       "integration_deliveries": {
         "module": "integrations",
         "migration": "apps/server/src/modules/integrations/migrations/bakery/0185_event_export.sql"
@@ -788,6 +792,18 @@
       "person_requests": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0246_person_requests.sql"
+      },
+      "plugin_authoring_attempts": {
+        "module": "workflows",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
+      },
+      "plugin_authoring_events": {
+        "module": "workflows",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
+      },
+      "plugin_authoring_runs": {
+        "module": "workflows",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
       },
       "plugin_install_grants": {
         "module": "catalog",
@@ -1133,6 +1149,9 @@
     },
     "tests/unit/lane-spawn-diagnostic-env_test.ts": {
       "reason": "Diagnostic probe that runs only when BAKERY_TEST_LANE_PROBE=1."
+    },
+    "tests/e2e/prove-prompt-to-private-plugin-backend-authoring_test.ts": {
+      "reason": "The Docker job-runtime case needs Docker and the denoland/deno job image on the host; the other cases always run."
     }
   }
 }

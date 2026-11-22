@@ -77,6 +77,22 @@ export const pluginBundleReferences = [
 /** Tables whose rows can never keep a bundle alive, named so a reader sees them. */
 export const pluginBundleNeutralReferences = [
   {
+    kind: "authoring-run",
+    table: "plugin_authoring_runs",
+    constraint: "plugin_authoring_runs_version_fk",
+    protection: "none",
+    note:
+      "An authoring run (#45) records the version it published as history. The reference is set null when the version goes, so a run never keeps the bytes alive; the install it made does.",
+  },
+  {
+    kind: "authoring-attempt",
+    table: "plugin_authoring_attempts",
+    constraint: "plugin_authoring_attempts_version_fk",
+    protection: "none",
+    note:
+      "An attempt (#45) names the version it published as evidence only, set null with the version, for the same reason as its run.",
+  },
+  {
     kind: "install-grant",
     table: "plugin_install_grants",
     constraint: "plugin_install_grants_install_fk",

@@ -915,6 +915,16 @@ export const pluginInstallImplementedActions = Object.freeze(
   Object.values(PluginInstallImplementedAction),
 );
 
+export const PluginAuthoringImplementedAction = Object.freeze(
+  {
+    PluginAuthoringRunsCreate: "pluginAuthoringRuns.create",
+    PluginAuthoringRunsGet: "pluginAuthoringRuns.get",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const pluginAuthoringImplementedActions = Object.freeze(
+  Object.values(PluginAuthoringImplementedAction),
+);
+
 export const PreviewImplementedAction = Object.freeze(
   {
     PreviewsList: "previews.list",
@@ -996,6 +1006,7 @@ export const implementedActions = Object.freeze(
     ...catalogImplementedActions,
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
+    ...pluginAuthoringImplementedActions,
     ...skillStorageImplementedActions,
     ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,

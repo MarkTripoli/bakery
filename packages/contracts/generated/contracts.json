@@ -13255,6 +13255,56 @@
       "implemented": true
     },
     {
+      "group": "Plugins",
+      "method": "POST",
+      "path": "/v1/plugin-authoring-runs",
+      "action": "pluginAuthoringRuns.create",
+      "access": "Developer",
+      "permission": "pluginInstall:manage",
+      "input": "PluginAuthoringRunCreate",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-authoring-runs/{id}",
+      "action": "pluginAuthoringRuns.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "IdPath",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "PATCH",
       "path": "/v1/artifacts/{id}",
@@ -14921,6 +14971,8 @@
     "pluginPages.list",
     "pluginPages.get",
     "pluginPageDocuments.get",
+    "pluginAuthoringRuns.create",
+    "pluginAuthoringRuns.get",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
     "skillStorageSettings.verify",
@@ -48030,6 +48082,113 @@
           }
         }
       },
+      "/v1/plugin-authoring-runs": {
+        "post": {
+          "operationId": "pluginAuthoringRuns.create",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PluginAuthoringRun"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginAuthoringRunCreate"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/plugin-authoring-runs/{id}": {
+        "get": {
+          "operationId": "pluginAuthoringRuns.get",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PluginAuthoringRun"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/worker/attempts/{id}/output-bindings": {
         "post": {
           "operationId": "worker.output.open",
@@ -58744,6 +58903,8 @@
                 "pluginPageDocuments.get",
                 "userPreferences.get",
                 "userPreferences.update",
+                "pluginAuthoringRuns.create",
+                "pluginAuthoringRuns.get",
                 "artifacts.update",
                 "worker.output.open",
                 "worker.output.close",
@@ -83643,6 +83804,62 @@
           "properties": {},
           "additionalProperties": false,
           "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
+        },
+        "PluginAuthoringRunCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "request": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "What the backend plugin should do, in the requester's own words. The generator reads it with the pinned authoring kit; its SHA-256 is kept as the version's source evidence. PluginAuthoringRunCreate.request must contain at least 1 characters. PluginAuthoringRunCreate.request must contain at most 8000 characters. PluginAuthoringRunCreate.request must match the pattern ^(?!\\s)(?=.*\\S)."
+            },
+            "authorizedCapabilities": {
+              "maxItems": 7,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "state.read",
+                  "state.write",
+                  "ui.page",
+                  "ui.panel",
+                  "commands.run",
+                  "tools.invoke",
+                  "jobs.schedule"
+                ],
+                "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. Each array item follows this format."
+              },
+              "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. PluginAuthoringRunCreate.authorizedCapabilities must contain at most 7 items."
+            },
+            "budgetUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted."
+            },
+            "maxAttempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3,
+              "description": "How many packages the generator may write, 1 to 3. Each failed attempt is handed back with every diagnostic; when the last one fails the run ends blocked and nothing is published. PluginAuthoringRunCreate.maxAttempts must be at least 1. PluginAuthoringRunCreate.maxAttempts must be at most 3."
+            },
+            "installId": {
+              "description": "The caller's own personal install of an authored plugin to revise. Omitted for a new plugin, which is installed privately for the caller. A revision moves that install to the new version only after its preview passes, approving exactly the added capabilities, and puts it back as it was when the preview or state migration fails.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "request",
+            "authorizedCapabilities",
+            "budgetUsd",
+            "maxAttempts"
+          ],
+          "additionalProperties": false,
+          "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -109879,6 +110096,8 @@
                 "pluginPageDocuments.get",
                 "userPreferences.get",
                 "userPreferences.update",
+                "pluginAuthoringRuns.create",
+                "pluginAuthoringRuns.get",
                 "artifacts.update",
                 "worker.output.open",
                 "worker.output.close",
@@ -110565,6 +110784,8 @@
                 "pluginPageDocuments.get",
                 "userPreferences.get",
                 "userPreferences.update",
+                "pluginAuthoringRuns.create",
+                "pluginAuthoringRuns.get",
                 "artifacts.update",
                 "worker.output.open",
                 "worker.output.close",
@@ -111251,6 +111472,8 @@
                 "pluginPageDocuments.get",
                 "userPreferences.get",
                 "userPreferences.update",
+                "pluginAuthoringRuns.create",
+                "pluginAuthoringRuns.get",
                 "artifacts.update",
                 "worker.output.open",
                 "worker.output.close",
@@ -157153,6 +157376,8 @@
                       "pluginPageDocuments.get",
                       "userPreferences.get",
                       "userPreferences.update",
+                      "pluginAuthoringRuns.create",
+                      "pluginAuthoringRuns.get",
                       "artifacts.update",
                       "worker.output.open",
                       "worker.output.close",
@@ -275065,6 +275290,1833 @@
           "type": "string",
           "format": "binary"
         },
+        "PluginAuthoringAttempt": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "attemptNumber": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The attempt's position in the run, from 1."
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "checked",
+                "passed",
+                "failed"
+              ],
+              "description": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise."
+            },
+            "filesDigest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringAttempt.filesDigest may be null in this transport value."
+            },
+            "checkReport": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PluginAuthoringAttempt____schema0"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/PluginAuthoringAttempt____schema0"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringAttempt.checkReport may be null in this transport value."
+            },
+            "diagnostics": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt. Each array item follows this format."
+              },
+              "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt."
+            },
+            "costUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "What the generator reported this attempt cost."
+            },
+            "pluginVersionId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The private version published from this attempt; null unless it passed."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringAttempt.pluginVersionId may be null in this transport value."
+            },
+            "previewResult": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PluginAuthoringAttempt____schema2"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/PluginAuthoringAttempt____schema2"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "The value the job returned in its private preview; null unless the attempt passed."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringAttempt.previewResult may be null in this transport value."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the attempt was recorded."
+            }
+          },
+          "required": [
+            "attemptNumber",
+            "outcome",
+            "filesDigest",
+            "checkReport",
+            "diagnostics",
+            "costUsd",
+            "pluginVersionId",
+            "previewResult",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "description": "One package the generator wrote for an authoring run and what the checks and preview said about it."
+        },
+        "PluginAuthoringAttempt____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringAttempt____schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringAttempt____schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringAttempt____schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringEvent": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "published",
+                "compensated",
+                "rolled_back",
+                "rollback_refused",
+                "install_moved",
+                "interrupted"
+              ],
+              "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published."
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginAuthoringEvent____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/PluginAuthoringEvent____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it was recorded."
+            }
+          },
+          "required": [
+            "kind",
+            "detail",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "description": "Something an authoring run did to an install besides publishing to it, kept as evidence."
+        },
+        "PluginAuthoringEvent____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringEvent____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringEvent____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringEvent____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringEvent____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringRun": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of this authoring run."
+            },
+            "organizationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the organization that owns this run."
+            },
+            "actorPrincipalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The person who asked for the plugin; only they can read the run."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "running",
+                "succeeded",
+                "unchanged",
+                "blocked",
+                "budget_exhausted",
+                "interrupted"
+              ],
+              "description": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone."
+            },
+            "request": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The request text as sent."
+            },
+            "requestDigest": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 of the request text, the published version's source evidence."
+            },
+            "authorizedCapabilities": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "state.read",
+                  "state.write",
+                  "ui.page",
+                  "ui.panel",
+                  "commands.run",
+                  "tools.invoke",
+                  "jobs.schedule"
+                ],
+                "description": "The capabilities the request allowed, the only ones a package could ask for. Each array item follows this format."
+              },
+              "description": "The capabilities the request allowed, the only ones a package could ask for."
+            },
+            "budgetUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The budget the request set, in USD."
+            },
+            "spentUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "What the attempts cost in total, in USD."
+            },
+            "maxAttempts": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The attempt cap the request set."
+            },
+            "kitDigest": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 of the pinned authoring kit the generator was shown."
+            },
+            "sdkVersion": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The plugin SDK version the host checked against."
+            },
+            "modelId": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The generator's model id."
+            },
+            "basePluginInstallId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The install a revision started from; null for a new plugin."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringRun.basePluginInstallId may be null in this transport value."
+            },
+            "pluginPackageId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The package published to; null unless the run succeeded."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringRun.pluginPackageId may be null in this transport value."
+            },
+            "pluginVersionId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringRun.pluginVersionId may be null in this transport value."
+            },
+            "pluginInstallId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The personal install now running that version; null unless the run succeeded or was unchanged."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringRun.pluginInstallId may be null in this transport value."
+            },
+            "failure": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PluginAuthoringRun____schema0"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/PluginAuthoringRun____schema0"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringRun.failure may be null in this transport value."
+            },
+            "attempts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "attemptNumber": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "The attempt's position in the run, from 1."
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "checked",
+                      "passed",
+                      "failed"
+                    ],
+                    "description": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise."
+                  },
+                  "filesDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "PluginAuthoringAttempt.filesDigest may be null in this transport value."
+                  },
+                  "checkReport": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "description": "JSON string value."
+                          },
+                          {
+                            "type": "number",
+                            "description": "JSON number value."
+                          },
+                          {
+                            "type": "boolean",
+                            "description": "JSON boolean value."
+                          },
+                          {
+                            "type": "null",
+                            "description": "JSON null value."
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/PluginAuthoringRun____schema1"
+                            },
+                            "description": "JSON array value."
+                          },
+                          {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string",
+                              "description": "JSON object key."
+                            },
+                            "additionalProperties": {
+                              "$ref": "#/components/schemas/PluginAuthoringRun____schema1"
+                            },
+                            "description": "JSON object value."
+                          }
+                        ],
+                        "description": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "PluginAuthoringAttempt.checkReport may be null in this transport value."
+                  },
+                  "diagnostics": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "JSON string value."
+                        },
+                        {
+                          "type": "number",
+                          "description": "JSON number value."
+                        },
+                        {
+                          "type": "boolean",
+                          "description": "JSON boolean value."
+                        },
+                        {
+                          "type": "null",
+                          "description": "JSON null value."
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PluginAuthoringRun____schema2"
+                          },
+                          "description": "JSON array value."
+                        },
+                        {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "description": "JSON object key."
+                          },
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/PluginAuthoringRun____schema2"
+                          },
+                          "description": "JSON object value."
+                        }
+                      ],
+                      "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt. Each array item follows this format."
+                    },
+                    "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt."
+                  },
+                  "costUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "What the generator reported this attempt cost."
+                  },
+                  "pluginVersionId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The private version published from this attempt; null unless it passed."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "PluginAuthoringAttempt.pluginVersionId may be null in this transport value."
+                  },
+                  "previewResult": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "description": "JSON string value."
+                          },
+                          {
+                            "type": "number",
+                            "description": "JSON number value."
+                          },
+                          {
+                            "type": "boolean",
+                            "description": "JSON boolean value."
+                          },
+                          {
+                            "type": "null",
+                            "description": "JSON null value."
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/PluginAuthoringRun____schema3"
+                            },
+                            "description": "JSON array value."
+                          },
+                          {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string",
+                              "description": "JSON object key."
+                            },
+                            "additionalProperties": {
+                              "$ref": "#/components/schemas/PluginAuthoringRun____schema3"
+                            },
+                            "description": "JSON object value."
+                          }
+                        ],
+                        "description": "The value the job returned in its private preview; null unless the attempt passed."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "PluginAuthoringAttempt.previewResult may be null in this transport value."
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the attempt was recorded."
+                  }
+                },
+                "required": [
+                  "attemptNumber",
+                  "outcome",
+                  "filesDigest",
+                  "checkReport",
+                  "diagnostics",
+                  "costUsd",
+                  "pluginVersionId",
+                  "previewResult",
+                  "createdAt"
+                ],
+                "additionalProperties": false,
+                "description": "Every attempt in order. Each array item follows this format."
+              },
+              "description": "Every attempt in order."
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "published",
+                      "compensated",
+                      "rolled_back",
+                      "rollback_refused",
+                      "install_moved",
+                      "interrupted"
+                    ],
+                    "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published."
+                  },
+                  "detail": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/PluginAuthoringRun____schema4"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/components/schemas/PluginAuthoringRun____schema4"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore."
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it was recorded."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "detail",
+                  "createdAt"
+                ],
+                "additionalProperties": false,
+                "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption. Each array item follows this format."
+              },
+              "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the run started."
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the run last changed."
+            },
+            "finishedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the run reached its outcome; null while running."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PluginAuthoringRun.finishedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "id",
+            "organizationId",
+            "actorPrincipalId",
+            "status",
+            "request",
+            "requestDigest",
+            "authorizedCapabilities",
+            "budgetUsd",
+            "spentUsd",
+            "maxAttempts",
+            "kitDigest",
+            "sdkVersion",
+            "modelId",
+            "basePluginInstallId",
+            "pluginPackageId",
+            "pluginVersionId",
+            "pluginInstallId",
+            "failure",
+            "attempts",
+            "events",
+            "createdAt",
+            "updatedAt",
+            "finishedAt"
+          ],
+          "additionalProperties": false,
+          "description": "One request to author a private backend plugin: what was asked and authorized, the kit, SDK and model it ran with, every attempt, and where it ended."
+        },
+        "PluginAuthoringRun____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringRun____schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringRun____schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringRun____schema3": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginAuthoringRun____schema4": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginAuthoringRun____schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -276915,7 +278967,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
+  "compatibilityDigest": "sha256:983ed3ad3c4aadf360b7319a7a96ac3580e369d9dc3fd94ef6dd011501691a20",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -284728,6 +286780,8 @@
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -309709,6 +311763,62 @@
       "properties": {},
       "additionalProperties": false,
       "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
+    },
+    "PluginAuthoringRunCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "What the backend plugin should do, in the requester's own words. The generator reads it with the pinned authoring kit; its SHA-256 is kept as the version's source evidence. PluginAuthoringRunCreate.request must contain at least 1 characters. PluginAuthoringRunCreate.request must contain at most 8000 characters. PluginAuthoringRunCreate.request must match the pattern ^(?!\\s)(?=.*\\S)."
+        },
+        "authorizedCapabilities": {
+          "maxItems": 7,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. Each array item follows this format."
+          },
+          "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. PluginAuthoringRunCreate.authorizedCapabilities must contain at most 7 items."
+        },
+        "budgetUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "How many packages the generator may write, 1 to 3. Each failed attempt is handed back with every diagnostic; when the last one fails the run ends blocked and nothing is published. PluginAuthoringRunCreate.maxAttempts must be at least 1. PluginAuthoringRunCreate.maxAttempts must be at most 3."
+        },
+        "installId": {
+          "description": "The caller's own personal install of an authored plugin to revise. Omitted for a new plugin, which is installed privately for the caller. A revision moves that install to the new version only after its preview passes, approving exactly the added capabilities, and puts it back as it was when the preview or state migration fails.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "request",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "maxAttempts"
+      ],
+      "additionalProperties": false,
+      "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -336039,6 +338149,8 @@
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -336725,6 +338837,8 @@
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -337411,6 +339525,8 @@
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -383463,6 +385579,8 @@
                   "pluginPageDocuments.get",
                   "userPreferences.get",
                   "userPreferences.update",
+                  "pluginAuthoringRuns.create",
+                  "pluginAuthoringRuns.get",
                   "artifacts.update",
                   "worker.output.open",
                   "worker.output.close",
@@ -501536,6 +503654,1839 @@
       "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
       "type": "string",
       "format": "binary"
+    },
+    "PluginAuthoringAttempt": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "attemptNumber": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The attempt's position in the run, from 1."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "checked",
+            "passed",
+            "failed"
+          ],
+          "description": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise."
+        },
+        "filesDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringAttempt.filesDigest may be null in this transport value."
+        },
+        "checkReport": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringAttempt.checkReport may be null in this transport value."
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt. Each array item follows this format."
+          },
+          "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt."
+        },
+        "costUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "What the generator reported this attempt cost."
+        },
+        "pluginVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The private version published from this attempt; null unless it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringAttempt.pluginVersionId may be null in this transport value."
+        },
+        "previewResult": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The value the job returned in its private preview; null unless the attempt passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringAttempt.previewResult may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the attempt was recorded."
+        }
+      },
+      "required": [
+        "attemptNumber",
+        "outcome",
+        "filesDigest",
+        "checkReport",
+        "diagnostics",
+        "costUsd",
+        "pluginVersionId",
+        "previewResult",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One package the generator wrote for an authoring run and what the checks and preview said about it.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "PluginAuthoringEvent": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "published",
+            "compensated",
+            "rolled_back",
+            "rollback_refused",
+            "install_moved",
+            "interrupted"
+          ],
+          "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it was recorded."
+        }
+      },
+      "required": [
+        "kind",
+        "detail",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "Something an authoring run did to an install besides publishing to it, kept as evidence.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "PluginAuthoringRun": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this authoring run."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization that owns this run."
+        },
+        "actorPrincipalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person who asked for the plugin; only they can read the run."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "running",
+            "succeeded",
+            "unchanged",
+            "blocked",
+            "budget_exhausted",
+            "interrupted"
+          ],
+          "description": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone."
+        },
+        "request": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The request text as sent."
+        },
+        "requestDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the request text, the published version's source evidence."
+        },
+        "authorizedCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the request allowed, the only ones a package could ask for. Each array item follows this format."
+          },
+          "description": "The capabilities the request allowed, the only ones a package could ask for."
+        },
+        "budgetUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "The budget the request set, in USD."
+        },
+        "spentUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "What the attempts cost in total, in USD."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The attempt cap the request set."
+        },
+        "kitDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the pinned authoring kit the generator was shown."
+        },
+        "sdkVersion": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The plugin SDK version the host checked against."
+        },
+        "modelId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The generator's model id."
+        },
+        "basePluginInstallId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The install a revision started from; null for a new plugin."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.basePluginInstallId may be null in this transport value."
+        },
+        "pluginPackageId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The package published to; null unless the run succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginPackageId may be null in this transport value."
+        },
+        "pluginVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginVersionId may be null in this transport value."
+        },
+        "pluginInstallId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The personal install now running that version; null unless the run succeeded or was unchanged."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginInstallId may be null in this transport value."
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.failure may be null in this transport value."
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "attemptNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The attempt's position in the run, from 1."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "checked",
+                  "passed",
+                  "failed"
+                ],
+                "description": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise."
+              },
+              "filesDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.filesDigest may be null in this transport value."
+              },
+              "checkReport": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.checkReport may be null in this transport value."
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema2"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema2"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt. Each array item follows this format."
+                },
+                "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt."
+              },
+              "costUsd": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                "description": "What the generator reported this attempt cost."
+              },
+              "pluginVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The private version published from this attempt; null unless it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.pluginVersionId may be null in this transport value."
+              },
+              "previewResult": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema3"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema3"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The value the job returned in its private preview; null unless the attempt passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.previewResult may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the attempt was recorded."
+              }
+            },
+            "required": [
+              "attemptNumber",
+              "outcome",
+              "filesDigest",
+              "checkReport",
+              "diagnostics",
+              "costUsd",
+              "pluginVersionId",
+              "previewResult",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "Every attempt in order. Each array item follows this format."
+          },
+          "description": "Every attempt in order."
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "published",
+                  "compensated",
+                  "rolled_back",
+                  "rollback_refused",
+                  "install_moved",
+                  "interrupted"
+                ],
+                "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it was recorded."
+              }
+            },
+            "required": [
+              "kind",
+              "detail",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption. Each array item follows this format."
+          },
+          "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the run started."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the run last changed."
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the run reached its outcome; null while running."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.finishedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "actorPrincipalId",
+        "status",
+        "request",
+        "requestDigest",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "spentUsd",
+        "maxAttempts",
+        "kitDigest",
+        "sdkVersion",
+        "modelId",
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "attempts",
+        "events",
+        "createdAt",
+        "updatedAt",
+        "finishedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One request to author a private backend plugin: what was asked and authorized, the kit, SDK and model it ran with, every attempt, and where it ended.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema3": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema4": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
