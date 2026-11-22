@@ -5,6 +5,7 @@ import { StandardError } from "@bakery/contracts/http";
 import {
   isTicketRequestDisposition,
   TicketAuthorityEvidenceSchema,
+  TicketPresetPinSchema,
 } from "@bakery/contracts/ticket-admission";
 import {
   type CursorBinding,
@@ -50,6 +51,7 @@ type ViewRow = {
   disposition_reason: string | null;
   pause_requested_at: Date | null;
   workflow_run_id: string | null;
+  pinned_preset: unknown;
   run_status: string | null;
   created_at: Date;
   updated_at: Date;
@@ -61,7 +63,7 @@ const VIEW_SELECT = `select request.id, request.external_ticket_id,
     request.ticket_task_link_id, request.intent, request.origin,
     request.authority_principal_id, request.authority_evidence,
     request.disposition, request.disposition_reason,
-    request.pause_requested_at, request.workflow_run_id,
+    request.pause_requested_at, request.workflow_run_id, request.pinned_preset,
     run.status as run_status, request.created_at, request.updated_at,
     request.version,
     to_char(request.created_at at time zone 'UTC', ${CURSOR_TIME})
@@ -126,6 +128,7 @@ function toView(
     throw new Error("TICKET_REQUEST_ROW_INVALID");
   }
   const manual = row.origin === "manual" || row.origin === "adoption";
+  const preset = TicketPresetPinSchema.parse(row.pinned_preset);
   return {
     id: row.id,
     externalTicketId: row.external_ticket_id,
@@ -144,6 +147,8 @@ function toView(
       requestDeliveryVerdict(facts, row.run_status === "completed").delivered,
     ),
     workflowRunId: row.workflow_run_id,
+    presetId: preset.id,
+    presetRevision: preset.revision,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     version: row.version,

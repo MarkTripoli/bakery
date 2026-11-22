@@ -26130,6 +26130,14 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 200,
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria. TicketRequestCreate.requirementsDigest must contain at most 200 characters."
+        },
+        "preset": {
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
         }
       },
       "required": [
@@ -86910,6 +86918,20 @@ export const clientManifest = {
           ],
           "description": "TicketRequestView.workflowRunId may be null in this transport value."
         },
+        "presetId": {
+          "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
+        },
+        "presetRevision": {
+          "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -87231,6 +87253,20 @@ export const clientManifest = {
                   }
                 ],
                 "description": "TicketRequestView.workflowRunId may be null in this transport value."
+              },
+              "presetId": {
+                "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+                "type": "string",
+                "enum": [
+                  "fixed-coding",
+                  "fixed-coding-reviewed"
+                ]
+              },
+              "presetRevision": {
+                "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
               },
               "createdAt": {
                 "type": "string",

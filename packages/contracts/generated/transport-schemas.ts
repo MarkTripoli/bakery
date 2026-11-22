@@ -8050,6 +8050,16 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria."
+        },
+        {
+          "name": "preset",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
         }
       ],
       "rules": [
@@ -29200,6 +29210,8 @@ const transportSchemas = {
         "pausedReason",
         "progress",
         "workflowRunId",
+        "presetId",
+        "presetRevision",
         "createdAt",
         "updatedAt",
         "version",
@@ -29219,6 +29231,8 @@ const transportSchemas = {
         "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
         "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
         "workflowRunId": "uuid|null",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
+        "presetRevision": "integer",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
@@ -29250,7 +29264,18 @@ const transportSchemas = {
         "createdAt": "When the request was admitted.",
         "updatedAt": "When the request last changed.",
         "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository.",
+        "presetId": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+        "presetRevision": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "presetId",
+        "presetRevision"
+      ],
+      "fieldBounds": {
+        "presetRevision": {
+          "min": 1
+        }
       }
     },
     "Page<TicketRequestView>": {
