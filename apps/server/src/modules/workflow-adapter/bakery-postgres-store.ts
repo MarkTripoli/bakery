@@ -1510,6 +1510,20 @@ export const WORKFLOW_ENGINE_STEP_OPERATION = "workflow.step.complete";
 /** How long an engine-settled step that is not done waits before the engine looks at it again. */
 const ENGINE_STEP_RETRY_MS = 10_000;
 
+/**
+ * How long an engine-settled step may keep answering "not done" before the
+ * engine fails it. It has no job, so no attempt budget ends the wait.
+ */
+const ENGINE_STEP_WAIT_LIMIT_MS = 30 * 60_000;
+
+/** When an engine-settled step first answered "not done", as recorded on the step row. */
+function stepWaitingSinceOf(dispatch: unknown): Date | null {
+  const at = jsonRecord(dispatch)?.stepWaitingSince;
+  if (typeof at !== "string") return null;
+  const time = Date.parse(at);
+  return Number.isNaN(time) ? null : new Date(time);
+}
+
 /** When the engine looks at a waiting engine-settled step again, as it recorded on the step row. */
 function stepRetryAtOf(dispatch: unknown): Date | null {
   const at = jsonRecord(dispatch)?.stepRetryAt;
@@ -1525,6 +1539,8 @@ function stepRetryAtOf(dispatch: unknown): Date | null {
  * decides the step is still due, the second records what the call answered.
  * A step that is not done keeps its row pending and carries the time of its
  * next look, so a crash anywhere in between replays into the same effect key.
+ * The row also carries when it first waited; past the wait limit the step
+ * fails with `ENGINE_STEP_TIMED_OUT` instead of waiting without end.
  */
 async function admitEngineStep(
   database: PgDatabase,
@@ -1614,7 +1630,22 @@ async function admitEngineStep(
       );
       return { key, terminal: true };
     }
-    // Not done: the row stays pending, started, with the time of the next look.
+    // Not done for too long: nobody else will end this wait, so the engine does.
+    const waitingSince = stepWaitingSinceOf(row.stepDispatch);
+    if (
+      waitingSince !== null &&
+      Date.now() - waitingSince.getTime() >= ENGINE_STEP_WAIT_LIMIT_MS
+    ) {
+      await projectFailure(
+        transaction,
+        row,
+        "ENGINE_STEP_TIMED_OUT:The step did not settle within its wait limit.",
+        owner,
+      );
+      return { key, terminal: true };
+    }
+    // Not done: the row stays pending, started, with the time of the next look
+    // and, the first time, the time it began to wait.
     await transaction.query(
       `update bakery.run_steps
           set dispatch = dispatch || jsonb_build_object(
@@ -1623,6 +1654,14 @@ async function admitEngineStep(
                   (clock_timestamp() + ($3::integer * interval '1 millisecond'))
                     at time zone 'UTC',
                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                ),
+                'stepWaitingSince',
+                coalesce(
+                  dispatch ->> 'stepWaitingSince',
+                  to_char(
+                    clock_timestamp() at time zone 'UTC',
+                    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                  )
                 )
               ),
               started_at = coalesce(started_at, clock_timestamp()),

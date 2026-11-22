@@ -1458,7 +1458,9 @@ pack implements for the actions it owns.
   stable code, `pending` leaves the row pending and stores the time of the next
   look. A pending step reads as retryable until then, so the engine sleeps through
   its existing retry path, then admits it again. With no runner configured the
-  step fails with `ENGINE_STEP_UNAVAILABLE`.
+  step fails with `ENGINE_STEP_UNAVAILABLE`. The row also records when the step first
+  waited; a step still not done 30 minutes later fails with `ENGINE_STEP_TIMED_OUT`
+  (it has no job, so no attempt budget ends the wait).
 - **One effect key.** The step key `<runId>:<stepKey>:<iteration>` is the scope of
   everything: the deployment record's request key, the target's `deploy:<scope>`
   effect, and any rollback `rollback:<scope>:<n>`. The plan's own `effectKey`

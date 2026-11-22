@@ -164,9 +164,9 @@ async function evidenceRef(
   versionId: string,
 ): Promise<{ artifactId: string; versionId: string; sha256: string } | null> {
   const found = await transaction.query<
-    { artifact_id: string; sha256: string; content: Uint8Array | null }
+    { artifact_id: string; sha256: string }
   >(
-    `select artifact_id, sha256, content from bakery.artifact_versions
+    `select artifact_id, sha256 from bakery.artifact_versions
       where organization_id = $1 and id = $2`,
     [organizationId, versionId],
   );

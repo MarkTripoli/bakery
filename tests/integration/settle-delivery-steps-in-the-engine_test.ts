@@ -163,6 +163,55 @@ Deno.test("a step that is not done stays pending, reads as retryable until its n
     assertEquals((await step(fixture, seeded.job.runId)).status, "completed");
   }));
 
+Deno.test("a step that keeps answering not done is failed with a stable code once its wait limit passes (#43)", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await atTheDeliveryStep(fixture);
+    let calls = 0;
+    const runner: EngineStepRunner = {
+      handles: () => true,
+      run: (): Promise<EngineStepResult> => {
+        calls += 1;
+        return Promise.resolve({ kind: "pending" });
+      },
+    };
+    const repository = repositoryWith(fixture, runner);
+    const key = await repository.findNext(seeded.job.runId, seeded.owner);
+    assert(key !== undefined);
+    assertEquals((await repository.admit(key, seeded.owner)).terminal, false);
+    const waitingSince = (await fixture.pgDatabase.query<{ since: string }>(
+      `select dispatch ->> 'stepWaitingSince' as since
+         from bakery.run_steps where run_id = $1 and step_key = 'prep'`,
+      [seeded.job.runId],
+    )).rows[0].since;
+    assert(waitingSince !== null, "the first wait is recorded on the row");
+
+    // A later answer of not done keeps the first time and does not fail yet.
+    assertEquals((await repository.admit(key, seeded.owner)).terminal, false);
+    assertEquals(
+      (await fixture.pgDatabase.query<{ since: string }>(
+        `select dispatch ->> 'stepWaitingSince' as since
+           from bakery.run_steps where run_id = $1 and step_key = 'prep'`,
+        [seeded.job.runId],
+      )).rows[0].since,
+      waitingSince,
+    );
+    assertEquals((await step(fixture, seeded.job.runId)).status, "pending");
+
+    // Past the limit the same answer ends the step instead of waiting again.
+    await fixture.pgDatabase.query(
+      `update bakery.run_steps
+          set dispatch = jsonb_set(dispatch, '{stepWaitingSince}',
+                                   to_jsonb('2020-01-01T00:00:00.000Z'::text))
+        where run_id = $1 and step_key = 'prep'`,
+      [seeded.job.runId],
+    );
+    assertEquals((await repository.admit(key, seeded.owner)).terminal, true);
+    assertEquals(calls, 3);
+    const row = await step(fixture, seeded.job.runId);
+    assertEquals(row.status, "failed");
+    assert(JSON.stringify(row.error).includes("ENGINE_STEP_TIMED_OUT"));
+  }));
+
 Deno.test("a refusal fails the step with its stable code, and no configured runner fails it the same way (#43)", () =>
   withWorkerFixture(async (fixture) => {
     const refused = await atTheDeliveryStep(fixture);
