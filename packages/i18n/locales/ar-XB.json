@@ -6113,5 +6113,6 @@
   "library.workflow.editor.skills.slot.unavailable.titleUnnamed": "⟪A skill is no longer available⟫",
   "library.workflow.editor.skills.slot.stopped.title": "⟪{name} cannot be used here⟫",
   "library.workflow.editor.skills.slot.stopped.titleUnnamed": "⟪A skill cannot be used here⟫",
-  "library.workflow.export.privateSkills": "⟪Exported without {count, plural, one {# private skill} other {# private skills}}. Whoever imports it is asked to choose a skill for {steps, plural, one {{step}} other {# steps}}.⟫"
+  "library.workflow.export.privateSkills": "⟪Exported without {count, plural, one {# private skill} other {# private skills}}. Whoever imports it is asked to choose a skill for {steps, plural, one {{step}} other {# steps}}.⟫",
+  "library.editor.panel.codeOnlyRest": "⟪The rest of this step is written in code.⟫"
 }

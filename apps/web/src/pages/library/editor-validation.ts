@@ -20,6 +20,13 @@ export type StepProblems = {
   readonly workflow: readonly ValidationProblem[];
 };
 
+/** The codes for a skill that needs a choice: when a step has only these, its Skills section says it. */
+export const SKILL_PROBLEM_CODES: ReadonlySet<string> = new Set([
+  "step_skill_slot_open",
+  "step_skill_stopped",
+  "step_skill_unavailable",
+]);
+
 /** The one sentence for a step whose skill needs a choice, whichever of the three reasons it is. */
 export const SKILL_PROBLEM_SENTENCE = "A skill on this step needs a choice.";
 

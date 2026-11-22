@@ -83,6 +83,9 @@ export type PanelTarget =
     readonly name: string;
     /** The problem's sentence, shown above the code-only sentence. */
     readonly problem: string | undefined;
+    /** The Skills section of an agent step written in code: a skill is not part of that code (#431). */
+    readonly skills?: StepSkills;
+    readonly attach?: StepAttach | null;
   }
   | {
     readonly kind: "step";
@@ -148,6 +151,9 @@ export function StepPanel(
         }
       >
         <UI.Stack gap="compact">
+          {target.skills === undefined || target.skills.kind === "hidden"
+            ? null
+            : <Skills skills={target.skills} attach={target.attach ?? null} />}
           {target.problem === undefined
             ? null
             : (
@@ -156,7 +162,11 @@ export function StepPanel(
               </UI.InlineNotice>
             )}
           <UI.Text>
-            {translate("library.editor.panel.codeOnly" as never)}
+            {translate(
+              (target.skills === undefined || target.skills.kind === "hidden"
+                ? "library.editor.panel.codeOnly"
+                : "library.editor.panel.codeOnlyRest") as never,
+            )}
           </UI.Text>
         </UI.Stack>
       </UI.InspectorPanel>

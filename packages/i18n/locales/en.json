@@ -5087,6 +5087,7 @@
   "library.editor.group.codeOnly": "Edited in code",
   "library.editor.group.noSteps": "No steps",
   "library.editor.panel.codeOnly": "This part of the workflow is written in code. You cannot change it here.",
+  "library.editor.panel.codeOnlyRest": "The rest of this step is written in code.",
   "library.editor.unreadable.title": "Bakery cannot draw this workflow's steps",
   "library.editor.unreadable.body": "The steps are written in a way Bakery cannot read. Open the code to see them.",
   "library.editor.problem.unknown": "Bakery does not know this kind of step. Delete it and add a step from the list.",

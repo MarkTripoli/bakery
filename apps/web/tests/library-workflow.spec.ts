@@ -1526,6 +1526,111 @@ for (
       expect(savedSkills(seen).skills).toContain(uuid(8103));
     });
 
+    // A step that waits for another is written in code; its skills are still the panel's to change.
+    const writtenInCode = (items: unknown[]) => {
+      const world = skillsWorld({ items });
+      return {
+        ...world,
+        versions: world.versions!.map((row) =>
+          row.status === "draft"
+            ? {
+              ...row,
+              steps: row.steps.map((step) =>
+                step.id === "implement" ? { ...step, needs: ["brief"] } : step
+              ),
+            }
+            : row
+        ),
+      };
+    };
+
+    test("an agent step written in code shows its Skills first, and a missing skill is chosen there", async ({ page }) => {
+      const items = [
+        skill({}),
+        skill({
+          skillVersionId: null,
+          skillName: "Brand voice",
+          revision: null,
+          scope: null,
+          status: "missing",
+        }),
+      ];
+      const { seen, skills } = await openSkills(page, {
+        skills: { items },
+        catalog: [
+          catalogSkill({
+            id: uuid(8003),
+            slug: "house-style",
+            name: "House style",
+            activeVersionId: uuid(8103),
+          }),
+        ],
+        versions: writtenInCode(items).versions,
+      });
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      // The slot is the step's one problem, counted and on its card, and the notice above it is not drawn.
+      await expect(page.getByTestId("editor-problems")).toHaveText("1 problem");
+      await expect(page.locator("[data-card]").filter({ hasText: "Implement" }))
+        .toContainText("Needs setup");
+      await expect(panel).not.toContainText(
+        "A skill on this step needs a choice.",
+      );
+      // Skills first, then the sentence about the rest, then View as code.
+      await expect(panel).toContainText(
+        "The rest of this step is written in code.",
+      );
+      await expect(panel).not.toContainText("You cannot change it here");
+      const skillsBox = (await skills.boundingBox())!;
+      const restBox = (await panel.getByText(
+        "The rest of this step is written in code.",
+      ).boundingBox())!;
+      const codeBox = (await panel.getByRole("button", { name: "View as code" })
+        .boundingBox())!;
+      expect(skillsBox.y).toBeLessThan(restBox.y);
+      expect(restBox.y).toBeLessThan(codeBox.y);
+      const slot = skills.locator("[data-skill-status='missing']");
+      await expect(slot.getByRole("button", { name: "Choose a skill…" }))
+        .toBeVisible();
+      await expect(slot.getByRole("button", { name: "Remove" })).toBeVisible();
+      await expect(skills.getByRole("button", { name: "Attach a skill…" }))
+        .toBeVisible();
+      await page.mouse.move(600, 700);
+      await still(page, "workflow-editor-skills-codeonly-slot");
+      const readsBefore = seen.skillReads;
+      await slot.getByRole("button", { name: "Choose a skill…" }).click();
+      await pickerOf(slot).getByRole("button", {
+        name: "House style · Version 2",
+        exact: true,
+      }).click();
+      await expect(skills.locator("[data-skill-status='missing']"))
+        .toHaveCount(0);
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
+      // The skills are read again after the save, and the settled slot does not come back.
+      await expect.poll(() => seen.skillReads).toBeGreaterThan(readsBefore);
+      await expect(skills.locator("[data-skill-status='missing']"))
+        .toHaveCount(0);
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      const sent = seen.draftSaves.at(-1)!.body as {
+        resolveSkillSlots?: string[];
+        definition?: { steps?: { id: string; needs?: string[] }[] };
+      };
+      expect(sent.resolveSkillSlots).toEqual(["/steps/1"]);
+      // What the panel cannot show is kept as it was.
+      expect(
+        sent.definition?.steps?.find((step) => step.id === "implement")?.needs,
+      ).toEqual(["brief"]);
+      expect(savedSkills(seen).skills).toContain(uuid(8103));
+      await page.mouse.move(600, 700);
+      await still(page, "workflow-editor-skills-codeonly-chosen");
+    });
+
     test("removing a missing skill is at once, says so, and has no Undo", async ({ page }) => {
       const { seen, skills } = await openSkills(page, {
         skills: {

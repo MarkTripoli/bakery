@@ -6113,5 +6113,6 @@
   "library.workflow.editor.skills.slot.unavailable.titleUnnamed": "⟦À šķïļļ ïš ñô ļôñĝëŕ àṽàïļàƀļë ŧëšŧ çôþ⟧",
   "library.workflow.editor.skills.slot.stopped.title": "⟦{name} çàññôŧ ƀë ûšëð ĥëŕë ŧëšŧ çô⟧",
   "library.workflow.editor.skills.slot.stopped.titleUnnamed": "⟦À šķïļļ çàññôŧ ƀë ûšëð ĥëŕë ŧëšŧ çô⟧",
-  "library.workflow.export.privateSkills": "⟦Ëẋþôŕŧëð ŵïŧĥôûŧ {count, plural, one {# private skill} other {# private skills}}. Ŵĥôëṽëŕ ïɱþôŕŧš ïŧ ïš àšķëð ŧô çĥôôšë à šķïļļ ƒôŕ {steps, plural, one {{step}} other {# steps}}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "library.workflow.export.privateSkills": "⟦Ëẋþôŕŧëð ŵïŧĥôûŧ {count, plural, one {# private skill} other {# private skills}}. Ŵĥôëṽëŕ ïɱþôŕŧš ïŧ ïš àšķëð ŧô çĥôôšë à šķïļļ ƒôŕ {steps, plural, one {{step}} other {# steps}}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.editor.panel.codeOnlyRest": "⟦Ŧĥë ŕëšŧ ôƒ ŧĥïš šŧëþ ïš ŵŕïŧŧëñ ïñ çôðë. ŧëšŧ çôþÿ ŧë⟧"
 }

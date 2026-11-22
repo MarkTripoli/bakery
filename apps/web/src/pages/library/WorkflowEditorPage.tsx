@@ -20,6 +20,7 @@ import {
   type PanelTarget,
   type SkillChoice,
   type SlotReplaces,
+  type StepAttach,
   StepPanel,
   type StepSkillRow,
   type StepSkills,
@@ -38,6 +39,7 @@ import {
 import {
   problemSentence,
   problemsOf,
+  SKILL_PROBLEM_CODES,
   SKILL_PROBLEM_SENTENCE,
   stepProblemLine,
 } from "./editor-validation.ts";
@@ -47,6 +49,7 @@ import {
   groupsOfTree,
   stepsOfTree,
   treeOf,
+  type TreeStep,
 } from "./workflow-tree.ts";
 
 /**
@@ -403,11 +406,14 @@ export function WorkflowEditorPage(
   // that points at no step is the workflow's own, and the chip still counts it.
   const [checker, setChecker] = useState<{
     readonly byStep: ReadonlyMap<string, string>;
+    /** Steps whose only problems are skills needing a choice: their Skills section says it. */
+    readonly skillOnly: ReadonlySet<string>;
     /** Problems that name a step the page does not draw, so no card can hold them. */
     readonly unmapped: readonly string[];
     readonly workflow: readonly string[];
   }>({
     byStep: new Map(),
+    skillOnly: new Set(),
     unmapped: [],
     workflow: [],
   });
@@ -432,6 +438,7 @@ export function WorkflowEditorPage(
         ...(report.warnings ?? []),
       ]);
       const byStep = new Map<string, string>();
+      const skillOnly = new Set<string>();
       const unmapped: string[] = [];
       for (const [index, found] of sorted.byStep) {
         const sentence = stepProblemLine(found) ?? "";
@@ -443,9 +450,13 @@ export function WorkflowEditorPage(
           continue;
         }
         byStep.set(step.id, sentence);
+        if (found.every((problem) => SKILL_PROBLEM_CODES.has(problem.code))) {
+          skillOnly.add(step.id);
+        }
       }
       setChecker({
         byStep,
+        skillOnly,
         unmapped,
         // The workflow's own problems are sentences too, never the server's
         // message (ruling 6900485736 section 3).
@@ -460,6 +471,7 @@ export function WorkflowEditorPage(
     if (steps.length === 0) {
       setChecker({
         byStep: new Map(),
+        skillOnly: new Set(),
         unmapped: [],
         workflow: [],
       });
@@ -533,6 +545,14 @@ export function WorkflowEditorPage(
     }
     return merged;
   }, [checker.byStep, skillProblemSteps]);
+  // Steps whose only problem is a skill: the Skills section carries it, not a notice above it.
+  const skillOnlySteps = useMemo<ReadonlySet<string>>(() => {
+    const only = new Set(checker.skillOnly);
+    for (const id of skillProblemSteps) {
+      if (!checker.byStep.has(id)) only.add(id);
+    }
+    return only;
+  }, [checker.byStep, checker.skillOnly, skillProblemSteps]);
   // Every problem, in the order the page shows them: a card that needs setup
   // first (one problem each), then a definition whose steps cannot be read,
   // then whatever the checker found that those do not already count.
@@ -678,28 +698,11 @@ export function WorkflowEditorPage(
         problem: undefined,
       };
     }
-    const step = stepsOfTree(tree).find((held) => held.id === selectedId);
-    if (step === undefined) return null;
-    if (step.codeOnly === true) {
-      return {
-        kind: "codeOnly",
-        name: stepName(step, translate),
-        problem: problemsByStep.get(step.id),
-      };
-    }
-    const live = steps.find((held) => held.id === selectedId);
-    const index = live === undefined ? -1 : steps.indexOf(live);
-    return {
-      kind: "step",
-      name: stepName(step, translate),
-      deletable: editable,
-      uses: step.uses,
-      code: step.code,
-      problem: step.problem === undefined
-        ? undefined
-        : step.problem === "unknown"
-        ? translate("library.editor.problem.unknown" as never)
-        : translate("library.editor.problem.unreadable" as never),
+    // The Skills section a step's panel draws: its rows and the picker that attaches one.
+    const skillsFor = (
+      live: (typeof steps)[number] | undefined,
+      step: TreeStep,
+    ): { skills: StepSkills; attach: StepAttach | null } => ({
       skills: skillsOf(
         live?.agentVersionId != null,
         stepPaths.get(step.id),
@@ -782,6 +785,36 @@ export function WorkflowEditorPage(
           },
         }
         : null,
+    });
+
+    const step = stepsOfTree(tree).find((held) => held.id === selectedId);
+    if (step === undefined) return null;
+    if (step.codeOnly === true) {
+      return {
+        kind: "codeOnly",
+        name: stepName(step, translate),
+        problem: skillOnlySteps.has(step.id)
+          ? undefined
+          : problemsByStep.get(step.id),
+        // A skill is not part of the code a person cannot edit here: an agent step
+        // written in code still shows its Skills section (design-ux, #431).
+        ...skillsFor(steps.find((held) => held.id === selectedId), step),
+      };
+    }
+    const live = steps.find((held) => held.id === selectedId);
+    const index = live === undefined ? -1 : steps.indexOf(live);
+    return {
+      kind: "step",
+      name: stepName(step, translate),
+      deletable: editable,
+      uses: step.uses,
+      code: step.code,
+      problem: step.problem === undefined
+        ? undefined
+        : step.problem === "unknown"
+        ? translate("library.editor.problem.unknown" as never)
+        : translate("library.editor.problem.unreadable" as never),
+      ...skillsFor(live, step),
       canMoveUp: index > 0,
       canMoveDown: index >= 0 && index < steps.length - 1,
       disabled: !editable || index < 0,
@@ -816,6 +849,7 @@ export function WorkflowEditorPage(
     catalog.status,
     resolving,
     problemsByStep,
+    skillOnlySteps,
   ]);
 
   const breadcrumbs = (
