@@ -338,8 +338,14 @@ export async function prepareRelease(
   }
 }
 
-export function renderCaddy(config, active, root = ROOT) {
+export function renderCaddy(
+  config,
+  active,
+  root = ROOT,
+  markerDirectory = dirname(MARKER),
+) {
   if (
+    !/^\/[a-zA-Z0-9_/-]+$/.test(markerDirectory) ||
     isIP(config.publicIp) !== 4 ||
     !/^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])$/.test(
       config.publicHost,
@@ -350,10 +356,11 @@ export function renderCaddy(config, active, root = ROOT) {
   ) throw new Error("PRODUCTION_ORIGIN_INVALID");
   const app = (slot) => {
     if (!["blue", "green"].includes(slot)) throw new Error("SLOT_INVALID");
+    const upstream = `127.0.0.1:${slot === "blue" ? 18000 : 18001}`;
     return `
   @api path /health/* /livez /readyz /v1/* /api/* /mcp /mcp/* /.well-known/oauth-*
   handle @api {
-    reverse_proxy 127.0.0.1:${slot === "blue" ? 18000 : 18001}
+    reverse_proxy ${upstream}
   }
   # Caddy sorts handle blocks by path length: a bare *.map handler loses to
   # /assets/*, so the assets block rejects source maps itself.
@@ -370,11 +377,38 @@ export function renderCaddy(config, active, root = ROOT) {
       file_server
     }
   }
+  # A page is served only once the API answers its liveness check, so a page
+  # request while the API cannot be reached becomes a 502 for handle_errors.
   handle {
-    root * ${root}/slots/${slot}/apps/web/dist
-    header Cache-Control "no-store"
-    try_files {path} /index.html
-    file_server
+    reverse_proxy ${upstream} {
+      method GET
+      rewrite /health/live
+      header_up -Cookie
+      header_up -Authorization
+      handle_response {
+        root * ${root}/slots/${slot}/apps/web/dist
+        header Cache-Control "no-store"
+        try_files {path} /index.html
+        file_server
+      }
+    }
+  }
+  # That page request gets the static page (#59) with status 503. It says
+  # "being updated" while the launcher's marker exists. API and asset requests
+  # keep Caddy's own error.
+  handle_errors 502 503 504 {
+    @page not path /health/* /livez /readyz /v1/* /api/* /mcp /mcp/* /.well-known/oauth-* /assets/* *.map
+    handle @page {
+      root * ${root}/deploy
+      rewrite * /unavailable.html
+      header Cache-Control "no-store"
+      templates {
+        root ${markerDirectory}
+      }
+      file_server {
+        status 503
+      }
+    }
   }`;
   };
   const tls = `tls {

@@ -37,6 +37,7 @@ import {
   InstallationSettingsNavigation,
 } from "./InstallationSettingsNavigation.tsx";
 import { HeldBanner } from "./HeldBanner.tsx";
+import { UpdateNotices, UpdatingPage, useUpdateWatch } from "./UpdateWatch.tsx";
 import { OrganizationSettingsNavigation } from "./OrganizationSettingsNavigation.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import {
@@ -613,6 +614,8 @@ function ShellFrame() {
   const pageTitle = usePageTitle(pathname);
   // The New task panel sits under Work, so the trail says so.
   const creatingTask = pathname === "/tasks/new" || pathname === "/tasks/new/";
+  // Says when Bakery is about to be, is being, or was updated (#59).
+  const update = useUpdateWatch();
   const onNavigate = (
     event: MouseEvent<HTMLAnchorElement>,
     item: { readonly href: string },
@@ -768,46 +771,52 @@ function ShellFrame() {
       navigationLabel={translate("shell.navigation.menu")}
       navigationOpen={navigationOpen}
       onNavigationOpenChange={setNavigationOpen}
-      sectionNavigation={fixtureSettings
-        ? (
-          <SettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : installationSettings
-        ? (
-          <InstallationSettingsNavigation
-            currentPath={pathname === "/installation/audit" ||
-                (pathname === "/installation/monitoring" ||
-                  pathname.startsWith("/installation/monitoring/")) ||
-                pathname === "/installation/usage" ||
-                pathname === "/installation/restore" ||
-                pathname === INSTALLATION_INTEGRATIONS_PATH
-              ? pathname
-              : "/installation/settings"}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : organizationSettings
-        ? (
-          <OrganizationSettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : productionSettings
-        ? (
-          <ProductionSettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : undefined}
+      sectionNavigation={
+        /* The phone and tablet picker is not drawn while Bakery is being
+          updated; the desktop list is part of the frame and stays (#59). */
+        update.updating && viewport !== "desktop"
+          ? undefined
+          : fixtureSettings
+          ? (
+            <SettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : installationSettings
+          ? (
+            <InstallationSettingsNavigation
+              currentPath={pathname === "/installation/audit" ||
+                  (pathname === "/installation/monitoring" ||
+                    pathname.startsWith("/installation/monitoring/")) ||
+                  pathname === "/installation/usage" ||
+                  pathname === "/installation/restore" ||
+                  pathname === INSTALLATION_INTEGRATIONS_PATH
+                ? pathname
+                : "/installation/settings"}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : organizationSettings
+          ? (
+            <OrganizationSettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : productionSettings
+          ? (
+            <ProductionSettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : undefined
+      }
       sidebar={
         <ShellSidebar
           currentPath={navigationPath}
@@ -906,16 +915,29 @@ function ShellFrame() {
       )}
       variant={shellVariant}
     >
-      <HeldBanner pathname={pathname} />
-      <StartupGate
-        enabled={needsOrganization}
-        failure={restore.failure}
-        onRetry={restore.retry}
-        onSignOut={() => void navigate({ to: SIGN_OUT_PATH })}
-        signOutHref={SIGN_OUT_PATH}
+      {update.updating
+        ? null
+        : <HeldBanner pathname={pathname} updatePaused={update.paused} />}
+      <UpdateNotices update={update} />
+      {update.updating ? <UpdatingPage update={update} /> : null}
+      {
+        /* Hidden, never unmounted, while Bakery is being updated (#59): what
+          was typed on the page is still there when Bakery is back. */
+      }
+      <div
+        data-update-cover=""
+        hidden={update.updating}
       >
-        <Outlet />
-      </StartupGate>
+        <StartupGate
+          enabled={needsOrganization}
+          failure={restore.failure}
+          onRetry={restore.retry}
+          onSignOut={() => void navigate({ to: SIGN_OUT_PATH })}
+          signOutHref={SIGN_OUT_PATH}
+        >
+          <Outlet />
+        </StartupGate>
+      </div>
       <OrganizationSwitchGuard onAsk={() => setNavigationOpen(false)} />
     </UI.AppShell>
   );

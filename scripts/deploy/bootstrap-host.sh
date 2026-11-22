@@ -54,6 +54,8 @@ install -d -o bakery-migrate -g bakery-migrate -m 0700 /home/bakery-migrate/.cac
 install -d -o bakery-deploy -g bakery-deploy -m 0700 /var/lib/bakery/incoming
 install -m 0755 "$repo"/scripts/deploy/*.sh /opt/bakery/deploy/
 install -m 0644 "$repo"/scripts/deploy/*.mjs /opt/bakery/deploy/
+# The page Caddy serves while the API cannot be reached (renderCaddy, #59).
+install -m 0644 "$repo"/scripts/deploy/unavailable.html /opt/bakery/deploy/
 install -m 0644 "$repo/infra/production/compose.yaml" /opt/bakery/production/compose.yaml
 install -m 0755 "$repo/infra/production/001-roles.sh" /opt/bakery/production/001-roles.sh
 node --input-type=module - "$public_ip" "$public_host" "$acme_email" <<'JS'
