@@ -123,6 +123,7 @@ export async function stopRunningPreview(context: ActionContext) {
     organizationId,
     principalId,
     context.params.id,
+    context.traceId,
   );
   if (outcome.kind === "missing") {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
