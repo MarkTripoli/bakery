@@ -434,6 +434,15 @@ export function IssueWork(
     );
     return () => clearTimeout(timer);
   }, [stopped, progress]);
+  // The work this person stopped has ended: the issue's own status card reads
+  // the same request, so it is read again once, instead of saying "in progress"
+  // beside Stopped.
+  const stoppedAndEnded = stopped !== null && request !== null &&
+    request.id === stopped.requestId && workFinished(request.progress);
+  useEffect(() => {
+    if (!stoppedAndEnded) return;
+    void queryClient.invalidateQueries({ queryKey: ["protected"] });
+  }, [stoppedAndEnded, queryClient]);
   const linkItems = links.data?.items ?? [];
   const own = request === null
     ? undefined

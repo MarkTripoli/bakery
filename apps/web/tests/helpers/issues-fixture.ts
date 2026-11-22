@@ -406,7 +406,11 @@ export async function issuesFixture(page: Page, options: Options = {}) {
           contentType: "application/json",
           body: JSON.stringify(
             ticket(
-              seen.running.has(found.number)
+              // Once the stopped run has ended the server holds no live
+              // request for the issue, so the card follows the row.
+              stoppedNow()
+                ? { ...found, request: undefined }
+                : seen.running.has(found.number)
                 ? { ...found, request: { disposition: "active" } }
                 : found,
             ),

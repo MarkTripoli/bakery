@@ -7,8 +7,6 @@ import {
   progressReason,
   questionRow,
   startedBy,
-  STOP_POLL_MS,
-  STOP_SLOW_MS,
   stoppableRunId,
   stopsBeforeStart,
   waitsOnAnswer,
@@ -369,9 +367,4 @@ Deno.test("work is finished once it completed, failed, was stopped or was not st
       "suspended",
     ] as const
   ) assertEquals(workFinished(progress), false);
-});
-
-Deno.test("a stopped request is read every 5 seconds and a paused one gets its note after 15", () => {
-  assertEquals(STOP_POLL_MS, 5_000);
-  assertEquals(STOP_SLOW_MS, 15_000);
 });

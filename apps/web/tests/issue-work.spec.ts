@@ -435,6 +435,8 @@ for (
     test("Stop work asks first; Keep working sends nothing", async ({ page }) => {
       const seen = await open(page, WITH_RUN);
       await expect(stopButton(page)).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-row");
       await stopButton(page).click();
       const dialog = page.getByRole("alertdialog");
       await expect(dialog.getByRole("heading", { name: "Stop work on #201?" }))
@@ -480,6 +482,9 @@ for (
       await expect(work.getByRole("button", { name: "Start work" }))
         .toBeVisible();
       await expect(stopButton(page)).toHaveCount(0);
+      // The issue's own status card follows the row: nothing still says the
+      // work is under way.
+      await expect(page.getByText("Bakery is working on this.")).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "issue-work-stopped");
     });
@@ -547,6 +552,19 @@ for (
         origin: "webhook",
         triggerLabel: "bakery",
         reason: "predecessor_open",
+      }, {
+        // The issue's own check names the one it depends on, so the sentence has its number.
+        open: [{
+          ...ISSUE,
+          verdict: "waiting",
+          checks: [{
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+            evidence: ["blocker:acme/web#150"],
+          }],
+          request: { disposition: "waiting" },
+        }],
       });
       await expect(
         section(page).getByText(
@@ -554,6 +572,8 @@ for (
         ),
       ).toBeVisible();
       await expect(stopButton(page)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-label-sentence");
     });
 
     test("work a person started with no run yet shows no Stop work and no label sentence", async ({ page }) => {
