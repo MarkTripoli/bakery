@@ -32,6 +32,11 @@ const NOTHING_CHANGED = new Set([
   "APPLIED_MIGRATION_REMOVED",
   "MIGRATION_COMPATIBILITY_REVIEW_REQUIRED",
   "INSTALLATION_RESTORING",
+  "TRUSTED_GATE_CHANGE",
+  "GATE_RELEASE_NOT_PREPARED",
+  "GATE_NOTHING_RUNNING",
+  "GATE_NOT_APPROVED",
+  "GATE_NEEDS_A_PERSON",
   "MAINTENANCE_HELD",
   "DRAIN_TIMEOUT",
   "ROLLBACK_SCHEMA_INCOMPATIBLE",
@@ -103,7 +108,8 @@ export function failureLines(error, context = {}) {
     case "EXPECTED_DEPLOY_ROLLBACK_RECOVER_RENDER":
       return lines(
         "That is not a command the launcher knows. Nothing was changed.",
-        "Use one of: deploy, bootstrap, rollback, recover, restore, render, status.",
+        "Use one of: deploy, bootstrap, rollback, recover, restore, render,",
+        "status, approve-gate.",
       );
     case "RELEASE_SHA_INVALID":
     case "ARCHIVE_DIGEST_INVALID":
@@ -173,6 +179,39 @@ export function failureLines(error, context = {}) {
       return lines(
         "The version to go back to is not the one that was kept. Nothing was changed.",
         `Check what is running: ${COMMAND} status`,
+      );
+    case "TRUSTED_GATE_CHANGE":
+      return lines(
+        "This update changes the checks that decide what may be merged, or the",
+        "launcher itself. The version running now has to approve that first.",
+        `It was not installed. ${running(context)}`,
+        ...gateChangeLines(context.gate?.changes ?? []),
+        `To review and approve it: sudo ${COMMAND} approve-gate ${
+          context.requested ?? "<release>"
+        }`,
+        "Then run the update again.",
+      );
+    case "GATE_RELEASE_NOT_PREPARED":
+      return lines(
+        "That release has not been unpacked on this server, so there is nothing",
+        "to compare. Nothing was changed.",
+        `Run the update first: ${COMMAND} deploy <release> <checksum>`,
+      );
+    case "GATE_NOTHING_RUNNING":
+      return lines(
+        "Nothing is installed yet, so there is no running version to approve",
+        "a change. Nothing was changed.",
+      );
+    case "GATE_NEEDS_A_PERSON":
+      return lines(
+        "A change to the checks or the launcher has to be approved by a person at",
+        "the terminal, after reading the files it shows. --yes is not accepted here.",
+        "Nothing was changed.",
+      );
+    case "GATE_NOT_APPROVED":
+      return lines(
+        "Not approved. Nothing was changed.",
+        `${running(context)} The update stays refused until it is approved.`,
       );
     case "UPDATE_LEFT_UNHEALTHY":
       return lines(
@@ -296,6 +335,30 @@ export function completionLines(command, state, before, resumed) {
     lines.push("There is no earlier version to go back to.");
   }
   return lines;
+}
+
+const SHOWN_CHANGES = 6;
+
+/** The trusted files that differ: at most a few, then how many more. */
+export function gateChangeLines(changes) {
+  const lines = changes.slice(0, SHOWN_CHANGES).map((change) =>
+    `  ${change.kind.padEnd(8)} ${change.path}`
+  );
+  if (changes.length > SHOWN_CHANGES) {
+    lines.push(`  and ${changes.length - SHOWN_CHANGES} more`);
+  }
+  return lines;
+}
+
+/** What approve-gate shows before it asks. */
+export function gateReviewLines({ active, sha, changes }) {
+  return [
+    `Update ${short(active)} to ${short(sha)} changes ${changes.length} file${
+      changes.length === 1 ? "" : "s"
+    } of the checks or the launcher:`,
+    ...gateChangeLines(changes),
+    "",
+  ];
 }
 
 /** What the person sees before being asked whether to go back. */
