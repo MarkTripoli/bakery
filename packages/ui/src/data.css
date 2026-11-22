@@ -507,10 +507,13 @@
   color: var(--color-fg);
   font: var(--type-heading-subsection);
 }
-/* A name with a help tip keeps the tip beside its text, however far the text wraps. */
+/* A name with a help tip keeps the tip beside its text, however far the text wraps.
+   When the name and its tip cannot share the line (a long name in a narrow row),
+   the tip drops under the name, never over the value beside it. */
 .ui-description-item__title:has(.ui-help-tip) {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
 }
 /* Opt-in (`labels="quiet"`): each row's title in the body weight, not the heavy subsection weight. */
 .ui-description-list[data-labels="quiet"] .ui-description-item__title {
@@ -1797,6 +1800,12 @@
   min-block-size: var(--target-min);
   padding: var(--space-0);
   text-align: start;
+}
+/* A ruled table whose first cell is the row's button: that button is a tall tap
+   target with its text centred, so the other cells centre too and a row's four
+   cells share one text line. */
+.ui-data-table--ruled:has(.ui-data-table__select) td {
+  vertical-align: middle;
 }
 .ui-data-table__select > * {
   display: block;

@@ -472,6 +472,324 @@ Deno.test({
   },
 });
 
+// #528: agent.freeform on the Codex harness.
+
+const FREEFORM_INPUT = {
+  prompt: "Summarise the files you were given.",
+  maxTurns: 3,
+  timeout: "30s",
+  maxCostUsd: 1,
+  allowedTools: ["Read"],
+};
+
+async function freeformRun(
+  body: string,
+  input: Record<string, unknown> = {},
+  timeLimitMs = 5_000,
+  brief?:
+    & Omit<Awaited<ReturnType<typeof pinnedBrief>>, "readAttemptContext">
+    & {
+      readAttemptContext?: Awaited<
+        ReturnType<typeof pinnedBrief>
+      >["readAttemptContext"];
+    },
+) {
+  const scratch = await prepareScratchRepository("bakery-codex-freeform-");
+  const executable = `${scratch.dir}/fake-codex`;
+  const argsPath = `${scratch.dir}/args.txt`;
+  const promptPath = `${scratch.dir}/prompt.txt`;
+  await Deno.writeTextFile(
+    executable,
+    `#!/bin/sh
+if [ "\${1:-}" = "--version" ]; then echo 'codex-cli 0.0.0-fake'; exit 0; fi
+out=""; prev=""
+for a in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then out="$a"; fi
+  prev="$a"
+done
+cat > '${promptPath}'
+printf '%s\\n' "$@" > '${argsPath}'
+${body}
+`,
+  );
+  await Deno.chmod(executable, 0o755);
+  const published: Uint8Array[] = [];
+  const value = {
+    ...localAssignment(),
+    action: "agent.freeform",
+    agentSessionId: crypto.randomUUID(),
+    input: { ...FREEFORM_INPUT, ...input },
+  } as JobAssignment;
+  const outcome = await createCodexHarnessExecutor({
+    readAttemptContext: brief?.readAttemptContext,
+    publishFor: () => async (request) => {
+      published.push(request.bytes);
+      return {
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: await sha256Hex(request.bytes),
+      };
+    },
+    repositoryFor: () => scratch.dir,
+    codexExecutable: executable,
+    authSourceDir: syntheticAuthSource("auth.json"),
+    timeLimitMs,
+  }).execute(
+    brief === undefined ? value : brief.withContext(value),
+    new AbortController().signal,
+  );
+  const read = async (path: string) =>
+    await Deno.readTextFile(path).catch(() => "");
+  return {
+    outcome,
+    value,
+    published: published.map((bytes) => new TextDecoder().decode(bytes)),
+    args: await read(argsPath),
+    prompt: await read(promptPath),
+  };
+}
+
+const item = (type: string) =>
+  `printf '%s\\n' '{"type":"item.completed","item":{"type":"${type}","text":"x"}}'`;
+const turnStart = () => `printf '%s\\n' '{"type":"turn.started"}'`;
+const turnDone = (tokens = 100) =>
+  `printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":${tokens},"output_tokens":0}}'`;
+const answer = (text: string) => `printf '%s' '${text}' > "$out"`;
+
+function freeformResult(
+  outcome: Awaited<ReturnType<typeof freeformRun>>["outcome"],
+) {
+  assertEquals(outcome.status, "completed");
+  if (outcome.status !== "completed") throw new Error("unreachable");
+  return outcome.result as { sessionId: string; status: string };
+}
+
+Deno.test({
+  name:
+    "Codex freeform answers in its read-only sandbox and publishes the final message",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun([
+      item("reasoning"),
+      item("agent_message"),
+      turnDone(),
+      answer("the final answer"),
+    ].join("\n"));
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "completed");
+    assertEquals(result.sessionId, run.value.agentSessionId);
+    assertEquals(run.published, ["the final answer"]);
+    assert(run.prompt.includes(FREEFORM_INPUT.prompt));
+    assert(run.args.includes("--sandbox\nread-only\n"));
+    assert(run.args.includes("--json\n"));
+    assertFalse(run.args.includes("workspace-write"));
+  },
+});
+
+Deno.test({
+  name: "Codex freeform stops a session that starts one turn too many",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        turnStart(),
+        item("agent_message"),
+        turnDone(),
+        turnStart(),
+        item("command_execution"),
+        turnDone(),
+        turnStart(),
+        item("agent_message"),
+        turnDone(),
+        turnStart(),
+        answer("a partial answer"),
+        "sleep 60",
+      ].join("\n"),
+      { maxTurns: 3 },
+      20_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "failed");
+    assert(run.published[0].includes("limit of 3 turns after 4 turns"));
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform counts a turn once, however many commands and messages it holds",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        turnStart(),
+        item("agent_message"),
+        item("command_execution"),
+        item("command_execution"),
+        item("file_change"),
+        item("command_execution"),
+        item("agent_message"),
+        turnDone(),
+        answer("the answer"),
+      ].join("\n"),
+      { maxTurns: 1 },
+    );
+    // Six items, one turn: a limit of one turn is not reached.
+    assertEquals(freeformResult(run.outcome).status, "completed");
+    assertEquals(run.published[0].includes("limit of"), false);
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform counts a turn from its end when the stream never reports its start",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        item("agent_message"),
+        turnDone(),
+        item("agent_message"),
+        turnDone(),
+        answer("a partial answer"),
+        "sleep 60",
+      ].join("\n"),
+      { maxTurns: 1 },
+      20_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "failed");
+    assert(run.published[0].includes("limit of 1 turns after 2 turns"));
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform stops a session whose reported tokens exceed the cost limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        item("agent_message"),
+        turnDone(1_000_000),
+        answer("an expensive answer"),
+        "sleep 60",
+      ].join("\n"),
+      { maxCostUsd: 1 },
+      20_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "failed");
+    assert(run.published[0].includes("limit of 1 USD"));
+  },
+});
+
+Deno.test({
+  name: "Codex freeform reports a session that runs out of time as timed out",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [item("agent_message"), answer("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+    );
+    assertEquals(freeformResult(run.outcome).status, "timed_out");
+    assert(run.published[0].includes("slow start"));
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform ends at the step's own timeout, not at the worker's longer limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const started = Date.now();
+    const run = await freeformRun(
+      [item("agent_message"), answer("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+      30_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "timed_out");
+    assert(run.published[0].includes("slow start"));
+    assert(
+      Date.now() - started < 15_000,
+      "the step's 1s timeout ended the run, not the worker's 30s limit",
+    );
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform materializes the step's pinned inputs before the session starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [item("agent_message"), answer("done"), turnDone()].join("\n"),
+      {},
+      5_000,
+      brief,
+    );
+    assertEquals(freeformResult(run.outcome).status, "completed");
+    assert(run.prompt.includes("brief.md"), "the index names the path");
+    assert(run.prompt.includes(brief.digest), "the index names the digest");
+  },
+});
+
+Deno.test({
+  name: "Codex freeform refuses pinned inputs when no reader is wired",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [item("agent_message"), answer("done"), turnDone()].join("\n"),
+      {},
+      5_000,
+      { ...brief, readAttemptContext: undefined },
+    );
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(run.args, "", "the CLI never started");
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform refuses a tool it does not offer, and a request for no tools",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    for (
+      const [allowedTools, code] of [
+        [["Read", "Bash"], "CODEX_HARNESS_FREEFORM_TOOL_REFUSED"],
+        [[], "CODEX_HARNESS_FREEFORM_TOOL_REFUSED"],
+      ] as const
+    ) {
+      const run = await freeformRun(answer("never"), {
+        allowedTools: [...allowedTools],
+      });
+      assertEquals(faultOf(run.outcome as never).code, code);
+      assertEquals(run.args, "", "no process was started");
+    }
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform refuses an unbounded timeout and a run with no final message",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const unbounded = await freeformRun(answer("never"), {
+      timeout: "forever",
+    });
+    assertEquals(
+      faultOf(unbounded.outcome as never).code,
+      "CODEX_HARNESS_INPUT_INVALID",
+    );
+    const silent = await freeformRun(
+      [item("agent_message"), turnDone()].join("\n"),
+    );
+    assertEquals(
+      faultOf(silent.outcome as never).code,
+      "CODEX_HARNESS_EXIT_NONZERO",
+    );
+    assertEquals(silent.published.length, 0);
+  },
+});
+
 Deno.test({
   name: "Codex gets a step's pinned inputs as files and an index in the prompt",
   ...RUN_PERMISSIONS,
