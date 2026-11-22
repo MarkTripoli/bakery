@@ -108,6 +108,12 @@ export type McpToolTransport = {
     connectionId: string;
     toolName: string;
     arguments: Record<string, unknown>;
+    /**
+     * Aborts the call when the caller's own deadline passes, whatever the
+     * transport's. A caller that settles the outcome itself (the effect ledger)
+     * passes it so the send cannot outlive that deadline and land afterwards.
+     */
+    signal?: AbortSignal;
   }): Promise<unknown>;
 };
 
@@ -149,6 +155,8 @@ export type McpInvokeInput =
      * it. An organization connection does not read this.
      */
     startedByPrincipalId?: string | null;
+    /** The caller's deadline: aborting it aborts the call to the server. */
+    signal?: AbortSignal;
   }>;
 
 export type McpInvokeResult = Readonly<{
@@ -408,6 +416,7 @@ export async function invokeMcpTool(
     connectionId: input.connectionId,
     toolName: input.toolName,
     arguments: input.arguments,
+    signal: rawInput.signal,
   });
   return {
     toolName: input.toolName,

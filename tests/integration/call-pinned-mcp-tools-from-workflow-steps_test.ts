@@ -418,6 +418,57 @@ Deno.test("an opaque write whose answer cannot be read stays unknown and is neve
     () => null,
   ));
 
+Deno.test("a write the ledger's deadline gave up on is aborted at the server too (#435)", async () => {
+  const mcpDb = openDatabase(databaseConfig.databaseUrl);
+  try {
+    await withWorkerFixture(async (fixture) => {
+      const server = fakeServer(() => ({ structuredContent: { id: "n1" } }));
+      const callSignals: AbortSignal[] = [];
+      // The server accepts the call and never answers until the request is aborted.
+      const hanging: McpTransport = (http) => {
+        if (!http.body.includes('"tools/call"')) return server.transport(http);
+        callSignals.push(http.signal);
+        return new Promise((resolve) =>
+          http.signal.addEventListener(
+            "abort",
+            () => resolve({ kind: "timeout" }),
+            { once: true },
+          )
+        );
+      };
+      const w = await world(fixture, {
+        tool: "create_note",
+        effectClass: "write_opaque",
+      });
+      const runner = createToolCallStepRunner({
+        database: fixture.pgDatabase,
+        registry: { integrations: [] } as never,
+        providerRequests: {} as never,
+        effects: { deadlineMs: 200 },
+        mcp: {
+          pinnedState: createPostgresMcpPinnedStatePort(mcpDb),
+          transport: createRemoteMcpToolTransport({
+            database: fixture.pgDatabase,
+            secretsKey: undefined,
+            transport: hanging,
+          }),
+        },
+      });
+      const result = await runner.run(
+        request(fixture, w, { text: "hello" }, "lookup@2", "create_note"),
+      );
+      // The ledger stopped waiting: the write may have landed, so the step waits.
+      assertEquals(result.kind, "pending");
+      assertEquals(callSignals.length, 1);
+      // The call to the server was abandoned with it, not left to run to the
+      // transport's own, much longer, deadline.
+      assert(callSignals[0].aborted);
+    });
+  } finally {
+    await closeDatabase(mcpDb);
+  }
+});
+
 Deno.test("an idempotent write whose answer cannot be read is sent again under the same effect key (#435)", () => {
   let answered = 0;
   return withRunner(

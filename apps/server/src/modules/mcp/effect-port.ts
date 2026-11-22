@@ -193,6 +193,7 @@ export function createMcpEffectPort(
     facts: Facts,
     toolName: string,
     args: Record<string, unknown>,
+    signal: AbortSignal,
   ) {
     return await invokeMcpTool(deps.mcp, {
       organizationId: effect.organizationId,
@@ -205,10 +206,14 @@ export function createMcpEffectPort(
       workflowVersionId: facts.workflowVersionId,
       stepKey: facts.stepKey,
       startedByPrincipalId: effect.requestingPrincipalId,
+      signal,
     });
   }
 
-  async function write(effect: ExternalEffectRow): Promise<McpWriteResult> {
+  async function write(
+    effect: ExternalEffectRow,
+    signal: AbortSignal,
+  ): Promise<McpWriteResult> {
     const facts = await factsOf(effect);
     if (facts === null) return { kind: "not_sent", retryable: false };
     try {
@@ -217,6 +222,7 @@ export function createMcpEffectPort(
         facts,
         effect.operation,
         effect.safeArguments as Record<string, unknown>,
+        signal,
       );
       return { kind: "done", output: sent.output };
     } catch (error) {
@@ -240,8 +246,8 @@ export function createMcpEffectPort(
       ) return { ok: false, failureCode: "adapter_changed" };
       return { ok: true, effectClass: classOf(facts) };
     },
-    write: (effect) => write(effect),
-    async confirm(effect) {
+    write,
+    async confirm(effect, signal) {
       const facts = await factsOf(effect);
       if (facts === null) return { status: "unconfirmed" };
       const effectClass = classOf(facts);
@@ -249,7 +255,7 @@ export function createMcpEffectPort(
       if (effectClass === "write_idempotent") {
         // Sending an idempotent write again under its effect key is how it is
         // proven: the server answers the same, and does the work once.
-        const again = await write(effect);
+        const again = await write(effect, signal);
         return again.kind === "done"
           ? { status: "confirmed", result: again.output }
           : { status: "unconfirmed" };
@@ -278,6 +284,7 @@ export function createMcpEffectPort(
         facts,
         pairedRead,
         argumentsForRead(effect.safeArguments, schema),
+        signal,
       );
       return readAnswerIsEvidence(answer.output)
         ? { status: "confirmed", result: answer.output }

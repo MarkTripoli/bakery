@@ -39,9 +39,10 @@ import type {
  * effect that failed fails the step with a fixed code. Nothing here retries a
  * send itself.
  *
- * This runner calls native integration connections. A connection that is an MCP
- * server is refused by name until its call path lands, never sent through the
- * integration door.
+ * A connection is one of two kinds. A native integration connection is called
+ * through the integration door. An MCP server connection is called through the
+ * pinned-tool door (`runMcp`): a read directly, a write through the effect ledger
+ * (`runMcpWrite`). Neither kind is ever sent through the other's door.
  */
 
 /** The kind a connection id resolves to, or null when the organization has no such connection. */

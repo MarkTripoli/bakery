@@ -111,7 +111,12 @@ export function createRemoteMcpToolTransport(deps: {
         }
       });
 
-      const signal = AbortSignal.timeout(deps.deadlineMs ?? MCP_DEADLINE_MS);
+      // The transport's own deadline still applies; the caller's, when it has one,
+      // ends the call as soon as it passes.
+      const own = AbortSignal.timeout(deps.deadlineMs ?? MCP_DEADLINE_MS);
+      const signal = input.signal === undefined
+        ? own
+        : AbortSignal.any([own, input.signal]);
       const base: Record<string, string> = {
         "content-type": "application/json",
         accept: "application/json, text/event-stream",
