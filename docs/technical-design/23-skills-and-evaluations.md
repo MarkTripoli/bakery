@@ -18,6 +18,8 @@ Global is a catalog presentation scope, not an exception to tenant isolation. Ke
 
 An organization workflow can bind a private user skill (owner decision, 14 November 2026, [chapter 25](25-one-engine.md) section 11; this reverses the earlier rule). Attaching one asks the skill's owner for confirmation and grants use of that skill version to everyone who can see or run the workflow. Other collaborators see its name, owner and version, never its bytes; a run's transcript may quote it. Revoking the grant blocks new runs. **Create organization copy** remains available. Disabling a skill blocks new admission according to policy; historical version evidence remains readable to authorized readers. Existing runs retain their pinned bytes and follow explicit revocation/cancellation policy.
 
+A skill is never deleted (orchestrator ruling, 21 November 2026). Turning it off is the only removal: it blocks new use, and its published versions stay, because they are immutable, workflows and runs pin them, and audit keeps them. There is no delete operation for a skill or a skill version.
+
 The library has All skills, Global, Organization and My skills filters, search, version, latest comparable evaluation and status. One row represents a skill identity, not each revision. Skill details contain Instructions, Test cases, Evaluations and Versions, plus compatible action, requirements and Used by references. Versions shows the full immutable history and draft status. A workflow's Setup panel offers an explicit version update with compatibility validation and Undo.
 
 ## Authoring and workflow continuity
