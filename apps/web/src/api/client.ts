@@ -360,6 +360,9 @@ export type WorkflowVersionResponse = ClientOutputMap["WorkflowVersion"];
 /** Every skill the steps of one workflow version name, as the reader may see them. */
 export type WorkflowVersionSkills = ClientOutputMap["WorkflowVersionSkills"];
 export type WorkflowStepSkill = WorkflowVersionSkills["items"][number];
+/** One skill as the picker lists it: its name and scope, and the active version people attach. */
+export type SkillResponse = ClientOutputMap["Skill"];
+export type SkillListResponse = ClientOutputMap["Page<Skill>"];
 export type WorkflowVersionListResponse =
   ClientOutputMap["Page<WorkflowVersion>"];
 export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
@@ -437,6 +440,14 @@ export type ArtifactPreviewGrantResponse =
   ClientOutputMap["ArtifactPreviewGrant"];
 export type ArtifactPreviewAvailabilityResponse =
   ClientOutputMap["ArtifactPreviewAvailability"];
+/** The app a worker is running for a run, as the server reads it now (no route key or port). */
+export type RunPreviewResponse = ClientOutputMap["Preview"];
+/** A page of a run's previews, newest first. */
+export type RunPreviewPageResponse = ClientOutputMap["Page<Preview>"];
+/** A one-use grant (valid 30 seconds) to open one running preview, and how long the session lasts. */
+export type PreviewAccessResponse = ClientOutputMap["PreviewAccessResult"];
+export type PreviewAvailabilityResponse =
+  ClientOutputMap["PreviewAvailability"];
 export type MessageCreate = ClientInputMap["MessageCreate"];
 export type MessageResponse = ClientOutputMap["Message"];
 export type MessageListResponse = ClientOutputMap["Page<Message>"];
@@ -1039,6 +1050,34 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallResponse>>;
+  };
+  /** The apps workers run for a run, shown on their own origin. */
+  readonly previews: {
+    /** `GET /v1/preview-availability`: whether this deployment can serve previews. */
+    readonly availability: (options: {
+      readonly organizationId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PreviewAvailabilityResponse>>;
+    /** `GET /v1/previews?runId=`: the previews of one run, newest first. */
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly runId: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<RunPreviewPageResponse>>;
+    /** `POST /v1/previews/{id}/access`: issues a one-use grant; never cached, retried or stored. */
+    readonly access: (options: {
+      readonly organizationId: string;
+      readonly previewId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PreviewAccessResponse>>;
+    /** `POST /v1/previews/{id}/stop`: ends the preview for everyone and answers with its new state. */
+    readonly stop: (options: {
+      readonly organizationId: string;
+      readonly previewId: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<RunPreviewResponse>>;
   };
   /** Bounded runs of issues: start one, watch it, pause, resume or stop it. */
   readonly batches: {
@@ -1901,6 +1940,13 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionListResponse>>;
+  /** The skills the caller can see (global, organization, and their own personal ones), one page of a cursor list. */
+  readonly listSkills: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillListResponse>>;
   /** The versions of one workflow, one page of a cursor list. */
   readonly listWorkflowVersions: (options: {
     readonly organizationId: string;
@@ -3012,6 +3058,46 @@ export function createBakeryApiClient({
             }, {
               ifMatch: versionEtag(options.version),
               idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+    },
+    previews: {
+      availability(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.availability"]({}, {
+              signal: options.signal,
+            }),
+        );
+      },
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.list"]({
+              runId: options.runId,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      access(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.access"]({ id: options.previewId }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      stop(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.stop"]({ id: options.previewId }, {
+              idempotencyKey: options.idempotencyKey ?? crypto.randomUUID(),
               signal: options.signal,
             }),
         );
@@ -6320,6 +6406,24 @@ export function createBakeryApiClient({
       try {
         const data = await client.actions["workflows.list"](
           options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listSkills(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.list"](
+          {
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },

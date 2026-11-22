@@ -172,6 +172,7 @@ async function world(page: Page, links: ReturnType<typeof link>[]) {
     createdAt: stamp,
     updatedAt: stamp,
     version: 1,
+    handoffManifest: null,
   });
   await page.route(`**/v1/runs/${runId}/steps*`, (route) =>
     route.fulfill({

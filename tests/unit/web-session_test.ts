@@ -136,6 +136,12 @@ function fakeApi(
       update: rejecting,
       savedData: rejecting,
     },
+    previews: {
+      availability: rejecting,
+      list: rejecting,
+      access: rejecting,
+      stop: rejecting,
+    },
     batches: {
       list: rejecting,
       startable: rejecting,
@@ -360,6 +366,7 @@ function fakeApi(
     listEvaluationAttempts: rejecting,
     updateMemory: rejecting,
     createMemoryRevision: rejecting,
+    listSkills: rejecting,
     listWorkflowVersions: rejecting,
     listWorkflowVersionSkills: rejecting,
     activateWorkflowVersion: rejecting,
