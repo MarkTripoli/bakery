@@ -376,6 +376,8 @@ const MAY_NAME_PATH: Record<string, string> = {
 // Files that mention the two login variables without reading the operator's
 // environment for them. Each says what it does with them.
 const MAY_NAME_VARIABLES: Record<string, string> = {
+  "tests/rails/verify-backend-command_test.ts":
+    "passes CODEX_HOME and CLAUDE_CONFIG_DIR with made-up paths and a stubbed file check to the credential detector; it never reads the environment or a login",
   "tests/helpers/isolated-lane-home.ts":
     "asserts CODEX_HOME and BAKERY_CODEX_AUTH_SOURCE_DIR are unset in the lane; it never reads a login through them",
   "tests/rails/lane-home-isolation_test.ts":

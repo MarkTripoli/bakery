@@ -531,6 +531,9 @@ Deno.test("WorkflowStepBinding publishes four sources and a bare sha256 digest",
 
 const runtimeSet = [
   "agent.freeform",
+  "delivery.deploy",
+  "delivery.health",
+  "delivery.prepare",
   "evaluation.check",
   "evaluation.score",
   "harness.implement",
@@ -580,7 +583,8 @@ Deno.test("worker-dispatched declarations pin outputSchema to the registry and t
   for (const name of runtimeSet) {
     if (
       name === "workflow.noop" || name === "rpi.plan" ||
-      name === "workflow.stop" || name === "human.approval"
+      name === "workflow.stop" || name === "human.approval" ||
+      name.startsWith("delivery.")
     ) continue;
     const metadata = WORKFLOW_ACTION_METADATA[name as "quality.check"];
     const { handler } = runtime.get(name as "quality.check");
@@ -634,4 +638,33 @@ Deno.test("runtime and discovery construction fail on schema drift", () => {
     ImplementedActionRegistryError,
     "PlanInput",
   );
+});
+
+Deno.test("a delivery step handler validates its input and never runs the step itself (#43)", () => {
+  const runtime = createWorkflowActionRuntime();
+  const repositoryId = "00000000-0000-4000-8000-0000000000a1";
+  const valid: Record<string, unknown> = {
+    "delivery.prepare": {
+      repositoryId,
+      headSha: "a".repeat(40),
+      profileRevision: 1,
+    },
+    "delivery.deploy": {
+      releaseId: "r1",
+      environment: "staging",
+      effectKey: "k",
+    },
+    "delivery.health": { deploymentId: repositoryId },
+  };
+  for (const [name, input] of Object.entries(valid)) {
+    const { handle } = runtime.get(name as "delivery.prepare").handler;
+    const error = assertThrows(() => handle(input));
+    assertEquals(
+      (error as { params?: { reason?: string } }).params?.reason,
+      "workflow_delivery_step_settled_by_engine",
+      name,
+    );
+    // An input that is not the action's shape fails validation first.
+    assertThrows(() => handle({ extra: true }));
+  }
 });
