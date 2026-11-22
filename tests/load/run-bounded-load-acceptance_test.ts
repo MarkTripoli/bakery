@@ -75,6 +75,33 @@ const LARGE_TABLE_ROWS = 1_000;
 /** Postgres 16's idle stats interval (10 s) plus a margin. */
 const STATS_PUBLISH_WAIT_MS = 11_000;
 
+/**
+ * Watches a pg Pool while a test runs and reports its size and the most
+ * requests ever queued for a connection, so a 503 or a stalled socket can be
+ * told apart from host load: a queue at the pool's size points at the pool.
+ */
+function watchPool(pool: unknown, name: string): () => void {
+  const watched = pool as {
+    waitingCount?: number;
+    totalCount?: number;
+    options?: { max?: number };
+  };
+  let peakWaiting = 0;
+  let peakTotal = 0;
+  const timer = setInterval(() => {
+    peakWaiting = Math.max(peakWaiting, watched.waitingCount ?? 0);
+    peakTotal = Math.max(peakTotal, watched.totalCount ?? 0);
+  }, 20);
+  return () => {
+    clearInterval(timer);
+    console.log(
+      `load: ${name} pool max ${
+        watched.options?.max ?? "?"
+      }, peak in use ${peakTotal}, peak waiting ${peakWaiting}`,
+    );
+  };
+}
+
 function p95(samples: number[]): number {
   const sorted = [...samples].sort((left, right) => left - right);
   return sorted[
@@ -291,6 +318,7 @@ Deno.test("AC2/AC3: claims on a slot-limited worker stay inside budget and never
         fixture.principalId,
       );
     }
+    const stopWatching = watchPool(fixture.runtimePgDatabase, "server");
     const worker = await registeredWorker(fixture, {
       name: "load-worker",
       slots: workload.workerSlots,
@@ -312,7 +340,11 @@ Deno.test("AC2/AC3: claims on a slot-limited worker stay inside budget and never
         { idempotencyKey: claimKey },
       );
       const status = response.status;
-      await response.body?.cancel();
+      if (status >= 500) {
+        console.log(`load: claim answered ${status}: ${await response.text()}`);
+      } else {
+        await response.body?.cancel();
+      }
       return status;
     };
     // Twice the slots in flight at once: half must be refused for capacity.
@@ -348,6 +380,7 @@ Deno.test("AC2/AC3: claims on a slot-limited worker stay inside budget and never
         assertEquals(status, 200, "a timed claim did not lease a job");
       }
     }
+    stopWatching();
     withinBudget("worker claim p95", p95(timings), budgets.workerClaimP95Ms);
   } finally {
     await closeWorkerFixture(fixture);
@@ -392,6 +425,7 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
     await database.query("vacuum analyze bakery.domain_events");
     const heapBefore = settledHeap();
     const before = await sequentialScans(database, ["domain_events"]);
+    const stopWatching = watchPool(database, "server");
 
     const frame = async (client: WsClient, timeoutMs = 10_000) => {
       const value = await client.next(timeoutMs);
@@ -527,6 +561,7 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
     }
     clients.push(...own);
     assertEquals(refused, 429, "one person's sockets were not capped");
+    stopWatching();
     const after = await sequentialScans(database, ["domain_events"]);
     // Measured with every socket still open, so the growth is what the server
     // retains for them, not garbage V8 has not collected yet.
