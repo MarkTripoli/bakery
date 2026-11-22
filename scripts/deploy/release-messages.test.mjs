@@ -6,6 +6,8 @@ import {
   decisionLines,
   failedStepLine,
   failureLines,
+  gateChangeLines,
+  gateReviewLines,
   isRefusal,
   policyWords,
   statusLines,
@@ -249,6 +251,7 @@ function harness(
     events,
     marker,
     failBackground,
+    gate,
   } = {},
 ) {
   let state = structuredClone(initial);
@@ -350,6 +353,16 @@ function harness(
       return recordResult instanceof Error
         ? Promise.reject(recordResult)
         : Promise.resolve(recordResult ?? { kept: true, inBakery: true });
+    };
+  }
+  if (gate) {
+    operations.gate = (activeSha, sha) => {
+      calls.push(
+        `gate ${activeSha === blue ? "blue" : "?"}->${
+          sha === green ? "green" : "?"
+        }`,
+      );
+      return Promise.resolve(gate);
     };
   }
   if (marker) {
@@ -957,5 +970,98 @@ test("recover after a stay records one interrupted switch, and running recover a
       active: { sha: blue },
     }),
     null,
+  );
+});
+
+const held = {
+  changes: [{ path: "scripts/deploy/release.mjs", kind: "changed" }],
+  fingerprint: "f",
+  approved: false,
+};
+
+test("an update that changes the trusted gate is refused before anything starts, until it is approved", async () => {
+  const h = harness(committed, { pause: null, gate: held });
+  const lines = [];
+  await assert.rejects(
+    run(h, (e) => lines.push(e)),
+    (error) =>
+      error.message === "TRUSTED_GATE_CHANGE" &&
+      error.gate.changes.length === 1,
+  );
+  assert.deepEqual(
+    h.calls,
+    ["gate blue->green"],
+    "no pause, no snapshot, nothing",
+  );
+  assert.deepEqual(lines, [], "not even the first step is reported as done");
+  assert.deepEqual(h.state(), committed, "the journal was never touched");
+});
+
+test("an approved change, or no change, goes ahead", async () => {
+  for (
+    const gate of [{ ...held, approved: true }, { changes: [], approved: true }]
+  ) {
+    const h = harness(committed, { pause: null, gate });
+    const state = await run(h, () => {});
+    assert.equal(state.active.sha, green);
+    assert.ok(h.calls.includes("backup"));
+  }
+});
+
+test("a rollback and a first install are never held by the gate", async () => {
+  const back = harness({
+    ...committed,
+    active: { sha: green, slot: "green" },
+    previous: { sha: blue, slot: "blue" },
+    migrations: { [migration]: hash, [addition]: hash },
+  }, { pause: null, gate: held });
+  await run(back, () => {}, blue, true);
+  assert.ok(!back.calls.some((c) => c.startsWith("gate")));
+  const first = harness({
+    format: 1,
+    phase: "committed",
+    active: null,
+    previous: null,
+    migrations: {},
+  }, { pause: null, gate: held });
+  await run(first, () => {}, blue, false, true);
+  assert.ok(!first.calls.some((c) => c.startsWith("gate")));
+});
+
+test("the refusal names the files, the command that approves it, and ends with its code", () => {
+  const lines = failureLines(
+    Object.assign(new Error("TRUSTED_GATE_CHANGE"), { gate: held }),
+    { requested: green, active: blue, phase: "committed", gate: held },
+  );
+  assert.match(lines[0], /changes the checks that decide what may be merged/);
+  assert.match(lines.join("\n"), /changed\s+scripts\/deploy\/release\.mjs/);
+  assert.match(
+    lines.join("\n"),
+    new RegExp(`sudo bakery-release approve-gate ${green}`),
+  );
+  assert.equal(lines.at(-1), "[TRUSTED_GATE_CHANGE]");
+  assert.ok(wide(lines.filter((l) => !l.includes(green))));
+  assert.equal(
+    isRefusal("TRUSTED_GATE_CHANGE"),
+    true,
+    "recorded as a refusal in the history",
+  );
+});
+
+test("long lists of changed files are cut to a few and a count", () => {
+  const many = Array.from(
+    { length: 9 },
+    (_, n) => ({ path: `scripts/deploy/f${n}`, kind: "added" }),
+  );
+  const lines = gateChangeLines(many);
+  assert.equal(lines.length, 7);
+  assert.equal(lines.at(-1), "  and 3 more");
+  assert.match(
+    gateReviewLines({ active: blue, sha: green, changes: many }).join("\n"),
+    /changes 9 files/,
+  );
+  assert.match(
+    gateReviewLines({ active: blue, sha: green, changes: many.slice(0, 1) })[0],
+    /changes 1 file of/,
   );
 });
