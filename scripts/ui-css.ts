@@ -108,6 +108,7 @@ const allowedMediaQueries = new Set([
   "@media (max-width: 640px)",
   "@media (max-width: 420px)", // auth.css:24 small-phone band
   "@media (max-width: 360px)", // collaboration.css: the narrowest phones in the Work list filter row
+  "@media (max-width: 20rem)", // feedback.css: a dismissible notice on a phone at 200% zoom (about 195px); 360px would also change common 360px phones
   "@media (pointer: fine)",
   "@media (pointer: coarse)",
   "@media (prefers-reduced-motion: reduce)",

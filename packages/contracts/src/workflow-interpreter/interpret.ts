@@ -1,6 +1,7 @@
 import { cloneJson } from "./clone.ts";
 import type {
   WorkflowActionNode,
+  WorkflowForEachNode,
   WorkflowLane,
   WorkflowNode,
   WorkflowParallelNode,
@@ -129,9 +130,25 @@ type Frame = Readonly<{
   /** The accumulator; undefined while a repeat's own seed is being built. */
   candidate: JsonValue | undefined;
 }>;
+/** The current item of one enclosing forEach. */
+type EachFrame = Readonly<{
+  node: WorkflowForEachNode;
+  iteration: number;
+  item: JsonValue;
+}>;
 type Scope = Readonly<
-  { segments: readonly Segment[]; frames: readonly Frame[] }
+  {
+    segments: readonly Segment[];
+    frames: readonly Frame[];
+    /** Enclosing forEach loops, outermost first. */
+    each: readonly EachFrame[];
+  }
 >;
+
+type ForEachResult = {
+  iterations: number;
+  outcome: "completed" | "canceled" | "failed" | "timed_out";
+};
 
 type RepeatResult = {
   iterations: number;
@@ -171,6 +188,7 @@ function iterationPathOf(segments: readonly Segment[]): readonly number[] {
 
 class Run {
   private readonly repeatResults = new Map<string, RepeatResult>();
+  private readonly forEachResults = new Map<string, ForEachResult>();
   private readonly branchExports = new Map<
     string,
     Record<string, JsonValue>
@@ -184,6 +202,8 @@ class Run {
     private readonly state: RunState,
     /** Revision 2: parallel groups run. Revision 1 refuses them by name. */
     private readonly groups: boolean = false,
+    /** Revision 3: forEach loops run. Revisions 1 and 2 refuse them by name. */
+    private readonly loops: boolean = false,
   ) {}
 
   next(): NextStep {
@@ -193,6 +213,7 @@ class Run {
     const walk = this.walkList(this.document.steps, {
       segments: [],
       frames: [],
+      each: [],
     });
     switch (walk.t) {
       case "pending":
@@ -236,6 +257,17 @@ class Run {
             throw new WorkflowInterpreterError("reference_unresolved");
           }
           return readFields(frame.candidate!, rest);
+        }
+        case "each": {
+          // The innermost enclosing loop with that item name; the compiler
+          // refuses a name that an enclosing loop already uses.
+          const frame = [...scope.each].reverse().find((candidate) =>
+            candidate.node.as === first
+          );
+          if (!frame) {
+            throw new WorkflowInterpreterError("reference_unresolved");
+          }
+          return readFields(frame.item, rest);
         }
         case "step":
           return this.readStep(reference.path, scope);
@@ -308,6 +340,28 @@ class Run {
           nodes = inSeed ? seedSteps : node.steps;
           break;
         }
+        case "forEach": {
+          if (!this.loops) {
+            throw new WorkflowInterpreterError("for_each_unsupported");
+          }
+          const name = rest[0];
+          if (name === "iterations" || name === "outcome") {
+            const result = this.forEachResults.get(keyOf(segments, node.id));
+            if (!result) {
+              throw new WorkflowInterpreterError("reference_unresolved");
+            }
+            return readFields(result[name], rest.slice(1));
+          }
+          // A step of the loop: only a reader inside it may name one, and it
+          // names the iteration the reader is in.
+          const frame = scope.each.find((candidate) => candidate.node === node);
+          if (!frame) {
+            throw new WorkflowInterpreterError("reference_unresolved");
+          }
+          segments.push({ id: node.id, iteration: frame.iteration });
+          nodes = node.steps;
+          break;
+        }
         case "parallel": {
           if (!this.groups) {
             throw new WorkflowInterpreterError("parallel_unsupported");
@@ -372,6 +426,7 @@ class Run {
         return this.walkList(node.steps, {
           segments: [...scope.segments, { id: node.id }],
           frames: scope.frames,
+          each: scope.each,
         });
       case "branch":
         return this.walkBranch(node, scope);
@@ -382,6 +437,11 @@ class Run {
           throw new WorkflowInterpreterError("parallel_unsupported");
         }
         return this.walkParallel(node, scope);
+      case "forEach":
+        if (!this.loops) {
+          throw new WorkflowInterpreterError("for_each_unsupported");
+        }
+        return this.walkForEach(node, scope);
     }
   }
 
@@ -470,6 +530,7 @@ class Run {
     const inner: Scope = {
       segments: [...scope.segments, { id: node.id }],
       frames: scope.frames,
+      each: scope.each,
     };
     const walk = this.walkList(chosen ? node.then : node.else, inner);
     if (walk.t !== "done") return walk;
@@ -513,6 +574,7 @@ class Run {
     const laneScope = (lane: WorkflowLane): Scope => ({
       segments: [...groupSegments, { id: lane.id }],
       frames: scope.frames,
+      each: scope.each,
     });
     const started = (lane: WorkflowLane): boolean => {
       const prefix = `${keyOf(groupSegments, lane.id)}.`;
@@ -615,6 +677,7 @@ class Run {
           iteration: 0,
           candidate: undefined,
         }],
+        each: scope.each,
       };
       const seeded = this.walkList(node.seed.steps, seedScope);
       // A seed that cannot be built leaves the repeat no accumulator to return,
@@ -632,6 +695,7 @@ class Run {
       const checking: Scope = {
         segments: scope.segments,
         frames: [...scope.frames, { node, iteration: iterations, candidate }],
+        each: scope.each,
       };
       if (evaluateCondition(node.until, this.reader(checking))) {
         outcome = "completed";
@@ -646,6 +710,7 @@ class Run {
       const body: Scope = {
         segments: [...scope.segments, { id: node.id, iteration: number }],
         frames: [...scope.frames, { node, iteration: number, candidate }],
+        each: scope.each,
       };
       const walk = this.walkList(node.steps, body);
       if (walk.t === "pending" || walk.t === "pending_many") return walk;
@@ -661,6 +726,49 @@ class Run {
       currentCandidate: candidate,
       outcome,
     });
+    return { t: "done" };
+  }
+
+  /**
+   * A bounded sequential forEach (revision 3). `items` is read when the loop
+   * is reached, from the same recorded state every call sees, so the answer
+   * stays a function of that state. `null` runs no iteration. A list longer
+   * than `max` halts the run as failed at the loop's own key before any
+   * iteration runs: the bound the worst case was computed from is never
+   * exceeded and never silently cut. Iterations run one at a time in list
+   * order, keyed `<id>@n` for n = 1..length. As in a repeat, an iteration
+   * that fails, is canceled or times out stops the loop and becomes its
+   * outcome rather than the run's, and `iterations` counts the iterations
+   * that completed.
+   */
+  private walkForEach(node: WorkflowForEachNode, scope: Scope): Walk {
+    const key = keyOf(scope.segments, node.id);
+    const items = evaluateValue(node.items, this.reader(scope));
+    const list = items === null ? [] : items;
+    if (!Array.isArray(list)) {
+      throw new WorkflowInterpreterError("operand_invalid");
+    }
+    if (list.length > node.max) {
+      return { t: "halt", outcome: "failed", key };
+    }
+    let iterations = 0;
+    let outcome: ForEachResult["outcome"] = "completed";
+    for (let at = 0; at < list.length; at += 1) {
+      const number = at + 1;
+      const body: Scope = {
+        segments: [...scope.segments, { id: node.id, iteration: number }],
+        frames: scope.frames,
+        each: [...scope.each, { node, iteration: number, item: list[at]! }],
+      };
+      const walk = this.walkList(node.steps, body);
+      if (walk.t === "pending" || walk.t === "pending_many") return walk;
+      if (walk.t === "halt") {
+        outcome = walk.outcome;
+        break;
+      }
+      iterations = number;
+    }
+    this.forEachResults.set(key, { iterations, outcome });
     return { t: "done" };
   }
 }
@@ -708,4 +816,17 @@ export function nextStepWithGroups(
   state: RunState,
 ): NextStep {
   return cloneJson(new Run(document, state, true).next()) as NextStep;
+}
+
+/**
+ * Interpreter revision 3: revision 2 plus bounded sequential forEach loops.
+ * A plan without a forEach gets the answers revision 2 gives. A step inside a
+ * loop is keyed `<loop>@n.<step>` and its dispatch's `iterationPath` carries
+ * n, as a repeat's does. Everything said of `nextStepWithGroups` holds.
+ */
+export function nextStepWithLoops(
+  document: WorkflowSemanticDocument,
+  state: RunState,
+): NextStep {
+  return cloneJson(new Run(document, state, true, true).next()) as NextStep;
 }
