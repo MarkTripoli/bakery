@@ -440,6 +440,14 @@ export type ArtifactPreviewGrantResponse =
   ClientOutputMap["ArtifactPreviewGrant"];
 export type ArtifactPreviewAvailabilityResponse =
   ClientOutputMap["ArtifactPreviewAvailability"];
+/** The app a worker is running for a run, as the server reads it now (no route key or port). */
+export type RunPreviewResponse = ClientOutputMap["Preview"];
+/** A page of a run's previews, newest first. */
+export type RunPreviewPageResponse = ClientOutputMap["Page<Preview>"];
+/** A one-use grant (valid 30 seconds) to open one running preview, and how long the session lasts. */
+export type PreviewAccessResponse = ClientOutputMap["PreviewAccessResult"];
+export type PreviewAvailabilityResponse =
+  ClientOutputMap["PreviewAvailability"];
 export type MessageCreate = ClientInputMap["MessageCreate"];
 export type MessageResponse = ClientOutputMap["Message"];
 export type MessageListResponse = ClientOutputMap["Page<Message>"];
@@ -1038,6 +1046,34 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallResponse>>;
+  };
+  /** The apps workers run for a run, shown on their own origin. */
+  readonly previews: {
+    /** `GET /v1/preview-availability`: whether this deployment can serve previews. */
+    readonly availability: (options: {
+      readonly organizationId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PreviewAvailabilityResponse>>;
+    /** `GET /v1/previews?runId=`: the previews of one run, newest first. */
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly runId: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<RunPreviewPageResponse>>;
+    /** `POST /v1/previews/{id}/access`: issues a one-use grant; never cached, retried or stored. */
+    readonly access: (options: {
+      readonly organizationId: string;
+      readonly previewId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PreviewAccessResponse>>;
+    /** `POST /v1/previews/{id}/stop`: ends the preview for everyone and answers with its new state. */
+    readonly stop: (options: {
+      readonly organizationId: string;
+      readonly previewId: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<RunPreviewResponse>>;
   };
   /** Bounded runs of issues: start one, watch it, pause, resume or stop it. */
   readonly batches: {
@@ -3054,6 +3090,46 @@ export function createBakeryApiClient({
             }, {
               ifMatch: versionEtag(options.version),
               idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+    },
+    previews: {
+      availability(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.availability"]({}, {
+              signal: options.signal,
+            }),
+        );
+      },
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.list"]({
+              runId: options.runId,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      access(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.access"]({ id: options.previewId }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      stop(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["previews.stop"]({ id: options.previewId }, {
+              idempotencyKey: options.idempotencyKey ?? crypto.randomUUID(),
               signal: options.signal,
             }),
         );

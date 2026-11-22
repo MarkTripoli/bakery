@@ -1411,13 +1411,21 @@ prepare({repositoryId, headSha, profileRevision})
   -> {releaseId, artifactDigest, environment, status: "prepared"}
 deploy({releaseId, effectKey})
   -> {deploymentId, commitSha, effectId, status: "queued"|"deploying"|"unknown"|"failed"}
-status({deploymentId, effectKey})
-  -> {deploymentId, observedCommitSha?, effectId?, status: "queued"|"deploying"|"healthy"|"failed"|"unknown"}
+status({effectKey, deploymentId?})
+  -> {deploymentId|null, effectId|null, observedCommitSha?, status: "queued"|"deploying"|"healthy"|"degraded"|"failed"|"rolling_back"|"rolled_back"|"unknown"}
 health({deploymentId})
   -> {deploymentId, status: "healthy"|"degraded"|"failed", checkedAt, evidenceArtifactId}
 rollback({deploymentId, effectKey})
   -> {deploymentId, restoredCommitSha, effectId, status: "rolling_back"|"rolled_back"|"unknown"|"failed"}
 ```
+
+`status` takes the effect key alone because a lost answer to `deploy` leaves
+the caller without the provider's `deploymentId`; it answers for a deploy
+effect (`queued` to `degraded`, or `rolled_back` once restored) and for a
+rollback effect (`rolling_back`, `rolled_back`, `failed`). It answers
+`failed` only when it can prove the mutation did not happen (a key it never
+saw); otherwise `unknown`. A repeated effect key answers with the first call
+and never runs the mutation again.
 
 `delivery.merge` uses the same effect-key and read-after-write rule, returning
 the provider commit identity. An `unknown` deploy or rollback must call

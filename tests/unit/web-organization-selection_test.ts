@@ -102,6 +102,12 @@ function fakeApi(
       update: rejecting,
       savedData: rejecting,
     },
+    previews: {
+      availability: rejecting,
+      list: rejecting,
+      access: rejecting,
+      stop: rejecting,
+    },
     batches: {
       list: rejecting,
       startable: rejecting,

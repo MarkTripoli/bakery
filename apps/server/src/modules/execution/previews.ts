@@ -8,6 +8,7 @@ import {
   assertWorkerMutationSessionShape,
   type ExecutionRouteOptions,
   readAttemptId,
+  requestMetadata,
   sha256Hex,
   workerIdempotencyUuid,
   workerTransaction,
@@ -64,6 +65,8 @@ export async function workerPreviewRoute(
         routeKey: input.routeKey,
         upstreamPort: input.upstreamPort,
         headSha: input.headSha,
+        // The events this registration announces join the request that made it.
+        traceId: requestMetadata(context).traceId,
       });
       if (registered.kind === "conflict") {
         throw new StandardError({ code: "STATE_CONFLICT" });

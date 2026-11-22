@@ -200,6 +200,7 @@ async function authorizeSkillRead(
             version.source_revision, version.digest, version.entry_path,
             version.manifest, version.status, version.created_by,
             version.created_at, version.updated_at, version.version,
+            version.published_at, version.label,
             skill.enabled as skill_enabled,
             source.enabled as source_enabled
        from bakery.skill_versions as version
