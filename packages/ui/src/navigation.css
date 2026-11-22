@@ -981,6 +981,10 @@ a.bakery-application-rail__link:hover {
 .bakery-app-shell__main > [data-update-cover]:not([hidden]) {
   display: contents;
 }
+/* A toast is a direct child of main, which has no gap: 16px to the page. */
+.bakery-app-shell__main > .ui-toast {
+  margin-block-end: var(--space-4);
+}
 
 .bakery-app-shell[data-main-inset="flush"] .bakery-app-shell__main,
 .bakery-app-shell[data-main-inset="page"] .bakery-app-shell__main,

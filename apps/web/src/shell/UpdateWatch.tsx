@@ -116,7 +116,8 @@ export function UpdatingPage({ update }: { readonly update: UpdateWatch }) {
   }, []);
   const art = UI.scene("maintenance", { theme: resolvedTheme, width: 600 });
   const since = update.watch.since ?? now;
-  const line = updatingTooLong(update.watch, now)
+  const tooLong = updatingTooLong(update.watch, now);
+  const line = tooLong
     ? translate("shell.states.updatingLonger")
     : translate("shell.states.updatingChecking", {
       time: new Intl.DateTimeFormat(locale, { timeStyle: "short", timeZone })
@@ -127,11 +128,14 @@ export function UpdatingPage({ update }: { readonly update: UpdateWatch }) {
     <UI.EmptyState
       data-testid="updating-page"
       description={
-        <UI.Stack gap="tight">
+        <UI.Stack gap="comfortable">
           <UI.Text variant="muted">
             {translate("shell.states.updatingDescription")}
           </UI.Text>
-          <UI.Text data-testid="updating-check" variant="caption">
+          <UI.Text
+            data-testid="updating-check"
+            variant={tooLong ? "body" : "caption"}
+          >
             {line}
           </UI.Text>
         </UI.Stack>
@@ -148,6 +152,7 @@ export function UpdatingPage({ update }: { readonly update: UpdateWatch }) {
       }
       layout="centered"
       title={translate("shell.states.updatingTitle")}
+      titleStyle="heading"
     />
   );
 }

@@ -146,9 +146,33 @@ test("away after the pause: the being-updated page, typed text kept, then Bakery
   world.away = true;
   await nextRead(page);
   await expect(updating(page)).toBeVisible();
+  // The phone and tablet section picker is not drawn while Bakery is being
+  // updated; the desktop list stays, as part of the frame (design-ux, #59).
+  const picker = page.locator('[data-ui-component="sectionNavigation"]');
+  const shown = page.locator('[data-ui-component="sectionNavigation"]:visible');
+  if (test.info().project.name === "mobile") {
+    await expect(picker).toHaveCount(0);
+  } else await expect(shown.first()).toBeVisible();
   await expect(updating(page).getByRole("heading", { level: 2 }))
     .toHaveText(WORDS.updatingTitle);
   await expect(updating(page)).toContainText(WORDS.updatingText);
+  // The title is the page's headline (20px semibold, normal text colour), and
+  // the countdown line sits 12px under the sentence (design-ux ruling, #59).
+  const title = updating(page).getByRole("heading", { level: 2 });
+  await expect(title).toHaveCSS("font-size", "20px");
+  await expect(title).toHaveCSS("font-weight", "600");
+  await expect(title).not.toHaveCSS(
+    "color",
+    await updating(page).locator(".ui-feedback-description p").first()
+      .evaluate((node) => getComputedStyle(node).color),
+  );
+  const gap = await page.evaluate(() => {
+    const check = document.querySelector('[data-testid="updating-check"]')!;
+    const sentence = check.previousElementSibling!;
+    return check.getBoundingClientRect().top -
+      sentence.getBoundingClientRect().bottom;
+  });
+  expect(gap).toBe(12);
   await expect(page.getByTestId("updating-check")).toHaveText(
     /^Started 2:02\sPM · checking again in [1-5] seconds?$/,
   );
@@ -168,6 +192,15 @@ test("away after the pause: the being-updated page, typed text kept, then Bakery
   // After ten minutes the last line changes.
   await nextRead(page, 10 * 60_000);
   await expect(page.getByTestId("updating-check")).toHaveText(WORDS.longer);
+  // Once it is the only next step it reads as body text: 14px, headline colour.
+  await expect(page.getByTestId("updating-check")).toHaveCSS(
+    "font-size",
+    "14px",
+  );
+  await expect(page.getByTestId("updating-check")).toHaveCSS(
+    "color",
+    await title.evaluate((node) => getComputedStyle(node).color),
+  );
   await still(page, "updating-longer");
   // Back on a new release: the page carries on, the toast says so once.
   world.away = false;
@@ -175,10 +208,13 @@ test("away after the pause: the being-updated page, typed text kept, then Bakery
   world.release = "bakery@2222222";
   await nextRead(page, 5_000);
   await expect(updating(page)).toHaveCount(0);
+  await expect(shown.first()).toBeVisible();
   await expect(name).toBeVisible();
   await expect(name).toHaveValue("Alex M. typed before the pause");
   await expect(toast(page)).toContainText(WORDS.updated);
   await expect(toast(page)).toHaveAttribute("role", "status");
+  // 16px between the toast and the page under it (design-ux ruling, #59).
+  await expect(toast(page)).toHaveCSS("margin-bottom", "16px");
   // The toast is the announcement of the return; the region says nothing more.
   await expect(announcement(page)).toHaveText("");
   await still(page, "toast-updated");
@@ -230,6 +266,7 @@ test("back on the same release: Bakery is back and the update did not go through
   await nextRead(page, 5_000);
   await expect(updating(page)).toHaveCount(0);
   await expect(toast(page)).toContainText(WORDS.notUpdated);
+  await expect(toast(page)).toHaveCSS("margin-bottom", "16px");
   await still(page, "toast-not-updated");
 });
 

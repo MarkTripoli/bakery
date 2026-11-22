@@ -771,46 +771,52 @@ function ShellFrame() {
       navigationLabel={translate("shell.navigation.menu")}
       navigationOpen={navigationOpen}
       onNavigationOpenChange={setNavigationOpen}
-      sectionNavigation={fixtureSettings
-        ? (
-          <SettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : installationSettings
-        ? (
-          <InstallationSettingsNavigation
-            currentPath={pathname === "/installation/audit" ||
-                (pathname === "/installation/monitoring" ||
-                  pathname.startsWith("/installation/monitoring/")) ||
-                pathname === "/installation/usage" ||
-                pathname === "/installation/restore" ||
-                pathname === INSTALLATION_INTEGRATIONS_PATH
-              ? pathname
-              : "/installation/settings"}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : organizationSettings
-        ? (
-          <OrganizationSettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : productionSettings
-        ? (
-          <ProductionSettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : undefined}
+      sectionNavigation={
+        /* The phone and tablet picker is not drawn while Bakery is being
+          updated; the desktop list is part of the frame and stays (#59). */
+        update.updating && viewport !== "desktop"
+          ? undefined
+          : fixtureSettings
+          ? (
+            <SettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : installationSettings
+          ? (
+            <InstallationSettingsNavigation
+              currentPath={pathname === "/installation/audit" ||
+                  (pathname === "/installation/monitoring" ||
+                    pathname.startsWith("/installation/monitoring/")) ||
+                  pathname === "/installation/usage" ||
+                  pathname === "/installation/restore" ||
+                  pathname === INSTALLATION_INTEGRATIONS_PATH
+                ? pathname
+                : "/installation/settings"}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : organizationSettings
+          ? (
+            <OrganizationSettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : productionSettings
+          ? (
+            <ProductionSettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : undefined
+      }
       sidebar={
         <ShellSidebar
           currentPath={navigationPath}
