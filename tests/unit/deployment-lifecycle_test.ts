@@ -5,8 +5,6 @@ import {
   type DeploymentStatus,
   IN_FLIGHT_STATUSES,
   isDeploymentStatus,
-  isInFlight,
-  movesFrom,
   ROLLBACK_SOURCE_STATUSES,
   SERVING_STATUSES,
 } from "../../apps/server/src/modules/delivery/deployment-states.ts";
@@ -23,7 +21,13 @@ Deno.test("a deployment moves along the adapter lifecycle and nowhere else (#43)
     rolled_back: [],
   };
   for (const [from, moves] of Object.entries(allowed)) {
-    assertEquals([...movesFrom(from as DeploymentStatus)], moves, from);
+    for (const to of DEPLOYMENT_STATUSES) {
+      assertEquals(
+        canMove(from as DeploymentStatus, to),
+        moves.includes(to),
+        `${from} -> ${to}`,
+      );
+    }
   }
   // Nothing skips a stage, and nothing leaves the end of the road.
   assertFalse(canMove("queued", "healthy"));
@@ -42,7 +46,10 @@ Deno.test("an unknown outcome is settled by what a read says, and a person canno
       settled,
     );
   }
-  assert(isInFlight("unknown"), "uncertainty blocks further writes");
+  assert(
+    IN_FLIGHT_STATUSES.includes("unknown"),
+    "uncertainty blocks further writes",
+  );
   assertFalse(ROLLBACK_SOURCE_STATUSES.includes("unknown"));
 });
 
@@ -57,9 +64,11 @@ Deno.test("what is in flight, what serves and what can be rolled back are distin
     "degraded",
     "failed",
   ]);
-  for (const status of SERVING_STATUSES) assertFalse(isInFlight(status));
-  assertFalse(isInFlight("failed"));
-  assertFalse(isInFlight("rolled_back"));
+  for (
+    const status of [...SERVING_STATUSES, "failed", "rolled_back"] as const
+  ) {
+    assertFalse(IN_FLIGHT_STATUSES.includes(status), status);
+  }
   assertEquals(DEPLOYMENT_STATUSES.length, 9);
   assert(isDeploymentStatus("degraded"));
   assertFalse(isDeploymentStatus("deployed-ok"));

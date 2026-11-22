@@ -1,4 +1,6 @@
+import type { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
+import type { z } from "zod";
 import {
   appendAudit,
   appendDomainEvent,
@@ -34,14 +36,13 @@ const DEPLOYMENT_ORDERING = "createdAt:desc,id:desc";
 const MAX_PAGE_SIZE = 100;
 const TIMESTAMP_SQL = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"';
 
-/** What `deployments.create` accepts, after schema validation. */
-export type DeploymentCreateInput = {
-  repositoryId: string;
-  runId: string;
-  environment: DeploymentEnvironment;
-  commitSha: string;
-  artifactDigest: string;
-};
+/**
+ * What `deployments.create` accepts: exactly what the contract validated, so a
+ * change to the contract is a compile error here and not a cast that hides it.
+ */
+export type DeploymentCreateInput = z.output<
+  typeof contractSchemas.DeploymentCreate
+>;
 
 export type DeploymentRead = {
   id: string;

@@ -85,16 +85,7 @@ export function isDeploymentStatus(value: string): value is DeploymentStatus {
   return (DEPLOYMENT_STATUSES as readonly string[]).includes(value);
 }
 
-export function isInFlight(status: DeploymentStatus): boolean {
-  return IN_FLIGHT_STATUSES.includes(status);
-}
-
 /** Whether a deployment may move from `from` to `to`. */
 export function canMove(from: DeploymentStatus, to: DeploymentStatus): boolean {
   return NEXT[from].includes(to);
-}
-
-/** The statuses a deployment may move to from `from`. */
-export function movesFrom(from: DeploymentStatus): readonly DeploymentStatus[] {
-  return NEXT[from];
 }

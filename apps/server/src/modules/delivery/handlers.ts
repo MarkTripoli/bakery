@@ -11,7 +11,6 @@ import {
 import { listMergeAttempts } from "./merge-attempts.ts";
 import {
   createDeployment,
-  type DeploymentCreateInput,
   listDeployments,
   rollbackDeployment,
 } from "./deployments.ts";
@@ -113,7 +112,7 @@ export function createDeliveryHandlers(
         await createDeployment(transaction, organizationId, principalId, {
           requestId: context.requestId,
           traceId: context.traceId,
-          create: input as DeploymentCreateInput,
+          create: input,
         }),
       );
     },
