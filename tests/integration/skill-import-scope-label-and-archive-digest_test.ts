@@ -4,7 +4,7 @@
  * version and is pinned by its content digest with an optional label, and a
  * version records when it was published (null for older ones).
  */
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { canonicalJson } from "../../apps/server/src/platform/canonical-json.ts";
 import { executeSkillImport } from "../../apps/server/src/modules/catalog/import-workflow.ts";
 import {
@@ -466,6 +466,58 @@ Deno.test("an import may be Private: its importer owns the skill, and nobody els
       (await f.read(f.adminCookie, `/v1/skills/${made.skillId}`)).status,
       404,
     );
+  } finally {
+    await close(f);
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("an organization import whose Admin is demoted before it runs is refused, and makes no skill", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-42-demoted-import-" });
+  const store = new SkillFileStore(root);
+  await store.initialize();
+  const source = await archiveSource();
+  const f = await openPersonalSkillFixture({
+    skillFileStore: store,
+    skillSourceAdapter: source.adapter,
+  });
+  try {
+    const db = f.fixture.pgDatabase;
+    const sourceId = await urlSource(f, "demoted-source");
+    const run = await json<Run>(
+      await f.fixture.app.fetch(
+        new Request(`${authTestOrigin}/v1/skill-imports`, {
+          method: "POST",
+          headers: {
+            cookie: f.adminCookie,
+            "Bakery-Organization-Id": f.organizationId,
+            "content-type": "application/json",
+            origin: authTestOrigin,
+            "Idempotency-Key": "demoted-org",
+          },
+          body: JSON.stringify({ sourceId, revision: '"v1"' }),
+        }),
+      ),
+      201,
+    );
+    // Still a Developer, so skill:author holds; only the Admin check refuses.
+    await db.query(
+      `update bakery.organization_memberships set role = 'developer'
+        where organization_id = $1 and principal_id = $2`,
+      [f.organizationId, f.adminPrincipalId],
+    );
+    await assertRejects(() =>
+      executeSkillImport(run.id, {
+        database: f.fixture.runtimePgDatabase,
+        sourceAdapter: source.adapter,
+        skillFileStore: store,
+      })
+    );
+    const made = await db.query(
+      "select skill_id from bakery.skill_imports where run_id = $1",
+      [run.id],
+    );
+    assertEquals(made.rows[0], { skill_id: null });
   } finally {
     await close(f);
     await Deno.remove(root, { recursive: true });

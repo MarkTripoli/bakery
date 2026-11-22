@@ -886,6 +886,20 @@ export function createCatalogHandlers(
       if (expectedVersion === undefined) {
         throw new StandardError({ code: "PRECONDITION_REQUIRED" });
       }
+      // Bakery's own source carries the global skills: renaming or switching it
+      // off would change or remove them for everybody, so it is read-only too.
+      const carriesGlobal = await transaction.query(
+        `select 1 from bakery.skills
+          where organization_id = $1 and source_id = $2 and scope = 'global'
+          limit 1`,
+        [organizationId, sourceId],
+      );
+      if (carriesGlobal.rows.length > 0) {
+        throw new StandardError({
+          code: "AUTH_FORBIDDEN",
+          params: { reason: "global_skill_is_read_only" },
+        });
+      }
       const result = await boundedMutation(() =>
         transaction.query<SkillSourceRow>(
           `update bakery.skill_sources

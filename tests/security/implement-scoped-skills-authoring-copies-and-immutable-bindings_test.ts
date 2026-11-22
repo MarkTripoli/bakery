@@ -77,3 +77,98 @@ Deno.test("another member's personal skill answers every probe exactly like an u
     await f.close();
   }
 });
+
+Deno.test("an Admin cannot change a Bakery skill, nor rename or switch off the source that carries it", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-42-global-source-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  const send = (
+    method: string,
+    path: string,
+    body: unknown,
+    key: string,
+    version: number,
+  ) =>
+    f.fixture.app.fetch(
+      new Request(`${authTestOrigin}${path}`, {
+        method,
+        headers: {
+          cookie: f.ownerCookie,
+          "Bakery-Organization-Id": f.organizationId,
+          "content-type": "application/json",
+          origin: authTestOrigin,
+          "Idempotency-Key": key,
+          "If-Match": `"${version}"`,
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+  try {
+    // Listing installs Bakery's own skills the first time.
+    assertEquals((await f.read(f.ownerCookie, "/v1/skills")).status, 200);
+    const list = await f.read(f.ownerCookie, "/v1/skills?scope=global");
+    const { items } = await list.json() as {
+      items: Array<
+        { id: string; sourceId: string; version: number; name: string }
+      >;
+    };
+    assert(items.length > 0, "no Bakery skill was installed");
+    const skill = items[0];
+    const sourceRead = await f.read(
+      f.ownerCookie,
+      `/v1/skill-sources/${skill.sourceId}`,
+    );
+    const source = await sourceRead.json() as {
+      version: number;
+      name: string;
+      enabled: boolean;
+    };
+    const refused = [
+      await send(
+        "PATCH",
+        `/v1/skills/${skill.id}`,
+        { enabled: false },
+        "g-skill-off",
+        skill.version,
+      ),
+      await send(
+        "PATCH",
+        `/v1/skills/${skill.id}`,
+        { name: "Hijacked" },
+        "g-skill-name",
+        skill.version,
+      ),
+      await send(
+        "PATCH",
+        `/v1/skill-sources/${skill.sourceId}`,
+        { enabled: false },
+        "g-source-off",
+        source.version,
+      ),
+      await send(
+        "PATCH",
+        `/v1/skill-sources/${skill.sourceId}`,
+        { name: "Hijacked" },
+        "g-source-name",
+        source.version,
+      ),
+    ];
+    for (const response of refused) {
+      assertEquals(response.status, 403);
+      const problem = await response.json() as { reason?: string };
+      assertEquals(problem.reason, "global_skill_is_read_only");
+    }
+    const after = await (await f.read(
+      f.ownerCookie,
+      `/v1/skill-sources/${skill.sourceId}`,
+    )).json() as typeof source;
+    assertEquals(after, source);
+    const skillAfter = await (await f.read(
+      f.ownerCookie,
+      `/v1/skills/${skill.id}`,
+    )).json() as { enabled: boolean; name: string };
+    assertEquals([skillAfter.enabled, skillAfter.name], [true, skill.name]);
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
