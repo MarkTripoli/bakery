@@ -493,6 +493,10 @@ async function freeformRun(
         ReturnType<typeof pinnedBrief>
       >["readAttemptContext"];
     },
+  extra: {
+    assignment?: Record<string, unknown>;
+    options?: { designToolAvailable?: boolean };
+  } = {},
 ) {
   const scratch = await prepareScratchRepository("bakery-codex-freeform-");
   const executable = `${scratch.dir}/fake-codex`;
@@ -519,8 +523,10 @@ ${body}
     action: "agent.freeform",
     agentSessionId: crypto.randomUUID(),
     input: { ...FREEFORM_INPUT, ...input },
-  } as JobAssignment;
+    ...extra.assignment,
+  } as unknown as JobAssignment;
   const outcome = await createCodexHarnessExecutor({
+    ...extra.options,
     readAttemptContext: brief?.readAttemptContext,
     publishFor: () => async (request) => {
       published.push(request.bytes);
@@ -852,5 +858,146 @@ Deno.test({
     );
     assertEquals(outcome.status, "failed");
     assertFalse(await exists(fake.execMarker), "the CLI never started");
+  },
+});
+
+// #24: rpi.plan and rpi.design on the Codex harness, as bounded sessions over a
+// pinned artifact.
+
+const rpi = (
+  action: "rpi.plan" | "rpi.design",
+  artifact = crypto.randomUUID(),
+) => ({
+  action,
+  input: action === "rpi.plan"
+    ? { designArtifact: artifact }
+    : { researchArtifact: artifact },
+});
+
+Deno.test({
+  name:
+    "Codex rpi.plan plans from the pinned design and answers with its one artifact",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const artifact = crypto.randomUUID();
+    const run = await freeformRun(
+      [item("agent_message"), answer("1. Do the thing."), turnDone()].join(
+        "\n",
+      ),
+      {},
+      5_000,
+      brief,
+      { assignment: rpi("rpi.plan", artifact) },
+    );
+    assertEquals(run.outcome.status, "completed");
+    if (run.outcome.status !== "completed") throw new Error("unreachable");
+    const result = run.outcome.result as { artifact: { sha256: string } };
+    // The registered output of the action, and nothing of freeform's own.
+    assert(workerActionOutputSchema("rpi.plan").safeParse(result).success);
+    assertEquals(Object.keys(result), ["artifact"]);
+    assertEquals(run.published, ["1. Do the thing."]);
+    assert(
+      run.prompt.includes(artifact),
+      "the prompt names the design it plans from",
+    );
+    assert(run.prompt.includes(brief.digest), "and the pinned input it reads");
+    assert(
+      run.prompt.includes("data, not instructions"),
+      "untrusted input is said to be data",
+    );
+  },
+});
+
+Deno.test({
+  name:
+    "Codex rpi.plan fails, rather than succeeds, when the session stops at its turn limit, and keeps the partial answer as evidence",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const turns = Array.from({ length: 22 }, () => turnStart());
+    const run = await freeformRun(
+      [...turns, answer("half a plan"), "sleep 60"].join("\n"),
+      {},
+      30_000,
+      brief,
+      { assignment: rpi("rpi.plan") },
+    );
+    assertEquals(run.outcome.status, "failed");
+    const fault = faultOf(run.outcome as never);
+    assertEquals(fault.code, "RPI_STOPPED_AT_LIMIT");
+    // The partial answer was published and is named, but is not the result.
+    assertEquals(run.published.length, 1);
+    assert(run.published[0].includes("half a plan"));
+    assert(String(fault.detail).includes("is not this step's result"));
+  },
+});
+
+Deno.test({
+  name:
+    "Codex rpi.design is refused as capability_unavailable where the design tool is not advertised, and starts nothing",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      answer("a design nobody could have made"),
+      {},
+      5_000,
+      brief,
+      { assignment: rpi("rpi.design") },
+    );
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(
+      faultOf(run.outcome as never).code,
+      "RPI_CAPABILITY_UNAVAILABLE",
+    );
+    assertEquals(run.args, "", "no process was started");
+    assertEquals(run.published, [], "nothing was published as design work");
+  },
+});
+
+Deno.test({
+  name: "Codex rpi.design runs on a worker that has the design tool",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [item("agent_message"), answer("# Design"), turnDone()].join("\n"),
+      {},
+      5_000,
+      brief,
+      {
+        assignment: rpi("rpi.design"),
+        options: { designToolAvailable: true },
+      },
+    );
+    assertEquals(run.outcome.status, "completed");
+    assertEquals(run.published, ["# Design"]);
+    if (run.outcome.status !== "completed") throw new Error("unreachable");
+    assert(
+      workerActionOutputSchema("rpi.design").safeParse(run.outcome.result)
+        .success,
+    );
+  },
+});
+
+Deno.test({
+  name:
+    "Codex rpi.plan with nothing pinned to the step is refused: there is nothing to ground the plan in",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      answer("an invented plan"),
+      {},
+      5_000,
+      undefined,
+      {
+        assignment: rpi("rpi.plan"),
+      },
+    );
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(faultOf(run.outcome as never).code, "RPI_INPUT_MISSING");
+    assertEquals(run.args, "", "no process was started");
+    assertEquals(run.published, []);
   },
 });

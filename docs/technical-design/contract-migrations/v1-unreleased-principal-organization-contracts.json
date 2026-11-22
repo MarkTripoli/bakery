@@ -1,14 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "d47335a48d070ccf7b8461b375b110984b6c1985",
-    "dc0a1e6289030dfbd544136bc23d0e0bcaff10fd"
+    "fb86250aba2f328ad26671377a9ad2008aedf496"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:d39302ddce6dc9fda8e6a4a80f4b854b604e12c2f749a38b7252831a291f58ea",
-  "reason": "#406 one start mechanism by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main dc0a1e6289030dfbd544136bc23d0e0bcaff10fd: a workflow version carries its starts, so WorkflowVersion gains a required starts list (empty when it has none) and WorkflowDraftUpdate gains an optional starts list; no client or handler read or wrote starts before. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:770002e627c102f3452a904db4196bd79dcc9f44933000d6814e1067193e04ca",
+  "reason": "#24 bounded RPI actions by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main fb86250aba2f328ad26671377a9ad2008aedf496: rpi.plan joins the worker action table (it was an unavailable server handler with no worker contract), so the worker job input union gains its PlanInput variant and the variants after it move one place; nothing could claim or send an rpi.plan job before. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d47335a48d070ccf7b8461b375b110984b6c1985",
+        "dc0a1e6289030dfbd544136bc23d0e0bcaff10fd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d39302ddce6dc9fda8e6a4a80f4b854b604e12c2f749a38b7252831a291f58ea",
+      "reason": "Displaced by the #24 rpi.plan rebind onto main fb86250ab: main's own approval, kept unchanged. #406 one start mechanism by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main dc0a1e6289030dfbd544136bc23d0e0bcaff10fd: a workflow version carries its starts, so WorkflowVersion gains a required starts list (empty when it has none) and WorkflowDraftUpdate gains an optional starts list; no client or handler read or wrote starts before. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
