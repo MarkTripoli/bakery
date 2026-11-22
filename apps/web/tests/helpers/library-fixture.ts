@@ -33,6 +33,8 @@ export type VersionRow = {
     uses: string;
     agentVersionId?: string;
     skills?: string[];
+    /** A step that waits for others is written in code: the panel cannot show it. */
+    needs?: string[];
   }[];
   /** The definition's own `steps` value, when a test needs nodes beyond plain actions. */
   spec?: unknown;
@@ -373,6 +375,25 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         body: route.request().postDataJSON() as Record<string, unknown>,
       });
       const row = versions.find((one) => one.id === parts[5]);
+      // As the server does: a slot the save settled is gone from the next read of the skills.
+      const settled = (route.request().postDataJSON() as {
+        resolveSkillSlots?: string[];
+      }).resolveSkillSlots;
+      if (
+        settled !== undefined && typeof seen.skillsAnswer === "object" &&
+        seen.skillsAnswer !== null
+      ) {
+        seen.skillsAnswer = {
+          items: seen.skillsAnswer.items.filter((item) => {
+            const held = item as {
+              skillVersionId?: unknown;
+              stepPath?: string;
+            };
+            return !(held.skillVersionId === null &&
+              settled.includes(held.stepPath ?? ""));
+          }),
+        };
+      }
       const saved = {
         id: parts[5] ?? "",
         workflowId: parts[3] ?? "",

@@ -9,6 +9,10 @@ import {
   readDeployment,
   rollbackDeployment,
 } from "../../apps/server/src/modules/delivery/deployments.ts";
+import {
+  createDeliveryStepRunner,
+  type DeliveryStepRequest,
+} from "../../apps/server/src/modules/delivery/delivery-steps.ts";
 import { createDeploymentDriver } from "../../apps/server/src/modules/delivery/deployment-driver.ts";
 import { createLocalReleaseTarget } from "../../apps/server/src/modules/delivery/local-release-target.ts";
 import { createPostgresDeploymentLedger } from "../../apps/server/src/modules/delivery/postgres-deployment-ledger.ts";
@@ -510,6 +514,236 @@ Deno.test("the driver moves real deployment rows by what a local target reports,
     } finally {
       await Deno.remove(root, { recursive: true });
       // The fixture deletes runs and artifact versions; rows that point at them go first.
+      await database.query(
+        `delete from bakery.deployments where organization_id = $1`,
+        [organizationId],
+      );
+      await database.query(
+        `delete from bakery.pull_requests
+          where organization_id = $1 and run_id = $2`,
+        [organizationId, world.runId],
+      );
+    }
+  });
+});
+
+Deno.test("delivery steps prepare, deploy and check health on real rows, and a replayed or half-finished step never deploys twice (#43)", async () => {
+  await withReviewedRun(async (world) => {
+    const database = world.fixture.pgDatabase;
+    const organizationId = world.repository.organizationId;
+    const repositoryId = world.repository.repositoryId;
+    const root = await Deno.makeTempDir({ prefix: "bakery-steps-it-" });
+    try {
+      const principal = (await database.query<{ id: string }>(
+        `select principal_id as id from bakery.organization_memberships
+          where organization_id = $1 and status = 'active'
+          order by created_at limit 1`,
+        [organizationId],
+      )).rows[0].id;
+      const encoder = new TextEncoder();
+      const buildBytes = (sha: string) => encoder.encode(`build of ${sha}`);
+      const digestOf = async (bytes: Uint8Array) =>
+        `sha256:${
+          Array.from(
+            new Uint8Array(
+              await crypto.subtle.digest("SHA-256", bytes as BufferSource),
+            ),
+            (byte) => byte.toString(16).padStart(2, "0"),
+          ).join("")
+        }`;
+      const commit = SHA(51);
+      await database.query(
+        `insert into bakery.pull_requests (
+           id,organization_id,task_id,repository_id,provider_number,url,head_sha,
+           base_sha,status,merged_sha,run_id,version
+         ) values (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,'merged',$8,$9,1)`,
+        [
+          organizationId,
+          world.taskId,
+          repositoryId,
+          401,
+          "https://github.com/acme/widgets/pull/401",
+          SHA(1051),
+          SHA(1),
+          commit,
+          world.runId,
+        ],
+      );
+      // The running app reports the release the pointer names.
+      const served = async (): Promise<string> =>
+        JSON.parse(await Deno.readTextFile(`${root}/current.json`)).commitSha;
+      const calls = { deploy: 0 };
+      let loseDeployAnswer = false;
+      const targets = {
+        resolve: (
+          input: Parameters<
+            Parameters<typeof createDeliveryStepRunner>[0]["targets"]["resolve"]
+          >[0],
+        ) => {
+          const target = createLocalReleaseTarget({
+            root,
+            environment: "staging",
+            artifacts: async (request) => {
+              const bytes = buildBytes(request.headSha);
+              return { bytes, digest: await digestOf(bytes) };
+            },
+            probe: async () => ({ version: await served(), state: "ok" }),
+            saveEvidence: input.saveEvidence,
+          });
+          return {
+            ...target,
+            deploy: async (request: Parameters<typeof target.deploy>[0]) => {
+              calls.deploy += 1;
+              const answer = await target.deploy(request);
+              if (loseDeployAnswer) throw new Error("connection reset");
+              return answer;
+            },
+          };
+        },
+      };
+      const runner = createDeliveryStepRunner({ database, targets });
+      const base = {
+        organizationId,
+        runId: world.runId,
+        taskId: world.taskId,
+        repositoryId,
+        requestedBy: principal,
+        traceId: TRACE,
+        iteration: 0,
+      };
+      const request = (
+        stepKey: string,
+        action: DeliveryStepRequest["action"],
+        input: unknown,
+      ): DeliveryStepRequest => ({ ...base, stepKey, action, input });
+      // What the engine does when a step completes: the row carries its dispatch and output.
+      const recordCompleted = async (
+        stepKey: string,
+        action: string,
+        input: unknown,
+        output: unknown,
+      ) => {
+        await database.query(
+          `insert into bakery.run_steps (
+             organization_id, run_id, step_key, position, iteration, status,
+             input, output, dispatch, finished_at
+           ) select $1, $2, $3, coalesce(max(position), 0) + 1, 0, 'completed',
+                    $4::jsonb, $5::jsonb, $6::jsonb, now()
+               from bakery.run_steps where organization_id = $1 and run_id = $2`,
+          [
+            organizationId,
+            world.runId,
+            stepKey,
+            JSON.stringify(input),
+            JSON.stringify(output),
+            JSON.stringify({ kind: "action", key: stepKey, action, input }),
+          ],
+        );
+      };
+      const done = (result: { kind: string; output?: unknown }) => {
+        assertEquals(result.kind, "completed");
+        return result.output as Record<string, unknown>;
+      };
+
+      // prepare
+      const prepareInput = {
+        repositoryId,
+        headSha: commit,
+        profileRevision: 1,
+      };
+      const prepared = done(
+        await runner.run(request("prepare", "delivery.prepare", prepareInput)),
+      );
+      assertEquals(prepared.status, "prepared");
+      assertEquals(prepared.environment, "staging");
+      await recordCompleted(
+        "prepare",
+        "delivery.prepare",
+        prepareInput,
+        prepared,
+      );
+
+      // deploy, answer lost: pending, the record is unknown, the target did deploy once
+      const deployInput = {
+        releaseId: prepared.releaseId,
+        environment: "staging",
+        effectKey: `deploy:${repositoryId}`,
+      };
+      loseDeployAnswer = true;
+      const lost = await runner.run(
+        request("deploy", "delivery.deploy", deployInput),
+      );
+      assertEquals(lost.kind, "pending", JSON.stringify(lost));
+      loseDeployAnswer = false;
+      assertEquals(calls.deploy, 1);
+      const scope = `${world.runId}:deploy:0`;
+      const record = (await database.query<
+        { id: string; status: string; request_id: string }
+      >(
+        `select id, status, request_id from bakery.deployments where organization_id = $1`,
+        [organizationId],
+      )).rows[0];
+      assertEquals(record.status, "unknown");
+      assertEquals(record.request_id, `step:${scope}`);
+
+      // the half-finished step replays: it reads the effect back and completes, no second deploy
+      const deployed = done(
+        await runner.run(request("deploy", "delivery.deploy", deployInput)),
+      );
+      assertEquals(calls.deploy, 1, "settling only reads");
+      assertEquals(deployed.deploymentId, record.id);
+      assertEquals(deployed.commitSha, commit);
+      assert(typeof deployed.providerEffectId === "string");
+      // and a replay of the finished step answers the same
+      assertEquals(
+        done(
+          await runner.run(request("deploy", "delivery.deploy", deployInput)),
+        ),
+        deployed,
+      );
+      assertEquals(calls.deploy, 1);
+      await recordCompleted("deploy", "delivery.deploy", deployInput, deployed);
+      assertEquals(await served(), commit);
+
+      // health closes it with real evidence, and a replay answers the same
+      const healthInput = { deploymentId: record.id };
+      const health = done(
+        await runner.run(request("health", "delivery.health", healthInput)),
+      );
+      assertEquals(health.status, "healthy");
+      const row = (await database.query<
+        { status: string; health_evidence_id: string }
+      >(
+        `select status, health_evidence_id from bakery.deployments where id = $1`,
+        [record.id],
+      )).rows[0];
+      assertEquals(row.status, "healthy");
+      assertEquals(
+        (health.evidenceArtifact as { versionId: string }).versionId,
+        row.health_evidence_id,
+      );
+      assertEquals(
+        done(
+          await runner.run(request("health", "delivery.health", healthInput)),
+        ),
+        health,
+      );
+
+      // refusals are stable codes, not crashes
+      const wrongRelease = await runner.run(
+        request("deploy2", "delivery.deploy", {
+          releaseId: "unknown-release",
+          environment: "staging",
+          effectKey: "deploy2",
+        }),
+      );
+      assertEquals(wrongRelease, {
+        kind: "failed",
+        code: "DELIVERY_RELEASE_UNKNOWN",
+        message: "No prepare step of this run produced that release.",
+      });
+    } finally {
+      await Deno.remove(root, { recursive: true });
       await database.query(
         `delete from bakery.deployments where organization_id = $1`,
         [organizationId],

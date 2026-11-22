@@ -1,4 +1,5 @@
 import type { BudgetRuntimeConfig, InngestRuntimeConfig } from "@bakery/config";
+import type { EngineStepRunner } from "../workflow-adapter/engine-steps.ts";
 import type { PgDatabase } from "@bakery/persistence";
 import { Inngest } from "inngest";
 import { serve } from "inngest/hono";
@@ -133,6 +134,8 @@ export function createDefaultInngestFunctions(options: {
   ticketLabelWriter?: TicketLabelWriter;
   /** Coordinator executor override; default is the worker executor outside the test environment (see `readCoordinatorExecutor`). */
   coordinatorExecutor?: CoordinatorTurnExecutor;
+  /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
+  engineSteps?: EngineStepRunner;
 }): readonly unknown[] {
   const coordinatorExecutor = options.coordinatorExecutor ??
     readCoordinatorExecutor(readCoordinatorEnv(), {
@@ -149,12 +152,14 @@ export function createDefaultInngestFunctions(options: {
       engineRetries: options.config.engineRetries,
       budgetPolicy: options.budget,
       planHost: readPlanHost,
+      engineSteps: options.engineSteps,
     }),
     createBakeryWorkflowRecovery({
       client: options.client,
       database: options.database,
       budgetPolicy: options.budget,
       planHost: readPlanHost,
+      engineSteps: options.engineSteps,
     }),
     createBakeryBudgetRecovery({
       client: options.client,
@@ -345,6 +350,7 @@ export function createInngestHttpHandler(options: {
   integrations?: IntegrationsBackgroundDependencies;
   ticketNoteWriter?: TicketNoteWriter;
   ticketLabelWriter?: TicketLabelWriter;
+  engineSteps?: EngineStepRunner;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -364,6 +370,7 @@ export function createInngestHttpHandler(options: {
         integrations: options.integrations,
         ticketNoteWriter: options.ticketNoteWriter,
         ticketLabelWriter: options.ticketLabelWriter,
+        engineSteps: options.engineSteps,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({
