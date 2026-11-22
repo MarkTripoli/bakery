@@ -396,6 +396,10 @@ export function MachineDetailPage(
       workerData && Array.isArray(workerData.failedCheckIds)
     ? agentOfFailedChecks(workerData.failedCheckIds, agents)
     : null;
+  // The agent the coding-agent banner names, if that banner is drawn.
+  const agentBannerRow = (!reason && bannerAgent) || signInBanner
+    ? (signInBanner ?? bannerAgent!)
+    : null;
   const wantedFix: BannerFix | null = reason ? bannerFix(reason) : null;
   // A system with no set-up steps cannot be set up again, so it is not offered, and no setup code is made.
   const canSetUpAgain = workerData ? hasSetupSteps(workerData.os) : true;
@@ -454,7 +458,7 @@ export function MachineDetailPage(
               },
             )
             : machineId}
-          summary={workerData && !(reason && !signInBanner)
+          summary={workerData && !reason && !bannerAgent
             ? (
               <UI.Badge tone={machineBadgeTone(headerBadge)}>
                 {message(translate, `machines.badge.${headerBadge}`)}
@@ -1006,6 +1010,7 @@ export function MachineDetailPage(
                               translate={translate}
                               access={agentAccess}
                               signIn={signIn}
+                              inBanner={agentBannerRow?.agent === row.agent}
                             />
                           ))}
                         </UI.DescriptionList>

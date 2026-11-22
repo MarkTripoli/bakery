@@ -579,60 +579,40 @@ const BADGE_TONE = {
 /** What the section may offer the person: everything, nothing (a retired machine) or only a note (not an administrator). */
 export type AgentAccess = "full" | "readOnly" | "adminOnly";
 
-function AgentLine(
-  { row, translate, access }: {
-    row: AgentRow;
-    translate: Translator;
-    access: AgentAccess;
-  },
-) {
-  if (access === "adminOnly") {
-    return <>{message(translate, "machines.agents.adminOnly")}</>;
-  }
+/**
+ * The line under an agent's name, or null when there is nothing to add. It
+ * never restates the state badge beside it: it says what the agent uses, or why
+ * it cannot be signed in yet (Bakery has not heard from it).
+ */
+function agentLineKey(row: AgentRow, access: AgentAccess): string | null {
+  if (access === "adminOnly") return "machines.agents.adminOnly";
   if (row.binding === null || row.state === "notSignedIn") {
-    return (
-      <>
-        {message(
-          translate,
-          row.componentKey === null && access === "full"
-            ? "machines.agents.notHeard"
-            : "machines.agents.notSignedIn",
-          { agent: agentName(translate, row.agent) },
-        )}
-      </>
-    );
+    return row.componentKey === null && access === "full"
+      ? "machines.agents.notHeard"
+      : null;
   }
   const kind = paymentKind(row.binding);
-  // The line follows the state: it never says an agent uses a sign-in that has ended or was never checked.
-  const subscription = kind !== "apiKey" && kind !== "localModel";
-  return (
-    <>
-      {message(
-        translate,
-        kind === "apiKey"
-          ? "machines.agents.usesKey"
-          : kind === "localModel"
-          ? "machines.agents.usesLocal"
-          : subscription && row.state === "signedOut"
-          ? "machines.agents.lineSignedOut"
-          : subscription && row.state === "notChecked"
-          ? "machines.agents.lineNotChecked"
-          : "machines.agents.usesSubscription",
-      )}
-    </>
-  );
+  if (kind === "apiKey") return "machines.agents.usesKey";
+  if (kind === "localModel") return "machines.agents.usesLocal";
+  // A sign-in that ended or was never checked is the badge's to say, not a line that claims it is used.
+  return row.state === "signedOut" || row.state === "notChecked"
+    ? null
+    : "machines.agents.usesSubscription";
 }
 
 export function CodingAgentRow(
-  { row, translate, access, signIn }: {
+  { row, translate, access, signIn, inBanner }: {
     row: AgentRow;
     translate: Translator;
     access: AgentAccess;
     signIn: AgentSignIn;
+    /** The banner above names this agent and carries its Sign in: the row does not repeat the button. */
+    inBanner: boolean;
   },
 ) {
   const busy = signIn.checking === row.agent;
   const canSignIn = row.binding !== null || row.componentKey !== null;
+  const lineKey = agentLineKey(row, access);
   return (
     <UI.DescriptionItem
       data-testid={`coding-agent-${row.agent}`}
@@ -640,9 +620,15 @@ export function CodingAgentRow(
       title={agentName(translate, row.agent)}
       description={
         <UI.Stack gap="compact">
-          <span>
-            <AgentLine row={row} translate={translate} access={access} />
-          </span>
+          {lineKey
+            ? (
+              <span>
+                {message(translate, lineKey, {
+                  agent: agentName(translate, row.agent),
+                })}
+              </span>
+            )
+            : null}
           {signIn.checkFailed.has(row.agent)
             ? (
               <span role="status">
@@ -660,19 +646,18 @@ export function CodingAgentRow(
           {access === "full"
             ? (
               <>
-                {row.state === "notSignedIn"
+                {row.state === "notSignedIn" && canSignIn && !inBanner
                   ? (
                     <UI.Button
                       variant="primary"
                       data-agent-signin={row.agent}
-                      disabled={!canSignIn}
                       onClick={() => signIn.signIn(row)}
                     >
                       {message(translate, "machines.agents.signIn")}
                     </UI.Button>
                   )
                   : null}
-                {row.state === "signedOut"
+                {row.state === "signedOut" && !inBanner
                   ? (
                     <UI.Button
                       variant="primary"
