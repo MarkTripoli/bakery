@@ -1287,6 +1287,20 @@ Deno.test({
       "RPI_INPUT_MISSING",
     );
     assertEquals(unpinned.args, "", "no process was started");
+    const research = await freeformRun(turn("invented"), {}, 5_000, undefined, {
+      assignment: {
+        action: "rpi.research",
+        input: {
+          taskId: crypto.randomUUID(),
+          repositoryId: crypto.randomUUID(),
+        },
+      },
+    });
+    assertEquals(
+      (research.outcome as unknown as { fault: { code: string } }).fault.code,
+      "RPI_INPUT_MISSING",
+    );
+    assertEquals(research.args, "", "no process was started");
     const brief = await pinnedBrief();
     const design = await freeformRun(turn("a design"), {}, 5_000, brief, {
       assignment: {

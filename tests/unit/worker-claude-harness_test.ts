@@ -1296,6 +1296,7 @@ Deno.test({
     );
     assert(executor.supportedActions?.includes("rpi.plan"));
     assert(executor.supportedActions?.includes("rpi.design"));
+    assert(executor.supportedActions?.includes("rpi.research"));
     const refuse = async (action: string, input: Record<string, unknown>) => {
       const outcome = await executor.execute(
         { ...freeformAssignment(), action, input } as unknown as JobAssignment,
@@ -1306,6 +1307,13 @@ Deno.test({
     };
     assertEquals(
       await refuse("rpi.plan", { designArtifact: crypto.randomUUID() }),
+      "RPI_INPUT_MISSING",
+    );
+    assertEquals(
+      await refuse("rpi.research", {
+        taskId: crypto.randomUUID(),
+        repositoryId: crypto.randomUUID(),
+      }),
       "RPI_INPUT_MISSING",
     );
     // Without the design tool the design step is refused before anything else.
