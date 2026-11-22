@@ -16,6 +16,7 @@ import { commitArtifactVersion } from "../../apps/server/src/modules/knowledge/p
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { forgetSandboxPreflight } from "../../apps/server/src/modules/knowledge/probe.ts";
 import { runProbeTick } from "../../apps/server/src/modules/knowledge/probe-runner.ts";
+import { writeBlobProbe } from "../../apps/server/src/modules/knowledge/blob-probes.ts";
 import { settleStagedVersions } from "../../apps/server/src/modules/knowledge/staged-versions.ts";
 import { probeRunnerDeps } from "../../apps/server/src/platform/probe-runner-task.ts";
 import {
@@ -467,4 +468,95 @@ Deno.test("a kind without probe-backed rules publishes current at once", () =>
     );
     assertEquals(current.publication_status, "current");
     assertEquals(current.current_version_id, published.versionId);
+  }));
+
+const openRequests = async (fixture: WorkerFixture, versionId: string) =>
+  (await fixture.pgDatabase.query(
+    `select 1 from bakery.probe_requests
+      where organization_id = $1 and artifact_version_id = $2`,
+    [fixture.organizationId, versionId],
+  )).rows.length;
+
+Deno.test("an answer already on record settles a staged version and clears its request", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Answered before the tick",
+      bytes: bytes("pretend png, answered"),
+    });
+    assertEquals(published.publicationStatus, "staged");
+    await writeBlobProbe(fixture.pgDatabase, {
+      organizationId: fixture.organizationId,
+      artifactVersionId: published.versionId,
+      result: {
+        status: "described",
+        kind: "image",
+        mediaType: "image/png",
+        byteLength: 8,
+        width: 10,
+        height: 10,
+      },
+    });
+    // The stub would answer over the limit; a tick that probed again instead of
+    // settling on the stored answer would refuse the version.
+    const result = await tick(
+      fixture,
+      `printf '%s' '${frame({ width: 1000, height: 1000 })}'`,
+    );
+    assertEquals(result.answered, 1, JSON.stringify(result));
+    const current = await state(
+      fixture,
+      published.artifactId,
+      published.versionId,
+    );
+    assertEquals(current.publication_status, "current");
+    assertEquals(current.current_version_id, published.versionId);
+    assertEquals(await openRequests(fixture, published.versionId), 0);
+  }));
+
+Deno.test("the runner settles under the request's row lock, so an enqueue in flight is never lost", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Locked",
+      bytes: bytes("pretend png, locked"),
+    });
+    // A publisher's enqueue holds this row while its transaction is open; the
+    // runner must wait for it rather than settle and delete around it.
+    const holder = await fixture.pgDatabase.connect();
+    try {
+      await holder.query("begin");
+      await holder.query(
+        `select id from bakery.probe_requests
+          where organization_id = $1 and artifact_version_id = $2 for update`,
+        [fixture.organizationId, published.versionId],
+      );
+      const running = tick(
+        fixture,
+        `printf '%s' '${frame({ width: 10, height: 10 })}'`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      assertEquals(
+        (await state(fixture, published.artifactId, published.versionId))
+          .publication_status,
+        "staged",
+        "the runner settled while the request row was held",
+      );
+      await holder.query("commit");
+      const result = await running;
+      assertEquals(result.answered, 1, JSON.stringify(result));
+    } finally {
+      holder.release();
+    }
+    const current = await state(
+      fixture,
+      published.artifactId,
+      published.versionId,
+    );
+    assertEquals(current.publication_status, "current");
+    assertEquals(await openRequests(fixture, published.versionId), 0);
   }));

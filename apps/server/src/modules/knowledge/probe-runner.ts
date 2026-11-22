@@ -332,7 +332,7 @@ export async function claimProbeRequests(
 
 /** Deletes a request whose answer is stored, or that nobody can answer. */
 export async function completeProbeRequest(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   id: string,
 ): Promise<void> {
   await database.query("delete from bakery.probe_requests where id = $1", [id]);
@@ -470,8 +470,8 @@ export async function runProbeTick(
       else deferred++;
       continue;
     }
-    if (stored === "answered") {
-      await completeProbeRequest(database, request.id);
+    if (stored === "cleared") {
+      // Stored, settled and deleted in one transaction (storeSettleAndClear).
       answered++;
     } else if (stored === "gone") {
       // The bytes are gone: there is nothing to ask about and never will be. The
@@ -533,7 +533,7 @@ async function probeOne(
   database: PgDatabase,
   request: RequestRow,
   deps: ProbeRunnerDeps,
-): Promise<"answered" | "host-gone" | "gone" | "unavailable"> {
+): Promise<"cleared" | "host-gone" | "gone" | "unavailable"> {
   const subject = subjectOf(request);
   const bytes = "blobId" in subject
     ? await deps.readBlobBytes(request.organization_id, subject.blobId)
@@ -558,19 +558,12 @@ async function probeOne(
   if (existing !== null) {
     // The answer is already on record -- the bytes were probed for an earlier
     // version that shares them -- so a version staged since is settled on it.
-    if (
-      !await hasStagedVersions(database, request.organization_id, subject)
-    ) return "answered";
-    await withPgTransaction(
-      database,
-      (transaction) =>
-        settleStagedVersions(transaction, {
-          organizationId: request.organization_id,
-          subject,
-          result: existing.result,
-        }),
-    );
-    return "answered";
+    await storeSettleAndClear(database, request, subject, {
+      result: existing.result,
+      store: false,
+      hostLimit: false,
+    });
+    return "cleared";
   }
   const attempt = await probeArtifactAttempt({
     readBytes: () => Promise.resolve(bytes.bytes),
@@ -579,47 +572,69 @@ async function probeOne(
   // The only unstorable answer is a refusal about the host: the sandbox is not
   // there. That is not this request's fault and must not count against it.
   if (!isStorable(attempt.result)) return "host-gone";
-  // A host-side answer (a launcher that failed, a timeout) or a memory cap is a
-  // limit of this host's probe, not a verdict on the file. Stored, it would complete the request and leave a staged version
-  // undecided for ever; so while a staged version waits on it, nothing is stored
-  // and the attempt counts against the request's ceiling instead.
-  const waiting = await hasStagedVersions(
-    database,
-    request.organization_id,
-    subject,
-  );
-  if (
-    waiting &&
-    (attempt.about === "host" || !settlesStagedVersion(attempt.result))
-  ) {
-    throw new ProbeHostFault(attempt.result);
-  }
-  if (!waiting) {
-    // Nothing waits on this answer. A version staged after this check reopens
-    // the request (enqueueProbeSubject reopen) and is settled on the stored
-    // answer by the next tick.
-    await writeBlobProbe(database, {
-      organizationId: request.organization_id,
-      ...subject,
-      result: attempt.result,
-    });
-    return "answered";
-  }
-  // The answer and the staged versions it decides commit together, so an answer
-  // can never be on record while the version it settles is still staged.
-  await withPgTransaction(database, async (transaction) => {
-    await writeBlobProbe(transaction, {
-      organizationId: request.organization_id,
-      ...subject,
-      result: attempt.result,
-    });
-    await settleStagedVersions(transaction, {
-      organizationId: request.organization_id,
-      subject,
-      result: attempt.result,
-    });
+  await storeSettleAndClear(database, request, subject, {
+    result: attempt.result,
+    store: true,
+    // A host-side answer (a launcher that failed, a timeout) or a memory cap is
+    // a limit of this host's probe, not a verdict on the file.
+    hostLimit: attempt.about === "host" ||
+      !settlesStagedVersion(attempt.result),
   });
-  return "answered";
+  return "cleared";
+}
+
+/**
+ * Stores the answer, settles the staged versions it decides and deletes the
+ * request, in one transaction that first locks the request row.
+ *
+ * The lock is what closes the race with a publisher staging a version on the
+ * same subject: the publisher's enqueue (an upsert on this row) either commits
+ * first, so this transaction sees the staged version and settles it, or waits
+ * until this one has deleted the row and then queues a fresh request, which the
+ * next tick settles on the stored answer. Without it, a version staged between
+ * the settle and the delete would lose its request and stay staged for ever.
+ *
+ * While a staged version waits, a host limit stores nothing: stored, it would
+ * clear the request and leave the version undecided. The attempt counts against
+ * the request's ceiling instead.
+ */
+async function storeSettleAndClear(
+  database: PgDatabase,
+  request: RequestRow,
+  subject: ProbeSubject,
+  input: {
+    readonly result: ArtifactProbeResult;
+    readonly store: boolean;
+    readonly hostLimit: boolean;
+  },
+): Promise<void> {
+  await withPgTransaction(database, async (transaction) => {
+    await transaction.query(
+      "select id from bakery.probe_requests where id = $1 for update",
+      [request.id],
+    );
+    const waiting = await hasStagedVersions(
+      transaction,
+      request.organization_id,
+      subject,
+    );
+    if (waiting && input.hostLimit) throw new ProbeHostFault(input.result);
+    if (input.store) {
+      await writeBlobProbe(transaction, {
+        organizationId: request.organization_id,
+        ...subject,
+        result: input.result,
+      });
+    }
+    if (waiting) {
+      await settleStagedVersions(transaction, {
+        organizationId: request.organization_id,
+        subject,
+        result: input.result,
+      });
+    }
+    await completeProbeRequest(transaction, request.id);
+  });
 }
 
 /**
