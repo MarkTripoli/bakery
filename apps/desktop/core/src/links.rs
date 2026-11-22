@@ -530,11 +530,17 @@ mod tests {
     #[test]
     fn a_page_hands_over_a_link_with_this_runs_nonce() {
         assert_eq!(
-            page_link("bakery-link://a1b2/?l=file%3A%2F%2F%2Fetc%2Fhostname", "a1b2"),
+            page_link(
+                "bakery-link://a1b2/?l=file%3A%2F%2F%2Fetc%2Fhostname",
+                "a1b2"
+            ),
             Some("file:///etc/hostname".to_string())
         );
         assert_eq!(
-            page_link("bakery-link://a1b2?l=https%3A%2F%2Fexample.org%2Fa%3Fb%3D1", "a1b2"),
+            page_link(
+                "bakery-link://a1b2?l=https%3A%2F%2Fexample.org%2Fa%3Fb%3D1",
+                "a1b2"
+            ),
             Some("https://example.org/a?b=1".to_string())
         );
     }

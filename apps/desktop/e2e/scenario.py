@@ -97,8 +97,55 @@ def start_app(path, bus=None, server=None, extra=None):
                            stderr=subprocess.STDOUT)
 
 
+ACTIVE_RECORDER = None
+
+
+class Recorder:
+    """A recording of the screen while a phase runs (owner rule: flows are proved with video). The virtual
+    display keeps its screen in a file, so a frame is that file turned into a picture; the host turns the
+    frames into a video, because the image has no encoder."""
+
+    def __init__(self, name, every=0.5):
+        global ACTIVE_RECORDER
+        self.dir = os.path.join(OUT, "video", name)
+        os.makedirs(self.dir, exist_ok=True)
+        self.every = every
+        self.count = 0
+        self.halt = threading.Event()
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        ACTIVE_RECORDER = self
+        self.thread.start()
+
+    def run(self):
+        while not self.halt.is_set():
+            started = time.time()
+            xwd = os.path.join(self.dir, "now.xwd")
+            try:
+                shutil.copyfile("/tmp/xfb/Xvfb_screen0", xwd)
+                png = os.path.join(self.dir, "frame%05d.png" % self.count)
+                subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, png], capture_output=True)
+                if os.path.exists(png):
+                    self.count += 1
+            except OSError:
+                pass
+            self.halt.wait(max(0.0, self.every - (time.time() - started)))
+
+    def finish(self):
+        global ACTIVE_RECORDER
+        self.halt.set()
+        self.thread.join(5)
+        try:
+            os.remove(os.path.join(self.dir, "now.xwd"))
+        except OSError:
+            pass
+        print(f"VIDEO {self.dir}: {self.count} frames", flush=True)
+        ACTIVE_RECORDER = None
+
+
 def stop_app():
     global app
+    if ACTIVE_RECORDER is not None:
+        ACTIVE_RECORDER.finish()
     if app and app.poll() is None:
         app.terminate()
         try:
@@ -690,6 +737,8 @@ def phase_web_pages():
     clear_store(web)
     # A run cannot press the system's dialog, so it answers in advance: Copy the link.
     start_app(p, server=web, extra={"BAKERY_DESKTOP_DIALOG_ANSWER": "Copy the link"})
+    if os.environ.get("E2E_VIDEO"):
+        Recorder("signin-to-signout")
     assert wait_window(p, "sign_in") is not None
     # A page link that arrives while nobody is signed in is kept, and opens after the sign-in.
     deliver("bakery://open?path=%2Fissues")

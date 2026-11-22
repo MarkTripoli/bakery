@@ -124,7 +124,7 @@ WATCH_PID=$!
 
 docker run --rm --network host -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   -v "$APP:/app:ro" -v "$OUT:/out" -v "$CACHE/target-desktop:/cache/target-desktop:ro" \
-  -e HOME=/tmp/e2ehome -e OUT=/out -e BAKERY_SERVER="http://127.0.0.1:$SERVER" -e BAKERY_WEB="$WEB" -e E2E_SHOTS="${E2E_SHOTS:-}" -e E2E_PHASES="${E2E_PHASES:-}" -e E2E_SHOT_ONLY="${E2E_SHOT_ONLY:-}" \
+  -e HOME=/tmp/e2ehome -e OUT=/out -e BAKERY_SERVER="http://127.0.0.1:$SERVER" -e BAKERY_WEB="$WEB" -e E2E_SHOTS="${E2E_SHOTS:-}" -e E2E_PHASES="${E2E_PHASES:-}" -e E2E_SHOT_ONLY="${E2E_SHOT_ONLY:-}" -e E2E_VIDEO="${E2E_VIDEO:-}" \
   -e SEED_EMAIL="$EMAIL" -e SEED_PASSWORD="$PASSWORD" \
   "$IMAGE" bash /app/e2e/scenario.sh 2>&1 | tee "$OUT/scenario.log"
 RC=${PIPESTATUS[0]}
