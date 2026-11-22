@@ -276,7 +276,9 @@ Deno.test("a principal who has lost access when the start fires fails the firing
     );
     const afterBack = await s.counts();
     baselineAssign(afterBack);
-    await lost("role without task:write", () =>
+    // A custom role with no base role does not resolve to an actor at all; the
+    // permission half of the check is the service-account case below.
+    await lost("custom role with no base role", () =>
       fixture.pgDatabase.query(
         `update bakery.organization_memberships
             set custom_role_id = $3, role = null
@@ -402,4 +404,120 @@ Deno.test("a start fires only for the version in use at the moment it fires, and
     // In use and enabled, the same live start fires.
     await setDefinition("enabled = true");
     assertEquals((await fireStale()).result, "started");
+  }));
+
+Deno.test("a service account that may activate versions but not write tasks or runs runs nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    // The case that needs the permission check itself: this principal resolves
+    // to an actor in the organization (a custom role and one grant, as a token's
+    // would give) and holds workflowVersion:manage, so it can use a version, but
+    // neither task:write nor run:write. Without the check it would get a task
+    // and a run through a start. (Found by QA on #916.)
+    const s = await setUp(fixture);
+    const principalId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+       values ($1, null, 'Activator service', 'service')`,
+      [principalId],
+    );
+    const roleId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_roles
+         (id, organization_id, key, name, permissions, created_by_principal_id)
+       values ($1, $2, 'activator', 'activator', $3, $4)`,
+      [
+        roleId,
+        fixture.organizationId,
+        ["workflowVersion:manage", "workflow:read", "task:read", "run:read"],
+        principalId,
+      ],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_memberships
+         (id, organization_id, principal_id, role, custom_role_id, status,
+          joined_at, created_at, updated_at, version)
+       values ($1, $2, $3, null, $4, 'active', now(), now(), now(), 1)`,
+      [crypto.randomUUID(), fixture.organizationId, principalId, roleId],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.permission_grants
+         (organization_id, principal_id, capability, granted_by_principal_id,
+          policy_revision)
+       values ($1, $2, 'activator.noop', $3, 1)`,
+      [fixture.organizationId, principalId, fixture.principalId],
+    );
+    await activatedBy(fixture, s, principalId);
+    const before = await s.counts();
+    const [outcome] = await s.fire(await s.receive());
+    assertEquals([outcome.result, outcome.code], [
+      "failed",
+      "actor_unavailable",
+    ]);
+    assertEquals(await s.counts(), before);
+    assertEquals((await s.firings()).at(-1)?.runId, null);
+  }));
+
+Deno.test("a principal who has been disabled when the start fires fails the firing", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture);
+    const member = await addMember(fixture, "admin");
+    await activatedBy(fixture, s, member);
+    const [ran] = await s.fire(await s.receive());
+    assertEquals(ran.result, "started", JSON.stringify(ran));
+    const baseline = await s.counts();
+    await fixture.pgDatabase.query(
+      `update bakery.principals set disabled_at = now() where id = $1`,
+      [member],
+    );
+    const [outcome] = await s.fire(await s.receive());
+    assertEquals([outcome.result, outcome.code], [
+      "failed",
+      "actor_unavailable",
+    ]);
+    assertEquals(await s.counts(), baseline);
+  }));
+
+Deno.test("two consumers racing one event start exactly one run", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture);
+    const before = await s.counts();
+    const eventId = await s.receive();
+    const results = await Promise.all([s.fire(eventId), s.fire(eventId)]);
+    assertEquals(results.flat().map((outcome) => outcome.result).sort(), [
+      "duplicate",
+      "started",
+    ]);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+    assertEquals((await s.firings()).length, 1);
+  }));
+
+Deno.test("two events racing at the hourly limit start one run and skip the other on record", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture);
+    await fixture.pgDatabase.query(
+      `insert into bakery.workflow_start_firings (
+         organization_id, workflow_id, workflow_version_id, start_id,
+         application_id, repository_id, actor_id, status)
+       select $1, $2, $3, 'earlier', $4, $5, $6, 'started'
+         from generate_series(1, $7)`,
+      [
+        fixture.organizationId,
+        s.workflowId,
+        s.published.id,
+        s.repository.applicationId,
+        s.repository.repositoryId,
+        fixture.principalId,
+        START_FIRINGS_PER_HOUR - 1,
+      ],
+    );
+    const before = await s.counts();
+    const [a, b] = await Promise.all([
+      s.fire(await s.receive()),
+      s.fire(await s.receive()),
+    ]);
+    assertEquals([...a, ...b].map((outcome) => outcome.result).sort(), [
+      "skipped_rate",
+      "started",
+    ]);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
   }));
