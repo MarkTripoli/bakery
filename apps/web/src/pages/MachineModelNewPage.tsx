@@ -233,27 +233,29 @@ export function MachineModelNewPage(
             title={say("machines.models.new.modelSection")}
             variant="stack"
           >
-            <UI.Field
+            <UI.Combobox
+              id="machine-model-provider"
               label={say("machines.models.new.provider")}
-              htmlFor="machine-model-provider"
-              error={fieldError("provider")}
-              required
-            >
-              <UI.Combobox
-                id="machine-model-provider"
-                label={say("machines.models.new.provider")}
-                value={draft.provider}
-                onChange={(event) => set({ provider: event.target.value })}
-                options={[
-                  { value: "", label: "" },
-                  ...providers.map((name) => ({ value: name, label: name })),
-                  {
-                    value: ANOTHER_PROVIDER,
-                    label: say("machines.models.new.anotherProvider"),
-                  },
-                ]}
-              />
-            </UI.Field>
+              aria-invalid={errors.provider !== undefined && !other ||
+                undefined}
+              value={draft.provider}
+              onChange={(event) => set({ provider: event.target.value })}
+              options={[
+                { value: "", label: "" },
+                ...providers.map((name) => ({ value: name, label: name })),
+                {
+                  value: ANOTHER_PROVIDER,
+                  label: say("machines.models.new.anotherProvider"),
+                },
+              ]}
+            />
+            {errors.provider && !other
+              ? (
+                <UI.Text variant="muted" role="alert">
+                  {fieldError("provider")}
+                </UI.Text>
+              )
+              : null}
             {other
               ? (
                 <UI.Field
