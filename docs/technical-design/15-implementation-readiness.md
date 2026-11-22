@@ -52,6 +52,10 @@ No runtime dependency is adopted merely because its package imports. A failing c
 | Artifact retention and incomplete recovery | Pin fields, byte tombstones, reference-safe collection, capacity gates and full recovery set in [Artifacts](14-artifacts.md) |
 | Oversized first delivery / stale totals | Sequential gates above; generated inventory and dynamic verification totals replace independent counts |
 
+## Coverage ledger
+
+[`operation-coverage.json`](operation-coverage.json) says what the baseline lists and the shared registry and migrations do not cover on their own. Every catalog operation the registry does not serve is either served outside it (the route file and a test that exercises it) or unbuilt with an existing open issue as owner. Every modeled table without a migration, and every migrated table the model does not list, has a row, and a test file may skip only if it is named with its reason. The contract, integration and security files for #47 fail when the ledger and the code disagree: a new operation, table or skip with no row, a row for something now registered, a served row whose route is not mounted, or an unbuilt row whose route is.
+
 ## Delivery acceptance
 
 The [account-protection plan](04-backend-and-errors.md#account-protection-totp-backup-codes-and-passkeys)
