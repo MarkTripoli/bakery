@@ -14,6 +14,13 @@ export const OrganizationCreationPolicy = Object.freeze(
   } as const,
 );
 
+export const UpdateFailurePolicy = Object.freeze(
+  {
+    GoBack: "go_back",
+    Ask: "ask",
+  } as const,
+);
+
 export const RegistrationModeSchema = z.enum(RegistrationMode).describe(
   "Installation registration policy: closed refuses new accounts; invitation requires a live organization invitation.",
 );
@@ -24,7 +31,12 @@ export const OrganizationCreationPolicySchema = z.enum(
   "Installation organization creation policy: installation administrators only, or any authenticated human.",
 );
 
+export const UpdateFailurePolicySchema = z.enum(UpdateFailurePolicy).describe(
+  "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
+);
+
 export type RegistrationMode = z.infer<typeof RegistrationModeSchema>;
+export type UpdateFailurePolicy = z.infer<typeof UpdateFailurePolicySchema>;
 export type OrganizationCreationPolicy = z.infer<
   typeof OrganizationCreationPolicySchema
 >;
@@ -32,12 +44,16 @@ export type OrganizationCreationPolicy = z.infer<
 export const InstallationSettingsUpdateSchema = z.strictObject({
   registrationMode: RegistrationModeSchema,
   organizationCreationPolicy: OrganizationCreationPolicySchema,
+  updateFailurePolicy: UpdateFailurePolicySchema.optional().describe(
+    "What to do when an update is not healthy; leaving it out keeps the current choice, so callers that predate it are unchanged.",
+  ),
 }).describe(
   "Administrator's complete editable installation policy; optimistic concurrency uses the separate current version precondition.",
 );
 
 export const InstallationSettingsSchema = z.strictObject({
   ...InstallationSettingsUpdateSchema.shape,
+  updateFailurePolicy: UpdateFailurePolicySchema,
   version: z.number().int().positive().describe(
     "Monotonic installation policy revision used to reject stale updates.",
   ),

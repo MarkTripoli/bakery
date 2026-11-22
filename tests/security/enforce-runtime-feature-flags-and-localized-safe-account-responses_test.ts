@@ -43,6 +43,7 @@ Deno.test("a web request cannot claim the CLI signups exception", async () => {
         Promise.resolve({
           registrationMode: "closed",
           organizationCreationPolicy: "installation_admins",
+          updateFailurePolicy: "go_back",
           version: 1,
           updatedByPrincipalId: null,
           updatedAt: new Date().toISOString(),

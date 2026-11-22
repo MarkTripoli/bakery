@@ -166,6 +166,7 @@ Deno.test("the auth router registers exactly the implemented auth actions and se
         Promise.resolve({
           registrationMode: "invitation",
           organizationCreationPolicy: "installation_admins",
+          updateFailurePolicy: "go_back",
           version: 1,
           updatedByPrincipalId: null,
           updatedAt: "2026-10-12T00:00:00.000Z",
