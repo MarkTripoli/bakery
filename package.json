@@ -23,6 +23,7 @@
     "test:provider": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts provider",
     "test:contract": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts contract",
     "test:integration": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration",
+    "test:load": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts load",
     "test:recovery": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts recovery",
     "test:browser": "playwright test --config tests/browser/playwright.config.ts",
     "test:security": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts security",
