@@ -1,8 +1,15 @@
 import type { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
-import { StandardError, unprocessable } from "@bakery/contracts/http";
-import type { TicketReadinessReport } from "@bakery/contracts/ticket-admission";
+import {
+  requireCommandMetadata,
+  StandardError,
+  unprocessable,
+} from "@bakery/contracts/http";
+import {
+  isTerminalTicketDisposition,
+  type TicketReadinessReport,
+} from "@bakery/contracts/ticket-admission";
 import {
   appendAudit,
   appendDomainEvent,
@@ -22,15 +29,20 @@ import {
   ticketReads,
 } from "./ticket-operation-runner.ts";
 import { requestedIntentFromLabels } from "./ticket-policy.ts";
+import { getTicketRequest } from "./ticket-request-query.ts";
 import type { TicketPrefetch } from "./ticket-prefetch.ts";
 import type { TicketReadFailure } from "./ticket-source-reader.ts";
 import {
   lockSource,
   lockTicket,
+  readTaskState,
   readTicketRef,
+  requestById,
   requestTargets,
+  runStatusOf,
   type TicketRequest,
   type TicketSource,
+  updateRequest,
 } from "./ticket-store.ts";
 import { loadTaskScope } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
@@ -51,6 +63,8 @@ type LinkCreate = z.output<typeof contractSchemas.TicketTaskLinkCreate>;
 type LinkOutput = z.output<typeof contractSchemas.TicketTaskLink>;
 type RequestCreate = z.output<typeof contractSchemas.TicketRequestCreate>;
 type RequestOutput = z.output<typeof contractSchemas.TicketRequest>;
+type RequestView = z.output<typeof contractSchemas.TicketRequestView>;
+type RequestCancel = z.output<typeof contractSchemas.TicketRequestCancel>;
 
 function ticketId(context: ActionContext): string {
   if (!context.params.id) {
@@ -448,4 +462,127 @@ export function createTicketRequestHandler(
     }
     return await requestOutput(transaction, result.request);
   };
+}
+
+/** Run statuses after which a run can no longer be stopped. */
+const FINISHED_RUN_STATUSES: readonly string[] = [
+  "completed",
+  "failed",
+  "canceled",
+];
+
+/**
+ * The run a request answers for: its own, or the task's current one that the
+ * next recheck would link to it. Null when neither exists or it has ended.
+ */
+async function liveRunOf(
+  transaction: PgTransactionClient,
+  request: TicketRequest,
+): Promise<string | null> {
+  const runId = request.workflowRunId ??
+    (await readTaskState(transaction, request.organizationId, request.taskId))
+      .currentRunId;
+  if (runId === null) return null;
+  const status = await runStatusOf(transaction, request.organizationId, runId);
+  return status === null || FINISHED_RUN_STATUSES.includes(status)
+    ? null
+    : runId;
+}
+
+/**
+ * `ticketRequests.cancel` (#61): stops a start request that has no run yet,
+ * as the caller, by the request version the caller last read (If-Match). The
+ * request ends `canceled` with the reason `request_canceled`; its task, plan
+ * and links stay as they are and nothing is written on the provider. A
+ * request that owns a live run (or whose task runs one the next recheck would
+ * link) is refused with `ticket_request_has_run` and that run's id: it is
+ * stopped through `runs.control`, which ends the request with `run_canceled`.
+ * A finished request is refused with `ticket_request_finished`. Lock order is
+ * admission's: the source `for share`, then the ticket, so a cancel cannot
+ * race a recheck of the same ticket. The caller is recorded in the audit row.
+ */
+export async function cancelTicketRequest(
+  context: ActionContext,
+  _input: RequestCancel,
+): Promise<RequestView> {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const id = context.params.id;
+  if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const found = await requestById(transaction, organizationId, id);
+  if (found === null) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const ref = await readTicketRef(
+    transaction,
+    organizationId,
+    found.externalTicketId,
+  );
+  const source = await lockSource(transaction, organizationId, ref.sourceId);
+  await lockTicket(transaction, organizationId, found.externalTicketId);
+  // Read again under the ticket lock: a recheck may have moved it.
+  const current = await requestById(transaction, organizationId, id);
+  if (current === null) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (current.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  if (isTerminalTicketDisposition(current.disposition)) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "ticket_request_finished" },
+    });
+  }
+  const runId = await liveRunOf(transaction, current);
+  if (runId !== null) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "ticket_request_has_run", runId },
+    });
+  }
+  const canceled = await updateRequest(transaction, current, {
+    disposition: "canceled",
+    dispositionReason: "request_canceled",
+  });
+  const task = await loadTaskScope(
+    transaction,
+    organizationId,
+    canceled.taskId,
+    undefined,
+    false,
+  );
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "ticketRequests.cancel",
+    resourceType: "ticket_request",
+    resourceId: canceled.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: {
+      ticketId: canceled.externalTicketId,
+      generation: canceled.generation,
+      intent: canceled.intent,
+      origin: canceled.origin,
+      from: current.disposition,
+      disposition: canceled.disposition,
+      dispositionReason: canceled.dispositionReason,
+      sourcePolicyRevision: source.policyRevision,
+    },
+  });
+  await appendDomainEvent(transaction, {
+    organizationId,
+    applicationId: task.application_id,
+    repositoryId: task.repository_id,
+    taskId: task.id,
+    conversationId: task.conversation_id,
+    eventType: "ticket.request.updated",
+    aggregateId: canceled.id,
+    aggregateVersion: canceled.version,
+    payload: { resourceId: canceled.id, resourceVersion: canceled.version },
+    traceId: context.traceId,
+  });
+  return await getTicketRequest(context);
 }

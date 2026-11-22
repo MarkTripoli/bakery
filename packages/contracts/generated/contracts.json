@@ -12672,6 +12672,32 @@
     },
     {
       "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-requests/{id}/cancellations",
+      "action": "ticketRequests.cancel",
+      "access": "Developer+admission authority",
+      "permission": "ticketRequest:write",
+      "input": "TicketRequestCancel",
+      "output": "TicketRequestView",
+      "event": "ticket.request.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "GET",
       "path": "/v1/ticket-requests/{id}",
       "action": "ticketRequests.get",
@@ -15023,6 +15049,7 @@
     "ticketRequests.create",
     "ticketRequests.list",
     "ticketRequests.get",
+    "ticketRequests.cancel",
     "notifications.list",
     "notifications.count",
     "notifications.get",
@@ -46725,6 +46752,70 @@
           }
         }
       },
+      "/v1/ticket-requests/{id}/cancellations": {
+        "post": {
+          "operationId": "ticketRequests.cancel",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TicketRequestView"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketRequestCancel"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/ticket-requests/{id}": {
         "get": {
           "operationId": "ticketRequests.get",
@@ -59595,6 +59686,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -73823,6 +73915,13 @@
           ],
           "additionalProperties": false,
           "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+        },
+        "TicketRequestCancel": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false,
+          "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
         },
         "TicketTaskLinkNoteSync": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -110985,6 +111084,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -111680,6 +111780,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -112375,6 +112476,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -158428,6 +158530,7 @@
                       "ticketTaskLinks.create",
                       "ticketTaskLinks.list",
                       "ticketRequests.list",
+                      "ticketRequests.cancel",
                       "ticketRequests.get",
                       "ticketSources.labels",
                       "ticketTaskLinks.resyncNote",
@@ -234764,9 +234867,10 @@
                     "run_canceled",
                     "task_completed",
                     "task_failed",
-                    "task_canceled"
+                    "task_canceled",
+                    "request_canceled"
                   ],
-                  "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                  "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                 },
                 {
                   "type": "null",
@@ -235085,9 +235189,10 @@
                           "run_canceled",
                           "task_completed",
                           "task_failed",
-                          "task_canceled"
+                          "task_canceled",
+                          "request_canceled"
                         ],
-                        "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                        "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                       },
                       {
                         "type": "null",
@@ -280965,7 +281070,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:bfff212e7e209bc11e3c344e3440e05c953fcbfc8cb2da928cec479e5ee03745",
+  "compatibilityDigest": "sha256:532b009824044756eaef6e6102ef60a99f86de958e8d97b08a8eacddb69ca696",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -288754,6 +288859,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -303028,6 +303134,13 @@
       ],
       "additionalProperties": false,
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
+    "TicketRequestCancel": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
     },
     "TicketTaskLinkNoteSync": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -340320,6 +340433,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -341015,6 +341129,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -341710,6 +341825,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -387913,6 +388029,7 @@
                   "ticketTaskLinks.create",
                   "ticketTaskLinks.list",
                   "ticketRequests.list",
+                  "ticketRequests.cancel",
                   "ticketRequests.get",
                   "ticketSources.labels",
                   "ticketTaskLinks.resyncNote",
@@ -464347,9 +464464,10 @@
                 "run_canceled",
                 "task_completed",
                 "task_failed",
-                "task_canceled"
+                "task_canceled",
+                "request_canceled"
               ],
-              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
             },
             {
               "type": "null",
@@ -464668,9 +464786,10 @@
                       "run_canceled",
                       "task_completed",
                       "task_failed",
-                      "task_canceled"
+                      "task_canceled",
+                      "request_canceled"
                     ],
-                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                   },
                   {
                     "type": "null",

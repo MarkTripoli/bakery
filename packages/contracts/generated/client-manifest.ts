@@ -11431,6 +11431,32 @@ export const clientManifest = {
     },
     {
       "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-requests/{id}/cancellations",
+      "action": "ticketRequests.cancel",
+      "access": "Developer+admission authority",
+      "permission": "ticketRequest:write",
+      "input": "TicketRequestCancel",
+      "output": "TicketRequestView",
+      "event": "ticket.request.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "GET",
       "path": "/v1/ticket-requests/{id}",
       "action": "ticketRequests.get",
@@ -19965,6 +19991,7 @@ export const clientManifest = {
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -26023,6 +26050,13 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
+    "TicketRequestCancel": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
     },
     "TicketTaskLinkNoteSync": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -48771,6 +48805,7 @@ export const clientManifest = {
                   "ticketTaskLinks.create",
                   "ticketTaskLinks.list",
                   "ticketRequests.list",
+                  "ticketRequests.cancel",
                   "ticketRequests.get",
                   "ticketSources.labels",
                   "ticketTaskLinks.resyncNote",
@@ -71331,6 +71366,7 @@ export const clientManifest = {
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -86786,9 +86822,10 @@ export const clientManifest = {
                 "run_canceled",
                 "task_completed",
                 "task_failed",
-                "task_canceled"
+                "task_canceled",
+                "request_canceled"
               ],
-              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
             },
             {
               "type": "null",
@@ -87107,9 +87144,10 @@ export const clientManifest = {
                       "run_canceled",
                       "task_completed",
                       "task_failed",
-                      "task_canceled"
+                      "task_canceled",
+                      "request_canceled"
                     ],
-                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                   },
                   {
                     "type": "null",

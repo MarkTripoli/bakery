@@ -26,6 +26,9 @@ export type TicketTerminalReason = `${
   | "run"
   | "task"}_${TicketFinishedDisposition}`;
 
+/** Why a request with no run ended: a person stopped it (`ticketRequests.cancel`). */
+export type TicketCancelReason = "request_canceled";
+
 /** Where a resumed request returns to: before a run, queued, or running. */
 export type TicketResumeTarget = "waiting" | "admitted" | "active";
 
@@ -296,7 +299,8 @@ export function decideRecheck(
 
 /**
  * Every reason a disposition stores: the suspension reasons (auto-resumable
- * and explicit-resume) and the run or task end a request finished with. The
+ * and explicit-resume), the run or task end a request finished with, and
+ * `request_canceled` for a request stopped before it had a run. The
  * non-suspending reasons never reach a disposition. `ticketRequests.list`
  * and `.get` (#69) answer this closed set as `dispositionReasonCode`.
  */
@@ -310,7 +314,12 @@ export const TICKET_DISPOSITION_REASON_CODES = Object.freeze(
     "task_completed",
     "task_failed",
     "task_canceled",
-  ] as const satisfies readonly (TicketReasonCode | TicketTerminalReason)[],
+    "request_canceled",
+  ] as const satisfies readonly (
+    | TicketReasonCode
+    | TicketTerminalReason
+    | TicketCancelReason
+  )[],
 );
 export type TicketDispositionReasonCode =
   typeof TICKET_DISPOSITION_REASON_CODES[number];

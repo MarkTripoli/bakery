@@ -7966,6 +7966,13 @@ const transportSchemas = {
       "pagination": "pagination",
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the request version required; refused with STATE_CONFLICT ticket_request_has_run (with the run id) while the request or its task has a live run, and ticket_request_finished once the request ended."
+      ],
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
@@ -29200,7 +29207,7 @@ const transportSchemas = {
         "requestedByPrincipalId": "uuid|null",
         "triggerLabelName": "string|null",
         "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled|request_canceled)|null",
         "pausedAt": "timestamp|null",
         "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
         "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
@@ -29228,7 +29235,7 @@ const transportSchemas = {
         "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
         "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
         "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded.",
         "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
         "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
         "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
