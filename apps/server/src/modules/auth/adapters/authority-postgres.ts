@@ -20,6 +20,7 @@ import {
   PrincipalType,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
+import { isPostgresDeadlock } from "../../../platform/postgres-errors.ts";
 import { AuthImplementedAction } from "@bakery/contracts/implemented-actions";
 import {
   lockInstallationPrincipals,
@@ -210,7 +211,12 @@ export function membershipFromRow(row: MembershipRow): MembershipAuthority {
   };
 }
 
-/** Live canonical membership of any principal, or no membership. */
+/**
+ * Live canonical membership of any principal, or no membership. The row is
+ * read `for share`, like a conversation grant: a concurrent demotion or
+ * removal is ordered wholly before or after this request, so a write that
+ * passed its role check never commits after the role was taken away.
+ */
 async function loadMembership(
   client: PgTransactionClient,
   principalId: PrincipalId,
@@ -225,7 +231,8 @@ async function loadMembership(
       on custom.organization_id = membership.organization_id
       and custom.id = membership.custom_role_id
     where membership.principal_id = $1
-      and membership.organization_id = $2`,
+      and membership.organization_id = $2
+    for share of membership`,
     [principalId, organizationId],
   );
   const row = membership.rows[0];
@@ -876,142 +883,158 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
       }
     }
 
-    return await withPgTransaction(
-      this.database,
-      async (transaction) => {
-        if (token !== undefined) {
-          await assertAccessTokenLive(
-            transaction,
-            token.id,
-            claimedSubject.principalId,
-          );
-        }
-        const installationMutation =
-          action.name === AuthImplementedAction.InstallationSettingsUpdate ||
-          action.name ===
-            AuthImplementedAction.InstallationAdministratorsCreate ||
-          action.name ===
-            AuthImplementedAction.InstallationAdministratorsRevoke ||
-          action.name === AuthImplementedAction.PasswordResetLinksCreate;
-        const organizationCreation =
-          action.name === AuthImplementedAction.OrganizationsCreate;
-        if (installationMutation || organizationCreation) {
-          await readInstallationSettings(
-            transaction,
-            installationMutation ? "update" : "share",
-          );
-          const target = action.name ===
-                AuthImplementedAction.InstallationAdministratorsCreate ||
-              action.name === AuthImplementedAction.PasswordResetLinksCreate
-            ? (input as { principalId: string }).principalId
-            : action.name ===
-                AuthImplementedAction.InstallationAdministratorsRevoke
-            ? context.params.id
-            : undefined;
-          await lockInstallationPrincipals(
-            transaction,
-            target === undefined
-              ? [claimedSubject.principalId]
-              : [claimedSubject.principalId, target],
-          );
-        }
-        let subject: AuthenticatedSubject;
-        let authority: AuthorizedActionContext["authority"];
+    try {
+      return await withPgTransaction(
+        this.database,
+        async (transaction) => {
+          if (token !== undefined) {
+            await assertAccessTokenLive(
+              transaction,
+              token.id,
+              claimedSubject.principalId,
+            );
+          }
+          const installationMutation =
+            action.name === AuthImplementedAction.InstallationSettingsUpdate ||
+            action.name ===
+              AuthImplementedAction.InstallationAdministratorsCreate ||
+            action.name ===
+              AuthImplementedAction.InstallationAdministratorsRevoke ||
+            action.name === AuthImplementedAction.PasswordResetLinksCreate;
+          const organizationCreation =
+            action.name === AuthImplementedAction.OrganizationsCreate;
+          if (installationMutation || organizationCreation) {
+            await readInstallationSettings(
+              transaction,
+              installationMutation ? "update" : "share",
+            );
+            const target = action.name ===
+                  AuthImplementedAction.InstallationAdministratorsCreate ||
+                action.name === AuthImplementedAction.PasswordResetLinksCreate
+              ? (input as { principalId: string }).principalId
+              : action.name ===
+                  AuthImplementedAction.InstallationAdministratorsRevoke
+              ? context.params.id
+              : undefined;
+            await lockInstallationPrincipals(
+              transaction,
+              target === undefined
+                ? [claimedSubject.principalId]
+                : [claimedSubject.principalId, target],
+            );
+          }
+          let subject: AuthenticatedSubject;
+          let authority: AuthorizedActionContext["authority"];
 
-        if (organizationId) {
-          const resolved = await resolveOrganizationActor(
-            transaction,
-            claimedSubject.principalId,
-            organizationId,
-          );
-          const actor = token === undefined
-            ? resolved
-            : { ...resolved, tokenScopes: token.scopes };
-          const permitted = await authorizeWithBindings(
-            action,
-            actor,
-            (kind) =>
-              resolveBindingTarget(transaction, organizationId, kind, {
-                id: context.params.id,
-                input,
-              }),
-            (kind) =>
-              hasLiveRunGrant(
-                transaction,
-                organizationId,
-                claimedSubject.principalId,
-                kind,
-                context.params.id,
-              ),
-            (power) =>
-              hasLivePowerGrant(
-                transaction,
-                organizationId,
-                claimedSubject.principalId,
-                power,
-                context.params.id,
-              ),
-          )
-            .catch(async (denied) => {
-              // The two fallbacks cover disjoint actions and each rethrows the
-              // original denial untouched, so only a permission miss is widened.
-              if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
-                return await authorizeWithConversationGrant(
+          if (organizationId) {
+            const resolved = await resolveOrganizationActor(
+              transaction,
+              claimedSubject.principalId,
+              organizationId,
+            );
+            const actor = token === undefined
+              ? resolved
+              : { ...resolved, tokenScopes: token.scopes };
+            const permitted = await authorizeWithBindings(
+              action,
+              actor,
+              (kind) =>
+                resolveBindingTarget(transaction, organizationId, kind, {
+                  id: context.params.id,
+                  input,
+                }),
+              (kind) =>
+                hasLiveRunGrant(
                   transaction,
-                  action,
-                  actor,
-                  await grantConversationId(
+                  organizationId,
+                  claimedSubject.principalId,
+                  kind,
+                  context.params.id,
+                ),
+              (power) =>
+                hasLivePowerGrant(
+                  transaction,
+                  organizationId,
+                  claimedSubject.principalId,
+                  power,
+                  context.params.id,
+                ),
+            )
+              .catch(async (denied) => {
+                // The two fallbacks cover disjoint actions and each rethrows the
+                // original denial untouched, so only a permission miss is widened.
+                if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
+                  return await authorizeWithConversationGrant(
                     transaction,
                     action,
-                    organizationId,
+                    actor,
+                    await grantConversationId(
+                      transaction,
+                      action,
+                      organizationId,
+                      context.params.id,
+                    ),
+                    denied,
+                  );
+                }
+                if (ARTIFACT_GRANT_ACTIONS.has(action.name)) {
+                  return await authorizeWithArtifactGrant(
+                    transaction,
+                    action,
+                    actor,
                     context.params.id,
-                  ),
-                  denied,
-                );
-              }
-              if (ARTIFACT_GRANT_ACTIONS.has(action.name)) {
-                return await authorizeWithArtifactGrant(
-                  transaction,
-                  action,
-                  actor,
-                  context.params.id,
-                  denied,
-                );
-              }
-              return authorizeOwnInboxWrite(action, actor, denied);
-            })
-            .catch((denied) => authorizeOwnRequestRead(action, actor, denied));
-          subject = permitted.subject;
-          authority = permitted;
-        } else {
-          subject = await reloadSubject(
-            transaction,
-            claimedSubject.principalId,
-          );
-          authority = subject;
+                    denied,
+                  );
+                }
+                return authorizeOwnInboxWrite(action, actor, denied);
+              })
+              .catch((denied) =>
+                authorizeOwnRequestRead(action, actor, denied)
+              );
+            subject = permitted.subject;
+            authority = permitted;
+          } else {
+            subject = await reloadSubject(
+              transaction,
+              claimedSubject.principalId,
+            );
+            authority = subject;
 
-          if (
-            policy === OrganizationContextPolicy
-              .InstallationAdministratorScope
-          ) {
-            authority = await resolveInstallationActor(transaction, subject);
-          } else if (
-            policy !== OrganizationContextPolicy.AuthenticatedPrincipalScope
-          ) {
-            throw new StandardError({ code: "AUTH_FORBIDDEN" });
+            if (
+              policy === OrganizationContextPolicy
+                .InstallationAdministratorScope
+            ) {
+              authority = await resolveInstallationActor(transaction, subject);
+            } else if (
+              policy !== OrganizationContextPolicy.AuthenticatedPrincipalScope
+            ) {
+              throw new StandardError({ code: "AUTH_FORBIDDEN" });
+            }
           }
-        }
 
-        const authorized: AuthorizedActionContext = {
-          ...context,
-          principal: subject,
-          authority,
-          transaction,
-        };
-        return await next(authorized);
-      },
-      context.signal,
-      action.transactionIsolation ?? TransactionIsolation.ReadCommitted,
-    );
+          const authorized: AuthorizedActionContext = {
+            ...context,
+            principal: subject,
+            authority,
+            transaction,
+          };
+          return await next(authorized);
+        },
+        context.signal,
+        action.transactionIsolation ?? TransactionIsolation.ReadCommitted,
+      );
+    } catch (error) {
+      // Two members changing each other's roles at once can deadlock on the
+      // membership rows this request holds `for share`. Postgres aborts one
+      // side; nothing of it committed, so it is a plain, retryable conflict
+      // rather than a server fault.
+      if (isPostgresDeadlock(error)) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "concurrent_authority_change" },
+        });
+      }
+      throw error;
+    }
   }
 }
