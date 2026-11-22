@@ -786,6 +786,8 @@ export function registerLoopReadCases(): void {
           // default Bakery merges with.
           mayMerge: true,
           mergeMethod: "squash",
+          // The branch the pull request merges into, added with the merge queue.
+          targetBranch: "main",
         });
         assertEquals(
           ids(await list({ repositoryId: first.repositoryId })),

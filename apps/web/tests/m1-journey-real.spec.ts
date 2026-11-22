@@ -41,7 +41,6 @@ import {
   answerQuestion,
   approve,
   axeClean,
-  controlButton,
   conversationRegion,
   DESKTOP,
   fillComposer,
@@ -63,6 +62,7 @@ import {
   stepRow,
   TERMINAL_RUN_STATUSES,
 } from "./helpers/m1-journey-ui.ts";
+import { cancelRun, runActionsTrigger } from "./helpers/run-actions.ts";
 import {
   type Artifact,
   assertCompleted,
@@ -1481,9 +1481,8 @@ test("P9 changes, cancel and recover: revision 3, a cancelled run, a run queued 
   await expect(stepRow(page, "Implement")).toContainText("Running", {
     timeout: 12 * MINUTE,
   });
-  const cancel = controlButton(page, "Request cancellation");
-  await expect(cancel).toBeEnabled({ timeout: 90_000 });
-  await cancel.click();
+  await expect(runActionsTrigger(page)).toBeVisible({ timeout: 90_000 });
+  await cancelRun(page);
   const winner = await untilTerminal(api, cancelRunId, 10 * MINUTE);
   expect(["canceled", "completed"], "the server's winner").toContain(winner);
   await expect(runStatus(page)).toContainText(STATUS_LABEL[winner], {

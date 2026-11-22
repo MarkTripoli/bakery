@@ -11,8 +11,14 @@ import {
   pinnedCaches,
 } from "./ci/lane-environment.ts";
 
-const lane = Deno.args[0];
+const requestedLane = Deno.args[0];
+// The load lane (#48) runs the bounded-load acceptance under tests/load with
+// exactly the integration lane's grants: it is the same kind of test, a real
+// database and an in-process server, only heavier, so it runs nightly instead
+// of on every pull request.
+const lane = requestedLane === "load" ? "integration" : requestedLane;
 const knownLanes = new Set([
+  "load",
   "rails",
   "unit",
   "provider",
@@ -25,19 +31,15 @@ const knownLanes = new Set([
   "native",
   "r2",
 ]);
-if (!lane || !knownLanes.has(lane)) {
+if (!requestedLane || !knownLanes.has(requestedLane)) {
   console.error(
-    "Expected one of: rails, unit, provider, contract, integration, recovery, security",
+    "Expected one of: rails, unit, provider, contract, integration, recovery, security, load",
   );
   Deno.exit(2);
 }
 
 const requested = Deno.args.slice(1).filter((argument) => argument !== "--");
-const root = lane === "e2e" || lane === "connected" || lane === "native"
-  ? `tests/${lane}`
-  : lane === "rails"
-  ? "tests/rails"
-  : `tests/${lane}`;
+const root = `tests/${requestedLane}`;
 const paths = requested.length > 0 ? requested : [root];
 const temporaryDirectory = Deno.env.get("TMPDIR") ??
   Deno.env.get("TMP") ??
@@ -109,7 +111,9 @@ const permissions = lane === "native" ? ["--allow-all"] : [
     ? [`--allow-write=${temporaryDirectory}`]
     : []),
   ...(lane === "contract" ? ["--allow-sys=statfs"] : []),
-  ...(lane === "e2e" || lane === "connected" ? ["--allow-sys=statfs"] : []),
+  ...(lane === "e2e" || lane === "connected"
+    ? ["--allow-sys=uid,statfs,osRelease"]
+    : []),
   ...(lane === "unit" || lane === "integration" || lane === "security"
     ? ["--allow-sys=uid,statfs,osRelease"]
     : lane === "rails" || lane === "recovery"
@@ -286,6 +290,9 @@ const command = new Deno.Command(Deno.execPath(), {
     "--preload",
     "tests/helpers/temp-cleanup-preload.ts",
     ...permissions,
+    // The load lane measures retained heap after a forced collection, so it
+    // exposes V8's gc(); no other lane gets it.
+    ...(requestedLane === "load" ? ["--v8-flags=--expose-gc"] : []),
     ...parallel,
     ...paths,
   ],

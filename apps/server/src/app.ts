@@ -1,4 +1,11 @@
 import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
+import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
+import { createToolCallStepRunner } from "./modules/tool-call/tool-call-step.ts";
+import { createPostgresMcpPinnedStatePort } from "./modules/mcp/postgres.ts";
+import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
+import { httpsMcpTransport } from "./modules/mcp/discovery-transport.ts";
+import { composeEngineStepRunners } from "./modules/workflow-adapter/engine-steps.ts";
+import { createLocalDeliveryTargets } from "./modules/delivery/local-delivery-targets.ts";
 import {
   createSkillObjectStore,
   type probeSkillStorage,
@@ -42,12 +49,22 @@ import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
 import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
 import {
+  TICKET_CREATE_ACTION,
+  TICKET_LABEL_REMOVE_ACTION,
+  TICKET_LABELS_ADD_ACTION,
   TICKET_NOTE_ACTION,
   TICKET_NOTE_UPDATE_ACTION,
 } from "./modules/catalog/integration-providers/github.ts";
+import { createGateRemoteTicketCreator } from "./modules/integrations/ticket-create.ts";
+import { createGateSender } from "./modules/integrations/ticket-gate.ts";
+import { createGateTicketLabelWriter } from "./modules/integrations/ticket-labels.ts";
 import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
+import type { RemoteTicketCreator } from "./modules/work/ticket-create.ts";
+import type { TicketLabelWriter } from "./modules/work/ticket-labels.ts";
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
+import { createPluginAuthoringRoutes } from "./modules/workflows/plugin-authoring/routes.ts";
+import type { PluginAuthoringDependencies } from "./modules/workflows/plugin-authoring/runner.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import { createEvaluationRoutes } from "./modules/evaluations/routes.ts";
 import {
@@ -90,7 +107,7 @@ import {
   type RuntimeConfig,
 } from "@bakery/config";
 import { contractSchemas } from "@bakery/contracts/contracts";
-import { createHealthApp } from "@bakery/contracts/health-app";
+import { createHealthApp, readiness } from "@bakery/contracts/health-app";
 import {
   createApiRouter,
   problemResponse,
@@ -166,6 +183,11 @@ import {
 } from "./modules/projects/index.ts";
 
 import { createExecutionRoutes } from "./modules/execution/index.ts";
+import {
+  type BrokerOperation,
+  createPluginBroker,
+} from "./modules/catalog/plugin-broker.ts";
+import { createPostgresInstallAuthority } from "./modules/catalog/plugin-broker-postgres.ts";
 import { createRunControlRegistry } from "./modules/execution/control.ts";
 import { createCatalogActionRegistry } from "./modules/catalog/actions.ts";
 import { createCatalogHandlers } from "./modules/catalog/persistence.ts";
@@ -173,10 +195,12 @@ import {
   createGlobalSkillAuthority,
   withGlobalSkillInstall,
 } from "./modules/catalog/global-skills.ts";
+import { createArchiveRevisionAuthority } from "./modules/catalog/archive-revision.ts";
 import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
 import { createAgentsHandlers } from "./modules/agents/postgres.ts";
 import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
 import { sessionOperationScopes } from "./modules/execution/session-tools.ts";
+import { createRunRequestActionRegistry } from "./modules/work/run-request-actions.ts";
 import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
@@ -223,6 +247,12 @@ export function createApp(options: {
   installationSettings?: InstallationSettingsReader;
   taskHandlers?: TaskActionHandlers;
   secretsFetch?: typeof fetch;
+  /**
+   * The typed operations a plugin job may ask the host for (#29). Production
+   * registers none yet, so a job's every request is refused as unknown; tests
+   * inject operations to drive the broker.
+   */
+  pluginBrokerOperations?: readonly BrokerOperation[];
   /** GitHub App API port; the fetch client against api.github.com by default. */
   githubAppClient?: GitHubAppClient;
   /**
@@ -236,8 +266,18 @@ export function createApp(options: {
   ticketFactIndex?: TicketFactIndex;
   /** Writes Bakery's status note on a ticket; the integration gate by default, an in-memory one in tests. */
   ticketNoteWriter?: TicketNoteWriter;
+  /** Creates a ticket in the tracker; the integration gate by default, an in-memory one in tests. */
+  ticketCreator?: RemoteTicketCreator;
+  /** Changes Bakery's progress labels on a ticket; the integration gate by default, an in-memory one in tests. */
+  ticketLabelWriter?: TicketLabelWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
+  /**
+   * The plugin generator and preview runtime for prompt-to-private-plugin
+   * authoring (#45). Absent in a deployment that configures none, in which case
+   * starting a run is refused as unavailable rather than faked.
+   */
+  pluginAuthoring?: Omit<PluginAuthoringDependencies, "bundles">;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
   /** Destination test runner; tests inject one so no suite reaches a real bucket. */
@@ -336,6 +376,41 @@ export function createApp(options: {
         ),
     },
   });
+  // The composition root names the provider whose comment action writes
+  // the note, as it names the webhook ingress below. The ticket routes and the
+  // background poll share the one writer.
+  const ticketNoteWriter = options.ticketNoteWriter ??
+    createGateTicketNoteWriter({
+      database: options.pgDatabase,
+      registry: integrationRegistry,
+      providerRequests,
+      noteActions: {
+        github: {
+          create: TICKET_NOTE_ACTION,
+          update: TICKET_NOTE_UPDATE_ACTION,
+        },
+      },
+    });
+  const ticketGateSend = createGateSender({
+    database: options.pgDatabase,
+    registry: integrationRegistry,
+    providerRequests,
+  });
+  const ticketCreator = options.ticketCreator ??
+    createGateRemoteTicketCreator({
+      send: ticketGateSend,
+      createActions: { github: TICKET_CREATE_ACTION },
+    });
+  const ticketLabelWriter = options.ticketLabelWriter ??
+    createGateTicketLabelWriter({
+      send: ticketGateSend,
+      labelActions: {
+        github: {
+          add: TICKET_LABELS_ADD_ACTION,
+          remove: TICKET_LABEL_REMOVE_ACTION,
+        },
+      },
+    });
   const integrations = {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
@@ -378,30 +453,28 @@ export function createApp(options: {
     "*",
     createDesktopCors({ origins: options.config.auth.desktopOrigins }),
   );
-  app.route(
-    "/",
-    createHealthApp({
-      service: "bakery-server",
-      version: options.config.version,
-      config: options.config,
-      dependencies: [
-        {
-          name: "database",
-          check: async () => {
-            await options.database`select 1`;
-            return true;
-          },
+  const healthOptions = {
+    service: "bakery-server",
+    version: options.config.version,
+    config: options.config,
+    dependencies: [
+      {
+        name: "database",
+        check: async () => {
+          await options.database`select 1`;
+          return true;
         },
-        {
-          name: "postgres",
-          check: async () => {
-            await options.pgDatabase.query("select 1");
-            return true;
-          },
+      },
+      {
+        name: "postgres",
+        check: async () => {
+          await options.pgDatabase.query("select 1");
+          return true;
         },
-      ],
-    }),
-  );
+      },
+    ],
+  };
+  app.route("/", createHealthApp(healthOptions));
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
   // One approvals registry for the routes and for the session tools, so an
@@ -437,9 +510,14 @@ export function createApp(options: {
     {
       // Listing skills installs Bakery's own skills the first time: it needs
       // the file store, so the install runs in stages under this authority.
-      authorityRunner: createGlobalSkillAuthority(
-        new PostgresAuthorityRunner(options.pgDatabase),
-        skillFileStore,
+      // An import of a web-address archive that names no version is pinned by
+      // its content digest, fetched between two passes with no connection held.
+      authorityRunner: createArchiveRevisionAuthority(
+        createGlobalSkillAuthority(
+          new PostgresAuthorityRunner(options.pgDatabase),
+          skillFileStore,
+        ),
+        skillSourceAdapter,
       ),
       commandRunner: createPostgresCommandRunner(),
       includeSkillVersionPublication: false,
@@ -505,6 +583,7 @@ export function createApp(options: {
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
     passwordHasher: providerPasswordHasher(auth),
+    release: options.config.version,
   });
   app.route(
     "/",
@@ -700,6 +779,14 @@ export function createApp(options: {
       new StandardError({ code: "METHOD_NOT_ALLOWED" }),
       { publicBaseUrl: options.config.publicBaseUrl, allow: "GET" },
     ));
+  // One broker per process. Its key and epoch exist only here: the relay calls
+  // it with claims the server built, so no token is ever issued or sent.
+  const pluginBroker = createPluginBroker({
+    key: crypto.getRandomValues(new Uint8Array(32)),
+    epoch: crypto.randomUUID(),
+    authority: createPostgresInstallAuthority(options.pgDatabase),
+    operations: options.pluginBrokerOperations ?? [],
+  });
   app.route(
     "/",
     createExecutionRoutes({
@@ -717,9 +804,40 @@ export function createApp(options: {
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
+      pluginBroker,
+      ...(skillFileStore
+        ? { pluginBundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
+      ticketNoteWriter,
+      ticketLabelWriter,
+      // The engine settles a tool call itself, over the integration door; the
+      // delivery steps run only where the install configured a target.
+      engineSteps: composeEngineStepRunners([
+        createToolCallStepRunner({
+          database: options.pgDatabase,
+          registry: integrationRegistry,
+          providerRequests,
+          // A remote MCP tool is called by this server's own broker, through the
+          // pinned-tool door; the credential never leaves the server.
+          mcp: {
+            pinnedState: createPostgresMcpPinnedStatePort(options.database),
+            transport: createRemoteMcpToolTransport({
+              database: options.pgDatabase,
+              secretsKey: options.config.secretsKey,
+              transport: httpsMcpTransport(),
+            }),
+          },
+        }),
+        ...(options.config.deliveryTarget
+          ? [createDeliveryStepRunner({
+            database: options.pgDatabase,
+            targets: createLocalDeliveryTargets(options.config.deliveryTarget),
+          })]
+          : []),
+      ]),
       // The tool gateway's operations: whatever these registries already
       // implement, narrowed to the operation map a session is defined by.
       // Composed rather than re-registered so a session calls the same handler
@@ -732,6 +850,9 @@ export function createApp(options: {
           artifactActions.registry,
           approvalRegistry,
           runControlRegistry,
+          // Asking people from a step (#414): the same run request registry
+          // the routes mount, so an agent's ask runs the person's handler.
+          createRunRequestActionRegistry(options.pgDatabase),
           // Connection drafts (#448 S9b): the same management registry the
           // routes mount, so a draft runs the same handler and guard.
           createMcpActionRegistry(options.pgDatabase, {
@@ -878,6 +999,18 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createPluginAuthoringRoutes({
+      database: options.pgDatabase,
+      ...(options.pluginAuthoring ?? {}),
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
     createPluginPackageRoutes({
       database: options.pgDatabase,
       // Absent when no object store is configured; publishing a version then
@@ -917,6 +1050,11 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      // The same store the artifact routes read, so a blob-backed recorded
+      // output is readable by a local run.
+      ...(skillFileStore
+        ? { blobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
     }),
   );
   app.route(
@@ -953,19 +1091,8 @@ export function createApp(options: {
       ),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
-      // The composition root names the provider whose comment action writes
-      // the note, as it names the webhook ingress below.
-      noteWriter: options.ticketNoteWriter ?? createGateTicketNoteWriter({
-        database: options.pgDatabase,
-        registry: integrationRegistry,
-        providerRequests,
-        noteActions: {
-          github: {
-            create: TICKET_NOTE_ACTION,
-            update: TICKET_NOTE_UPDATE_ACTION,
-          },
-        },
-      }),
+      noteWriter: ticketNoteWriter,
+      ticketCreator,
     }),
   );
   app.route(
@@ -1039,6 +1166,7 @@ export function createApp(options: {
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
+      pluginBroker,
       artifactPreviewOrigin: previewOrigin,
     }),
   );
@@ -1139,6 +1267,11 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
+      // The Updates page: which release this process is and its own health check.
+      running: () => ({
+        release: options.config.version,
+        healthy: async () => (await readiness(healthOptions)).state === "ok",
+      }),
       settings: {
         secretsKey: options.config.secretsKey,
         allowLoopbackEndpoint: options.config.environment === "test",

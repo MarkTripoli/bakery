@@ -322,6 +322,8 @@ function safeConflictReason(value: unknown): string | undefined {
 const UNAVAILABLE_REASONS: ReadonlySet<string> = new Set([
   "draft_worker_pool_busy",
   "draft_worker_organization_share_used",
+  // No plugin generator or preview runtime is configured (#45).
+  "plugin_authoring_unavailable",
 ]);
 function safeUnavailableReason(value: unknown): string | undefined {
   return typeof value === "string" && UNAVAILABLE_REASONS.has(value)
@@ -367,6 +369,11 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       // An agent acting without a grant, or on its own work or lineage (#414).
       "agent_power_requires_grant",
       "agent_target_own_work",
+      // A grant past its expiry, and an agent asking outside its ask grant or
+      // off its own run (#414).
+      "agent_power_grant_expired",
+      "agent_ask_audience_not_granted",
+      "agent_ask_own_run_only",
       // An agent starting a run or creating a task without the run_start power
       // along its spawn chain (#413).
       "spawn_requires_grant",
@@ -589,6 +596,7 @@ export function toProblem(
     ? safeResetMetadata(rawParams)
     : undefined;
   const reason = standard?.code === "STATE_CONFLICT" ||
+      standard?.code === "RESOURCE_NOT_FOUND" ||
       standard?.code === "STORAGE_AREA_REFUSED" ||
       standard?.code === "STORAGE_QUOTA_EXCEEDED" ||
       standard?.code === "STEP_WRITE_LIMIT_EXCEEDED"
@@ -884,6 +892,7 @@ export function createNormalizedCommandMetadata(
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
     [
       "backupOffsite.put",
+      "backupPointInTime.put",
       "backupSchedule.put",
       "emailSettings.put",
       "integrationAppRegistrations.put",

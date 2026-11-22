@@ -7,6 +7,8 @@ import {
 } from "../../apps/web/src/screens/usage/usage-window.ts";
 import {
   addDecimalStrings,
+  compareDecimalStrings,
+  subtractDecimalStrings,
   usd,
 } from "../../apps/web/src/screens/usage/usage-money.ts";
 import {
@@ -238,4 +240,34 @@ Deno.test("the provider table sums in the table, and the total is a row", () => 
   // The total adds the subscription route's zero in, rather than dropping it:
   // a route that reported nothing is still a route in the table.
   assertEquals(total.subscription, false);
+});
+
+Deno.test("subtracting money is exact: what is left of a limit, to the micro-dollar", () => {
+  assertEquals(subtractDecimalStrings("20.00", "12.40"), "7.6");
+  assertEquals(subtractDecimalStrings("1", "0.000001"), "0.999999");
+  assertEquals(subtractDecimalStrings("0.004", "0.001"), "0.003");
+  assertEquals(subtractDecimalStrings("0.5", "0.5"), "0");
+  // Past the limit, what is left is negative, never a wrapped or absolute value.
+  assertEquals(subtractDecimalStrings("1", "2"), "-1");
+  assertEquals(subtractDecimalStrings("-1", "1"), "-2");
+  assertEquals(subtractDecimalStrings("-1", "-2"), "1");
+});
+
+Deno.test("a negative zero and padding around a figure do not change the arithmetic", () => {
+  assertEquals(subtractDecimalStrings("5", "-0"), "5");
+  assertEquals(subtractDecimalStrings("-0", "0"), "0");
+  assertEquals(subtractDecimalStrings("0", "-0"), "0");
+  assertEquals(subtractDecimalStrings(" 5 ", " 2 "), "3");
+  assertEquals(subtractDecimalStrings("5.10", "-2.40"), "7.5");
+});
+
+Deno.test("comparing money says less, equal or more without rounding", () => {
+  assertEquals(compareDecimalStrings("12.40", "20.00"), -1);
+  assertEquals(compareDecimalStrings("20", "12.4"), 1);
+  assertEquals(compareDecimalStrings("1", "1.000000"), 0);
+  assertEquals(compareDecimalStrings("0", "-0"), 0);
+  // A sub-cent amount is still more than nothing: it is never rounded to zero.
+  assertEquals(compareDecimalStrings("0.000001", "0"), 1);
+  assertEquals(compareDecimalStrings("-0.000001", "0"), -1);
+  assertEquals(compareDecimalStrings("-2", "-1"), -1);
 });

@@ -1086,7 +1086,13 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 20
           },
-          "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. A comment never widens access: someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index, and nothing is written."
+          "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. Someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index and nothing is written, unless accessLevel is sent and the writer may share."
+        },
+        {
+          "name": "accessLevel",
+          "type": "enum(read_comment|edit)",
+          "required": false,
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
         }
       ],
       "rules": [
@@ -3268,13 +3274,23 @@ const transportSchemas = {
           "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see."
         },
         {
+          "name": "q",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
           "bounds": {
             "maxBytes": 512
           },
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter."
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search."
         },
         {
           "name": "limit",
@@ -3292,7 +3308,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "fields": [
@@ -3797,6 +3813,16 @@ const transportSchemas = {
           "description": "Execution environment for this run: `repository` requires repositoryProfileId and runs inside a cloned repository worktree; `cloud_only` must omit repositoryProfileId and runs without a repository checkout."
         },
         {
+          "name": "environment",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "live",
+            "offline"
+          ],
+          "description": "Where this run may reach, pinned at creation: `live` (the default) admits external effects and brokered integration credentials; `offline` refuses every external effect and brokered credential while metered model calls stay allowed. A run an agent spawns inherits the spawning run's environment when omitted, and an offline run may not spawn a live one (409 `environment_offline_parent`)."
+        },
+        {
           "name": "budgetLimitUsd",
           "type": "decimal",
           "required": false,
@@ -4204,11 +4230,11 @@ const transportSchemas = {
         {
           "name": "revision",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
             "maxLength": 255
           },
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head."
+          "description": "Upstream revision to import, pinned so the imported version is reproducible: a Git commit, tag or branch for a Git source; for a web-address archive either a strong ETag or a content digest (sha256:<hex>). A web-address archive may omit it: Bakery fetches the archive once and pins its content digest, so importing unchanged content again is the same import and changed content is a new version. A Git source must name one."
         },
         {
           "name": "path",
@@ -4218,6 +4244,21 @@ const transportSchemas = {
             "maxLength": 500
           },
           "description": "Path within the source's repository or archive that the skill's manifest and files live under, for a source that bundles more than the skill at its root; omit to import from the source's root."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. A repeat of an earlier import (same source, revision, folder, scope and owner) returns that earlier run and keeps its first label; a different label here does not rename it."
+        },
+        {
+          "name": "scope",
+          "type": "enum(organization|personal)",
+          "required": false,
+          "description": "Who the imported skill is for: organization (the default; visible to everyone in the organization, and importing into it needs the Admin role) or personal (shown as Private, owned by the person importing, who must be a person rather than an agent or a token)."
         }
       ],
       "description": "Creates a durable import run that fetches a skill from a registered skill source at a pinned revision, and optional path, and publishes it as a new skill version."
@@ -4857,30 +4898,31 @@ const transportSchemas = {
         {
           "name": "name",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views."
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "os",
           "type": "enum",
-          "required": true,
+          "required": false,
           "enum": [
             "linux",
             "macos"
           ],
-          "description": "Intended operating system of the machine being enrolled; the setup command and installed worker binary target this platform."
+          "description": "Intended operating system of the machine being enrolled; omitted means the machine reports its own system when it links, and Bakery checks it against the supported systems."
         },
         {
           "name": "architecture",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
             "maxLength": 100
           },
-          "description": "Intended CPU architecture of the machine being enrolled; a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant."
+          "description": "Intended CPU architecture of the machine being enrolled; omitted means the machine reports its own processor when it links. When given, a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant."
         },
         {
           "name": "capabilities",
@@ -5523,6 +5565,135 @@ const transportSchemas = {
       ],
       "description": "Admin creation of one provider binding: an explicit authorized account placement naming provider, billing route, harness component and credential location for one machine."
     },
+    "WorkerMaintenanceCreate": {
+      "fields": [
+        {
+          "name": "verb",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb. refresh_inventory and verify only read the host; every other verb changes it and closes the machine's claim gate until the operation ends."
+        },
+        {
+          "name": "componentKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 255
+          },
+          "description": "Inventory component key the verb acts on. Required for install, update, rollback and remove; optional for verify; not allowed for refresh_inventory. An existing component must be Bakery-managed, never an external install."
+        },
+        {
+          "name": "targetVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Exact version to install, update or roll back to. Required for install_component and update_component; not allowed for refresh_inventory, verify or remove_component."
+        },
+        {
+          "name": "targetDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest the target version must match; only allowed together with targetVersion."
+        },
+        {
+          "name": "expectedInventoryRevision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; the same key with the same body replays the original operation, with a different body it is IDEMPOTENCY_PAYLOAD_MISMATCH.",
+        "At most one unfinished mutating operation per machine: a second is STATE_CONFLICT with reason maintenance_in_progress.",
+        "A revoked machine is STATE_CONFLICT. An externally managed component is UNPROCESSABLE with reason externally_managed.",
+        "Never cancels or changes running task attempts: a busy machine starts in waiting_for_idle."
+      ],
+      "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
+    "WorkerMaintenanceReport": {
+      "fields": [
+        {
+          "name": "fence",
+          "type": "decimalString",
+          "required": true,
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        {
+          "name": "phase",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        {
+          "name": "installedDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest."
+        },
+        {
+          "name": "installedVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Version string actually installed now, as the host adapter reports it."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone."
+        },
+        {
+          "name": "diagnostic",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 8192
+          },
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it."
+        }
+      ],
+      "rules": [
+        "The operation must belong to the calling machine at its current credential generation.",
+        "Reports are accepted only while the operation is assigned, applying or reconciling; a finished operation refuses new reports with STATE_CONFLICT except exact replays.",
+        "A reconciling operation reaches succeeded or failed only from a report that carries installedDigest, or for remove_component a report without it whose reason is removed."
+      ],
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
+    },
     "WorkerProviderBindingUpdate": {
       "fields": [
         {
@@ -5599,11 +5770,20 @@ const transportSchemas = {
         {
           "name": "enrollmentToken",
           "type": "secretString",
-          "required": true,
+          "required": false,
           "bounds": {
             "maxLength": 500
           },
-          "description": "One-use, short-lived token issued during enrollment, proving this worker is authorized to register for that intended machine."
+          "description": "One-use, short-lived token issued during enrollment, proving this worker is authorized to register for that intended machine. Send exactly one of enrollmentToken or linkCode."
+        },
+        {
+          "name": "linkCode",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 20
+          },
+          "description": "Ten-minute, one-use link code (XXXX-XXXX; capitals and the dash do not matter) from a one-paste link command, the alternative to enrollmentToken. It is used up only by this registration, binds the organization, name, slots and capabilities the Admin set, and is useless afterwards."
         },
         {
           "name": "workerCredential",
@@ -5621,9 +5801,10 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Display name reported for this worker at registration."
+          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "os",
@@ -5633,16 +5814,17 @@ const transportSchemas = {
             "linux",
             "macos"
           ],
-          "description": "Operating system this worker is actually running, checked against the enrollment's intended platform."
+          "description": "Operating system this worker is actually running, checked against the enrollment's intended platform, or against the supported systems when a link-code enrollment left it to the machine."
         },
         {
           "name": "architecture",
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture."
+          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "capabilities",
@@ -5676,7 +5858,8 @@ const transportSchemas = {
       "rules": [
         "Lock the enrollment record; verify token hash/expiry/unused state and worker-generated credential strength.",
         "Normalize requested capability names and require requested capabilities to be a subset of worker_enrollments.allowed_capabilities. Reject before consuming the token on failure.",
-        "Create/update the worker principal and host and consume the enrollment token atomically. Only an authorized Admin workers.update may later expand the allowed capability set."
+        "Create/update the worker principal and host and consume the enrollment token atomically. Only an authorized Admin workers.update may later expand the allowed capability set.",
+        "Exactly one of enrollmentToken or linkCode is sent. A link code is looked up by its hash, rate-limited per source, and consumed atomically with the registration; an unsupported system is refused before anything is consumed."
       ],
       "description": "Consumes an enrollment token to create or update this host's worker principal; requested capabilities are normalized and must be a subset of the enrollment's allowed set, and the token can only be consumed once."
     },
@@ -6082,6 +6265,15 @@ const transportSchemas = {
             "maxItems": 64
           },
           "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored."
+        },
+        {
+          "name": "starts",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 32000
+          },
+          "description": "The draft's whole list of starts, at most 16: each an identifier and either an event matcher (a provider-neutral event kind with equality filters) or a schedule (a five-field cron expression with an IANA timezone). Replaces the stored list; omit it to keep the stored list. A list the contract refuses fails with UNPROCESSABLE start_invalid, and a schedule that cannot be read fails with VALIDATION_FAILED naming the start. A start is data kept beside the definition and outside its digest, and it is switched on only when a person uses the published version."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."
@@ -6680,10 +6872,16 @@ const transportSchemas = {
           "type": "enum(installation_admins|any_user)",
           "required": true,
           "description": "Installation administrators only, or any authenticated human, may create organizations."
+        },
+        {
+          "name": "updateFailurePolicy",
+          "type": "enum(go_back|ask)",
+          "required": false,
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
         }
       ],
       "rules": [
-        "If-Match and Idempotency-Key required; both policy fields must be present."
+        "If-Match and Idempotency-Key required; registrationMode and organizationCreationPolicy must be present. updateFailurePolicy may be left out to keep the current choice."
       ],
       "description": "Complete installation policy update by a live installation administrator; stale versions fail without writing."
     },
@@ -7122,6 +7320,53 @@ const transportSchemas = {
       ],
       "description": "Body for invoking one registered action on this connection: which action, which pinned version, on which selected resource, with what arguments. Connection, organization and actor identity come from the route and trusted request context, never from this payload."
     },
+    "ToolCallInput": {
+      "fields": [
+        {
+          "name": "connectionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Connection the tool call runs through: an integration connection or an MCP server connection of the run's organization; the server finds which kind it is, the author never names it."
+        },
+        {
+          "name": "tool",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Identifier of the tool to call: the registered integration action id, for example github.issue.comment.create, or the name of an MCP tool pinned in the connection's capability snapshot."
+        },
+        {
+          "name": "toolVersion",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1
+          },
+          "description": "Exact registered version of an integration action, pinned in the workflow so retries and reconciliation stay bound to it; required for an integration connection and unused for an MCP tool."
+        },
+        {
+          "name": "resourceId",
+          "type": "uuid",
+          "required": false,
+          "description": "Selected integration resource, such as one repository, that an integration action runs against; required for an integration connection and unused for an MCP tool."
+        },
+        {
+          "name": "arguments",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Tool-specific input, type-checked against the exact schema the pinned tool version declares before anything is sent; it cannot carry credentials, host, authority or budget overrides."
+        }
+      ],
+      "rules": [
+        "A deterministic step with no agent. The organization and the acting person come from the run, never from this payload. Reads return at once; a write is keyed by the step and returns only after its effect is confirmed, and an effect whose outcome is not known waits instead of being sent again."
+      ],
+      "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -7553,7 +7798,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options and plan approval; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot."
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot."
         }
       ],
       "rules": [
@@ -7576,7 +7821,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot."
+          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot."
         }
       ],
       "rules": [
@@ -7593,7 +7838,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
+          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
         },
         {
           "name": "filters",
@@ -7787,6 +8032,13 @@ const transportSchemas = {
       "pagination": "pagination",
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the request version required; refused with STATE_CONFLICT ticket_request_has_run (with the run id) while the request or its task has a live run, and ticket_request_finished once the request ended."
+      ],
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
@@ -7864,6 +8116,16 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria."
+        },
+        {
+          "name": "preset",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
         }
       ],
       "rules": [
@@ -8273,12 +8535,27 @@ const transportSchemas = {
           "type": "boolean",
           "required": false,
           "description": "True to clear the install's recorded last update failure without changing its version or status."
+        },
+        {
+          "name": "approveCapabilities",
+          "type": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 7
+          },
+          "description": "The capabilities the new version asks for that the version this install pins now did not, approved by the caller for this move: exactly those and no others. Without them, a version that asks for more is not activated and the install stays as it is. Only meaningful with a versionId that differs from the pinned one."
+        },
+        {
+          "name": "restoreState",
+          "type": "boolean",
+          "required": false,
+          "description": "True to move back to a version the install left by restoring the state as that version left it, discarding what was saved since. Only the version the install's snapshot was taken from can be restored, and only when it can read that state; only meaningful with a versionId that differs from the pinned one."
         }
       ],
       "rules": [
-        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
+        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that asks for capabilities the pinned one did not is activated only when approveCapabilities names exactly those (plugin_capabilities_not_approved, plugin_capability_approval_mismatch otherwise), and one that cannot read the state the install holds is not activated (plugin_state_incompatible) unless restoreState brings back the snapshot taken as the install left that version (plugin_state_snapshot_not_for_version when the snapshot is of another version). Moving takes a fresh snapshot of the state in the same transaction. approveCapabilities or restoreState without another version is VALIDATION_FAILED. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible, plugin_state_snapshot_not_for_version) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
       ],
-      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active; added capabilities need the caller's approval, and incompatible state blocks the move unless a restore is asked for. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "fields": [
@@ -8657,7 +8934,7 @@ const transportSchemas = {
           "description": "Action-specific input payload, validated against the exact schema registered for the named action; the caller cannot use it to supply credentials, host, authority or budget overrides."
         }
       ],
-      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph."
+      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph."
     },
     "DesignInput": {
       "description": "Input to the rpi.design workflow action: the research artifact produced by the preceding rpi.research step, which the design step reads to ground its proposed design.",
@@ -8944,7 +9221,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -12203,9 +12480,9 @@ const transportSchemas = {
       "fields": [
         {
           "name": "power",
-          "type": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
+          "type": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection|ask)",
           "required": true,
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) draft_connection (draft a personal connection with no secret that a person completes) or ask (ask, on the agent's own run, the one role or group the grant names, through run requests)."
         },
         {
           "name": "workflowId",
@@ -12218,12 +12495,35 @@ const transportSchemas = {
           "type": "uuid|null",
           "required": false,
           "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp|null",
+          "required": false,
+          "description": "When the grant stops working. Null or absent means it never expires; once past, every use is refused with AUTH_FORBIDDEN agent_power_grant_expired, checked live on each call. Must be in the future."
+        },
+        {
+          "name": "roleKey",
+          "type": "string|null",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "For an ask grant only: the role the agent may ask (admin, developer or a custom role's key). An ask grant names exactly one of roleKey and groupId."
+        },
+        {
+          "name": "groupId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "For an ask grant only: the organization group the agent may ask. An ask grant names exactly one of roleKey and groupId."
         }
       ],
       "rules": [
         "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
         "An unknown or foreign workflow and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
-        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
+        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists.",
+        "An ask grant names exactly one of roleKey and groupId (agent_power_grant_audience_required); any other power names neither (agent_power_grant_audience_unexpected). An unknown role or group answers RESOURCE_NOT_FOUND. An expiresAt in the past is agent_power_grant_expiry_past."
       ],
       "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
     },
@@ -12469,6 +12769,81 @@ const transportSchemas = {
         "Keyset pagination ordered by display name then principal id; the cursor is bound to the route scope and the query text."
       ],
       "description": "Server-side search for people the writer may @-mention in one conversation (a task chat) or one artifact comment thread, bounded and cursor paged."
+    },
+    "ArtifactAccessGrantCreate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Artifact (document) the person is given access to; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to give access to: an active human member of this organization."
+        },
+        {
+          "name": "level",
+          "type": "enum(read_comment|edit)",
+          "required": false,
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it)."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key required. Needs the caller's own sharing authority (artifact:share); a person who holds only a grant cannot reshare. The same level for someone who already has a live grant returns that grant unchanged; a different level changes it; a revoked grant is renewed. Audited. Never changes inherited access."
+      ],
+      "description": "Gives one person direct access to one document at a level, without a comment. A mention does the same in the comment's own transaction."
+    },
+    "ArtifactAccessRevoke": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Artifact (document) whose direct grant is removed; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Person whose direct access to the document is removed."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key and If-Match required; If-Match is the grant version the caller last saw and a stale version fails with PRECONDITION_FAILED. Needs the caller's own sharing authority (artifact:share). Removes only the direct grant; inherited access is untouched. The person's unread mention notifications for this document are withdrawn in the same transaction. Audited."
+      ],
+      "description": "Removes one person's direct access to one document under compare-and-set on the grant version; the Undo of a mention that gave access."
+    },
+    "ArtifactAccessQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of document access; it is bound to the same scope, principal and organization and is rejected anywhere else."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum grants per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Keyset pagination ordered by grant time then id; the cursor is bound to the document in the route."
+      ],
+      "description": "Lists the live direct grants on one document, oldest first, bounded and cursor paged."
     },
     "ConversationAccessQuery": {
       "fields": [
@@ -12733,6 +13108,21 @@ const transportSchemas = {
         }
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "RepairAllowanceCreate": {
+      "fields": [
+        {
+          "name": "tries",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 8
+          },
+          "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes."
+        }
+      ],
+      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "fields": [
@@ -13193,8 +13583,8 @@ const transportSchemas = {
         {
           "name": "recipientId",
           "type": "uuid",
-          "required": true,
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+          "required": false,
+          "description": "The one person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it. Name exactly one of recipientId, recipientRoleKey and recipientGroupId."
         },
         {
           "name": "intent",
@@ -13232,12 +13622,30 @@ const transportSchemas = {
           "type": "uuid",
           "required": false,
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to ask instead of one person. Every active member of the group, other than the asker, is asked, each with their own request, resolved and frozen when the request is made. An agent may ask only a group its live ask grant names."
         }
       ],
       "rules": [
-        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request.",
+        "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
+        "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
       ],
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
     },
     "StorageFileContentQuery": {
       "fields": [
@@ -13455,6 +13863,26 @@ const transportSchemas = {
       ],
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
     },
+    "DesktopHandoffCreate": {
+      "fields": [
+        {
+          "name": "returnTo",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "description": "Same-origin path the desktop window opens once the browser session is set, such as /projects; it starts with a single slash and never names another origin or the handoff page itself."
+        }
+      ],
+      "rules": [
+        "Only the desktop app's own sign-in (a bkd_ bearer credential) may ask; a browser cookie session is AUTH_FORBIDDEN and an access token is refused before the handler.",
+        "The code lives 30 seconds and is spent on the first visit of the handoff page, whatever the outcome; a second visit ends the browser session the first one opened.",
+        "A returnTo that is not a same-origin path is UNPROCESSABLE with reason desktop_handoff_return_to_invalid."
+      ],
+      "description": "Asks for a one-use code the desktop app opens in its own window as GET /api/desktop/handoff?code=<code>, so the server's web pages load with an ordinary browser session for the same person instead of the bearer credential."
+    },
     "RouteContinuationAdmit": {
       "fields": [
         {
@@ -13541,6 +13969,20 @@ const transportSchemas = {
         "timeOfDayUtc must be HH:MM from 00:00 to 23:59 (422 UNPROCESSABLE otherwise)."
       ],
       "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
+    },
+    "BackupPointInTimePut": {
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": true,
+          "description": "Turn Restore to any minute on or off. Off stops archiving and forgets the reported window; backups taken by the schedule are not affected."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When settings exist a strong If-Match with their version is required (428 when missing, 412 when stale); when none exist If-Match must be absent."
+      ],
+      "description": "Turns Restore to any minute on or off for the installation."
     },
     "BackupOffsitePut": {
       "fields": [
@@ -13832,7 +14274,7 @@ const transportSchemas = {
           "name": "candidate",
           "type": "json",
           "required": true,
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -13841,7 +14283,7 @@ const transportSchemas = {
           "name": "baseline",
           "type": "json",
           "required": false,
-          "description": "Optional pin of what the candidate is compared with, in the same shape.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -13853,6 +14295,15 @@ const transportSchemas = {
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers.",
           "bounds": {
             "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        {
+          "name": "optionalScorerIds",
+          "type": "uuid[]",
+          "required": false,
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away.",
+          "bounds": {
             "maxItems": 50
           }
         },
@@ -13895,6 +14346,48 @@ const transportSchemas = {
       ],
       "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent."
     },
+    "EvaluationBatchListQuery": {
+      "fields": [
+        {
+          "name": "pinDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 64
+          },
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
+    },
+    "EvaluationBatchRun": {
+      "fields": [],
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "fields": [],
       "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."
@@ -13928,6 +14421,12 @@ const transportSchemas = {
           ]
         },
         {
+          "name": "required",
+          "type": "boolean",
+          "required": false,
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -13952,7 +14451,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "fields": [
@@ -14318,6 +14817,403 @@ const transportSchemas = {
         "rpoSeconds is present exactly when cutoffAt is."
       ],
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "PluginBrokerRequest": {
+      "fields": [
+        {
+          "name": "requestId",
+          "type": "string<=128bytes",
+          "required": true,
+          "description": "Names one effect. A repeat of an id that already ran returns the recorded result and does not run the operation again."
+        },
+        {
+          "name": "sequence",
+          "type": "positiveInteger",
+          "required": true,
+          "description": "Strictly higher than the last request the broker accepted for this attempt; a reused or lower number is refused."
+        },
+        {
+          "name": "operation",
+          "type": "string<=64bytes",
+          "required": true,
+          "description": "Dotted name of a typed operation the host registered. The install must hold the grant of the same name."
+        },
+        {
+          "name": "args",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "The operation's arguments, an object. Identity is never taken from here: the install and organization come from the job the server wrote."
+        }
+      ],
+      "description": "One request from a contained plugin job, relayed by its worker to the install-scoped broker. The whole body is bounded to 64 KiB."
+    },
+    "BackupWalReport": {
+      "fields": [
+        {
+          "name": "latestArchivedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Time of the newest write-ahead log segment the runner has copied off-site; at most five minutes ahead of the server clock."
+        },
+        {
+          "name": "earliestBaseBackupAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Start time of the oldest base backup the runner still keeps; not after latestArchivedAt."
+        },
+        {
+          "name": "latestSegment",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "File name of that newest segment (24 hex characters, or a timeline history file), shown to the operator."
+        }
+      ],
+      "rules": [
+        "Only the host runner credential; never a session or access token. Ignored while Restore to any minute is off. The newest bound never moves backwards, so a late report cannot shrink the window."
+      ],
+      "description": "The host runner's report of the restorable window it holds off-site."
+    },
+    "WorkerListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of the machine list, bound to the caller, organization and includeArchived choice; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most machines returned in one page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "includeArchived",
+          "type": "boolean",
+          "required": false,
+          "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip. Order is createdAt then id ascending; a cursor is good only with the same includeArchived value."
+      ],
+      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+    },
+    "WorkerLinkCodeInspect": {
+      "fields": [
+        {
+          "name": "linkCode",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 20
+          },
+          "description": "Link code from the command, XXXX-XXXX; capitals and the dash do not matter. Inspection does not use it up."
+        },
+        {
+          "name": "os",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 50
+          },
+          "description": "Operating system the machine reports, such as linux or macos; compared with the supported systems and with any system the Admin set."
+        },
+        {
+          "name": "architecture",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        },
+        {
+          "name": "hostname",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        }
+      ],
+      "rules": [
+        "Rate-limited per source and per code; too many tries answer RATE_LIMITED.",
+        "Unknown, expired, used or canceled codes answer a problem whose reason is not_found, expired or used, revealing no organization.",
+        "Inspection never consumes the code, even for an unsupported system."
+      ],
+      "description": "What the link command sends before it asks its one question: the link code and what the machine is, so Bakery can say which organization, name and slots it would join and whether the system is supported."
+    },
+    "WorkerLinkRequestCreate": {
+      "fields": [
+        {
+          "name": "os",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "linux",
+            "macos"
+          ],
+          "description": "Operating system the machine reports: linux or macos. Anything else is refused, so an unauthenticated machine cannot put its own words on an Admin's screen."
+        },
+        {
+          "name": "architecture",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        },
+        {
+          "name": "hostname",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        }
+      ],
+      "rules": [
+        "Unauthenticated and rate-limited per source.",
+        "Only linux or macos is accepted as the system; any other text is refused before anything is stored.",
+        "Creates a request that grants nothing until an Admin approves its user code."
+      ],
+      "description": "A machine with no link code asks to be linked: Bakery returns a short user code to show an Admin and a device secret only this terminal keeps."
+    },
+    "WorkerLinkRequestPoll": {
+      "fields": [
+        {
+          "name": "deviceSecret",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The device secret this terminal received when it created the request; a wrong one answers not found."
+        }
+      ],
+      "rules": [
+        "Rate-limited per source.",
+        "Only the request named in the path whose device secret matches is answered."
+      ],
+      "description": "The waiting terminal asks whether its link request was approved, declined or expired; an approval returns a fresh link code bound to the approved settings."
+    },
+    "WorkerLinkRequestLookup": {
+      "fields": [
+        {
+          "name": "userCode",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 20
+          },
+          "description": "The code the terminal shows, XXXX-XXXX; capitals and the dash do not matter."
+        }
+      ],
+      "rules": [
+        "Admin only, rate-limited per principal and per code.",
+        "A request another organization already decided answers not found; a pending request reveals only what the machine said about itself."
+      ],
+      "description": "An Admin types the code a terminal shows to find the machine that is waiting to join."
+    },
+    "WorkerLinkRequestApprove": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+          },
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
+        },
+        {
+          "name": "slots",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 100
+          },
+          "description": "How many tasks the machine may run at once; registration cannot exceed it."
+        },
+        {
+          "name": "capabilities",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 32000
+          },
+          "description": "Capabilities the machine may run; registration cannot exceed them."
+        }
+      ],
+      "rules": [
+        "Admin (worker:manage) of the approving organization; Idempotency-Key required.",
+        "A request is decided once: a retry with the same key replays, anything else on a decided request answers STATE_CONFLICT with reason approved or declined.",
+        "Approval creates the enrollment in the approving organization; the waiting terminal then receives a link code bound to these settings."
+      ],
+      "description": "An Admin approves a waiting machine with its name, slots and coding-agent capabilities."
+    },
+    "WorkerLinkRequestDecline": {
+      "fields": [],
+      "rules": [
+        "Admin (worker:manage); Idempotency-Key required; a request is decided once."
+      ],
+      "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
+    },
+    "PluginAuthoringRunCreate": {
+      "fields": [
+        {
+          "name": "request",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 8000,
+            "pattern": "^(?!\\s)(?=.*\\S)"
+          },
+          "description": "What the backend plugin should do, in the requester's own words. The generator reads it with the pinned authoring kit; its SHA-256 is kept as the version's source evidence."
+        },
+        {
+          "name": "authorizedCapabilities",
+          "type": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 7
+          },
+          "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list."
+        },
+        {
+          "name": "budgetUsd",
+          "type": "decimal",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 200
+          },
+          "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted."
+        },
+        {
+          "name": "maxAttempts",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3
+          },
+          "description": "How many packages the generator may write, 1 to 3. Each failed attempt is handed back with every diagnostic; when the last one fails the run ends blocked and nothing is published."
+        },
+        {
+          "name": "installId",
+          "type": "uuid",
+          "required": false,
+          "description": "The caller's own personal install of an authored plugin to revise. Omitted for a new plugin, which is installed privately for the caller. A revision moves that install to the new version only after its preview passes, approving exactly the added capabilities, and puts it back as it was when the preview or state migration fails."
+        }
+      ],
+      "rules": [
+        "maxAttempts is 1 to 3. The checks run in the same order on every attempt: file_tree, manifest, authority, isolation, typecheck, build, then a private preview. Without a configured generator and preview runtime the request is DEPENDENCY_UNAVAILABLE rather than a pretend success.",
+        "Idempotency-Key is required (PRECONDITION_REQUIRED without it). A repeat with the same key and the same body answers with the run the key started instead of starting and paying for another; the same key with another body is IDEMPOTENCY_PAYLOAD_MISMATCH, and a repeat while that run is still working is IDEMPOTENCY_IN_FLIGHT."
+      ],
+      "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillActiveVersionSet": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+        }
+      ],
+      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+    },
+    "SkillSourceUpdateTake": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
+        },
+        {
+          "name": "revision",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the skill's version are required. The import pins this exact revision; a skill that follows a branch keeps following it."
+      ],
+      "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
+    },
+    "SkillDraftFileRename": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "path",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Current relative path of the file in the draft."
+        },
+        {
+          "name": "newPath",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
+      ],
+      "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     }
   },
   "projections": {
@@ -17170,6 +18066,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -17188,11 +18085,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "sourceColumns": {
@@ -17203,6 +18102,7 @@ const transportSchemas = {
         "status": "status",
         "stopReason": "stop_reason",
         "stoppedBy": "stopped_by",
+        "stoppedByName": "stopped_by_name",
         "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
@@ -17222,6 +18122,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
@@ -17677,7 +18578,7 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -20243,6 +21144,77 @@ const transportSchemas = {
       "pageOf": "WorkerComponent",
       "description": "Cursor page of one machine's typed installed/available component inventory, projected from the latest accepted worker inventory report; Developer-readable and free of host-local paths or secret material."
     },
+    "WorkerMaintenanceOperation": {
+      "projection": "worker_maintenance_operations",
+      "fields": [
+        "id",
+        "workerHostId",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "requestedBy",
+        "expectedInventoryRevision",
+        "expectedCredentialGeneration",
+        "capturedDesiredMode",
+        "phase",
+        "deadlineAt",
+        "expiresAt",
+        "result",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "result"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workerHostId": "uuid",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "requestedBy": "uuid",
+        "expectedInventoryRevision": "integer",
+        "expectedCredentialGeneration": "integer",
+        "capturedDesiredMode": "enum(accepting|paused|draining|revoked)",
+        "phase": "enum(queued|waiting_for_idle|assigned|applying|reconciling|succeeded|failed|canceled|expired|needs_attention)",
+        "deadlineAt": "timestamp",
+        "expiresAt": "timestamp",
+        "result": "json",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the maintenance operation.",
+        "workerHostId": "Machine the operation runs on.",
+        "verb": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version the operation installs, updates or rolls back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the target version must match, or null.",
+        "requestedBy": "Principal ID of the Admin who requested the operation.",
+        "expectedInventoryRevision": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory.",
+        "expectedCredentialGeneration": "Machine credential generation at request time; a re-paired machine cannot pick up the operation.",
+        "capturedDesiredMode": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it.",
+        "phase": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown.",
+        "deadlineAt": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled.",
+        "expiresAt": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request).",
+        "result": "Bounded, redacted outcome reported for a finished operation, or null.",
+        "createdAt": "UTC timestamp when the operation was requested.",
+        "updatedAt": "UTC timestamp of the last phase change.",
+        "version": "Row version, incremented on every phase change."
+      }
+    },
+    "Page<WorkerMaintenanceOperation>": {
+      "pageOf": "WorkerMaintenanceOperation",
+      "description": "Cursor page of one machine's maintenance operations, newest first; Developer-readable and free of shell input, host paths or secret material."
+    },
     "Page<ModelProviderAccount>": {
       "pageOf": "ModelProviderAccount",
       "description": "Cursor page of the organization's provider accounts with safe display identities and known/unknown account-level quota observations; Admin-only and never carrying billing identity values."
@@ -20266,6 +21238,10 @@ const transportSchemas = {
     "Page<DeliveryDecision>": {
       "pageOf": "DeliveryDecision",
       "description": "Cursor page of one run's delivery decisions in decision order, returned by GET /v1/runs/{id}/delivery-decisions. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "Page<RepairTry>": {
+      "pageOf": "RepairTry",
+      "description": "Cursor page of one run's repair tries in try order, returned by GET /v1/runs/{id}/repair-tries. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "Page<ReviewFinding>": {
       "pageOf": "ReviewFinding",
@@ -20856,7 +21832,8 @@ const transportSchemas = {
         "finishedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "handoffManifest"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -20871,13 +21848,15 @@ const transportSchemas = {
         "finishedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "handoffManifest": "RunStepHandoffManifest|null"
       },
       "nullableFields": [
         "output",
         "error",
         "startedAt",
-        "finishedAt"
+        "finishedAt",
+        "handoffManifest"
       ],
       "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body.",
       "fieldDescriptions": {
@@ -20893,8 +21872,27 @@ const transportSchemas = {
         "finishedAt": "UTC timestamp when processing finished.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "handoffManifest": "The newest handoff manifest an attempt of this step saved, so a reader can tell the step has somewhere to continue from; null until one is saved. Read the whole manifest with GET /v1/handoff-manifests/{id}."
       }
+    },
+    "RunStepHandoffManifest": {
+      "fields": [
+        "id",
+        "status",
+        "savedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "status": "enum(pending|continued|blocked)",
+        "savedAt": "timestamp"
+      },
+      "fieldDescriptions": {
+        "id": "Stable UUID of the stored manifest, the id GET /v1/handoff-manifests/{id} reads.",
+        "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
+        "savedAt": "UTC timestamp when the source attempt saved the manifest."
+      },
+      "description": "Summary of the newest handoff manifest saved for a run step: which manifest, its continuation status and when it was saved. It is a record to be re-verified, never the authority for run state."
     },
     "CheckRun": {
       "projection": "check_runs",
@@ -21156,6 +22154,7 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "acceptedBy",
+        "acceptedByName",
         "acceptedAt",
         "acceptReason"
       ],
@@ -21180,6 +22179,7 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "acceptedBy": "uuid|null",
+        "acceptedByName": "string|null",
         "acceptedAt": "timestamp|null",
         "acceptReason": "string|null"
       },
@@ -21203,6 +22203,7 @@ const transportSchemas = {
         "pullRequestId",
         "artifactVersionId",
         "acceptedBy",
+        "acceptedByName",
         "acceptedAt",
         "acceptReason"
       ],
@@ -21228,11 +22229,13 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
         "version": "Always 1 because review cycle rows are immutable.",
         "acceptedBy": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded.",
+        "acceptedByName": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name.",
         "acceptedAt": "UTC timestamp of that decision; null when none was recorded.",
         "acceptReason": "The reason the decider gave, verbatim; null when none was recorded."
       },
       "optionalFields": [
         "acceptedBy",
+        "acceptedByName",
         "acceptedAt",
         "acceptReason"
       ]
@@ -21395,6 +22398,91 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
         "version": "Always 1 because delivery decision rows are immutable."
+      }
+    },
+    "RepairTry": {
+      "fields": [
+        "id",
+        "runId",
+        "number",
+        "decision",
+        "reason",
+        "fixedFindings",
+        "cameBackFindings",
+        "newFindings",
+        "blockingFindings",
+        "checksPassed",
+        "startedAt",
+        "durationMs",
+        "costUsd",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "number": "integer",
+        "decision": "enum(proceed|repair|stop)",
+        "reason": "enum(clean|repair_selected|policy_missing|stale_evidence|checks_unavailable|repeated_blocker|repair_cycles_exhausted|repair_time_exhausted|repair_budget_exhausted|reviewer_unavailable|review_failed)",
+        "fixedFindings": "integer",
+        "cameBackFindings": "integer",
+        "newFindings": "integer",
+        "blockingFindings": "integer",
+        "checksPassed": "boolean",
+        "startedAt": "timestamp|null",
+        "durationMs": "integer|null",
+        "costUsd": "decimal|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "fieldBounds": {
+        "number": {
+          "min": 1
+        },
+        "fixedFindings": {
+          "min": 0
+        },
+        "cameBackFindings": {
+          "min": 0
+        },
+        "newFindings": {
+          "min": 0
+        },
+        "blockingFindings": {
+          "min": 0
+        },
+        "durationMs": {
+          "min": 0
+        },
+        "version": {
+          "min": 1
+        }
+      },
+      "nullableFields": [
+        "startedAt",
+        "durationMs",
+        "costUsd"
+      ],
+      "description": "One repair try of a run's review and repair loop, read from what the run already recorded: what the try fixed, whether a finding of the earlier review came back, what is still blocking, whether the required checks passed, and the time and money the try used. Try 1 is the first repair and its review; the first review before any repair is not a try. It is derived, never edited: updatedAt equals createdAt and version is always 1.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the review cycle that judged this try.",
+        "runId": "Stable UUID of the workflow run the try belongs to.",
+        "number": "One-based position of the try among the run's repair tries; try 1 is the first repair and the review that followed it.",
+        "decision": "What the loop did after this try's review: proceed when the candidate was clean, repair when another try was selected, stop when the loop ended. When a person allowed more tries after a stop, this is still the first decision the loop itself took.",
+        "reason": "Machine-readable reason for that decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted.",
+        "fixedFindings": "How many blocking findings of the earlier review are gone from this try's review.",
+        "cameBackFindings": "How many blocking findings of the earlier review are still there in this try's review, matched by fingerprint.",
+        "newFindings": "How many blocking findings this try's review reported that the earlier review did not.",
+        "blockingFindings": "How many blocking findings this try's review reported in all.",
+        "checksPassed": "True when no required check was failing on the candidate this try produced.",
+        "startedAt": "UTC timestamp when the try's first step started, or null when the run kept no start time for it.",
+        "durationMs": "Milliseconds from the start of the try to the end of its review, or null when the start is not known.",
+        "costUsd": "US dollars the try's steps cost, as a decimal string, or null when no usage was recorded for them.",
+        "createdAt": "UTC timestamp when the try's review was recorded.",
+        "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because a try is derived.",
+        "version": "Always 1 because a repair try is derived from immutable records."
       }
     },
     "Application": {
@@ -21888,6 +22976,7 @@ const transportSchemas = {
         "inngestRunId",
         "status",
         "budgetLimitUsd",
+        "environment",
         "startedAt",
         "finishedAt",
         "createdAt",
@@ -21915,6 +23004,7 @@ const transportSchemas = {
         "inngestRunId": "string|null",
         "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
         "budgetLimitUsd": "decimal",
+        "environment": "enum(live|offline)",
         "startedAt": "timestamp|null",
         "finishedAt": "timestamp|null",
         "createdAt": "timestamp",
@@ -21972,6 +23062,7 @@ const transportSchemas = {
         "inngestRunId": "Stable UUID linking this record to the related inngest run entity.",
         "status": "Current lifecycle status of the record.",
         "budgetLimitUsd": "Maximum execution budget measured in US dollars.",
+        "environment": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline.",
         "startedAt": "UTC timestamp when processing started.",
         "finishedAt": "UTC timestamp when processing finished.",
         "createdAt": "UTC timestamp when the record was created.",
@@ -22330,6 +23421,10 @@ const transportSchemas = {
         "turnId"
       ]
     },
+    "Page<WorkflowDefinitionProposal>": {
+      "pageOf": "WorkflowDefinitionProposal",
+      "description": "Cursor page of one conversation's workflow definition proposals, oldest first (the order the coordinator proposed them), returned by GET /v1/conversations/{id}/workflow-definition-proposals. items and nextCursor are always present, with nextCursor=null marking the last page."
+    },
     "WorkflowDefinitionProposal": {
       "fields": [
         "id",
@@ -22342,6 +23437,7 @@ const transportSchemas = {
         "digest",
         "state",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "supersededByVersionId",
         "createdAt",
@@ -22362,6 +23458,7 @@ const transportSchemas = {
         "digest": "string",
         "state": "enum(waiting|accepted|rejected|superseded)",
         "decidedBy": "uuid|null",
+        "decidedByName": "string|null",
         "decidedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -22372,6 +23469,7 @@ const transportSchemas = {
         "workflowId",
         "baseDraftVersion",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "supersededByVersionId"
       ],
@@ -22387,6 +23485,7 @@ const transportSchemas = {
         "digest": "SHA-256 of the canonical proposed definition.",
         "state": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled.",
         "decidedBy": "Person who decided the proposal; null while waiting.",
+        "decidedByName": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name.",
         "decidedAt": "When the proposal was decided or superseded; null while waiting.",
         "createdAt": "When the proposal was recorded.",
         "updatedAt": "When the proposal last changed.",
@@ -22407,7 +23506,8 @@ const transportSchemas = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "starts"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -22420,7 +23520,8 @@ const transportSchemas = {
         "createdBy": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "starts": "json"
       },
       "nullableFields": [],
       "description": "A draft (mutable, with a compare-and-set version) or a published or retired revision (immutable content) of a workflow's executable definition: the author-submitted sourceYaml, its normalizedSpec and content digest, and a draft/published/retired lifecycle status. Publishing validates registered actions, step structure, and agent and skill bindings, and the content cannot change again once published.",
@@ -22435,7 +23536,8 @@ const transportSchemas = {
         "createdBy": "Principal who created the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Draft compare-and-set counter bumped on each save; 1 for published rows."
+        "version": "Draft compare-and-set counter bumped on each save; 1 for published rows.",
+        "starts": "The version's starts, an empty list when it has none: event matchers and schedules authored with the version and kept outside its digest. A start runs only once a person uses this version."
       }
     },
     "AgentDefinition": {
@@ -23066,6 +24168,7 @@ const transportSchemas = {
       "projection": "skill_sources",
       "fields": [
         "id",
+        "name",
         "sourceType",
         "locator",
         "publisher",
@@ -23086,12 +24189,14 @@ const transportSchemas = {
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "name": "string|null"
       },
       "nullableFields": [
         "publisher",
         "license",
-        "lastCheckedAt"
+        "lastCheckedAt",
+        "name"
       ],
       "description": "An external origin a skill was imported from: a Git repository, a URL, or a local bundle, with its normalized locator and optional publisher/license metadata; the importer only follows permitted origin kinds and checked archive paths, never an executable mutable URL.",
       "fieldDescriptions": {
@@ -23104,7 +24209,8 @@ const transportSchemas = {
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "name": "Name a person gave the source, shown wherever sources are listed; null when none was given."
       }
     },
     "Skill": {
@@ -23114,7 +24220,9 @@ const transportSchemas = {
         "sourceId",
         "slug",
         "name",
+        "description",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
@@ -23130,6 +24238,7 @@ const transportSchemas = {
         "slug": "string",
         "name": "string",
         "activeVersionId": "uuid|null",
+        "activeRevision": "integer|null",
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -23137,14 +24246,17 @@ const transportSchemas = {
         "scope": "enum(global|organization|personal)",
         "ownerPrincipalId": "uuid|null",
         "copiedFromSkillId": "uuid|null",
-        "copiedFromVersionId": "uuid|null"
+        "copiedFromVersionId": "uuid|null",
+        "description": "string|null"
       },
       "nullableFields": [
         "sourceId",
         "activeVersionId",
+        "activeRevision",
         "ownerPrincipalId",
         "copiedFromSkillId",
-        "copiedFromVersionId"
+        "copiedFromVersionId",
+        "description"
       ],
       "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
@@ -23153,6 +24265,7 @@ const transportSchemas = {
         "slug": "URL-safe stable name used to address the record.",
         "name": "Human-readable name displayed for the record.",
         "activeVersionId": "Stable UUID linking this record to the related active version entity.",
+        "activeRevision": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version.",
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -23160,7 +24273,8 @@ const transportSchemas = {
         "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
         "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
-        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying.",
+        "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
       }
     },
     "SkillVersion": {
@@ -23177,7 +24291,9 @@ const transportSchemas = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "publishedAt",
+        "label"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23191,9 +24307,14 @@ const transportSchemas = {
         "createdBy": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "publishedAt": "timestamp|null",
+        "label": "string|null"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "publishedAt",
+        "label"
+      ],
       "manifestContract": {
         "schemaVersion": 1,
         "files": "SkillFileManifestEntry[]",
@@ -23215,7 +24336,9 @@ const transportSchemas = {
         "createdBy": "Principal who created the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "publishedAt": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated).",
+        "label": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
       }
     },
     "IntegrationConnection": {
@@ -23859,8 +24982,11 @@ const transportSchemas = {
         "readiness",
         "readinessReason",
         "failedCheckIds",
+        "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
+        "archivedAt",
+        "cleanup",
         "createdAt",
         "updatedAt",
         "version"
@@ -23880,17 +25006,21 @@ const transportSchemas = {
         "readiness": "enum(checking|ready|needs_attention)",
         "readinessReason": "string|null",
         "failedCheckIds": "json",
+        "unsettledAttemptCount": "integer",
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
+        "archivedAt": "timestamp|null",
+        "cleanup": "WorkerHostCleanup",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
       },
       "nullableFields": [
         "lastHeartbeatAt",
-        "readinessReason"
+        "readinessReason",
+        "archivedAt"
       ],
-      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
+      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the worker host record.",
         "principalId": "Stable UUID linking this record to the related principal entity.",
@@ -23906,8 +25036,11 @@ const transportSchemas = {
         "readiness": "Server-derived from current-generation checks and scheduling policy; losing connectivity makes readiness unusable even if the last check passed.",
         "readinessReason": "Safe bounded explanation when readiness is needs_attention; null otherwise.",
         "failedCheckIds": "Check identifiers with a fresh failing result, sorted; empty when none.",
+        "unsettledAttemptCount": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
+        "archivedAt": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID.",
+        "cleanup": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
@@ -23917,7 +25050,8 @@ const transportSchemas = {
         "connectivity",
         "readiness",
         "readinessReason",
-        "failedCheckIds"
+        "failedCheckIds",
+        "unsettledAttemptCount"
       ]
     },
     "Preview": {
@@ -23930,6 +25064,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -23948,11 +25083,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned.",
@@ -23968,6 +25105,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
@@ -24140,7 +25278,7 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -24656,7 +25794,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -24701,7 +25839,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -25020,21 +26158,29 @@ const transportSchemas = {
       "fields": [
         "enrollmentId",
         "enrollmentToken",
-        "expiresAt"
+        "expiresAt",
+        "linkCode",
+        "command"
       ],
       "fieldTypes": {
         "enrollmentId": "uuid",
         "enrollmentToken": "secretString",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "linkCode": "string",
+        "command": "string"
       },
       "sensitiveFields": [
-        "enrollmentToken"
+        "enrollmentToken",
+        "linkCode",
+        "command"
       ],
-      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential.",
+      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential. It also returns a short link code for the same enrollment and the one-line command that carries it (#70).",
       "fieldDescriptions": {
         "enrollmentId": "Stable UUID linking this record to the related enrollment entity.",
         "enrollmentToken": "One-time token used to enroll the worker.",
-        "expiresAt": "UTC timestamp when the record expires."
+        "expiresAt": "UTC timestamp when the record expires.",
+        "linkCode": "Ten-minute, one-use link code (XXXX-XXXX) for the same enrollment; it may appear in a command because it expires with the enrollment, works once, only adds one machine to this organization within the settings above, and is useless once the machine registers. Persisted only as a hash.",
+        "command": "The whole one-line command an Admin pastes on the machine: npx -y <origin>/v1/worker/link.tgz link --server <origin> --code <linkCode>. Until an npm scope is chosen the link command is served from this Bakery's own origin as an npm tarball."
       }
     },
     "DispatchBlocker": {
@@ -25129,15 +26275,18 @@ const transportSchemas = {
         "canceledAt",
         "workerHostId",
         "replacementOfId",
-        "targetWorkerHostId"
+        "targetWorkerHostId",
+        "name",
+        "os",
+        "architecture"
       ],
       "description": "Safe organization-scoped enrollment inventory entry with derived lifecycle state, intended machine capacity and replacement/re-pair lineage. Token material, token hashes and credentials are never projected.",
       "fieldDescriptions": {
         "enrollmentId": "Stable UUID identifying the enrollment record.",
         "state": "Derived pending, consumed, canceled or expired state at the server's current time.",
-        "name": "Intended machine display name.",
-        "os": "Intended operating system.",
-        "architecture": "Intended machine architecture.",
+        "name": "Intended machine display name. Null when the Admin left it to the machine's host name and the machine has not registered yet.",
+        "os": "Intended operating system. Null when the machine reports it when it links.",
+        "architecture": "Intended machine architecture. Null when the machine reports it when it links.",
         "capabilities": "Allowed worker capabilities that registration cannot exceed.",
         "slots": "Intended concurrent task-slot ceiling.",
         "expiresAt": "UTC timestamp after which an otherwise pending enrollment is expired.",
@@ -25160,13 +26309,15 @@ const transportSchemas = {
         "workerSessionId",
         "workerSessionGeneration",
         "serverTime",
-        "inventoryRevision"
+        "inventoryRevision",
+        "maintenanceAssignments"
       ],
       "optionalFields": [
         "reconciledAttemptIds",
         "workerSessionId",
         "workerSessionGeneration",
-        "serverTime"
+        "serverTime",
+        "maintenanceAssignments"
       ],
       "fieldTypes": {
         "workerHostId": "uuid",
@@ -25178,9 +26329,11 @@ const transportSchemas = {
         "workerSessionId": "uuid",
         "workerSessionGeneration": "decimalString",
         "serverTime": "timestamp",
-        "inventoryRevision": "integer"
+        "inventoryRevision": "integer",
+        "maintenanceAssignments": "WorkerMaintenanceAssignment[]"
       },
       "bounds": {
+        "maintenanceAssignmentsMaxItems": 20,
         "pendingCommandsMaxItems": 100,
         "commandAcksMaxItems": 100,
         "reconciledAttemptIdsMaxItems": 100
@@ -25196,7 +26349,8 @@ const transportSchemas = {
         "workerSessionId": "Server-issued session identifier for the worker process.",
         "workerSessionGeneration": "Monotonic server fence for the worker process session.",
         "serverTime": "PostgreSQL-authoritative receipt time for deriving monotonic client deadlines.",
-        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response."
+        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response.",
+        "maintenanceAssignments": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list."
       }
     },
     "WorkerCommand": {
@@ -25248,6 +26402,50 @@ const transportSchemas = {
         "commandId": "Stable UUID linking this record to the related command entity.",
         "status": "Current lifecycle status of the record.",
         "acknowledgedAt": "Timestamp recorded by PostgreSQL when the terminal outcome was committed."
+      }
+    },
+    "WorkerMaintenanceAssignment": {
+      "fields": [
+        "operationId",
+        "workerHostId",
+        "credentialGeneration",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "expectedInventoryRevision",
+        "fence",
+        "deadlineAt"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest"
+      ],
+      "fieldTypes": {
+        "operationId": "uuid",
+        "workerHostId": "uuid",
+        "credentialGeneration": "integer",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "expectedInventoryRevision": "integer",
+        "fence": "decimalString",
+        "deadlineAt": "timestamp"
+      },
+      "description": "One maintenance operation handed to the machine in a heartbeat response. It binds the operation to this host, its credential generation and a fence; a duplicate delivery repeats the same assignment and never asks the host to run it twice.",
+      "fieldDescriptions": {
+        "operationId": "Maintenance operation the machine must run and report on.",
+        "workerHostId": "Machine the assignment is bound to.",
+        "credentialGeneration": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it.",
+        "verb": "Typed maintenance verb the host adapter maps to fixed executables.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version to install, update or roll back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the installed result must match, or null.",
+        "expectedInventoryRevision": "Inventory revision the operation was requested against; the host must not apply it to different inventory.",
+        "fence": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it.",
+        "deadlineAt": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
       }
     },
     "WorkerRegistrationResult": {
@@ -25313,14 +26511,19 @@ const transportSchemas = {
       "fieldDescriptions": {
         "enrollmentId": "Stable UUID identifying the enrollment record.",
         "organizationName": "Display name of the enrolling organization the token pairs to.",
-        "name": "Intended machine display name from the enrollment.",
-        "os": "Intended operating system from the enrollment.",
-        "architecture": "Intended architecture from the enrollment.",
+        "name": "Intended machine display name from the enrollment. Null when the Admin left it to the machine's host name and the machine has not registered yet.",
+        "os": "Intended operating system from the enrollment. Null when the machine reports it when it links.",
+        "architecture": "Intended architecture from the enrollment. Null when the machine reports it when it links.",
         "slots": "Intended task-slot ceiling from the enrollment; registration cannot raise it.",
         "capabilities": "Intended allowed capabilities from the enrollment; registration cannot exceed it.",
         "expiresAt": "UTC timestamp after which the token is no longer consumable.",
         "state": "Derived pending/canceled/expired state observed at inspection time."
-      }
+      },
+      "nullableFields": [
+        "name",
+        "os",
+        "architecture"
+      ]
     },
     "EnrollmentStatus": {
       "fields": [
@@ -25809,14 +27012,23 @@ const transportSchemas = {
     },
     "InstallationStatus": {
       "fields": [
-        "bootstrapped"
+        "bootstrapped",
+        "restoreHeld",
+        "updatePaused",
+        "release"
       ],
       "fieldTypes": {
-        "bootstrapped": "boolean"
+        "bootstrapped": "boolean",
+        "restoreHeld": "boolean",
+        "updatePaused": "boolean",
+        "release": "string"
       },
-      "description": "Whether a first installation administrator already exists; carries no identity.",
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity.",
       "fieldDescriptions": {
-        "bootstrapped": "Whether a first installation administrator already exists; carries no identity."
+        "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
+        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action.",
+        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes.",
+        "release": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
       }
     },
     "BrowserSession": {
@@ -27898,6 +29110,7 @@ const transportSchemas = {
         "activeRequest",
         "linkedTaskIds",
         "linkedTaskCount",
+        "openQuestionCount",
         "createdAt",
         "updatedAt",
         "version"
@@ -27922,7 +29135,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "linkedTaskIds": "uuid[]",
-        "linkedTaskCount": "integer"
+        "linkedTaskCount": "integer",
+        "openQuestionCount": "integer"
       },
       "nullableFields": [
         "number",
@@ -27950,19 +29164,24 @@ const transportSchemas = {
         "updatedAt": "Timestamp recording the last update to this external ticket record.",
         "version": "Monotonic revision used to order or conditionally update this external ticket record.",
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
-        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it."
+        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
+        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
         "activeRequest",
         "linkedTaskIds",
-        "linkedTaskCount"
+        "linkedTaskCount",
+        "openQuestionCount"
       ],
       "fieldBounds": {
         "linkedTaskIds": {
           "maxItems": 25
         },
         "linkedTaskCount": {
+          "min": 0
+        },
+        "openQuestionCount": {
           "min": 0
         }
       }
@@ -28136,6 +29355,10 @@ const transportSchemas = {
         "pausedReason",
         "progress",
         "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName",
+        "presetId",
+        "presetRevision",
         "createdAt",
         "updatedAt",
         "version",
@@ -28150,11 +29373,15 @@ const transportSchemas = {
         "requestedByPrincipalId": "uuid|null",
         "triggerLabelName": "string|null",
         "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled|request_canceled)|null",
         "pausedAt": "timestamp|null",
         "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
         "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
         "workflowRunId": "uuid|null",
+        "stoppedByPrincipalId": "uuid|null",
+        "stoppedByName": "string|null",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
+        "presetRevision": "integer",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
@@ -28166,7 +29393,9 @@ const transportSchemas = {
         "dispositionReasonCode",
         "pausedAt",
         "pausedReason",
-        "workflowRunId"
+        "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName"
       ],
       "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
       "fieldDescriptions": {
@@ -28178,15 +29407,30 @@ const transportSchemas = {
         "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
         "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
         "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded.",
         "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
         "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
         "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
         "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "stoppedByPrincipalId": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it.",
+        "stoppedByName": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it.",
         "createdAt": "When the request was admitted.",
         "updatedAt": "When the request last changed.",
         "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository.",
+        "presetId": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+        "presetRevision": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "presetId",
+        "presetRevision",
+        "stoppedByPrincipalId",
+        "stoppedByName"
+      ],
+      "fieldBounds": {
+        "presetRevision": {
+          "min": 1
+        }
       }
     },
     "Page<TicketRequestView>": {
@@ -28373,7 +29617,9 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -28389,13 +29635,16 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "lastUpdateFailure": "json|null"
+        "lastUpdateFailure": "json|null",
+        "stateCopy": "json|null",
+        "cannotReadVersionIds": "uuid[]"
       },
       "nullableFields": [
         "ownerPrincipalId",
         "activatedAt",
         "disabledAt",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy"
       ],
       "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
       "fieldDescriptions": {
@@ -28412,10 +29661,14 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this plugin install record.",
         "updatedAt": "Timestamp recording the last update to this plugin install record.",
         "version": "Monotonic revision used to order or conditionally update this plugin install record.",
-        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show.",
+        "stateCopy": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved.",
+        "cannotReadVersionIds": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it."
       },
       "optionalFields": [
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ]
     },
     "Page<PluginInstall>": {
@@ -28642,6 +29895,7 @@ const transportSchemas = {
       "fields": [
         "registrationMode",
         "organizationCreationPolicy",
+        "updateFailurePolicy",
         "version",
         "updatedByPrincipalId",
         "updatedAt"
@@ -28649,6 +29903,7 @@ const transportSchemas = {
       "fieldTypes": {
         "registrationMode": "enum(closed|invitation)",
         "organizationCreationPolicy": "enum(installation_admins|any_user)",
+        "updateFailurePolicy": "enum(go_back|ask)",
         "version": "integer",
         "updatedByPrincipalId": "uuid|null",
         "updatedAt": "timestamp"
@@ -28660,6 +29915,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "registrationMode": "Closed refuses new accounts; invitation requires a live organization invitation.",
         "organizationCreationPolicy": "Installation administrators only, or any authenticated human, may create organizations.",
+        "updateFailurePolicy": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
         "version": "Monotonic settings revision; submit the current value as If-Match when updating.",
         "updatedByPrincipalId": "Principal who last changed policy, or null for initial defaults.",
         "updatedAt": "Timestamp of the last installation policy update."
@@ -28829,21 +30085,27 @@ const transportSchemas = {
         "wouldStart",
         "planOnly",
         "held",
-        "blocked"
+        "blocked",
+        "labeledBeforeWindow"
       ],
       "fieldTypes": {
         "wouldStart": "integer",
         "planOnly": "integer",
         "held": "integer",
-        "blocked": "integer"
+        "blocked": "integer",
+        "labeledBeforeWindow": "integer"
       },
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one of wouldStart, planOnly, held and blocked. labeledBeforeWindow is a part of blocked, not a bucket of its own.",
       "fieldDescriptions": {
         "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
         "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
         "held": "Issues carrying the hold label; the hold wins over every other label.",
-        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which.",
+        "labeledBeforeWindow": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it."
       },
+      "optionalFields": [
+        "labeledBeforeWindow"
+      ],
       "fieldBounds": {
         "wouldStart": {
           "min": 0
@@ -28855,6 +30117,9 @@ const transportSchemas = {
           "min": 0
         },
         "blocked": {
+          "min": 0
+        },
+        "labeledBeforeWindow": {
           "min": 0
         }
       }
@@ -29614,16 +30879,32 @@ const transportSchemas = {
     "WorkflowPresetStep": {
       "fields": [
         "id",
-        "uses"
+        "uses",
+        "repeatId",
+        "repeatMax"
       ],
       "fieldTypes": {
         "id": "string",
-        "uses": "string"
+        "uses": "string",
+        "repeatId": "string",
+        "repeatMax": "integer"
       },
-      "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs.",
+      "optionalFields": [
+        "repeatId",
+        "repeatMax"
+      ],
+      "fieldBounds": {
+        "repeatMax": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run.",
       "fieldDescriptions": {
         "id": "Stable step key within the preset.",
-        "uses": "Registered workflow action the step runs."
+        "uses": "Registered workflow action the step runs.",
+        "repeatId": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+        "repeatMax": "Most iterations of that repeat; present exactly when repeatId is."
       }
     },
     "WorkflowPresetAvailability": {
@@ -32585,31 +33866,48 @@ const transportSchemas = {
         "accessTokenId",
         "grantedBy",
         "createdAt",
-        "version"
+        "version",
+        "expiresAt",
+        "roleKey",
+        "groupId"
       ],
       "fieldTypes": {
         "id": "uuid",
-        "power": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection|ask)",
         "workflowId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "expiresAt": "timestamp|null",
+        "roleKey": "string|null",
+        "groupId": "uuid|null"
       },
       "nullableFields": [
         "workflowId",
-        "accessTokenId"
+        "accessTokenId",
+        "expiresAt",
+        "roleKey",
+        "groupId"
       ],
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection.",
+        "power": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work, draft_connection or ask.",
         "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
         "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
+        "version": "Optimistic-concurrency version a revoke must name in If-Match.",
+        "expiresAt": "When the grant stops working, or null when it never expires.",
+        "roleKey": "The role an ask grant lets the agent ask, otherwise null.",
+        "groupId": "The group an ask grant lets the agent ask, otherwise null."
+      },
+      "optionalFields": [
+        "expiresAt",
+        "roleKey",
+        "groupId"
+      ]
     },
     "RouteContinuationTarget": {
       "fields": [
@@ -33110,6 +34408,105 @@ const transportSchemas = {
       ],
       "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
     },
+    "ArtifactSharer": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "The person who may give access.",
+        "displayName": "Their current display name; never an email address."
+      },
+      "description": "One person who may give someone access to a document: their id and display name only."
+    },
+    "ArtifactSharers": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "ArtifactSharer[]"
+      },
+      "fieldDescriptions": {
+        "items": "Up to three active people in the reader's organization whose role may share documents, the document's author first when the author is one of them, then by display name. Empty when nobody may."
+      },
+      "rules": [
+        "Names only people in the reader's own organization; nothing else about them is returned."
+      ],
+      "description": "Who can give access to one document: up to three people, so a writer who may not share can ask one of them. It grants nothing."
+    },
+    "ArtifactAccessGrant": {
+      "fields": [
+        "id",
+        "artifactId",
+        "principalId",
+        "displayName",
+        "level",
+        "grantedById",
+        "grantedByName",
+        "sourceCommentId",
+        "grantedAt",
+        "revokedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "artifactId": "uuid",
+        "principalId": "uuid",
+        "displayName": "string",
+        "level": "enum(read_comment|edit)",
+        "grantedById": "uuid",
+        "grantedByName": "string",
+        "sourceCommentId": "uuid|null",
+        "grantedAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "sourceCommentId",
+        "revokedAt"
+      ],
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        },
+        "grantedByName": {
+          "maxLength": 200
+        },
+        "version": {
+          "min": 1
+        }
+      },
+      "fieldDescriptions": {
+        "id": "Stable UUID of this grant record.",
+        "artifactId": "The one document this grant opens; it never reaches the task, its other documents or its conversation.",
+        "principalId": "The person who holds the grant.",
+        "displayName": "The holder's current display name; never an email address.",
+        "level": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it.",
+        "grantedById": "Who gave the access most recently.",
+        "grantedByName": "The granting person's current display name.",
+        "sourceCommentId": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone.",
+        "grantedAt": "When the grant was created or last renewed.",
+        "revokedAt": "When the grant was removed, or null while it is live.",
+        "version": "Compare-and-set version; send it as If-Match to revoke."
+      },
+      "rules": [
+        "A direct grant gives access to this one document only: no task, repository, agent or resharing rights."
+      ],
+      "description": "One person's direct access to one document, with its level, who gave it and from which comment."
+    },
+    "Page<ArtifactAccessGrant>": {
+      "pageOf": "ArtifactAccessGrant",
+      "description": "Cursor page of live direct grants on one document, oldest first. `nextCursor: null` marks the last page."
+    },
     "Page<ConversationAccessGrant>": {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
@@ -33376,6 +34773,7 @@ const transportSchemas = {
         "elapsedSeconds",
         "spentUsd",
         "issues",
+        "waitingOn",
         "createdAt",
         "updatedAt",
         "version"
@@ -33386,7 +34784,8 @@ const transportSchemas = {
         "pausedAt",
         "finishReason",
         "finishedAt",
-        "stoppedBy"
+        "stoppedBy",
+        "waitingOn"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -33409,6 +34808,7 @@ const transportSchemas = {
         "elapsedSeconds": "integer",
         "spentUsd": "decimal",
         "issues": "BatchIssue[]",
+        "waitingOn": "BatchWaitingOn",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
@@ -33435,10 +34835,58 @@ const transportSchemas = {
         "elapsedSeconds": "Seconds since startedAt (to finishedAt once ended), against maxHours.",
         "spentUsd": "Spend so far across the batch's issues, against maxSpendUsd.",
         "issues": "The issues it considered, in order.",
+        "waitingOn": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes.",
         "createdAt": "UTC timestamp when the batch was created.",
         "updatedAt": "UTC timestamp of the last change.",
         "version": "Optimistic-concurrency version."
       }
+    },
+    "BatchWaitingPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "A person the question or approval was put to.",
+        "displayName": "Their current display name; never an email address."
+      },
+      "description": "One person a waiting question or approval was put to by name."
+    },
+    "BatchWaitingOn": {
+      "fields": [
+        "kind",
+        "questionId",
+        "taskId",
+        "since",
+        "askedOf"
+      ],
+      "fieldTypes": {
+        "kind": "enum(question|approval)",
+        "questionId": "uuid",
+        "taskId": "uuid",
+        "since": "timestamp",
+        "askedOf": "BatchWaitingPerson[]"
+      },
+      "fieldDescriptions": {
+        "kind": "question when the work asked something, approval when it needs a yes before it goes on.",
+        "questionId": "The open question or approval; answer it through the questions actions.",
+        "taskId": "The task of the issue being worked on, where the person answers.",
+        "since": "UTC timestamp when it was put.",
+        "askedOf": "Up to three people it was put to by name; empty when it was put to the task's participants."
+      },
+      "rules": [
+        "Read live from the issue's task each time the batch is read, so it is gone once the question is answered, withdrawn or expired. The question's own text is not returned: the task page carries it."
+      ],
+      "description": "What the issue being worked on is waiting for a person to do: an open question or approval on its task, since when, and who it was put to."
     },
     "Page<Batch>": {
       "pageOf": "Batch",
@@ -33837,6 +35285,7 @@ const transportSchemas = {
         "id",
         "skillId",
         "skillVersionId",
+        "revision",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -33848,6 +35297,7 @@ const transportSchemas = {
         "id": "uuid",
         "skillId": "uuid",
         "skillVersionId": "uuid",
+        "revision": "integer",
         "workflowId": "uuid",
         "workflowName": "string",
         "stepPath": "string",
@@ -33861,6 +35311,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying the grant.",
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
@@ -34065,6 +35516,28 @@ const transportSchemas = {
         "displayName": "The person's saved display name."
       }
     },
+    "RunRequestAudience": {
+      "fields": [
+        "roleKey",
+        "groupId",
+        "name"
+      ],
+      "fieldTypes": {
+        "roleKey": "string|null",
+        "groupId": "uuid|null",
+        "name": "string"
+      },
+      "nullableFields": [
+        "roleKey",
+        "groupId"
+      ],
+      "description": "The role or group a request was asked of, frozen when the request was made with its members.",
+      "fieldDescriptions": {
+        "roleKey": "The role asked (admin, developer or a custom role's key), or null when a group was asked.",
+        "groupId": "The group asked, or null when a role was asked or the group has since been deleted.",
+        "name": "The role's or group's name when the request was made."
+      }
+    },
     "RunRequest": {
       "projection": "person_requests",
       "fields": [
@@ -34084,7 +35557,8 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "questionId"
+        "questionId",
+        "audience"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -34103,7 +35577,8 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "questionId": "uuid|null"
+        "questionId": "uuid|null",
+        "audience": "RunRequestAudience|null"
       },
       "nullableFields": [
         "stepKey",
@@ -34111,7 +35586,8 @@ const transportSchemas = {
         "note",
         "neededBy",
         "fallbackForName",
-        "questionId"
+        "questionId",
+        "audience"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -34131,10 +35607,12 @@ const transportSchemas = {
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
-        "questionId": "The approval or question the request asks about, or null when it asks for none."
+        "questionId": "The approval or question the request asks about, or null when it asks for none.",
+        "audience": "The role or group this request was asked of, or null when one person was asked."
       },
       "optionalFields": [
-        "questionId"
+        "questionId",
+        "audience"
       ]
     },
     "RunRequests": {
@@ -34407,6 +35885,21 @@ const transportSchemas = {
         "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
       }
     },
+    "DesktopHandoff": {
+      "fields": [
+        "code",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "code": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A one-use code for the desktop window's browser session, returned once.",
+      "fieldDescriptions": {
+        "code": "43-character code the app puts in GET /api/desktop/handoff?code=<code> in its own window at once. Only its SHA-256 digest is stored; it opens one browser session and nothing else.",
+        "expiresAt": "UTC instant, 30 seconds after issue, after which the handoff page refuses the code and sends the window to sign-in."
+      }
+    },
     "WorkflowStepSkill": {
       "fields": [
         "stepPath",
@@ -34560,6 +36053,39 @@ const transportSchemas = {
         "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
       }
     },
+    "BackupPointInTime": {
+      "fields": [
+        "enabled",
+        "earliestRestorableAt",
+        "latestRestorableAt",
+        "reportedAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "enabled": "boolean",
+        "earliestRestorableAt": "timestamp|null",
+        "latestRestorableAt": "timestamp|null",
+        "reportedAt": "timestamp|null",
+        "updatedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "earliestRestorableAt",
+        "latestRestorableAt",
+        "reportedAt",
+        "updatedAt"
+      ],
+      "description": "Restore to any minute as an installation administrator sees it: the switch, and the window of minutes a restore can return to, from what the host runner holds off-site.",
+      "fieldDescriptions": {
+        "enabled": "Whether Postgres write-ahead log is archived continuously so a restore can return to any minute.",
+        "earliestRestorableAt": "Start of the oldest kept base backup: the earliest minute a restore can return to. Null when off or not reported yet.",
+        "latestRestorableAt": "Time of the newest write-ahead log segment copied off-site: the latest minute a restore can return to. Null when off or not reported yet.",
+        "reportedAt": "When the host runner last reported the window, or null before its first report.",
+        "updatedAt": "When the switch last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+      }
+    },
     "BackupOffsite": {
       "fields": [
         "configured",
@@ -34641,7 +36167,8 @@ const transportSchemas = {
         "offsiteAccessKeyId",
         "offsiteSecretAccessKey",
         "offsiteRefusal",
-        "offsiteVersion"
+        "offsiteVersion",
+        "pointInTimeEnabled"
       ],
       "fieldTypes": {
         "scheduleEnabled": "boolean",
@@ -34657,7 +36184,8 @@ const transportSchemas = {
         "offsiteAccessKeyId": "secretString|null",
         "offsiteSecretAccessKey": "secretString|null",
         "offsiteRefusal": "enum(destination_private_address|destination_unresolvable|destination_invalid)|null",
-        "offsiteVersion": "integer"
+        "offsiteVersion": "integer",
+        "pointInTimeEnabled": "boolean"
       },
       "nullableFields": [
         "offsiteEndpoint",
@@ -34687,7 +36215,8 @@ const transportSchemas = {
         "offsiteAccessKeyId": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
         "offsiteSecretAccessKey": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
         "offsiteRefusal": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set.",
-        "offsiteVersion": "Destination settings revision, 0 before any save."
+        "offsiteVersion": "Destination settings revision, 0 before any save.",
+        "pointInTimeEnabled": "Whether Restore to any minute is on: the runner takes base backups and copies archived write-ahead log off-site only while it is."
       }
     },
     "PluginStateItem": {
@@ -35177,20 +36706,122 @@ const transportSchemas = {
         "scorerId",
         "slug",
         "scorerRevision",
-        "evaluatorType"
+        "evaluatorType",
+        "required"
       ],
       "fieldTypes": {
         "scorerId": "uuid",
         "slug": "string",
         "scorerRevision": "integer",
-        "evaluatorType": "enum(deterministic|model)"
+        "evaluatorType": "enum(deterministic|model)",
+        "required": "boolean"
       },
       "description": "One scorer revision a batch pinned.",
       "fieldDescriptions": {
         "scorerId": "The scorer definition, for linking to it.",
         "slug": "Its name.",
         "scorerRevision": "Its revision.",
-        "evaluatorType": "Deterministic check or model rubric."
+        "evaluatorType": "Deterministic check or model rubric.",
+        "required": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
+      }
+    },
+    "EvaluationBudget": {
+      "fields": [
+        "limitUsd",
+        "settledUsd",
+        "estimatedUsd",
+        "unknownCount",
+        "status",
+        "blocksNewAttempts",
+        "oldestUnknownAt"
+      ],
+      "fieldTypes": {
+        "limitUsd": "decimal|null",
+        "settledUsd": "decimal",
+        "estimatedUsd": "decimal",
+        "unknownCount": "integer",
+        "status": "enum(none|within|exhausted|unsettled)",
+        "blocksNewAttempts": "boolean",
+        "oldestUnknownAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "limitUsd",
+        "oldestUnknownAt"
+      ],
+      "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount.",
+      "fieldDescriptions": {
+        "limitUsd": "The most the batch may spend, in USD; null when it was admitted without a limit.",
+        "settledUsd": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero.",
+        "estimatedUsd": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill.",
+        "unknownCount": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt.",
+        "status": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within.",
+        "blocksNewAttempts": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet.",
+        "oldestUnknownAt": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+      }
+    },
+    "EvaluationAttemptUsage": {
+      "fields": [
+        "measurement",
+        "costUsd"
+      ],
+      "fieldTypes": {
+        "measurement": "enum(reported|estimated|unknown)",
+        "costUsd": "decimal|null"
+      },
+      "nullableFields": [
+        "costUsd"
+      ],
+      "description": "What one model attempt cost, as the usage ledger records it.",
+      "fieldDescriptions": {
+        "measurement": "reported by the provider, estimated by Bakery, or unknown.",
+        "costUsd": "Cost in USD; null when unknown. Never zero for an unknown cost."
+      }
+    },
+    "EvaluationCorpusReport": {
+      "fields": [
+        "total",
+        "attempted",
+        "passed",
+        "failed",
+        "unknown",
+        "unrun",
+        "interrupted",
+        "recovered",
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "fieldTypes": {
+        "total": "integer",
+        "attempted": "integer",
+        "passed": "integer",
+        "failed": "integer",
+        "unknown": "integer",
+        "unrun": "integer",
+        "interrupted": "integer",
+        "recovered": "integer",
+        "passedOfAttempted": "number|null",
+        "failedOfAttempted": "number|null",
+        "recoveredOfInterrupted": "number|null"
+      },
+      "nullableFields": [
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero. passed + failed + unknown + unrun is total, which for the report is the batch's requiredCount. Against the six state counts: passed and failed are the same; unknown is error plus unscored (each comes from an attempt); unrun is missing plus canceled plus skipped (none of them has an attempt).",
+      "fieldDescriptions": {
+        "total": "Results in the set.",
+        "attempted": "Results with at least one attempt.",
+        "passed": "Attempted, and the latest attempt measured a pass.",
+        "failed": "Attempted, and the latest attempt measured a fail.",
+        "unknown": "Attempted, but the latest attempt measured nothing, so the outcome is not known.",
+        "unrun": "Never attempted: neither a pass nor a failure.",
+        "interrupted": "Results with at least one attempt that was interrupted before it measured anything.",
+        "recovered": "Of those, results whose latest attempt measured a pass or a fail.",
+        "passedOfAttempted": "passed divided by attempted; null when nothing was attempted.",
+        "failedOfAttempted": "failed divided by attempted; null when nothing was attempted.",
+        "recoveredOfInterrupted": "recovered divided by interrupted; null when nothing was interrupted."
       }
     },
     "EvaluationStateCounts": {
@@ -35288,10 +36919,14 @@ const transportSchemas = {
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -35311,10 +36946,14 @@ const transportSchemas = {
         "baseline": "json|null",
         "baselineDefinition": "EvaluationPinDefinition|null",
         "scorers": "EvaluationScorerPin[]",
+        "pinDigest": "string",
         "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
         "requiredCount": "integer",
         "measuredCount": "integer",
         "counts": "EvaluationStateCounts",
+        "report": "EvaluationCorpusReport",
+        "optionalReport": "EvaluationCorpusReport|null",
+        "budget": "EvaluationBudget",
         "gate": "EvaluationGate",
         "hiddenCount": "integer",
         "canceledAt": "timestamp|null",
@@ -35328,6 +36967,7 @@ const transportSchemas = {
         "candidateDefinition",
         "baseline",
         "baselineDefinition",
+        "optionalReport",
         "canceledAt",
         "canceledBy",
         "completedAt"
@@ -35342,11 +36982,15 @@ const transportSchemas = {
         "candidateDefinition": "The definition the candidate pin names and its current name, for display; null when the pin names no definition.",
         "baseline": "What it is compared with, as pinned; null without a baseline.",
         "baselineDefinition": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition.",
-        "scorers": "The scorer revisions pinned.",
+        "scorers": "The scorer revisions pinned, each with whether the gate requires it.",
+        "pinDigest": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it.",
         "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
         "requiredCount": "Required candidate results.",
         "measuredCount": "Of those, how many were measured (passed or failed).",
         "counts": "Required candidate results per state.",
+        "report": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those.",
+        "optionalReport": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer.",
+        "budget": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it.",
         "gate": "The gate's answer.",
         "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
         "canceledAt": "When it was canceled.",
@@ -35414,7 +37058,7 @@ const transportSchemas = {
         "scorerId": "The scorer, for linking to it.",
         "scorerRevision": "The scorer revision used.",
         "repetition": "Which repetition, from 1.",
-        "required": "Whether the gate needs it.",
+        "required": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate.",
         "state": "passed, failed, error, unscored, canceled, skipped or missing.",
         "reason": "A short sentence: which stage failed, the policy that skipped it, who stopped it; null when passed.",
         "score": "The measurement, 0 to 1; null unless passed or failed.",
@@ -35438,18 +37082,20 @@ const transportSchemas = {
         "startedAt",
         "endedAt",
         "traceRef",
+        "usage",
         "createdAt"
       ],
       "fieldTypes": {
         "id": "uuid",
         "resultId": "uuid",
         "attemptNo": "integer",
-        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing|interrupted)",
         "reason": "string|null",
         "score": "number|null",
         "startedAt": "timestamp|null",
         "endedAt": "timestamp|null",
         "traceRef": "string|null",
+        "usage": "EvaluationAttemptUsage|null",
         "createdAt": "timestamp"
       },
       "nullableFields": [
@@ -35457,19 +37103,21 @@ const transportSchemas = {
         "score",
         "startedAt",
         "endedAt",
-        "traceRef"
+        "traceRef",
+        "usage"
       ],
       "description": "One append-only attempt at a result.",
       "fieldDescriptions": {
         "id": "Attempt id.",
         "resultId": "Its result.",
         "attemptNo": "Order, from 1.",
-        "state": "The attempt's outcome state.",
+        "state": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered.",
         "reason": "Why, as a sentence; null when passed.",
         "score": "Its measurement; null unless passed or failed.",
         "startedAt": "When it started.",
         "endedAt": "When it ended.",
         "traceRef": "Link to the trace; null when none.",
+        "usage": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free.",
         "createdAt": "When it was recorded."
       }
     },
@@ -35991,8 +37639,11 @@ const transportSchemas = {
         "jobsAwaitingReconciliation",
         "workersRevoked",
         "intakeEnabledAt",
+        "intakeEnabledBy",
         "dispatchEnabledAt",
+        "dispatchEnabledBy",
         "workersEnabledAt",
+        "workersEnabledBy",
         "releasedAt",
         "nextStep"
       ],
@@ -36009,7 +37660,10 @@ const transportSchemas = {
         "dispatchEnabledAt": "timestamp|null",
         "workersEnabledAt": "timestamp|null",
         "releasedAt": "timestamp|null",
-        "nextStep": "enum(intake|dispatch|workers)|null"
+        "nextStep": "enum(intake|dispatch|workers)|null",
+        "intakeEnabledBy": "InstallationRestoreActor|null",
+        "dispatchEnabledBy": "InstallationRestoreActor|null",
+        "workersEnabledBy": "InstallationRestoreActor|null"
       },
       "nullableFields": [
         "cutoffAt",
@@ -36017,9 +37671,12 @@ const transportSchemas = {
         "dispatchEnabledAt",
         "workersEnabledAt",
         "releasedAt",
-        "nextStep"
+        "nextStep",
+        "intakeEnabledBy",
+        "dispatchEnabledBy",
+        "workersEnabledBy"
       ],
-      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown.",
+      "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown.",
       "fieldDescriptions": {
         "id": "The restore's id.",
         "backupName": "The directory name of the backup that was restored; it is the confirmation to type.",
@@ -36033,7 +37690,135 @@ const transportSchemas = {
         "dispatchEnabledAt": "When dispatch was re-enabled; null until then.",
         "workersEnabledAt": "When workers were re-enabled; null until then.",
         "releasedAt": "When the restore was released; null while it holds the installation.",
-        "nextStep": "The step to take next; null once released."
+        "nextStep": "The step to take next; null once released.",
+        "intakeEnabledBy": "Who turned on new work; null until that step is taken.",
+        "dispatchEnabledBy": "Who turned on the background consumers; null until that step is taken.",
+        "workersEnabledBy": "Who turned workers on and released the restore; null until that step is taken."
+      }
+    },
+    "InstallationRestoreActor": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "description": "The installation administrator who took one re-enable step.",
+      "fieldDescriptions": {
+        "principalId": "Principal id of the administrator who took the step.",
+        "displayName": "Their current display name."
+      }
+    },
+    "UncertainActionKind": {
+      "fields": [
+        "operation",
+        "count",
+        "since"
+      ],
+      "fieldTypes": {
+        "operation": "string",
+        "count": "integer",
+        "since": "timestamp"
+      },
+      "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried.",
+      "fieldDescriptions": {
+        "operation": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind.",
+        "count": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first.",
+        "since": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+      }
+    },
+    "InstallationUncertainActions": {
+      "fields": [
+        "kinds",
+        "total"
+      ],
+      "fieldTypes": {
+        "kinds": "UncertainActionKind[]",
+        "total": "integer"
+      },
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only.",
+      "fieldDescriptions": {
+        "kinds": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain.",
+        "total": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+      }
+    },
+    "InstallationUpdateEvent": {
+      "fields": [
+        "id",
+        "kind",
+        "at",
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "enum(installed|updated|rolled_back|went_back|refused|decided_go_back|decided_stay|interrupted)",
+        "at": "timestamp",
+        "by": "string|null",
+        "fromRelease": "string|null",
+        "toRelease": "string|null",
+        "detail": "string|null",
+        "dismissedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only.",
+      "fieldDescriptions": {
+        "id": "The event's id, made by the launcher so a resent event is recorded once.",
+        "kind": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back.",
+        "at": "When it happened, on the server's clock.",
+        "by": "The operating-system user at the server's terminal, or null when Bakery did it by itself.",
+        "fromRelease": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply.",
+        "toRelease": "The release id the event moved to or kept, or null when it does not apply.",
+        "detail": "The launcher's first line for a refusal, in words; null for every other kind.",
+        "dismissedAt": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+      }
+    },
+    "InstallationUpdateStatus": {
+      "fields": [
+        "runningRelease",
+        "runningSince",
+        "healthy",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "fieldTypes": {
+        "runningRelease": "string",
+        "runningSince": "timestamp|null",
+        "healthy": "boolean",
+        "previousRelease": "string|null",
+        "previousRanFrom": "timestamp|null",
+        "previousRanUntil": "timestamp|null",
+        "lastFailure": "InstallationUpdateEvent|null"
+      },
+      "nullableFields": [
+        "runningSince",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only.",
+      "fieldDescriptions": {
+        "runningRelease": "The release id this server is running now.",
+        "runningSince": "When the launcher made this release the running one, or null when the history does not say.",
+        "healthy": "Whether this server's own health check passes: its database and configuration answer.",
+        "previousRelease": "The release the launcher keeps so it can go back, or null when none is kept.",
+        "previousRanFrom": "When the kept release became the running one, or null when the history does not say.",
+        "previousRanUntil": "When the kept release stopped running, which is when the current one took over, or null when none is kept.",
+        "lastFailure": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
       }
     },
     "BackupDrill": {
@@ -36090,6 +37875,399 @@ const transportSchemas = {
     "Page<BackupDrill>": {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "PluginBrokerOutcome": {
+      "fields": [
+        "ok",
+        "result",
+        "replayed",
+        "denial"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "result": "json|null",
+        "replayed": "boolean|null",
+        "denial": "string|null"
+      },
+      "description": "The broker's answer to one relayed plugin job request: the operation's result, or a typed denial. Exactly one of result and denial is non-null.",
+      "fieldDescriptions": {
+        "ok": "True when the broker ran the operation (or returned the recorded result of an earlier run of the same request id).",
+        "result": "The operation's result when ok is true; otherwise null.",
+        "replayed": "True when the request id had already run and this is its recorded result; null when ok is false.",
+        "denial": "Why the broker refused when ok is false, a short code such as install_off or not_granted; otherwise null."
+      }
+    },
+    "PluginJobFile": {
+      "fields": [
+        "path",
+        "contentBase64"
+      ],
+      "fieldTypes": {
+        "path": "string",
+        "contentBase64": "base64"
+      },
+      "description": "One file of the bundle a contained plugin job runs from.",
+      "fieldDescriptions": {
+        "path": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing.",
+        "contentBase64": "The file's exact bytes, base64 encoded."
+      }
+    },
+    "PluginJobFiles": {
+      "fields": [
+        "bundleDigest",
+        "entry",
+        "files"
+      ],
+      "fieldTypes": {
+        "bundleDigest": "sha256",
+        "entry": "string",
+        "files": "PluginJobFile[]"
+      },
+      "bounds": {
+        "filesMaxItems": 256
+      },
+      "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
+      "fieldDescriptions": {
+        "bundleDigest": "SHA-256 of the install's pinned bundle archive.",
+        "entry": "The path inside the bundle that the job was admitted to run.",
+        "files": "Every file of the bundle, at most 256 and 8 MiB in all."
+      }
+    },
+    "Page<InstallationUpdateEvent>": {
+      "pageOf": "InstallationUpdateEvent",
+      "description": "Cursor page of the update history returned by `GET /v1/installation/updates`, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "WorkerHostCleanup": {
+      "projection": "worker_hosts",
+      "fields": [
+        "state",
+        "requestedAt",
+        "confirmedAt"
+      ],
+      "fieldTypes": {
+        "state": "enum(not_requested|unconfirmed|confirmed)",
+        "requestedAt": "timestamp|null",
+        "confirmedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "requestedAt",
+        "confirmedAt"
+      ],
+      "description": "Read-only outcome of local cleanup on a retired machine. not_requested while the host has never been revoked; unconfirmed from the moment of revocation, because a revoked credential can no longer report; confirmed only when the same host later re-pairs and reports the Bakery-owned binaries and service files it removed. Lost connectivity never reads as removal.",
+      "fieldDescriptions": {
+        "state": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself.",
+        "requestedAt": "UTC timestamp when revocation requested local cleanup; null when it was never requested.",
+        "confirmedAt": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+      }
+    },
+    "WorkerLinkCodeInspection": {
+      "fields": [
+        "organizationName",
+        "name",
+        "slots",
+        "capabilities",
+        "supported",
+        "supportedSystems",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "organizationName": "string",
+        "name": "string",
+        "slots": "integer",
+        "capabilities": "json",
+        "supported": "boolean",
+        "supportedSystems": "json",
+        "expiresAt": "timestamp"
+      },
+      "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
+      "fieldDescriptions": {
+        "organizationName": "Display name of the organization the machine would join.",
+        "name": "Machine name the Admin set, or the reported host name when it was left empty.",
+        "slots": "How many tasks the machine may run at once.",
+        "capabilities": "Capabilities the machine may run.",
+        "supported": "Whether the reported system and processor are supported (and match any system the Admin set); false means nothing should be installed and the code stays unused.",
+        "supportedSystems": "The supported systems as a list of {os, architecture} pairs, such as linux arm64.",
+        "expiresAt": "UTC timestamp after which the code no longer works."
+      }
+    },
+    "WorkerLinkRequestCreated": {
+      "fields": [
+        "requestId",
+        "userCode",
+        "deviceSecret",
+        "expiresAt",
+        "pollIntervalSeconds"
+      ],
+      "fieldTypes": {
+        "requestId": "uuid",
+        "userCode": "string",
+        "deviceSecret": "secretString",
+        "expiresAt": "timestamp",
+        "pollIntervalSeconds": "integer"
+      },
+      "sensitiveFields": [
+        "deviceSecret"
+      ],
+      "description": "A new link request: the user code the terminal prints for an Admin and the device secret only the terminal keeps. Both are stored as hashes.",
+      "fieldDescriptions": {
+        "requestId": "Stable UUID of the link request; the terminal polls it.",
+        "userCode": "Short code (XXXX-XXXX) the terminal prints for an Admin to approve.",
+        "deviceSecret": "Secret only this terminal holds, returned once; every poll must present it.",
+        "expiresAt": "UTC timestamp, ten minutes after creation, when an undecided request expires.",
+        "pollIntervalSeconds": "How many seconds the terminal waits between polls."
+      }
+    },
+    "WorkerLinkRequestPollResult": {
+      "fields": [
+        "state",
+        "linkCode"
+      ],
+      "fieldTypes": {
+        "state": "enum(pending|approved|declined|expired)",
+        "linkCode": "string"
+      },
+      "optionalFields": [
+        "linkCode"
+      ],
+      "description": "Where a link request stands for the waiting terminal.",
+      "fieldDescriptions": {
+        "state": "pending while no Admin has decided, approved, declined, or expired after ten minutes.",
+        "linkCode": "Present only when approved and the machine has not registered yet: a fresh link code bound to the approved settings, replacing any earlier one."
+      }
+    },
+    "WorkerLinkRequest": {
+      "fields": [
+        "id",
+        "userCode",
+        "hostname",
+        "os",
+        "architecture",
+        "supported",
+        "state",
+        "createdAt",
+        "expiresAt",
+        "decidedAt",
+        "decidedBy",
+        "enrollmentId",
+        "workerHostId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "userCode": "string",
+        "hostname": "string",
+        "os": "string",
+        "architecture": "string",
+        "supported": "boolean",
+        "state": "enum(pending|approved|declined|expired)",
+        "createdAt": "timestamp",
+        "expiresAt": "timestamp",
+        "decidedAt": "timestamp",
+        "decidedBy": "uuid",
+        "enrollmentId": "uuid",
+        "workerHostId": "uuid"
+      },
+      "nullableFields": [
+        "userCode",
+        "decidedAt",
+        "decidedBy",
+        "enrollmentId",
+        "workerHostId"
+      ],
+      "description": "A machine waiting to be linked, as an Admin sees it: only what the machine said about itself, and the decision once made. Never the device secret or any hash.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the link request.",
+        "userCode": "The code as the Admin typed it on lookup, normalized to XXXX-XXXX; null on approve and decline answers, since only its hash is stored.",
+        "hostname": "Host name the machine reported.",
+        "os": "Operating system the machine reported.",
+        "architecture": "Processor the machine reported.",
+        "supported": "Whether the reported system is supported today.",
+        "state": "pending, approved, declined or expired.",
+        "createdAt": "UTC timestamp when the machine asked.",
+        "expiresAt": "UTC timestamp when an undecided request expires.",
+        "decidedAt": "UTC timestamp of the approval or decline, or null while pending.",
+        "decidedBy": "Principal who approved or declined, or null while pending.",
+        "enrollmentId": "Enrollment the approval created, or null; its status is watched through workerEnrollments.get.",
+        "workerHostId": "Machine registered from the approval, or null until it registers."
+      }
+    },
+    "WorkerLinkPackageBytes": {
+      "body": "bytes",
+      "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes."
+    },
+    "PluginAuthoringAttempt": {
+      "fields": [
+        "attemptNumber",
+        "outcome",
+        "filesDigest",
+        "checkReport",
+        "diagnostics",
+        "costUsd",
+        "pluginVersionId",
+        "previewResult",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "attemptNumber": "integer",
+        "outcome": "enum(checked|passed|failed)",
+        "filesDigest": "string|null",
+        "checkReport": "json|null",
+        "diagnostics": "json[]",
+        "costUsd": "decimal",
+        "pluginVersionId": "uuid|null",
+        "previewResult": "json|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "filesDigest",
+        "checkReport",
+        "pluginVersionId",
+        "previewResult"
+      ],
+      "description": "One package the generator wrote for an authoring run and what the checks and preview said about it.",
+      "fieldDescriptions": {
+        "attemptNumber": "The attempt's position in the run, from 1.",
+        "outcome": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise.",
+        "filesDigest": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing.",
+        "checkReport": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing.",
+        "diagnostics": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt.",
+        "costUsd": "What the generator reported this attempt cost.",
+        "pluginVersionId": "The private version published from this attempt; null unless it passed.",
+        "previewResult": "The value the job returned in its private preview; null unless the attempt passed.",
+        "createdAt": "When the attempt was recorded."
+      }
+    },
+    "PluginAuthoringEvent": {
+      "fields": [
+        "kind",
+        "detail",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(published|compensated|rolled_back|rollback_refused|install_moved|interrupted)",
+        "detail": "json",
+        "createdAt": "timestamp"
+      },
+      "description": "Something an authoring run did to an install besides publishing to it, kept as evidence.",
+      "fieldDescriptions": {
+        "kind": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published.",
+        "detail": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore.",
+        "createdAt": "When it was recorded."
+      }
+    },
+    "PluginAuthoringRun": {
+      "fields": [
+        "id",
+        "organizationId",
+        "actorPrincipalId",
+        "status",
+        "request",
+        "requestDigest",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "spentUsd",
+        "maxAttempts",
+        "kitDigest",
+        "sdkVersion",
+        "modelId",
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "attempts",
+        "events",
+        "createdAt",
+        "updatedAt",
+        "finishedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "actorPrincipalId": "uuid",
+        "status": "enum(running|succeeded|unchanged|blocked|budget_exhausted|interrupted)",
+        "request": "string",
+        "requestDigest": "string",
+        "authorizedCapabilities": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+        "budgetUsd": "decimal",
+        "spentUsd": "decimal",
+        "maxAttempts": "integer",
+        "kitDigest": "string",
+        "sdkVersion": "string",
+        "modelId": "string",
+        "basePluginInstallId": "uuid|null",
+        "pluginPackageId": "uuid|null",
+        "pluginVersionId": "uuid|null",
+        "pluginInstallId": "uuid|null",
+        "failure": "json|null",
+        "attempts": "PluginAuthoringAttempt[]",
+        "events": "PluginAuthoringEvent[]",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "finishedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "finishedAt"
+      ],
+      "description": "One request to author a private backend plugin: what was asked and authorized, the kit, SDK and model it ran with, every attempt, and where it ended.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this authoring run.",
+        "organizationId": "UUID of the organization that owns this run.",
+        "actorPrincipalId": "The person who asked for the plugin; only they can read the run.",
+        "status": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone.",
+        "request": "The request text as sent.",
+        "requestDigest": "SHA-256 of the request text, the published version's source evidence.",
+        "authorizedCapabilities": "The capabilities the request allowed, the only ones a package could ask for.",
+        "budgetUsd": "The budget the request set, in USD.",
+        "spentUsd": "What the attempts cost in total, in USD.",
+        "maxAttempts": "The attempt cap the request set.",
+        "kitDigest": "SHA-256 of the pinned authoring kit the generator was shown.",
+        "sdkVersion": "The plugin SDK version the host checked against.",
+        "modelId": "The generator's model id.",
+        "basePluginInstallId": "The install a revision started from; null for a new plugin.",
+        "pluginPackageId": "The package published to; null unless the run succeeded.",
+        "pluginVersionId": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise.",
+        "pluginInstallId": "The personal install now running that version; null unless the run succeeded or was unchanged.",
+        "failure": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise.",
+        "attempts": "Every attempt in order.",
+        "events": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption.",
+        "createdAt": "When the run started.",
+        "updatedAt": "When the run last changed.",
+        "finishedAt": "When the run reached its outcome; null while running."
+      }
+    },
+    "SkillImportResult": {
+      "fields": [
+        "runId",
+        "state",
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "state": "enum(queued|resolved|reserved|stored|completed|failed)",
+        "skillId": "uuid|null",
+        "versionId": "uuid|null",
+        "failureCode": "string|null"
+      },
+      "nullableFields": [
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the import run, as skills.import returned it.",
+        "state": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed.",
+        "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
+        "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
+        "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
     }
   },
   "pageEnvelope": {
@@ -36330,6 +38508,24 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "A firing could not start a run and was marked failed with a stable code. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflow.start_firing_started": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A workflow start answered an event and started a run. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflow.start_firing_failed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A workflow start answered an event but could not start a run and was marked failed with a stable code, for example actor_unavailable when the principal who used the version has lost access. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "automations.created": {
       "schemaVersion": 1,
@@ -36601,7 +38797,7 @@ const transportSchemas = {
         "resourceVersion": "integer"
       },
       "inngestTrigger": null,
-      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+      "description": "Authorized invalidation notification: a running-app preview was registered by its attempt's worker. Scoped to the run's task. Fetch the authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "principal.created": {
       "schemaVersion": 1,
@@ -36900,6 +39096,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Provider binding or auth attempt state changed (binding created/updated, auth attempt issued, won, failed or canceled); fetch the safe binding projection. Public payloads contain references/versions, never provider responses or credentials."
+    },
+    "worker.maintenance_updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A machine maintenance operation was requested or changed phase (resourceId is the operation, resourceVersion its row version); fetch the safe operation projection. Trigger consumers always re-read durable state."
     },
     "worker.updated": {
       "schemaVersion": 1,
@@ -37536,6 +39741,18 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "Authorized invalidation that one person's direct access to a conversation was granted by a mention or revoked; clients re-read conversationAccess.list. It carries no message content."
     },
+    "artifacts.access_changed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer",
+        "artifactId": "uuid",
+        "principalId": "uuid",
+        "active": "boolean"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation that one person's direct access to a document was granted, changed or revoked; clients re-read artifactAccess.list. It carries no document content."
+    },
     "skillUseGrant.created": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -37553,6 +39770,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification for a skill use grant its owner revoked; consumers re-read the skill use grants list."
+    },
+    "preview.stopped": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification: a running-app preview was stopped by a person. Fetch the authoritative current preview through its REST operation. Previews that end by themselves (time limit, run cancelled or ended, lost machine) send nothing: the readers derive that state when they read."
     }
   },
   "workerActions": {
@@ -37574,6 +39800,15 @@ const transportSchemas = {
       ],
       "description": "Built-in bounded trusted-source inspection with finite code-owned argv templates. Initial admission requires Git; other policy tools are inspected and recorded as missing rather than preventing an honest blocked observation."
     },
+    "rpi.research": {
+      "inputSchema": "ResearchInput",
+      "outputSchema": "ResearchOutput",
+      "schemaSource": "06-workflows-delivery-and-acceptance.md action schema registry",
+      "capabilities": [
+        "model",
+        "web"
+      ]
+    },
     "rpi.design": {
       "inputSchema": "DesignInput",
       "outputSchema": "ArtifactOutput",
@@ -37581,6 +39816,14 @@ const transportSchemas = {
       "capabilities": [
         "model",
         "paper"
+      ]
+    },
+    "rpi.plan": {
+      "inputSchema": "PlanInput",
+      "outputSchema": "ArtifactOutput",
+      "schemaSource": "06-workflows-delivery-and-acceptance.md action schema registry",
+      "capabilities": [
+        "model"
       ]
     },
     "harness.implement": {
@@ -37702,6 +39945,20 @@ const transportSchemas = {
         "storage"
       ],
       "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored. The worker makes one bounded judge call (rubric, output text and answer schema; no tools, no worktree) and reports its usage against the job's budget reservation; a worker with no judge provider, a timeout, or a schema-invalid answer reports unscored with the reason."
+    },
+    "plugin.job": {
+      "inputFields": {
+        "installId": "uuid",
+        "entry": "string",
+        "versionId": "uuid?"
+      },
+      "outputFields": {
+        "resultJson": "string<=65536"
+      },
+      "capabilities": [
+        "plugin.job.contained"
+      ],
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package, or from the install's current version when versionId is omitted; the install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {
@@ -37810,7 +40067,7 @@ const transportSchemas = {
       "model-capability actions require non-null agentVersionId/billing/installationReservationId before dispatch",
       "resolve workflow.agents[actionName], else pinned repositoryProfile.config.agentBindings[actionName]; reject missing/out-of-scope binding",
       "billing is copied from pinned agent_versions.config.billing and narrowed by repository/run policy, never from mutable runtime defaults",
-      "integration.action receives actionId/actionVersion/resourceId/arguments; connection and organization bind through trusted route/run context. Read-only actions return typed ActionResult 200; writes persist external_effects and return IntegrationActionReceipt 202."
+      "tool.call receives connectionId/tool/toolVersion/resourceId/arguments; organization and actor bind through the run, never the input. Read-only tools return a typed ActionResult at once; writes persist external_effects and complete the step only when the effect is confirmed."
     ],
     "integrationActionInput": "IntegrationActionInput",
     "integrationActionResponse": "IntegrationActionResponse"

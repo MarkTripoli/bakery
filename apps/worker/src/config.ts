@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { GIT_EXECUTABLE } from "./git-executable.ts";
+import { DF_EXECUTABLE } from "./machine-checks.ts";
 import { assertAbsolutePath } from "./storage.ts";
 import { WORKER_SPOOL_MIN_BYTES, WORKER_SPOOL_MIN_RECORDS } from "./types.ts";
 import {
@@ -58,6 +59,14 @@ export type WorkerConfig = {
   name: string;
   os: "linux" | "macos";
   architecture: string;
+  /**
+   * The worker's own Bakery-managed release for remote maintenance
+   * (`BAKERY_WORKER_RELEASE_ROOT`): release folders and the `current` link.
+   * Staging reads only from the fixed local `BAKERY_WORKER_RELEASE_SOURCE_DIR`
+   * the operator or installer fills; there is no download. Unset means the
+   * host has no managed components.
+   */
+  maintenanceRelease?: { root: string; sourceDir: string };
   /**
    * Capabilities this host enrolls (`BAKERY_WORKER_CAPABILITIES`). A host
    * claims a job only when every capability the job requires is in this list.
@@ -429,6 +438,8 @@ export const WORKER_RUNTIME_ENVIRONMENT_NAMES = [
   "CODEX_HOME",
   "TMPDIR",
   "BAKERY_ENV",
+  "BAKERY_WORKER_RELEASE_ROOT",
+  "BAKERY_WORKER_RELEASE_SOURCE_DIR",
   "BAKERY_SERVER_URL",
   "BAKERY_VERSION",
   "BAKERY_WORKER_STARTUP_MARKER",
@@ -469,8 +480,9 @@ export type WorkerLaunchPermissions = {
 };
 
 /**
- * Launch run grants. Base set is Deno, bwrap and ldd; setsid, git and the
- * harness executable are granted only when a coding harness is configured.
+ * Launch run grants. Base set is Deno, bwrap, ldd, kill and df (the free-disk
+ * machine check); setsid, git and the harness executable are granted only when
+ * a coding harness is configured.
  */
 export function workerRunExecutables(
   denoPath: string,
@@ -481,6 +493,7 @@ export function workerRunExecutables(
     "/usr/bin/bwrap",
     "/usr/bin/ldd",
     "/usr/bin/kill",
+    DF_EXECUTABLE,
     ...(harnessExecutable
       ? ["/usr/bin/setsid", GIT_EXECUTABLE, harnessExecutable]
       : []),
@@ -505,6 +518,7 @@ export function workerRuntimeReadPaths(
     "/usr/bin/true",
     "/usr/bin/ldd",
     "/usr/bin/kill",
+    DF_EXECUTABLE,
     ...(options.codingHarness ? ["/usr/bin/setsid"] : []),
     // ldd reports the loader and libraries by their merged-usr symlink
     // paths; Deno checks the path as given, so grant those spellings too.
@@ -713,6 +727,24 @@ export function readWorkerEnvironment(): Record<
   return environment;
 }
 
+/** Both release paths, or neither; one without the other is a config error. */
+export function readMaintenanceRelease(
+  env: Record<string, string | undefined>,
+): { root: string; sourceDir: string } | undefined {
+  const root = env.BAKERY_WORKER_RELEASE_ROOT?.trim();
+  const sourceDir = env.BAKERY_WORKER_RELEASE_SOURCE_DIR?.trim();
+  if (!root && !sourceDir) return undefined;
+  if (!root) throw new Error("BAKERY_WORKER_RELEASE_ROOT_REQUIRED");
+  if (!sourceDir) throw new Error("BAKERY_WORKER_RELEASE_SOURCE_DIR_REQUIRED");
+  return {
+    root: assertAbsolutePath(root, "BAKERY_WORKER_RELEASE_ROOT"),
+    sourceDir: assertAbsolutePath(
+      sourceDir,
+      "BAKERY_WORKER_RELEASE_SOURCE_DIR",
+    ),
+  };
+}
+
 export function readWorkerConfig(
   env: Record<string, string | undefined> = readWorkerEnvironment(),
 ): WorkerConfig {
@@ -821,7 +853,9 @@ export function readWorkerConfig(
       3_600_000,
     )
     : undefined;
+  const maintenanceRelease = readMaintenanceRelease(env);
   return {
+    ...(maintenanceRelease ? { maintenanceRelease } : {}),
     sentry: readSentryConfig(env, "worker", environment),
     environment,
     serverUrl,

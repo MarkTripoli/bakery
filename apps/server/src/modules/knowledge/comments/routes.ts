@@ -76,6 +76,7 @@ export function registerCommentActions(
         scope: {
           kind: "comment_thread",
           conversationId: version.conversation_id,
+          artifactId: version.artifact_id,
         },
         scopeId: version.id,
         query: input,

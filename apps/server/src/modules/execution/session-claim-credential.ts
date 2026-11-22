@@ -194,9 +194,9 @@ export async function issueCredentialForAttempt(
       // An inputs-only step (O53) reads only its pinned inputs and writes only its
       // declared outputs: a person's file grant never reopens storage for it.
       ...(files ? grantedScopesForStep(files, granted) : granted),
-      // The step's files section, defaults applied (O44, O45), pinned into
-      // the credential so each storage call is judged against the section
-      // the session was claimed under.
+      // The step's files section, pinned into the credential so each storage
+      // call is judged against the section the session was claimed under. A
+      // step with no section never gets the storage write tools (#448).
       ...(files ? stepFileScopes(files) : []),
     ];
   return await issueStoredSessionCredential(tx, {
@@ -231,7 +231,8 @@ export async function grantedScopesForAttempt(
   const granted = await tx.query<{ power: string }>(
     `select distinct power from bakery.agent_power_grants
       where organization_id = $1 and workflow_id = $2
-        and access_token_id is null`,
+        and access_token_id is null
+        and (expires_at is null or expires_at > now())`,
     [organizationId, origin.workflowId],
   );
   const scopes = new Set<OperationScope>();

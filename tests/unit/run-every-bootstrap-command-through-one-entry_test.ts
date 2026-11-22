@@ -198,6 +198,18 @@ function harness(
         arch: options.arch ?? "x64",
       },
     },
+    link: {
+      isTerminal: false,
+      ask: () => Promise.resolve("n"),
+      waitForEnter: () => Promise.resolve(),
+      write: (text) => void out.push(text),
+      fetch: fakeFetch,
+      now: () => NOW,
+      sleep: () => Promise.resolve(),
+      machine: { platform: "linux", arch: "arm64", hostname: "test-host" },
+      install: () => Promise.resolve(),
+      startService: () => Promise.resolve(),
+    },
     operation: {
       write: (text) => void out.push(text),
       target: "linux",

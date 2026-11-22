@@ -148,11 +148,12 @@ try {
       });
       await expect(page.locator('[data-ui-component="runTimeline"]'))
         .toBeVisible();
-      const controls = await page.getByRole("button", { name: /Request/ })
-        .count();
+      const controls = await page.getByRole("button", {
+        name: /^(Run actions|Resume run)$/,
+      }).count();
       assert(
         controls > 0,
-        "Run controls disappeared during parity composition",
+        "Run actions disappeared during parity composition",
       );
       const phone = baseline.design.device === "phone";
       const region = {

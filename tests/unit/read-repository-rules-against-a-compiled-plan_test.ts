@@ -184,6 +184,39 @@ Deno.test("a repeat body runs zero or more times: a repair needs its own check i
   );
 });
 
+Deno.test("a forEach body runs zero or more times, like a repeat body", () => {
+  const loop = (body: WorkflowNode[]) =>
+    ({
+      kind: "forEach",
+      ...base(),
+      items: { kind: "literal", value: [] },
+      max: 3,
+      as: "item",
+      steps: body,
+    }) as unknown as WorkflowNode;
+  // A revision inside the loop makes the plan bound; a check only inside the
+  // loop covers nothing, since the list may be empty.
+  assertEquals(reasons([node("N"), loop([node("R"), node("C*")])]), [
+    "x:stage_missing",
+    "y:stage_missing",
+  ]);
+  // A check before the loop and after each revision in it covers.
+  assertEquals(
+    reasons([node("R"), node("C*"), loop([node("R"), node("C*")])]),
+    [],
+  );
+  // A revision with no check after it in the loop may come after the check.
+  assertEquals(
+    reasons([node("R"), node("C*"), loop([node("R"), node("N")])]),
+    ["x:stage_before_revision", "y:stage_before_revision"],
+  );
+  // A check only inside the loop never runs when the list is empty.
+  assertEquals(
+    reasons([node("R"), loop([node("C*")])]),
+    ["x:stage_missing", "y:stage_missing"],
+  );
+});
+
 Deno.test("the lanes of a parallel group have no order: a check beside a revision covers nothing, beside other checks it adds up", () => {
   const parallel = (...lanes: WorkflowNode[][]) =>
     ({

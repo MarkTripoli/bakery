@@ -5,9 +5,11 @@ import { formatDate } from "@bakery/i18n";
 import type { RunControl } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { useConnectivity } from "../app/connectivity.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { runControlCapabilitiesQueryOptions } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { useShellViewport } from "../app/responsive.ts";
 
 type Receipt =
   | "idle"
@@ -18,14 +20,8 @@ type Receipt =
   | "forbidden"
   | "rejected";
 type Intent = { key: string; input: RunControl };
-const actions = ["pause", "resume", "cancel", "interrupt"] as const;
-/** What a machine that cannot do one control says, in that control's own words. */
-const unsupportedReasons = {
-  pause: "tasks.controls.reason.unsupportedPause",
-  resume: "tasks.controls.reason.unsupportedResume",
-  cancel: "tasks.controls.reason.unsupportedCancel",
-  interrupt: "tasks.controls.reason.unsupportedInterrupt",
-} as const;
+/** What the menu can offer. Resume is the one primary button of a paused run, not a menu item. */
+const MENU_ACTIONS = ["pause", "interrupt", "cancel"] as const;
 const receiptLabels = {
   pending: "tasks.controls.requestPending",
   accepted: "tasks.controls.accepted",
@@ -34,13 +30,21 @@ const receiptLabels = {
   forbidden: "tasks.controls.requestForbidden",
   rejected: "tasks.controls.rejected",
 } as const;
+const HEADING_ID = "task-run-heading";
 
-/** Admission receipts are not worker effects; rendered run state comes from GET. */
+/**
+ * The run's actions (#57, run section redesign): a primary Resume button while
+ * the run is paused, and one "Run actions" menu that lists only what the server
+ * allows, so there is nothing faded and nothing to explain. Admission receipts
+ * are not worker effects; rendered run state comes from GET.
+ */
 export function TaskRunControls(
-  { taskId, runId, enabled, onReceipt }: {
+  { taskId, runId, enabled, paused, onReceipt }: {
     taskId: string;
     runId: string;
     enabled: boolean;
+    /** The run is paused: Resume run is the primary button. */
+    paused: boolean;
     onReceipt: (event: UI.RunTimelineEvent) => void;
   },
 ) {
@@ -48,12 +52,15 @@ export function TaskRunControls(
   const scope = useProtectedScope();
   const cache = useQueryClient();
   const { translate: t, locale, timeZone } = useI18n();
+  const phone = useShellViewport() === "phone";
   const capabilities = useQuery({
     ...runControlCapabilitiesQueryOptions(api, scope, runId),
     enabled: enabled && scope.organizationId !== null,
   });
   const [receipt, setReceipt] = useState<Receipt>("idle");
   const [intent, setIntent] = useState<Intent | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const intentRef = useRef<Intent | null>(null);
   const pending = useRef<AbortController | null>(null);
   const receiptSequence = useRef(0);
@@ -160,117 +167,138 @@ export function TaskRunControls(
       return;
     }
     pending.current = null;
+    // Only an outcome that is not confirmed keeps its request: the refreshed
+    // capabilities decide what is offered next, so the menu is never stuck on
+    // a request that was answered.
+    if (outcome !== "unknown") {
+      intentRef.current = null;
+      setIntent(null);
+    }
     setReceipt(outcome);
   };
 
-  const unavailable = !enabled || capabilities.isPending ||
-    capabilities.isError;
   const forbidden = capabilities.error?.kind === "problem" &&
     capabilities.error.problem.status === 403;
+  const allowed = (action: RunControl["action"]) =>
+    capabilities.data?.actions.some((item) =>
+      item.action === action && item.canRequest
+    ) === true;
+  const busy = receipt === "pending" || capabilities.isFetching;
+  const canControl = enabled && online && !forbidden;
+  const showResume = canControl && paused && allowed("resume");
+  const unconfirmed = receipt === "unknown" && intent !== null;
+  const items = !canControl ? [] : [
+    ...MENU_ACTIONS.filter(allowed).map((action) => ({
+      id: action,
+      label: t(`tasks.controls.menu.${action}`),
+      disabled: busy || (receipt === "unknown" && !unconfirmed),
+    })),
+    // Only after a request whose outcome is not confirmed, or when what the
+    // server allows could not be read.
+    ...(unconfirmed || capabilities.isError
+      ? [{
+        id: "check",
+        label: t("tasks.controls.menu.refresh"),
+        disabled: receipt === "pending",
+      }]
+      : []),
+  ];
+  const onSelect = (id: string) => {
+    setMenuOpen(false);
+    if (id === "cancel") {
+      setConfirmCancel(true);
+    } else if (id === "check") {
+      if (unconfirmed && intent !== null) void submit(intent.input.action);
+      else void capabilities.refetch();
+    } else if (id === "pause" || id === "interrupt") {
+      void submit(id);
+    }
+  };
+  const confirm = async () => {
+    setConfirmCancel(false);
+    await submit("cancel");
+    // After Cancel run, focus goes to the run line's heading.
+    focusAfterPaint(() => document.getElementById(HEADING_ID));
+  };
+
   return (
-    <UI.Stack>
-      <UI.Heading level="subsection">{t("tasks.controls.heading")}</UI.Heading>
-      <UI.Text>{t("tasks.controls.scope")}</UI.Text>
-      {!online && <UI.Text>{t("tasks.controls.offline")}</UI.Text>}
-      {unavailable && (
-        <UI.Text>
-          {t(
-            forbidden
-              ? "tasks.controls.requestForbidden"
-              : "tasks.controls.unavailable",
-          )}
-        </UI.Text>
-      )}
-      {!unavailable &&
-        capabilities.data?.actions.some((item) =>
-          item.reason === "unsupported"
-        ) && (
-        <UI.InlineNotice
-          tone="information"
-          data-ui-region="steering-unsupported"
+    <>
+      {/* One group, so Resume run and the menu wrap together, never apart. */}
+      {(showResume || items.length > 0) && (
+        <UI.Inline
+          // A lone menu sits at the end of the first row on a phone too.
+          data-buttons={showResume ? "two" : "one"}
+          data-placement="end"
+          gap="compact"
         >
-          {t("tasks.conversation.steering.unsupported")}
-        </UI.InlineNotice>
+          {showResume && (
+            <UI.Button
+              disabled={busy}
+              onClick={() => void submit("resume")}
+              variant="primary"
+            >
+              {t("tasks.controls.menu.resume")}
+            </UI.Button>
+          )}
+          {items.length > 0 && (
+            <UI.Popover
+              // The trigger is at the end of the run line, so the panel lines
+              // up with its end edge; with Resume run beside it on a phone, the pair wraps
+              // to the line start.
+              align={phone && showResume ? "start" : "end"}
+              label={t("tasks.controls.menu.label")}
+              onOpenChange={setMenuOpen}
+              open={menuOpen}
+              trigger={t("tasks.controls.menu.label")}
+              triggerAppearance="toolbar"
+              variant="interactive"
+            >
+              <UI.Menu
+                aria-label={t("tasks.controls.menu.label")}
+                items={items}
+                onSelect={onSelect}
+              />
+            </UI.Popover>
+          )}
+        </UI.Inline>
       )}
-      <UI.Stack>
-        {actions.map((action) => {
-          const capability = capabilities.data?.actions.find((item) =>
-            item.action === action
-          );
-          return (
-            <UI.Stack key={action}>
-              <UI.Inline gap="compact">
-                <UI.Button
-                  disabled={!online || unavailable || capabilities.isFetching ||
-                    receipt !== "idle" || !capability?.canRequest}
-                  onClick={() => void submit(action)}
-                  variant={action === "cancel"
-                    ? "destructive-outline"
-                    : "outline"}
-                >
-                  {t(`tasks.controls.action.${action}`)}
-                </UI.Button>
-              </UI.Inline>
-              {!unavailable && capability && !capability.canRequest &&
-                (
-                  <UI.Text>
-                    {t(
-                      capability.reason === "unsupported"
-                        ? unsupportedReasons[action]
-                        : `tasks.controls.reason.${capability.reason}`,
-                    )}
-                  </UI.Text>
-                )}
-            </UI.Stack>
-          );
-        })}
-      </UI.Stack>
-      <UI.Text
-        role="status"
-        aria-live="polite"
+      <UI.VisuallyHidden
         aria-atomic="true"
         aria-label={t("tasks.controls.receipt")}
+        aria-live="polite"
+        role="status"
       >
         {receipt !== "idle" ? t(receiptLabels[receipt]) : null}
-        {intent
-          ? (
-            <>
-              {" "}
-              {t(`tasks.controls.action.${intent.input.action}`)} —{" "}
-              {t("tasks.controls.key")}: {intent.key}
-            </>
-          )
-          : null}
-      </UI.Text>
-      {refreshFailed && <UI.Text>{t("tasks.controls.refreshFailed")}</UI.Text>}
-      {receipt === "unknown" && intent && (
-        <UI.Button
-          disabled={!online || !enabled}
-          onClick={() => void submit(intent.input.action)}
-        >
-          {t("tasks.controls.retry")}
-        </UI.Button>
+      </UI.VisuallyHidden>
+      {refreshFailed && (
+        <UI.Text variant="caption">{t("tasks.controls.refreshFailed")}</UI.Text>
       )}
-      {receipt !== "idle" && receipt !== "pending" && receipt !== "unknown" && (
-        <UI.Button
-          onClick={() => {
-            intentRef.current = null;
-            setIntent(null);
-            setReceipt("idle");
-          }}
-        >
-          {t("tasks.controls.newRequest")}
-        </UI.Button>
-      )}
-      <UI.Inline gap="compact">
-        <UI.Button
-          disabled={!online || receipt === "pending" || capabilities.isFetching}
-          onClick={() => void refreshWinner()}
-          variant="outline"
-        >
-          {t("tasks.controls.refresh")}
-        </UI.Button>
-      </UI.Inline>
-    </UI.Stack>
+      <UI.AlertDialog
+        cancelAction={
+          <UI.Button
+            onClick={() => setConfirmCancel(false)}
+            variant="secondary"
+          >
+            {t("tasks.controls.cancelDialog.keep")}
+          </UI.Button>
+        }
+        confirmAction={
+          <UI.Button
+            disabled={busy}
+            onClick={() => void confirm()}
+            variant="destructive"
+          >
+            {t("tasks.controls.cancelDialog.confirm")}
+          </UI.Button>
+        }
+        onOpenChange={(open) => !open && setConfirmCancel(false)}
+        open={confirmCancel}
+        state="open"
+        title={t("tasks.controls.cancelDialog.title")}
+        variant="destructive"
+      >
+        <UI.Text>{t("tasks.controls.cancelDialog.body")}</UI.Text>
+      </UI.AlertDialog>
+    </>
   );
 }

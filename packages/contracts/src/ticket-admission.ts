@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WORKFLOW_PRESET_IDS } from "./workflow-presets.ts";
 
 /**
  * Vocabulary, policy and report shapes for ticket sources, readiness and
@@ -551,6 +552,11 @@ const policyLabelsSchema = z.object(policyLabelsShape).strict().refine(
   "Label display names that drive admission intent and hold; all must differ.",
 );
 
+const policyCompletionSchema = z.enum(["task", "merged", "deployed_healthy"])
+  .default("merged").describe(
+    "What counts as delivery for this source's tickets: task (the run finished, for work that opens no pull request), merged (a registered pull request merged and none still open, or the run finished with no pull request registered, so there was nothing to merge; the default), or deployed_healthy (merged and healthy release evidence recorded). A planning-only request is always delivered when its run finishes. A closed issue or a pull request closed without a merge is never delivery.",
+  );
+
 const policyApprovalSchema = z.object(policyApprovalShape).strict().describe(
   "Approval checkpoints that gate a started run.",
 );
@@ -559,8 +565,8 @@ const policyReadinessSchema = z.object(policyReadinessShape).strict().describe(
   "Readiness options evaluated for every ticket of this source.",
 );
 
-const policyPresetSchema = z.literal("fixed-coding").describe(
-  "Fixed workflow preset every admission of this source runs; always fixed-coding, the only preset admission runs, even if the workflow preset catalog gains others.",
+const policyPresetSchema = z.enum(WORKFLOW_PRESET_IDS).describe(
+  "Built-in workflow every admission of this source runs unless a person's Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",
 );
 
 const policyVersionSchema = z.literal(1).describe(
@@ -600,6 +606,7 @@ export const TicketSourcePolicySchema = z.object({
   ),
   readiness: policyReadinessSchema,
   approval: policyApprovalSchema,
+  completion: policyCompletionSchema,
   preset: policyPresetSchema,
 }).strict().describe(
   "Strict, versioned ticket source policy as stored: label names, optional delegation, automatic admission window, readiness options, plan approval and preset. Data only; it holds no expression or URL.",
@@ -630,6 +637,7 @@ export const TicketSourcePolicyInputSchema = z.object({
   ),
   readiness: policyReadinessSchema,
   approval: policyApprovalSchema,
+  completion: policyCompletionSchema,
   preset: policyPresetSchema,
 }).strict().describe(
   "Ticket source policy as a client submits it; identical to the stored policy except that automatic.since is optional, nullable and ignored.",
@@ -680,6 +688,7 @@ export function defaultTicketSourcePolicy(): TicketSourcePolicy {
     automatic: { enabled: false, since: null },
     readiness: { requireAcceptanceCriteria: true },
     approval: { plan: "human_approval" },
+    completion: "merged",
     preset: "fixed-coding",
   });
 }
@@ -813,8 +822,8 @@ export type TicketSnapshot = z.output<typeof TicketSnapshotSchema>;
 
 /** Identity of the preset an admission or a report was bound to. */
 export const TicketPresetPinSchema = z.object({
-  id: z.literal("fixed-coding").describe(
-    "Workflow preset id; always fixed-coding, the only preset admission runs.",
+  id: z.enum(WORKFLOW_PRESET_IDS).describe(
+    "Id of the built-in workflow the admission or report was bound to: the source policy's preset, or the one a person chose for one Start work.",
   ),
   revision: z.number().int().min(1).describe(
     "Revision of the preset definition at the observation, at least 1.",
@@ -823,7 +832,7 @@ export const TicketPresetPinSchema = z.object({
     "SHA-256 digest of the canonical preset specification, so a changed preset is detectable.",
   ),
 }).strict().describe(
-  "Fixed workflow preset identity (id, revision, digest) bound to a report or an admitted request.",
+  "Built-in workflow identity (id, revision, digest) bound to a report or an admitted request; a request's runs use this workflow for its whole life.",
 );
 export type TicketPresetPin = z.output<typeof TicketPresetPinSchema>;
 

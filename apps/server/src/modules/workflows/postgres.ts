@@ -29,6 +29,10 @@ import {
   stepSkillIssues,
 } from "./version-skills.ts";
 import {
+  checkToolCallPins,
+  writeToolCallBindings,
+} from "./version-tool-bindings.ts";
+import {
   insertSkillSlots,
   resolveSkillSlots,
   stripPersonalSkills,
@@ -44,7 +48,7 @@ import {
   type WorkflowValidationIssue,
 } from "./validation.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
-import { readStartSchedules } from "./start-schedules.ts";
+import { readStarts } from "./start-read.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
   assertMayPublishDefinition,
@@ -138,6 +142,8 @@ export type WorkflowVersionRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  /** The version's starts as stored (jsonb), read back through the contract. */
+  starts: unknown;
 };
 
 type CursorQueryInput = { cursor?: string; limit?: number };
@@ -238,6 +244,7 @@ export function toWorkflowVersion(row: WorkflowVersionRow) {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: row.version,
+    starts: WorkflowStartsSchema.parse(row.starts),
   };
 }
 
@@ -712,13 +719,13 @@ export async function updateWorkflowDefinition(
 
 const PUBLISHED_VERSION_SELECT =
   `select id, workflow_id, revision, source_yaml, normalized_spec as spec,
-          digest, status, created_by, created_at, updated_at, version
+          digest, status, created_by, created_at, updated_at, version, starts
      from bakery.workflow_versions
     where organization_id = $1 and workflow_id = $2`;
 const DRAFT_VERSION_SELECT =
   `select id, workflow_id, revision, source_yaml, definition as spec,
           digest, 'draft'::text as status, created_by, created_at, updated_at,
-          version
+          version, starts
      from bakery.workflow_drafts
     where organization_id = $1 and workflow_id = $2`;
 
@@ -817,6 +824,12 @@ export type DraftContentInput = {
   confirmPersonalSkillUse?: string[];
   /** Steps whose missing-skill slot the author settled with this save. */
   resolveSkillSlots?: string[];
+  /**
+   * The draft's whole starts list; omitted keeps the stored one. Checked on
+   * save by the same readers publish uses, so an author hears about a start
+   * that could never run now and not only when publishing.
+   */
+  starts?: unknown;
 };
 
 /** Settles the personal skills a draft's steps name before the draft is written. */
@@ -867,9 +880,28 @@ function requireDraftDefinition(definition: unknown): string {
   return canonical;
 }
 
+/**
+ * The canonical JSON of a save's starts, or null when the save names none (the
+ * stored list is kept). A list the contract refuses, or a schedule the
+ * scheduler cannot read, is refused here, where the author can fix it.
+ */
+function readDraftStarts(starts: unknown): string | null {
+  if (starts === undefined) return null;
+  const parsed = WorkflowStartsSchema.safeParse(starts);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw unprocessable(
+      ["starts", ...(issue?.path ?? []).map(String)],
+      "start_invalid",
+    );
+  }
+  return canonicalJson(readStarts(parsed.data));
+}
+
 const DRAFT_RETURNING =
   `id, workflow_id, revision, source_yaml, definition as spec, digest,
-   'draft'::text as status, created_by, created_at, updated_at, version`;
+   'draft'::text as status, created_by, created_at, updated_at, version,
+   starts`;
 
 /**
  * A definition installed from the code-owned catalog is system managed: only
@@ -1038,6 +1070,7 @@ export async function updateWorkflowDraft(
   const { organizationId, principalId } = facts;
   const { workflowId, versionId, expectedVersion } = target;
   const canonical = requireDraftDefinition(value.definition);
+  const starts = readDraftStarts(value.starts);
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
   await settlePersonalSkillUse(transaction, facts, workflowId, value);
   const draft = await transaction.query(
@@ -1064,7 +1097,8 @@ export async function updateWorkflowDraft(
     transaction.query<WorkflowVersionRow>(
       `update bakery.workflow_drafts
           set source_yaml = $5, definition = $6::jsonb, digest = $7,
-              updated_by = $8, updated_at = now(), version = version + 1
+              updated_by = $8, starts = coalesce($9::jsonb, starts),
+              updated_at = now(), version = version + 1
         where organization_id = $1 and workflow_id = $2 and id = $3
           and version = $4
         returning ${DRAFT_RETURNING}`,
@@ -1077,6 +1111,7 @@ export async function updateWorkflowDraft(
         canonical,
         digest,
         principalId,
+        starts,
       ],
     )
   );
@@ -1142,7 +1177,7 @@ export async function insertWorkflowVersion(
                  $11::jsonb)
        returning id, workflow_id, revision, source_yaml,
                  normalized_spec as spec, digest, status, created_by,
-                 created_at, updated_at, version`,
+                 created_at, updated_at, version, starts`,
       [
         row.id,
         row.organizationId,
@@ -1255,10 +1290,21 @@ export async function publishWorkflowVersion(
       definition: draft.definition,
     })
     : [];
+  // A tool.call step over an MCP connection is pinned to the connection's
+  // current snapshot and the exact tool, or the version is refused.
+  const toolPins = report.valid
+    ? await checkToolCallPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId,
+      definition: draft.definition,
+    })
+    : { issues: [], pins: [] };
   const issues = [
     ...report.errors,
     ...bindingErrors,
     ...skillErrors,
+    ...toolPins.issues,
     ...sourceErrors,
   ];
   if (!report.valid || issues.length > 0 || report.normalizedDigest === null) {
@@ -1298,8 +1344,13 @@ export async function publishWorkflowVersion(
     // can say nothing about its shape: a version that published a start the
     // contract refuses would be one no matcher could ever read back.
     starts: canonicalJson(
-      readStartSchedules(WorkflowStartsSchema.parse(draft.starts)),
+      readStarts(WorkflowStartsSchema.parse(draft.starts)),
     ),
+  });
+  await writeToolCallBindings(transaction, {
+    organizationId,
+    workflowVersionId: draft.id,
+    pins: toolPins.pins,
   });
   await transaction.query(
     `delete from bakery.workflow_drafts
@@ -1407,10 +1458,12 @@ export async function activateWorkflowVersion(
   const updated = await boundedMutation(() =>
     transaction.query<WorkflowDefinitionRow>(
       `update bakery.workflow_definitions
-          set active_version_id = $4, updated_at = now(), version = version + 1
+          set active_version_id = $4, active_version_set_by = $5,
+              updated_at = now(), version = version + 1
         where organization_id = $1 and id = $2 and version = $3
         returning ${DEFINITION_COLUMNS}`,
-      [organizationId, workflowId, expectedVersion, versionId],
+      // The principal who uses the version is who its starts run as.
+      [organizationId, workflowId, expectedVersion, versionId, principalId],
     )
   );
   const row = updated.rows[0];
@@ -1568,7 +1621,20 @@ export async function validateWorkflow(
       definition,
     })
     : [];
-  const bindingErrors = [...bindingResult.errors, ...skillErrors];
+  // The dry run says what publish would say about a tool.call step's MCP pin.
+  const toolErrors = report.valid
+    ? (await checkToolCallPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId: null,
+      definition,
+    })).issues
+    : [];
+  const bindingErrors = [
+    ...bindingResult.errors,
+    ...skillErrors,
+    ...toolErrors,
+  ];
   const failed = !report.valid || bindingErrors.length > 0;
   const { graph, requiresRepository, registryVersion, registryDigest } = report;
   return {

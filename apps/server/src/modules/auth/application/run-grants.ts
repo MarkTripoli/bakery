@@ -27,6 +27,7 @@ export const RUN_GRANT_ACTIONS: Readonly<
   "checks.list": "run",
   "runReviews.list": "run",
   "runDeliveryDecisions.list": "run",
+  "runRepairTries.list": "run",
   // `:id` is a task; a grant on any run of that task reads the task.
   "tasks.get": "task",
   // `:id` is an artifact version; only one a step of the granted run produced.

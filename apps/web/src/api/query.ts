@@ -9,6 +9,7 @@ import type {
   ApplicationRepositoryRoleListResponse,
   ApplicationResponse,
   ApprovalListResponse,
+  ArtifactAccessGrant,
   ArtifactCommentListResponse,
   ArtifactCommentQuery,
   ArtifactCursorQuery,
@@ -18,16 +19,19 @@ import type {
   ArtifactPreviewAvailabilityResponse,
   ArtifactQuery,
   ArtifactResponse,
+  ArtifactSharers,
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
   BakeryApiClient,
   BatchListResponse,
   BatchResponse,
+  BatchStartableResponse,
   BrowserSessionList,
   CheckRunListResponse,
   ConnectedClientList,
   ConversationAccessGrant,
   ConversationParticipantListResponse,
+  ConversationSharers,
   ConversationTurnListResponse,
   CoordinationPlanListResponse,
   DeliveryDecisionListResponse,
@@ -45,6 +49,7 @@ import type {
   FileSearchInput,
   FileSearchPage,
   InstallationCapabilities,
+  InstallationRestore,
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
@@ -81,6 +86,7 @@ import type {
   PluginPageAccessResponse,
   PluginPageListResponse,
   PluginVersionListResponse,
+  PreviewAvailabilityResponse,
   PrincipalPage,
   ProviderRouteListResponse,
   PullRequestListResponse,
@@ -98,11 +104,19 @@ import type {
   RouteHealthResponse,
   RunControlCapabilities,
   RunListResponse,
+  RunPreviewResponse,
   RunResponse,
   RunStepListResponse,
   SavedDataPage,
   ScimConnection,
+  SkillListResponse,
+  SkillResponse,
+  SkillScope,
+  SkillSource,
   SkillStorageSettings,
+  SkillUsageListResponse,
+  SkillUseGrantListResponse,
+  SkillVersionListResponse,
   StorageFileAtVersion,
   StorageFileUsePage,
   StorageFileVersionPage,
@@ -137,6 +151,7 @@ import type {
   WorkflowDefinitionResponse,
   WorkflowPresetListResponse,
   WorkflowVersionResponse,
+  WorkflowVersionSkills,
 } from "./client.ts";
 import { protectedQueryKey, type ProtectedScope } from "../app/query-scope.ts";
 
@@ -538,6 +553,56 @@ export function pluginSavedDataQueryOptions(
           signal,
         }),
       );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** Whether this deployment can serve running-app previews. */
+export function previewAvailabilityQueryOptions(
+  client: Pick<BakeryApiClient, "previews">,
+  scope: ApiScope,
+) {
+  return queryOptions<PreviewAvailabilityResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "previews.availability", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.previews.availability({
+          organizationId: scope.organizationId,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** The newest preview of a run: the only one the card ever offers. */
+export function runPreviewQueryOptions(
+  client: Pick<BakeryApiClient, "previews">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunPreviewResponse | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "previews.list", { runId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const page = unwrap(
+        await client.previews.list({
+          organizationId: scope.organizationId,
+          runId,
+          limit: 1,
+          signal,
+        }),
+      );
+      return page.items[0] ?? null;
     },
     enabled: Boolean(scope.organizationId),
     retry: false,
@@ -2002,6 +2067,72 @@ export function usageSummaryQueryOptions(
   });
 }
 
+/**
+ * Whether a restore holds the installation right now (#64 E4), read from the
+ * public installation status so every signed-in person, not only an
+ * administrator, can see the banner before their first refused action. It
+ * reads again every minute and when the window is focused again, so the banner
+ * leaves soon after an administrator finishes the restore.
+ */
+export function installationHeldQueryOptions(
+  client: Pick<BakeryApiClient, "installationStatus">,
+) {
+  return queryOptions<boolean, ApiFailure>({
+    queryKey: ["installation", "restoreHeld"],
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationStatus(signal)).restoreHeld,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/**
+ * The public installation status the shell watches for an update (#59): whether
+ * the launcher has paused work, and which release answers. The caller sets how
+ * often it reads; a failure is not retried here, because a server that does
+ * not answer is exactly what the watch must notice.
+ */
+export function installationUpdateQueryOptions(
+  client: Pick<BakeryApiClient, "installationStatus">,
+) {
+  return queryOptions<InstallationStatus, ApiFailure>({
+    queryKey: ["installation", "update"],
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationStatus(signal)),
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+}
+
+/**
+ * The restore that holds the installation, or null when none does. "No restore
+ * is held" is the normal answer of a running installation (RESTORE_NOT_HELD),
+ * not a failure: the banner and the Restore item show only while this is a
+ * record.
+ */
+export function installationRestoreQueryOptions(
+  client: Pick<BakeryApiClient, "installationRestore">,
+  scope: ApiScope,
+  enabled = true,
+) {
+  return queryOptions<InstallationRestore | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "installationRestore.get", {}),
+    enabled,
+    queryFn: async ({ signal }) => {
+      const read = await client.installationRestore.get(signal);
+      if (read.ok) return read.data;
+      if (
+        read.error.kind === "problem" &&
+        read.error.problem.code === "RESTORE_NOT_HELD"
+      ) return null;
+      throw read.error;
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
 export function installationSettingsQueryOptions(
   client: Pick<BakeryApiClient, "installationSettings">,
   scope: ApiScope,
@@ -2742,6 +2873,261 @@ export function agentQueryOptions(
   });
 }
 
+/**
+ * The Skills tab of the Library (#74): the skills the caller can see, of one
+ * scope or all, optionally those whose name holds `q`, a page at a time.
+ */
+export function skillsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkills">,
+  scope: ApiScope,
+  filter: { readonly scope?: SkillScope; readonly q?: string },
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillListResponse,
+    ApiFailure,
+    { pages: SkillListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skills.list", {
+      scope: filter.scope ?? null,
+      q: filter.q ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkills({
+          organizationId: requireOrganization(scope),
+          ...(filter.scope === undefined ? {} : { scope: filter.scope }),
+          ...(filter.q === undefined ? {} : { q: filter.q }),
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One skill, for its page. */
+export function skillQueryOptions(
+  client: Pick<BakeryApiClient, "getSkill">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<SkillResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skills.one", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkill({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The versions of one skill, a page at a time. */
+export function skillVersionsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillVersions">,
+  scope: ApiScope,
+  skillId: string,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillVersionListResponse,
+    ApiFailure,
+    { pages: SkillVersionListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skillVersions.list", {
+      skillId,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkillVersions({
+          organizationId: requireOrganization(scope),
+          skillId,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The agent and workflow versions that use one skill, a page at a time. */
+export function skillUsedByQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillUsedBy">,
+  scope: ApiScope,
+  skillId: string,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillUsageListResponse,
+    ApiFailure,
+    { pages: SkillUsageListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skills.usedBy", { skillId, limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkillUsedBy({
+          organizationId: requireOrganization(scope),
+          skillId,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The shared workflow steps a private skill may be used by; only its owner may read them. */
+export function skillUseGrantsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillUseGrants">,
+  scope: ApiScope,
+  skillId: string,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    SkillUseGrantListResponse,
+    ApiFailure,
+    { pages: SkillUseGrantListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "skills.useGrants.list", {
+      skillId,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listSkillUseGrants({
+          organizationId: requireOrganization(scope),
+          skillId,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Where a skill came from, when it was added from a source. */
+export function skillSourceQueryOptions(
+  client: Pick<BakeryApiClient, "getSkillSource">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<SkillSource, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillSources.one", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkillSource({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The skills a person may attach to a step (#431): every enabled skill with an
+ * active version, read across a few pages. A skill with no active version, or
+ * switched off, cannot be attached and is left out.
+ */
+export function attachableSkillsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkills">,
+  scope: ApiScope,
+) {
+  return queryOptions<SkillResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.attachableSkills", {}),
+    queryFn: async ({ signal }) => {
+      const items: SkillResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listSkills({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(
+          ...read.items.filter((skill) =>
+            skill.enabled && skill.activeVersionId !== null &&
+            skill.activeRevision !== null
+          ),
+        );
+        if (!read.nextCursor) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The skills the steps of one workflow version name (#431), read for the
+ * version being edited. The digest is in the key so a saved change to the
+ * draft reads the skills again.
+ */
+export function workflowVersionSkillsQueryOptions(
+  client: Pick<BakeryApiClient, "listWorkflowVersionSkills">,
+  scope: ApiScope,
+  workflowId: string,
+  versionId: string,
+  digest: string,
+) {
+  return queryOptions<WorkflowVersionSkills, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.workflowVersionSkills", {
+      workflowId,
+      versionId,
+      digest,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listWorkflowVersionSkills({
+          organizationId: requireOrganization(scope),
+          workflowId,
+          versionId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && versionId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
 export function workflowVersionsQueryOptions(
   client: Pick<BakeryApiClient, "listWorkflowVersions">,
   scope: ApiScope,
@@ -3461,6 +3847,35 @@ export function batchesListQueryOptions(
   });
 }
 
+/** How many startable issues the start page reads and lists; the design shows the first five. */
+export const STARTABLE_PAGE_SIZE = 5;
+
+/**
+ * The first page of the issues a batch in one repository would take now, with
+ * the smallest spend that can start one. Read again each time the page opens:
+ * it is a forecast from the last stored readiness check.
+ */
+export function batchStartableQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  repositoryId: string,
+) {
+  return queryOptions<BatchStartableResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "batches.startable", { repositoryId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.batches.startable({
+          organizationId: requireOrganization(scope),
+          repositoryId,
+          limit: STARTABLE_PAGE_SIZE,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && repositoryId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
 /**
  * One batch. While it is live and the tab is showing, it is read again every
  * ten seconds so the page follows the supervisor; a finished batch is read once.
@@ -4065,6 +4480,7 @@ export function evaluationResultsQueryOptions(
   state: EvaluationResultState | undefined,
   live: boolean,
   limit = 50,
+  required?: boolean,
 ) {
   return infiniteQueryOptions<
     EvaluationBatchResultPage,
@@ -4076,6 +4492,7 @@ export function evaluationResultsQueryOptions(
     queryKey: protectedQueryKey(scope, "evaluationBatchResults.list", {
       id,
       state: state ?? null,
+      required: required ?? null,
       limit,
     }),
     initialPageParam: null,
@@ -4086,6 +4503,7 @@ export function evaluationResultsQueryOptions(
           organizationId: requireOrganization(scope),
           id,
           ...(state === undefined ? {} : { state }),
+          ...(required === undefined ? {} : { required }),
           cursor: pageParam ?? undefined,
           limit,
           signal,
@@ -4171,6 +4589,31 @@ export function mentionCandidatesQueryOptions(
   });
 }
 
+/** Who can give access to one conversation (up to three people), read only while a writer who may not share needs them. */
+export function conversationSharersQueryOptions(
+  client: Pick<BakeryApiClient, "listConversationSharers">,
+  scope: ApiScope,
+  conversationId: string,
+  enabled: boolean,
+) {
+  return queryOptions<ConversationSharers, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "conversationAccess.sharers", {
+      conversationId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listConversationSharers({
+          organizationId: requireOrganization(scope),
+          conversationId,
+          signal,
+        }),
+      ),
+    enabled: enabled && Boolean(scope.organizationId) && conversationId !== "",
+    staleTime: 30_000,
+    retry: retryNetworkOnce,
+  });
+}
+
 /** The people one conversation was opened to by a mention (a few pages at most), live grants only. */
 export function conversationAccessQueryOptions(
   client: Pick<BakeryApiClient, "listConversationAccess">,
@@ -4201,6 +4644,63 @@ export function conversationAccessQueryOptions(
       return items;
     },
     enabled: Boolean(scope.organizationId) && conversationId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Who can give access to one document (up to three people), read only while a writer who may not share needs them. */
+export function artifactSharersQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactSharers">,
+  scope: ApiScope,
+  artifactId: string,
+  enabled: boolean,
+) {
+  return queryOptions<ArtifactSharers, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "artifactAccess.sharers", {
+      artifactId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listArtifactSharers({
+          organizationId: requireOrganization(scope),
+          artifactId,
+          signal,
+        }),
+      ),
+    enabled: enabled && Boolean(scope.organizationId) && artifactId !== "",
+    staleTime: 30_000,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The people one document was opened to directly (a few pages at most), live grants only. */
+export function artifactAccessQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactAccess">,
+  scope: ApiScope,
+  artifactId: string,
+) {
+  return queryOptions<ArtifactAccessGrant[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "artifactAccess.list", { artifactId }),
+    queryFn: async ({ signal }) => {
+      const items: ArtifactAccessGrant[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listArtifactAccess({
+            organizationId: requireOrganization(scope),
+            artifactId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items.filter((grant) => grant.revokedAt === null));
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId) && artifactId !== "",
     retry: retryNetworkOnce,
   });
 }

@@ -42,6 +42,8 @@ import { FileVersionPage } from "./pages/FileVersionPage.tsx";
 import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
+import { SkillPage } from "./pages/SkillPage.tsx";
+import { skillFilter, skillSearch } from "./pages/library/skills-state.ts";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
@@ -95,6 +97,7 @@ import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
+import { InstallationRestorePage } from "./pages/InstallationRestorePage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
 import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
@@ -339,6 +342,20 @@ export const routeCoverage = [
   {
     id: "library-agent",
     path: "/library/agents/$agentId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-skill",
+    path: "/library/skills/$skillId",
     classification: "production",
     states: [
       "loading",
@@ -739,6 +756,22 @@ export const routeCoverage = [
       "default",
       "partial",
       "degraded",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-restore",
+    path: "/installation/restore",
+    classification: "production",
+    // `complete` is a restore whose steps have all been taken; `empty` is the
+    // page opened when no restore ever held this installation.
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "complete",
       "empty",
       "error",
       "forbidden",
@@ -1509,9 +1542,24 @@ const libraryRoute = createRoute({
   // `?tab=agents` opens the Agents list; Workflows is the page itself.
   validateSearch: (
     search: Record<string, unknown>,
-  ): { tab?: "agents" | "memory" | "evaluations"; fact?: string } => {
+  ): {
+    tab?: "agents" | "skills" | "memory" | "evaluations";
+    fact?: string;
+    scope?: "global" | "organization" | "personal";
+    q?: string;
+  } => {
     if (search.tab === "agents") return { tab: "agents" };
     if (search.tab === "evaluations") return { tab: "evaluations" };
+    // The Skills tab keeps its filter and its name search in the URL.
+    if (search.tab === "skills") {
+      const filter = skillFilter(search.scope);
+      const q = skillSearch(search.q);
+      return {
+        tab: "skills",
+        ...(filter === "all" ? {} : { scope: filter }),
+        ...(q === undefined ? {} : { q }),
+      };
+    }
     if (search.tab !== "memory") return {};
     // An open fact is only meaningful on the Memory tab.
     return typeof search.fact === "string" && search.fact !== ""
@@ -1564,6 +1612,15 @@ const agentRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <AgentPage agentId={agentRoute.useParams().agentId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const skillRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/$skillId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <SkillPage skillId={skillRoute.useParams().skillId} />,
   errorComponent: ProtectedRouteError,
 });
 
@@ -1904,6 +1961,19 @@ const installationUsageRoute = createRoute({
   component: () => (
     <InstallationBreadcrumbs section="installation.usage.title">
       <InstallationUsagePage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationRestoreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/restore",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.restore.title">
+      <InstallationRestorePage />
     </InstallationBreadcrumbs>
   ),
   errorComponent: ProtectedRouteError,
@@ -2746,6 +2816,7 @@ const routeTree = rootRoute.addChildren([
   workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
+  skillRoute,
   evaluationRunRoute,
   machineNewRoute,
   machineDetailRoute,
@@ -2772,6 +2843,7 @@ const routeTree = rootRoute.addChildren([
   installationMonitoringNewRoute,
   installationMonitoringDestinationRoute,
   installationUsageRoute,
+  installationRestoreRoute,
   deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,

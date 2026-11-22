@@ -17,14 +17,16 @@
     "createsuperuser": "pnpm --filter @bakery/server createsuperuser",
     "dispatch": "pnpm --filter @bakery/server dispatch",
     "build": "deno check scripts/run-stack.ts scripts/run-tests.ts && turbo run build",
-    "typecheck": "deno check scripts/run-stack.ts scripts/run-tests.ts && turbo run typecheck",
+    "typecheck": "deno check scripts/run-stack.ts scripts/run-tests.ts scripts/verify-backend.ts && turbo run typecheck",
     "test:rails": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts rails",
     "test:unit": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts unit",
     "test:provider": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts provider",
     "test:contract": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts contract",
     "test:integration": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration",
+    "test:load": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts load",
     "test:recovery": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts recovery",
     "test:browser": "playwright test --config tests/browser/playwright.config.ts",
+    "verify:backend": "deno run --allow-env --allow-read --allow-write --allow-run scripts/verify-backend.ts",
     "test:security": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts security",
     "contracts:generate": "deno run --allow-read --allow-write --allow-run=git scripts/generate-contracts.ts",
     "contracts:check": "deno run --allow-read --allow-run=git scripts/generate-contracts.ts --check",
@@ -48,7 +50,9 @@
     "catalog:literals:check": "deno run --allow-read scripts/generate-catalog-literals.ts --check",
     "test:r2": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts r2",
     "licences:audit": "deno run --allow-read --allow-env --allow-run=pnpm,deno --allow-write=scripts/licences/dependency-licences.json scripts/licences/audit.ts --write",
-    "licences:check": "deno run --allow-read --allow-env --allow-run=pnpm,deno scripts/licences/audit.ts --check"
+    "licences:check": "deno run --allow-read --allow-env --allow-run=pnpm,deno scripts/licences/audit.ts --check",
+    "worker-link:generate": "deno run --allow-read --allow-write --allow-run=deno scripts/generate-worker-link-bundle.ts",
+    "worker-link:check": "deno run --allow-read --allow-run=deno scripts/generate-worker-link-bundle.ts --check"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.888.0",

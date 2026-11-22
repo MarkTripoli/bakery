@@ -625,10 +625,12 @@ function bounded<T extends Schema>(
   // A declared pattern is a constraint, not a note. Until this applied it, a
   // descriptor could promise a shape (0172 moved `taskType` from a closed set
   // to a kebab-case token here) and the only enforcement was min/max length.
+  // Unicode mode, as the client checks it, so a pattern can name code points
+  // past U+FFFF and the server and client agree on every string.
   if (boundedKind === "string" && typeof bounds.pattern === "string") {
     result = constrained(
       (result as z.ZodString).regex(
-        new RegExp(bounds.pattern),
+        new RegExp(bounds.pattern, "u"),
         `${path} must match the pattern ${bounds.pattern}.`,
       ),
       `${path} must match the pattern ${bounds.pattern}.`,
@@ -1898,12 +1900,12 @@ const actionSpecs: Record<
 const actionOutputTypes = new Set(Object.keys(actionSpecs));
 /**
  * Action output names that are another contract under the action's own name:
- * doc 06 defines `IntegrationActionOutput = ActionResult (read or confirmed
- * write)`, so the action resolves to the one result shape the connection
- * routes already return instead of a second copy that could drift.
+ * doc 06 defines `ToolCallOutput = ActionResult (read or confirmed write)`, so
+ * the action resolves to the one result shape the connection routes already
+ * return instead of a second copy that could drift.
  */
 const actionOutputAliases: Readonly<Record<string, string>> = {
-  IntegrationActionOutput: "ActionResult",
+  ToolCallOutput: "ActionResult",
 };
 
 function actionOutput(name: string): Schema {

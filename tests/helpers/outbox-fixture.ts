@@ -1,4 +1,3 @@
-import { bakeryDataMigrations } from "../../apps/server/src/data-migrations.ts";
 import {
   readTestDatabaseConfig,
   readTestDatabaseResetOptions,
@@ -17,36 +16,12 @@ import {
   type PgDatabase,
 } from "../../apps/server/src/platform/database.ts";
 import {
-  bakeryPlatformMigrationSource,
-  loadMigrations,
-  migrate,
-  migrateProvider,
-  resetTestDatabase,
-} from "../../apps/server/src/platform/migrate.ts";
-import {
-  authBakeryMigrationSource,
-  betterAuthMigrationSource,
-  preserveProviderInvitationState,
-} from "../../apps/server/src/modules/auth/migrations.ts";
-import {
-  workBakeryMigrationSource,
-} from "../../apps/server/src/modules/work/migrations.ts";
-import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
-import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
-import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
-import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
-import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
-import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
-import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
-import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
-import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
-import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
-import {
   newOutboxDeliveryKey,
   type OutboxDestination,
   type OutboxId,
   outboxId,
 } from "../../apps/server/src/platform/outbox-types.ts";
+import { resetToMigratedBaseline } from "./migrated-database.ts";
 
 export type OutboxTestFixture = {
   readonly owner: Database;
@@ -78,33 +53,13 @@ export async function openOutboxTestFixture(
   const owner = openDatabase(databaseUrl);
   const ownerPg = openPgDatabase(databaseUrl);
   const appPg = openPgDatabase(appDatabaseUrl);
-  await resetTestDatabase(owner, {
+  await resetToMigratedBaseline(owner, ownerPg, {
     targetUrl: databaseUrl,
     confirmation: options.resetConfirmation ??
       readTestDatabaseResetOptions().confirmation,
     allowRemote: options.allowRemoteReset ??
       readTestDatabaseResetOptions().allowRemote,
   });
-  await migrateProvider(
-    ownerPg,
-    await loadMigrations(betterAuthMigrationSource),
-    { beforeApply: preserveProviderInvitationState },
-  );
-  await migrate(owner, [
-    ...await loadMigrations(bakeryPlatformMigrationSource),
-    ...await loadMigrations(authBakeryMigrationSource),
-    ...await loadMigrations(workBakeryMigrationSource),
-    ...await loadMigrations(projectsBakeryMigrationSource),
-    ...await loadMigrations(agentsBakeryMigrationSource),
-    ...await loadMigrations(repositoryRulesBakeryMigrationSource),
-    ...await loadMigrations(artifactKindsBakeryMigrationSource),
-    ...await loadMigrations(integrationsBakeryMigrationSource),
-    ...await loadMigrations(deliveryBakeryMigrationSource),
-    ...await loadMigrations(mcpBakeryMigrationSource),
-    ...await loadMigrations(knowledgeBakeryMigrationSource),
-    ...await loadMigrations(catalogBakeryMigrationSource),
-  ]);
-  await migrateData(owner, bakeryDataMigrations);
   const organizationId = asOrganizationId(crypto.randomUUID());
   const providerUserId = crypto.randomUUID();
   const principalId = asPrincipalId(crypto.randomUUID());

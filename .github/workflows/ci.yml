@@ -1137,7 +1137,7 @@ jobs:
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
       - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
       - run: pnpm exec playwright install chromium
-      - run: pnpm test:browser -- tests/browser/bootstrap-better-auth-and-invite-only-organization-identity.spec.ts tests/browser/require-totp-assurance-and-safe-single-use-recovery.spec.ts tests/browser/implement-and-prove-passkey-server-ceremonies.spec.ts
+      - run: pnpm test:browser -- tests/browser/bootstrap-better-auth-and-invite-only-organization-identity.spec.ts tests/browser/require-totp-assurance-and-safe-single-use-recovery.spec.ts tests/browser/implement-and-prove-passkey-server-ceremonies.spec.ts tests/browser/verify-native-worker-platforms-and-real-browser-authentication.spec.ts
       - name: Write browser_tests evidence
         if: always()
         env:
@@ -2575,6 +2575,122 @@ jobs:
           ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
           SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
         run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log native_worker
+  load:
+    name: nightly / bounded load
+    # Issue #48: the bounded-load acceptance runs the reference workload in
+    # docs/backend-delivery/load-acceptance-budgets.json. It is heavy, so it
+    # runs only nightly or on a maintainer dispatch, never on a pull request,
+    # and it is not a required check. A missed budget fails this job.
+    # It needs the route job only so that no job but the roots runs without
+    # `needs`; a fork pull request never reaches it.
+    needs: [changes]
+    if: ${{ needs.changes.result == 'success' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    # `bakery-heavy` is the heavy-lane pool label, not a CPU or architecture
+    # guarantee: the pool mixes AMD and Intel x64 hosts with ARM64 runners, so
+    # heavy lanes budget for the slowest host and stay arch-neutral
+    # (learnings/heavy-lane-label-is-pool-not-cpu.xml). A lane whose reference
+    # data or fixtures are architecture-specific adds the `X64` label: the paper
+    # parity lanes below (K-0 baselines are `linux-x64` rasters) and this one
+    # (the integration suite fails on ARM64 runners: onboarding answers 500 and
+    # the release manifest has no ARM64 build).
+    runs-on: [self-hosted, linux, bakery-heavy, X64]
+    env:
+      BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
+      BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        # One runner's own pnpm and package store: runners that share a host
+        # (and so a home directory) must not share ~/setup-pnpm, which another
+        # job rewrites while this one is using it.
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_ADMIN_DATABASE_URL=postgres://postgres:bakery-ci-postgres@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            # Runners that share a host share its apt lock: take one lock for
+            # the whole install so a second job waits instead of failing.
+            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
+              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
+          }
+      - name: Provision migration test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - name: Log every query plan
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          # A failed sequential-scan check must name the plan that scanned, so
+          # every new session logs its plans (auto_explain) to the server log.
+          # LOAD first: ALTER SYSTEM accepts auto_explain settings only once the
+          # module is loaded in the same session.
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres \
+            --command "LOAD 'auto_explain'" \
+            --command "ALTER SYSTEM SET session_preload_libraries = 'auto_explain'" \
+            --command "ALTER SYSTEM SET auto_explain.log_min_duration = 0" \
+            --command "ALTER SYSTEM SET auto_explain.log_nested_statements = on"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "SELECT pg_reload_conf()"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm test:load
+      - name: Keep the query plans of a failed run
+        if: ${{ failure() }}
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          docker logs "$POSTGRES_CONTAINER" > "$EVIDENCE_DIR/postgres-plans.log" 2>&1
+          echo "full server log with every plan: $EVIDENCE_DIR/postgres-plans.log"
+          grep -B8 -A4 'Seq Scan on' "$EVIDENCE_DIR/postgres-plans.log" || echo "no sequential scan in any logged plan"
   docs_validation:
     name: docs / validation
     needs: [changes, git_diff_check, semantic_metadata]
@@ -2866,7 +2982,9 @@ jobs:
     # but only with the explicit input: a pull request cannot set inputs, so
     # the write scope stays unreachable from candidate code.
     if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}
-    needs: [aggregate]
+    # load is not in aggregate, so it is named here: the signal must read the
+    # run only after the nightly load job has finished.
+    needs: [aggregate, load]
     runs-on: ubuntu-24.04
     permissions:
       # The signal reads the run it is signalling about before it writes

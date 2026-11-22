@@ -13,6 +13,7 @@ import { batchQueryOptions, externalTicketQueryOptions } from "../api/query.ts";
 import { failureStatus } from "../app/async-state.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { reasonSentence } from "./IssuesList.tsx";
@@ -24,14 +25,16 @@ import {
   currentIssue,
   dollars,
   headerButtons,
-  ISSUE_STATE_TONE,
-  issueStateKey,
+  issueBadgeFor,
   lastWorkedOn,
   meters,
-  STATE_TONE,
-  stateKey,
+  stateBadgeFor,
   stopChoices,
   tableIssues,
+  timeAgo,
+  type WaitingFacts,
+  waitingNames,
+  waitingView,
 } from "./batches/batch-display.ts";
 import {
   type ControlRefusal,
@@ -50,11 +53,12 @@ type Control = "pause" | "resume" | "startNext" | "finish";
 export function BatchPage({ batchId }: { batchId: string }) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const phone = useShellViewport() === "phone";
   const lookups = useBatchLookups();
+  const readerPrincipalId = useSession().identity?.principalId ?? null;
 
   const options = batchQueryOptions(api, scope, batchId);
   const query = useQuery(options);
@@ -181,6 +185,7 @@ export function BatchPage({ batchId }: { batchId: string }) {
           )
           : (
             <UI.ErrorState
+              headingLevel={1}
               title={translate("batches.page.error" as never)}
               action={
                 <UI.Button
@@ -212,6 +217,18 @@ export function BatchPage({ batchId }: { batchId: string }) {
   const whenIso = stopped || batch.state === "finished"
     ? batch.finishedAt
     : batch.pausedAt;
+  // What the current issue waits for a person to do, worded for this reader.
+  const waitingFor = waitingView(batch, readerPrincipalId);
+  const waiting: WaitingFacts | null = waitingFor === null ? null : {
+    view: waitingFor,
+    ago: timeAgo(waitingFor.since, Date.now(), locale),
+    names: waitingNames(
+      waitingFor,
+      translate("batches.waitingOn.you" as never),
+      locale,
+    ),
+  };
+  const stateBadge = stateBadgeFor(batch, waitingFor);
   const facts: BannerFacts = {
     currentNumber: number(current),
     lastNumber: number(last),
@@ -219,11 +236,14 @@ export function BatchPage({ batchId }: { batchId: string }) {
     when: whenIso === null ? "" : lookups.time(whenIso),
     spent: lookups.money(dollars(batch.spentUsd)),
     limit: lookups.money(dollars(batch.maxSpendUsd)),
+    waiting,
   };
   const banner = bannerFor(batch, facts);
   const reading = meters(batch);
   const rows = tableIssues(batch);
-  const currentTask = current === null ? null : taskOf(current.row);
+  // The server names the task a waiting question is on; before that, the issue's latest task.
+  const currentTask = waitingFor?.taskId ??
+    (current === null ? null : taskOf(current.row));
 
   const openTask = (taskId: string | null) =>
     taskId === null
@@ -236,7 +256,10 @@ export function BatchPage({ batchId }: { batchId: string }) {
         return currentTask === null ? null : (
           <UI.Button
             key={action}
-            variant="secondary"
+            // The one thing a person must do is the primary button while the batch waits for them.
+            variant={waitingFor !== null && batch.state === "running"
+              ? "primary"
+              : "secondary"}
             onClick={openTask(currentTask)}
           >
             {translate("batches.action.openTask" as never)}
@@ -437,11 +460,13 @@ export function BatchPage({ batchId }: { batchId: string }) {
         </UI.Button>
       );
   };
-  const issueBadge = (issue: BatchIssueResponse) => (
-    <UI.Badge tone={ISSUE_STATE_TONE[issue.state]}>
-      {translate(issueStateKey(issue.state) as never)}
-    </UI.Badge>
-  );
+  const issueBadge = (issue: BatchIssueResponse) => {
+    // The row agrees with the banner in every state that says the issue waits.
+    const badge = issueBadgeFor(issue.state, waitingFor !== null);
+    return (
+      <UI.Badge tone={badge.tone}>{translate(badge.key as never)}</UI.Badge>
+    );
+  };
 
   type TableRow = { issue: BatchIssueResponse; position: number | null };
   const tableRows: TableRow[] = [
@@ -473,8 +498,8 @@ export function BatchPage({ batchId }: { batchId: string }) {
           title={
             <>
               {translate("batches.page.title" as never, { repository })}{" "}
-              <UI.Badge tone={STATE_TONE[batch.state]}>
-                {translate(stateKey(batch.state) as never)}
+              <UI.Badge tone={stateBadge.tone}>
+                {translate(stateBadge.key as never)}
               </UI.Badge>
             </>
           }
@@ -513,6 +538,13 @@ export function BatchPage({ batchId }: { batchId: string }) {
           <UI.Stack gap="none">
             <UI.Text variant="strong">{say(translate, banner.title)}</UI.Text>
             <UI.Text variant="muted">{say(translate, banner.body)}</UI.Text>
+            {banner.extra === undefined
+              ? null
+              : (
+                <UI.Text variant="muted" data-testid="batch-banner-waiting">
+                  {say(translate, banner.extra)}
+                </UI.Text>
+              )}
           </UI.Stack>
         </UI.AlertBanner>
         <UI.Inline gap="standard" variant="thirds">

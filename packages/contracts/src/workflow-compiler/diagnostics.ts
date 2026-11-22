@@ -84,6 +84,7 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "reference_parallel_sibling",
     "reference_parallel_scope",
     "reference_repeat_scope",
+    "reference_each_scope",
     "reference_input_unknown",
     "reference_step_unknown",
     "reference_field_unknown",
@@ -101,6 +102,9 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "retry_fault_unsupported",
     "repeat_max_invalid",
     "repeat_exceeds_policy",
+    "for_each_max_invalid",
+    "for_each_as_invalid",
+    "for_each_items_invalid",
     "wait_shape_invalid",
     "wait_timeout_required",
     "parallel_lanes_invalid",
@@ -111,6 +115,10 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "expansion_attempts_exceeded",
     "expansion_wall_clock_exceeded",
     "expansion_cost_exceeded",
+    // The repair block: it reviews its own result, and nothing merges before a review.
+    "fix_loop_review_missing",
+    "fix_loop_review_not_last",
+    "merge_without_review",
   ] as const,
 );
 
@@ -207,6 +215,8 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
     "A reference reads a sibling lane without depending on it.",
   reference_parallel_scope: "A reference reads inside a parallel lane.",
   reference_repeat_scope: "A reference is outside the repeat scope.",
+  reference_each_scope:
+    "A reference reads a forEach item or step from outside that loop.",
   reference_input_unknown: "A reference names an undeclared input.",
   reference_step_unknown: "A reference names an unknown step.",
   reference_field_unknown: "A reference names an unknown field.",
@@ -223,6 +233,10 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   retry_fault_unsupported: "A retry fault is not supported by the action.",
   repeat_max_invalid: "The repeat max is invalid.",
   repeat_exceeds_policy: "The repeat max exceeds the repair-cycle policy.",
+  for_each_max_invalid: "The forEach max must be a whole number from 1 to 12.",
+  for_each_as_invalid:
+    "The forEach item name is invalid or repeats an enclosing forEach's name.",
+  for_each_items_invalid: "The forEach items must be a list.",
   wait_shape_invalid: "The wait must declare a duration or an event.",
   wait_timeout_required: "An event wait requires a timeout.",
   parallel_lanes_invalid: "The parallel lanes are invalid.",
@@ -235,6 +249,12 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
     "The worst-case attempt count exceeds the limit.",
   expansion_wall_clock_exceeded: "The worst-case duration exceeds the limit.",
   expansion_cost_exceeded: "The worst-case cost exceeds the limit.",
+  fix_loop_review_missing:
+    "A block that repairs must contain an independent review.",
+  fix_loop_review_not_last:
+    "The independent review must be the last step of a block that repairs.",
+  merge_without_review:
+    "A merge must come after an independent review in a workflow that repairs.",
 });
 
 export const WorkflowCompilerDiagnosticSchema = z.object({

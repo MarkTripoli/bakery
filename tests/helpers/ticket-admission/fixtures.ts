@@ -17,6 +17,7 @@ import { issueNumberFromRef } from "../../../apps/server/src/modules/integration
  * (`watchTransactions`): a begin counts up, a commit or rollback counts down,
  * and a reader call made while the count is above zero is recorded.
  */
+import { onboardObserved } from "../review-repair/preset-integration-cases.ts";
 import {
   type PgDatabase,
   type PgTransactionClient,
@@ -51,6 +52,11 @@ import type {
   TicketNoteResult,
   TicketNoteWriter,
 } from "../../../apps/server/src/modules/work/ticket-notes.ts";
+import type {
+  RemoteTicketCreator,
+  RemoteTicketRequest,
+  RemoteTicketResult,
+} from "../../../apps/server/src/modules/work/ticket-create.ts";
 import type {
   IssueRef,
   PredecessorProof,
@@ -653,6 +659,8 @@ export type PolicyOverrides = {
    * deciding on the label alone, which is what every existing source does.
    */
   statuses?: string[];
+  /** What counts as delivery; omitted keeps the default, `merged`. */
+  completion?: "task" | "merged" | "deployed_healthy";
 };
 
 /**
@@ -706,15 +714,54 @@ export function createMemoryNoteWriter(): MemoryNoteWriter {
   return writer;
 }
 
+/**
+ * An in-memory remote-ticket creator standing in for the provider: it records
+ * each request, answers a fresh effect id, and replays the same one for a
+ * repeated idempotency key, as the ledger does.
+ */
+export type MemoryTicketCreator = RemoteTicketCreator & {
+  requests: RemoteTicketRequest[];
+  /** Answers of the next sends, oldest first; an empty queue answers `submitted`. */
+  next: RemoteTicketResult[];
+};
+
+export function createMemoryTicketCreator(): MemoryTicketCreator {
+  const effects = new Map<string, string>();
+  const creator: MemoryTicketCreator = {
+    requests: [],
+    next: [],
+    actionFor: (provider) =>
+      provider === "github" ? "github.issue.create" : null,
+    create(request) {
+      creator.requests.push(request);
+      const scripted = creator.next.shift();
+      if (scripted !== undefined) return Promise.resolve(scripted);
+      const effectId = effects.get(request.idempotencyKey) ??
+        crypto.randomUUID();
+      effects.set(request.idempotencyKey, effectId);
+      return Promise.resolve({ kind: "sent", effectId, status: "submitted" });
+    },
+  };
+  return creator;
+}
+
 export async function openTicketFixture(
-  options: { label?: string; budget?: boolean; liveFactIndex?: boolean } = {},
+  options: {
+    label?: string;
+    budget?: boolean;
+    liveFactIndex?: boolean;
+    /** Also bind review and repair agents, so the reviewed preset is ready. */
+    reviewed?: boolean;
+  } = {},
 ) {
   const reader = createMemoryTicketReader();
   const facts = createMemoryFactIndex();
   const notes = createMemoryNoteWriter();
+  const creator = createMemoryTicketCreator();
   const f: GitHubAppFixture = await openGitHubAppFixture({
     ticketReader: reader,
     ticketNoteWriter: notes,
+    ticketCreator: creator,
     ticketFactIndex: options.liveFactIndex ? undefined : facts,
     env: options.budget ? presetBudgetEnv : undefined,
   });
@@ -731,9 +778,29 @@ export async function openTicketFixture(
       scope,
       options.label ?? "issue82",
     );
-    const repository = await seedPresetRepository(f.pgDatabase, scope, {
-      agentVersionId,
-    });
+    const label = options.label ?? "issue82";
+    // The reviewed workflow runs only on an observed (v2) profile, so that
+    // repository goes through a real inspection instead of a seeded profile.
+    const repository = options.reviewed === true
+      ? await onboardObserved({
+        pgDatabase: f.pgDatabase,
+        runtimePgDatabase: f.runtimePgDatabase!,
+        organizationId: f.organizationId,
+        principalId: f.adminId,
+      }, {
+        "harness.implement": agentVersionId,
+        "harness.repair": await seedFundedCodingAgent(
+          f,
+          scope,
+          `${label}-repair`,
+        ),
+        "review.independent": await seedFundedCodingAgent(
+          f,
+          scope,
+          `${label}-review`,
+        ),
+      })
+      : await seedPresetRepository(f.pgDatabase, scope, { agentVersionId });
     // `ticketSources.create` accepts the repository its resource maps to: the
     // same connection and the provider's repository id.
     await f.pgDatabase.query(
@@ -766,6 +833,7 @@ export async function openTicketFixture(
         delegation,
         automatic: overrides.automatic ?? base.automatic,
         approval: { plan: overrides.approval ?? "automatic" },
+        completion: overrides.completion ?? base.completion,
         readiness: {
           requireAcceptanceCriteria: overrides.requireAcceptanceCriteria ??
             true,
@@ -781,6 +849,7 @@ export async function openTicketFixture(
       reader,
       facts,
       notes,
+      creator,
       organizationId: f.organizationId,
       adminId: f.adminId,
       developerId: f.developerId,
@@ -1058,6 +1127,70 @@ export async function openTicketFixture(
                 select id from bakery.external_tickets
                  where organization_id = $1 and ticket_source_id = $2)`,
           [f.organizationId, sourceId, disposition],
+        );
+      },
+
+      /**
+       * Registers a pull request of a task of this source's repository, with
+       * the status the provider last reported (owner role): the delivery
+       * evidence a completion policy reads.
+       */
+      async registerPullRequest(options: {
+        sourceId: string;
+        taskId: string;
+        number: number;
+        status: "open" | "closed" | "merged";
+      }): Promise<void> {
+        const sha = (char: string) => char.repeat(40);
+        await f.pgDatabase.query(
+          `insert into bakery.pull_requests (
+             id, organization_id, task_id, repository_id, provider_number, url,
+             head_sha, base_sha, status, merged_sha, version
+           )
+           select gen_random_uuid(), $1::uuid, $2::uuid, source.repository_id,
+                  $3::integer,
+                  'https://github.com/acme/widgets/pull/' || $3::integer::text,
+                  $4::text, $5::text, $6::text,
+                  case when $6::text = 'merged' then $7::text end, 1
+             from bakery.ticket_sources as source
+            where source.organization_id = $1::uuid and source.id = $8::uuid`,
+          [
+            f.organizationId,
+            options.taskId,
+            options.number,
+            sha("a"),
+            sha("b"),
+            options.status,
+            sha("c"),
+            options.sourceId,
+          ],
+        );
+      },
+
+      /**
+       * Gives a principal a live out-of-Bakery grant for one action on the
+       * fixture's repository resource (owner role); the guard of
+       * `externalTickets.create` reads it.
+       */
+      async grantAction(
+        principalId: string,
+        capability = "github.issue.create",
+      ): Promise<void> {
+        await f.pgDatabase.query(
+          `insert into bakery.integration_grants (
+             id, organization_id, connection_id, subject_type,
+             subject_principal_id, direction, capability, action_version,
+             resource_id, granted_by
+           ) values ($1, $2, $3, 'principal', $4, 'out_of_bakery', $5, 1, $6, $7)`,
+          [
+            crypto.randomUUID(),
+            f.organizationId,
+            connection.connectionId,
+            principalId,
+            capability,
+            resource.id,
+            f.adminId,
+          ],
         );
       },
 

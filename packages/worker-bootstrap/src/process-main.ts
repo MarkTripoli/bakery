@@ -1,6 +1,9 @@
 import process from "node:process";
 import { isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline/promises";
+import { lstat } from "node:fs/promises";
+import { hostname } from "node:os";
+import { LinkStepFailed } from "./link.ts";
 import type { ReleaseConfig } from "./bootstrap.ts";
 import { runBootstrap } from "./main.ts";
 import { systemProbes } from "./probes.ts";
@@ -30,23 +33,24 @@ export async function main(
     return 2;
   }
   const write = (text: string) => void process.stdout.write(text);
+  const ask = async (question: string) => {
+    const lines = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    try {
+      return await lines.question(question);
+    } finally {
+      lines.close();
+    }
+  };
   return await runBootstrap(argv, {
     defaultRoot: join(home, ".local", "share", "bakery-worker"),
     environment: process.env,
     command: {
       stdin: process.stdin,
       write,
-      ask: async (question) => {
-        const lines = createInterface({
-          input: process.stdin,
-          output: process.stdout,
-        });
-        try {
-          return await lines.question(question);
-        } finally {
-          lines.close();
-        }
-      },
+      ask,
       fetch,
       now: () => new Date(),
       release: config === undefined ? undefined : {
@@ -56,5 +60,48 @@ export async function main(
       },
     },
     operation: { write, probes: systemProbes(target), target, home },
+    link: {
+      isTerminal: process.stdin.isTTY === true,
+      ask,
+      waitForEnter: async () => {
+        await ask("");
+      },
+      write,
+      fetch,
+      now: () => new Date(),
+      sleep: (milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds)),
+      machine: {
+        platform: process.platform,
+        arch: process.arch,
+        hostname: hostname(),
+      },
+      // Installing from the release origin needs the build's release origin
+      // and an exact release, which are owner work behind the B00.04
+      // allowlist (see release-config.ts). Until then `link` uses a worker
+      // already installed in the root and says so when there is none.
+      install: async (root) => {
+        let installed = false;
+        try {
+          installed = (await lstat(join(root, "current"))).isSymbolicLink();
+        } catch {
+          installed = false;
+        }
+        if (!installed) {
+          throw new LinkStepFailed(
+            "The worker is not installed: this build has no release to install from.",
+            join(root, "install.log"),
+          );
+        }
+      },
+      // Adding the service needs the administrator steps `bakery-worker plan`
+      // lists; this build prints them rather than running them.
+      startService: () => {
+        throw new LinkStepFailed(
+          "The service was not added: this build cannot add it yet. Run bakery-worker plan to see the steps.",
+          join(home, ".local", "share", "bakery-worker", "service.log"),
+        );
+      },
+    },
   });
 }

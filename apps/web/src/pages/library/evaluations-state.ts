@@ -4,6 +4,7 @@ import type {
   EvaluationBatchResult,
   EvaluationResultState,
 } from "../../api/client.ts";
+import { compareDecimalStrings } from "../../screens/usage/usage-money.ts";
 
 /** The tones a run's badge and gate can take (design-ux #75, revision 4). */
 export type EvaluationTone =
@@ -341,7 +342,11 @@ export function pinTitle(
 
 /** The result words and tone for one scorer's line under a test case. */
 export function resultWords(
-  result: Pick<EvaluationBatchResult, "state" | "reason">,
+  // An attempt can also be "interrupted": it ended before it measured anything,
+  // so it reads as not scored, with its reason.
+  result: Pick<EvaluationBatchResult, "reason"> & {
+    readonly state: EvaluationBatchResult["state"] | "interrupted";
+  },
   live: boolean,
 ): Words {
   const reason = result.reason?.trim() ?? "";
@@ -351,6 +356,7 @@ export function resultWords(
     case "failed":
       return { key: "library.evaluations.result.failed" };
     case "error":
+    case "interrupted":
     case "unscored":
       return reason === ""
         ? { key: "library.evaluations.result.notScoredBare" }
@@ -413,4 +419,52 @@ export function stateChips(
 /** The filter a `?state=` value names, or null for all results. */
 export function resultStateFilter(value: unknown): ResultFilter | null {
   return RESULT_FILTERS.find((filter) => filter === value) ?? null;
+}
+
+/** Whether a run has a model scorer: only then does it have a cost to show (design-ux #75, revision 6). */
+export function hasModelScorer(
+  batch: Pick<EvaluationBatch, "scorers">,
+): boolean {
+  return batch.scorers.some((scorer) => scorer.evaluatorType === "model");
+}
+
+/**
+ * How a run's spend splits, for the line under "Spent". Unknown costs come
+ * first because the figure is then a floor; a figure of nothing says no model
+ * call has finished; otherwise it says who measured the cost.
+ */
+export type CostDetail =
+  | "unknown"
+  | "none"
+  | "reported"
+  | "estimated"
+  | "partly";
+
+export function costDetail(
+  budget: Pick<
+    EvaluationBatch["budget"],
+    "settledUsd" | "estimatedUsd" | "unknownCount"
+  >,
+): CostDetail {
+  if (budget.unknownCount > 0) return "unknown";
+  if (compareDecimalStrings(budget.settledUsd, "0") === 0) return "none";
+  if (compareDecimalStrings(budget.estimatedUsd, "0") === 0) return "reported";
+  if (compareDecimalStrings(budget.estimatedUsd, budget.settledUsd) === 0) {
+    return "estimated";
+  }
+  return "partly";
+}
+
+/** How one model attempt's cost ends its line; null for a check, which costs nothing. */
+export function attemptCostKind(
+  usage: { readonly measurement: "reported" | "estimated" | "unknown" } | null,
+): "reported" | "estimated" | "unknown" | null {
+  return usage === null ? null : usage.measurement;
+}
+
+/** The scorers a run pinned that are not in its quality gate (design-ux #75, revision 6: "Sampled"). */
+export function sampledScorers(
+  batch: Pick<EvaluationBatch, "scorers">,
+): EvaluationBatch["scorers"] {
+  return batch.scorers.filter((scorer) => !scorer.required);
 }

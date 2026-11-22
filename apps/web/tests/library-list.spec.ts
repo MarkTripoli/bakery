@@ -52,7 +52,7 @@ for (
       await expect(page.getByRole("heading", { name: "Library", level: 1 }))
         .toBeVisible();
       await expect(page.getByText(
-        "The workflows, agents and remembered facts Bakery uses to do work.",
+        "The workflows, agents, skills and remembered facts Bakery uses to do work.",
       )).toBeVisible();
       const builtIn = section(page, "library-built-in");
       await expect(builtIn).toContainText("Built in");

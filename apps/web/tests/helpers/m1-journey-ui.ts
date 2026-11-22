@@ -126,8 +126,6 @@ export const stepRow = (page: Page, title: string) =>
   runSteps(page).getByRole("listitem").filter({ hasText: title });
 export const runStatus = (page: Page) =>
   page.getByRole("status", { name: "Run updates" });
-export const controlButton = (page: Page, name: string) =>
-  page.getByRole("button", { name, exact: true });
 export const runTerminalEntries = (page: Page) =>
   runSteps(page).getByRole("listitem").filter({
     hasText: /Run (completed|failed|canceled)/,

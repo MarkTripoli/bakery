@@ -52,6 +52,10 @@
     "path": "/library/agents/$agentId"
   },
   {
+    "id": "library-skill",
+    "path": "/library/skills/$skillId"
+  },
+  {
     "id": "library-evaluation",
     "path": "/library/evaluations/$batchId"
   },
@@ -194,6 +198,10 @@
   {
     "id": "installation-usage",
     "path": "/installation/usage"
+  },
+  {
+    "id": "installation-restore",
+    "path": "/installation/restore"
   },
   {
     "id": "installation-audit",

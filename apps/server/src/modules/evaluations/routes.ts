@@ -21,6 +21,7 @@ import {
   contractSchemas,
   OrganizationContextPolicy,
 } from "@bakery/contracts/contracts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
@@ -39,12 +40,14 @@ import {
   createDefinitionLister,
   createResultLister,
   getBatch,
+  runLocalCorpus,
 } from "./store.ts";
 
 /** The evaluation registry (#44): every action runs through the authority runner. */
 export function createEvaluationActionRegistry(
   database: PgDatabase,
   secret: string,
+  blobStore?: OrganizationBlobStore,
 ) {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -145,7 +148,7 @@ export function createEvaluationActionRegistry(
       name: A.EvaluationBatchesList,
       method: HttpMethod.Get,
       path: "/v1/evaluation-batches",
-      input: S.CursorQuery,
+      input: S.EvaluationBatchListQuery,
       output: S["Page<EvaluationBatch>"],
       policy: query,
       transactionIsolation: read,
@@ -178,6 +181,18 @@ export function createEvaluationActionRegistry(
         }
         return S.EvaluationBatch.parse(await cancelBatch(c, expectedVersion));
       },
+    })
+    .register({
+      name: A.EvaluationBatchesRun,
+      method: HttpMethod.Post,
+      path: "/v1/evaluation-batches/:id/run",
+      input: S.EvaluationBatchRun,
+      output: S.EvaluationBatch,
+      explicitIdempotency: "key",
+      successStatus: 200,
+      policy: command,
+      handler: async (c) =>
+        S.EvaluationBatch.parse(await runLocalCorpus(c, blobStore)),
     })
     .register({
       name: A.EvaluationBatchesCompare,
@@ -223,6 +238,8 @@ export function createEvaluationRoutes(options: {
   session: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  /** Reads blob-backed recorded outputs; absent when no object store is configured. */
+  blobStore?: OrganizationBlobStore;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   for (
@@ -241,6 +258,7 @@ export function createEvaluationRoutes(options: {
       registry: createEvaluationActionRegistry(
         options.database,
         options.cursorSecret,
+        options.blobStore,
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

@@ -2,6 +2,7 @@ import {
   type ActionAuthorityRunner,
   type ActionContext,
   type ActionDefinition,
+  ActionKind,
   TransactionIsolation,
 } from "@bakery/contracts/action-registry";
 import {
@@ -20,6 +21,7 @@ import {
   PrincipalType,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
+import { isPostgresDeadlock } from "../../../platform/postgres-errors.ts";
 import { AuthImplementedAction } from "@bakery/contracts/implemented-actions";
 import {
   lockInstallationPrincipals,
@@ -210,11 +212,20 @@ export function membershipFromRow(row: MembershipRow): MembershipAuthority {
   };
 }
 
-/** Live canonical membership of any principal, or no membership. */
+/**
+ * Live canonical membership of any principal, or no membership. The row is
+ * read `for share`, like a conversation grant: a concurrent demotion or
+ * removal is ordered wholly before or after this request, so a write that
+ * passed its role check never commits after the role was taken away. A query
+ * reads it without the lock (`lock: false`): it writes nothing, so there is
+ * no write to order against a demotion, and a lock would make a read-only
+ * path take a row lock and wait on concurrent role changes.
+ */
 async function loadMembership(
   client: PgTransactionClient,
   principalId: PrincipalId,
   organizationId: OrganizationId,
+  lock: boolean,
 ): Promise<MembershipAuthority | null> {
   const membership = await client.query<MembershipRow>(
     `select membership.role, membership.status,
@@ -225,7 +236,8 @@ async function loadMembership(
       on custom.organization_id = membership.organization_id
       and custom.id = membership.custom_role_id
     where membership.principal_id = $1
-      and membership.organization_id = $2`,
+      and membership.organization_id = $2
+    ${lock ? "for share of membership" : ""}`,
     [principalId, organizationId],
   );
   const row = membership.rows[0];
@@ -307,11 +319,13 @@ async function resolveOrganizationActorForSubject(
   client: PgTransactionClient,
   subject: AuthenticatedSubject,
   organizationId: OrganizationId,
+  lockMembership = true,
 ): Promise<OrganizationActor> {
   const membership = await loadMembership(
     client,
     subject.principalId,
     organizationId,
+    lockMembership,
   );
   if (membership?.status === MembershipStatus.Inactive) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -464,9 +478,11 @@ function authorizeThroughBindings(
 
 /**
  * Conversation actions a direct mention grant can open, and only on the
- * conversation named by the route id: read the conversation and its
- * transcript, see who takes part, find people to mention, and reply. Agent
- * execution, turn control, task and repository actions are never here.
+ * conversation named by the route id (for a proposal read, the conversation
+ * that proposal belongs to): read the conversation and its transcript and
+ * proposals, see who takes part, find people to mention, and reply. Agent
+ * execution, turn control, deciding a proposal, task and repository actions
+ * are never here.
  */
 const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
   "conversations.get",
@@ -475,7 +491,26 @@ const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
   "conversationParticipants.list",
   "conversations.mentionCandidates",
   "conversationAccess.sharers",
+  "workflowDefinitionProposals.list",
+  "workflowDefinitionProposals.get",
 ]);
+
+/** The conversation a grant must cover for this action's route id. */
+async function grantConversationId(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  organizationId: string,
+  routeId: string | undefined,
+): Promise<string | undefined> {
+  if (action.name !== "workflowDefinitionProposals.get") return routeId;
+  if (routeId === undefined || !isUuid(routeId)) return undefined;
+  const row = await transaction.query<{ conversation_id: string }>(
+    `select conversation_id from bakery.workflow_definition_proposals
+      where organization_id = $1 and id = $2`,
+    [organizationId, routeId],
+  );
+  return row.rows[0]?.conversation_id;
+}
 
 /**
  * When the organization role refused a conversation action, a live direct
@@ -520,6 +555,157 @@ async function authorizeWithConversationGrant(
     });
   }
   return { ...actor, conversationGrant: { conversationId } };
+}
+
+/**
+ * Document actions a direct document grant can open, and only on the one
+ * document the route names (directly, or through its version or comment).
+ * `read_comment` opens reading the document, its versions and its comments
+ * and writing a comment; only `edit` also opens publishing a version. Task,
+ * repository, agent and resharing actions are never here, and neither is
+ * artifacts.list: a grantee reaches the document from where they were told.
+ */
+const ARTIFACT_GRANT_ACTIONS: ReadonlyMap<
+  string,
+  {
+    target: "artifact" | "version" | "comment" | "draft" | "draftReference";
+    level: "read_comment" | "edit";
+  }
+> = new Map([
+  ["artifacts.get", { target: "artifact", level: "read_comment" }],
+  ["artifactVersions.list", { target: "artifact", level: "read_comment" }],
+  [
+    "artifactComments.listAcrossVersions",
+    { target: "artifact", level: "read_comment" },
+  ],
+  ["artifactAccess.list", { target: "artifact", level: "read_comment" }],
+  ["artifactAccess.sharers", { target: "artifact", level: "read_comment" }],
+  ["artifactVersions.content", { target: "version", level: "read_comment" }],
+  ["artifactVersions.probe", { target: "version", level: "read_comment" }],
+  ["artifactVersions.extract", { target: "version", level: "read_comment" }],
+  ["artifactComments.list", { target: "version", level: "read_comment" }],
+  ["artifactComments.create", { target: "version", level: "read_comment" }],
+  [
+    "artifactComments.mentionCandidates",
+    { target: "version", level: "read_comment" },
+  ],
+  ["artifactComments.update", { target: "comment", level: "read_comment" }],
+  // The editor: its draft, checkpoints, suggestions, comments and publication,
+  // at level edit only.
+  ["drafts.open", { target: "artifact", level: "edit" }],
+  ["drafts.get", { target: "draft", level: "edit" }],
+  ["drafts.edit", { target: "draft", level: "edit" }],
+  ["drafts.rollover", { target: "draft", level: "edit" }],
+  ["draftCheckpoints.get", { target: "draft", level: "edit" }],
+  ["draftSlices.get", { target: "draft", level: "edit" }],
+  ["draftPublications.create", { target: "draft", level: "edit" }],
+  ["draftPublications.get", { target: "draft", level: "edit" }],
+  ["draftSuggestions.create", { target: "draft", level: "edit" }],
+  ["draftSuggestions.list", { target: "draft", level: "edit" }],
+  ["draftSuggestions.accept", { target: "draft", level: "edit" }],
+  ["draftSuggestions.reject", { target: "draft", level: "edit" }],
+  ["draftComments.create", { target: "draft", level: "edit" }],
+  ["draftComments.list", { target: "draft", level: "edit" }],
+  ["draftComments.update", { target: "draft", level: "edit" }],
+  ["draftReferences.create", { target: "draft", level: "edit" }],
+  ["draftReferences.get", { target: "draftReference", level: "edit" }],
+]);
+
+/**
+ * When the organization role refused a document action, a live direct grant on
+ * exactly that document may still allow it. The grant row is read `for share`
+ * so a concurrent revoke is ordered before or after this request. A grant never
+ * helps a non-human or a member with no system role, and a token still has to
+ * carry the scope the action needs.
+ */
+async function authorizeWithArtifactGrant(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  routeId: string | undefined,
+  denied: unknown,
+): Promise<OrganizationActor> {
+  const rule = ARTIFACT_GRANT_ACTIONS.get(action.name);
+  if (
+    rule === undefined || routeId === undefined || !isUuid(routeId) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined ||
+    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+  ) throw denied;
+  if (!isPermissionMiss(denied)) throw denied;
+  const found = await transaction.query<{ artifactId: string; level: string }>(
+    rule.target === "artifact"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_access_grants as grant_row
+          where grant_row.organization_id = $1 and grant_row.artifact_id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : rule.target === "draft"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_drafts as draft
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = draft.organization_id
+            and grant_row.artifact_id = draft.artifact_id
+          where draft.organization_id = $1 and draft.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : rule.target === "draftReference"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_draft_references as reference
+           join bakery.artifact_drafts as draft
+             on draft.organization_id = reference.organization_id
+            and draft.id = reference.draft_id
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = draft.organization_id
+            and grant_row.artifact_id = draft.artifact_id
+          where reference.organization_id = $1 and reference.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : rule.target === "version"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_versions as version
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = version.organization_id
+            and grant_row.artifact_id = version.artifact_id
+          where version.organization_id = $1 and version.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_comments as comment
+           join bakery.artifact_versions as version
+             on version.organization_id = comment.organization_id
+            and version.id = comment.artifact_version_id
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = version.organization_id
+            and grant_row.artifact_id = version.artifact_id
+          where comment.organization_id = $1 and comment.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`,
+    [actor.organizationId, routeId, actor.subject.principalId],
+  );
+  const grant = found.rows[0];
+  if (grant === undefined) throw denied;
+  // A grant that reads and comments is refused the verbs only `edit` opens.
+  if (rule.level === "edit" && grant.level !== "edit") {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return {
+    ...actor,
+    artifactGrant: {
+      artifactId: grant.artifactId,
+      level: grant.level as "read_comment" | "edit",
+    },
+  };
 }
 
 /**
@@ -606,12 +792,14 @@ export async function resolveOrganizationActor(
   transaction: PgTransactionClient,
   principalId: PrincipalId,
   organizationId: OrganizationId,
+  options: { lockMembership?: boolean } = {},
 ): Promise<OrganizationActor> {
   const subject = await reloadSubject(transaction, principalId);
   return await resolveOrganizationActorForSubject(
     transaction,
     subject,
     organizationId,
+    options.lockMembership ?? true,
   );
 }
 
@@ -704,128 +892,161 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
       }
     }
 
-    return await withPgTransaction(
-      this.database,
-      async (transaction) => {
-        if (token !== undefined) {
-          await assertAccessTokenLive(
-            transaction,
-            token.id,
-            claimedSubject.principalId,
-          );
-        }
-        const installationMutation =
-          action.name === AuthImplementedAction.InstallationSettingsUpdate ||
-          action.name ===
-            AuthImplementedAction.InstallationAdministratorsCreate ||
-          action.name ===
-            AuthImplementedAction.InstallationAdministratorsRevoke ||
-          action.name === AuthImplementedAction.PasswordResetLinksCreate;
-        const organizationCreation =
-          action.name === AuthImplementedAction.OrganizationsCreate;
-        if (installationMutation || organizationCreation) {
-          await readInstallationSettings(
-            transaction,
-            installationMutation ? "update" : "share",
-          );
-          const target = action.name ===
-                AuthImplementedAction.InstallationAdministratorsCreate ||
-              action.name === AuthImplementedAction.PasswordResetLinksCreate
-            ? (input as { principalId: string }).principalId
-            : action.name ===
-                AuthImplementedAction.InstallationAdministratorsRevoke
-            ? context.params.id
-            : undefined;
-          await lockInstallationPrincipals(
-            transaction,
-            target === undefined
-              ? [claimedSubject.principalId]
-              : [claimedSubject.principalId, target],
-          );
-        }
-        let subject: AuthenticatedSubject;
-        let authority: AuthorizedActionContext["authority"];
-
-        if (organizationId) {
-          const resolved = await resolveOrganizationActor(
-            transaction,
-            claimedSubject.principalId,
-            organizationId,
-          );
-          const actor = token === undefined
-            ? resolved
-            : { ...resolved, tokenScopes: token.scopes };
-          const permitted = await authorizeWithBindings(
-            action,
-            actor,
-            (kind) =>
-              resolveBindingTarget(transaction, organizationId, kind, {
-                id: context.params.id,
-                input,
-              }),
-            (kind) =>
-              hasLiveRunGrant(
-                transaction,
-                organizationId,
-                claimedSubject.principalId,
-                kind,
-                context.params.id,
-              ),
-            (power) =>
-              hasLivePowerGrant(
-                transaction,
-                organizationId,
-                claimedSubject.principalId,
-                power,
-                context.params.id,
-              ),
-          )
-            .catch(async (denied) => {
-              // The two fallbacks cover disjoint actions and each rethrows the
-              // original denial untouched, so only a permission miss is widened.
-              if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
-                return await authorizeWithConversationGrant(
-                  transaction,
-                  action,
-                  actor,
-                  context.params.id,
-                  denied,
-                );
-              }
-              return authorizeOwnInboxWrite(action, actor, denied);
-            })
-            .catch((denied) => authorizeOwnRequestRead(action, actor, denied));
-          subject = permitted.subject;
-          authority = permitted;
-        } else {
-          subject = await reloadSubject(
-            transaction,
-            claimedSubject.principalId,
-          );
-          authority = subject;
-
-          if (
-            policy === OrganizationContextPolicy
-              .InstallationAdministratorScope
-          ) {
-            authority = await resolveInstallationActor(transaction, subject);
-          } else if (
-            policy !== OrganizationContextPolicy.AuthenticatedPrincipalScope
-          ) {
-            throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    try {
+      return await withPgTransaction(
+        this.database,
+        async (transaction) => {
+          if (token !== undefined) {
+            await assertAccessTokenLive(
+              transaction,
+              token.id,
+              claimedSubject.principalId,
+            );
           }
-        }
+          const installationMutation =
+            action.name === AuthImplementedAction.InstallationSettingsUpdate ||
+            action.name ===
+              AuthImplementedAction.InstallationAdministratorsCreate ||
+            action.name ===
+              AuthImplementedAction.InstallationAdministratorsRevoke ||
+            action.name === AuthImplementedAction.PasswordResetLinksCreate;
+          const organizationCreation =
+            action.name === AuthImplementedAction.OrganizationsCreate;
+          if (installationMutation || organizationCreation) {
+            await readInstallationSettings(
+              transaction,
+              installationMutation ? "update" : "share",
+            );
+            const target = action.name ===
+                  AuthImplementedAction.InstallationAdministratorsCreate ||
+                action.name === AuthImplementedAction.PasswordResetLinksCreate
+              ? (input as { principalId: string }).principalId
+              : action.name ===
+                  AuthImplementedAction.InstallationAdministratorsRevoke
+              ? context.params.id
+              : undefined;
+            await lockInstallationPrincipals(
+              transaction,
+              target === undefined
+                ? [claimedSubject.principalId]
+                : [claimedSubject.principalId, target],
+            );
+          }
+          let subject: AuthenticatedSubject;
+          let authority: AuthorizedActionContext["authority"];
 
-        const authorized: AuthorizedActionContext = {
-          ...context,
-          principal: subject,
-          authority,
-          transaction,
-        };
-        return await next(authorized);
-      },
-      context.signal,
-      action.transactionIsolation ?? TransactionIsolation.ReadCommitted,
-    );
+          if (organizationId) {
+            const resolved = await resolveOrganizationActor(
+              transaction,
+              claimedSubject.principalId,
+              organizationId,
+              // Only a command writes, so only a command holds the membership
+              // row against a concurrent demotion (#48).
+              { lockMembership: action.policy.type === ActionKind.Command },
+            );
+            const actor = token === undefined
+              ? resolved
+              : { ...resolved, tokenScopes: token.scopes };
+            const permitted = await authorizeWithBindings(
+              action,
+              actor,
+              (kind) =>
+                resolveBindingTarget(transaction, organizationId, kind, {
+                  id: context.params.id,
+                  input,
+                }),
+              (kind) =>
+                hasLiveRunGrant(
+                  transaction,
+                  organizationId,
+                  claimedSubject.principalId,
+                  kind,
+                  context.params.id,
+                ),
+              (power) =>
+                hasLivePowerGrant(
+                  transaction,
+                  organizationId,
+                  claimedSubject.principalId,
+                  power,
+                  context.params.id,
+                ),
+            )
+              .catch(async (denied) => {
+                // The two fallbacks cover disjoint actions and each rethrows the
+                // original denial untouched, so only a permission miss is widened.
+                if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
+                  return await authorizeWithConversationGrant(
+                    transaction,
+                    action,
+                    actor,
+                    await grantConversationId(
+                      transaction,
+                      action,
+                      organizationId,
+                      context.params.id,
+                    ),
+                    denied,
+                  );
+                }
+                if (ARTIFACT_GRANT_ACTIONS.has(action.name)) {
+                  return await authorizeWithArtifactGrant(
+                    transaction,
+                    action,
+                    actor,
+                    context.params.id,
+                    denied,
+                  );
+                }
+                return authorizeOwnInboxWrite(action, actor, denied);
+              })
+              .catch((denied) =>
+                authorizeOwnRequestRead(action, actor, denied)
+              );
+            subject = permitted.subject;
+            authority = permitted;
+          } else {
+            subject = await reloadSubject(
+              transaction,
+              claimedSubject.principalId,
+            );
+            authority = subject;
+
+            if (
+              policy === OrganizationContextPolicy
+                .InstallationAdministratorScope
+            ) {
+              authority = await resolveInstallationActor(transaction, subject);
+            } else if (
+              policy !== OrganizationContextPolicy.AuthenticatedPrincipalScope
+            ) {
+              throw new StandardError({ code: "AUTH_FORBIDDEN" });
+            }
+          }
+
+          const authorized: AuthorizedActionContext = {
+            ...context,
+            principal: subject,
+            authority,
+            transaction,
+          };
+          return await next(authorized);
+        },
+        context.signal,
+        action.transactionIsolation ?? TransactionIsolation.ReadCommitted,
+      );
+    } catch (error) {
+      // Two members changing each other's roles at once can deadlock on the
+      // membership rows this request holds `for share`. Postgres aborts one
+      // side; nothing of it committed, so it is a plain, retryable conflict
+      // rather than a server fault.
+      if (isPostgresDeadlock(error)) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "concurrent_authority_change" },
+        });
+      }
+      throw error;
+    }
   }
 }

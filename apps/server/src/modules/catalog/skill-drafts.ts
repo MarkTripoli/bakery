@@ -531,6 +531,82 @@ export async function saveSkillDraftFile(
   return await project(facts, await requireDraft(facts));
 }
 
+/**
+ * skillDraftFiles.rename: moves one file to a new path in one step. The file
+ * keeps its bytes, type and runnable mark, so the check reports the same line
+ * problems at the new path; a draft whose entry file moves follows it.
+ */
+export async function renameSkillDraftFile(
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.SkillDraftFileRename>,
+): Promise<Draft> {
+  const facts = await authorableSkill(context);
+  const row = await requireDraft(facts, true);
+  const expected = requireExpectedVersion(context, row);
+  let from: string;
+  let to: string;
+  try {
+    from = normalizeSkillFilePath(input.path);
+    to = normalizeSkillFilePath(input.newPath);
+  } catch (error) {
+    if (error instanceof SkillUploadInvalid) uploadProblem(error);
+    throw error;
+  }
+  const files = await listFiles(facts, row.id);
+  if (!files.some((file) => file.path === from)) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  if (from === to) return await project(facts, row);
+  if (
+    files.some((file) =>
+      file.path !== from &&
+      skillFileIdentity(file.path) === skillFileIdentity(to)
+    )
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "path_collision" },
+    });
+  }
+  // A file row's path is not updatable by the application role, so the file
+  // moves as a copy under the new path and the old row is removed.
+  await facts.transaction.query(
+    `insert into bakery.skill_draft_files (
+       id, organization_id, draft_id, path, media_type, is_executable, content,
+       size_bytes, sha256
+     )
+     select $5, organization_id, draft_id, $4, media_type, is_executable,
+            content, size_bytes, sha256
+       from bakery.skill_draft_files
+      where organization_id = $1 and draft_id = $2 and path = $3`,
+    [facts.organizationId, row.id, from, to, crypto.randomUUID()],
+  );
+  await facts.transaction.query(
+    `delete from bakery.skill_draft_files
+      where organization_id = $1 and draft_id = $2 and path = $3`,
+    [facts.organizationId, row.id, from],
+  );
+  if (row.entry_path === from) {
+    await facts.transaction.query(
+      `update bakery.skill_drafts set entry_path = $3
+        where organization_id = $1 and id = $2`,
+      [facts.organizationId, row.id, to],
+    );
+  }
+  await touch(facts, row.id, expected);
+  await appendAudit(facts.transaction, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    operation: "skillDraftFiles.rename",
+    resourceType: "skill_draft",
+    resourceId: row.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: { skillId: facts.skillId, path: from, newPath: to },
+  });
+  return await project(facts, await requireDraft(facts));
+}
+
 /** skillDraftFiles.get */
 export async function getSkillDraftFile(
   context: ActionContext,

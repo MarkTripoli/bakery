@@ -549,12 +549,17 @@ test.describe("settings journey", () => {
         // Surface any JS errors that would prevent the join form from rendering.
         expect(anonymousErrors, "anonymous page JS errors").toEqual([]);
         await expect(anonymousPage).not.toHaveURL(/\/sign-in/);
-        await expect(anonymousPage.getByTestId("join")).toBeVisible();
+        // One heading carries the state: "join" while signups are open,
+        // "registration-paused" when they are switched off.
+        await expect(anonymousPage.getByTestId("join"))
+          .toHaveCount(signups ? 1 : 0);
         await expect(anonymousPage.getByTestId("registration-paused"))
           .toHaveCount(signups ? 0 : 1);
-        if (!signups) {
+        if (signups) {
+          await expect(anonymousPage.getByTestId("join")).toBeVisible();
+        } else {
           await expect(anonymousPage.getByTestId("registration-paused"))
-            .toContainText("Registration paused");
+            .toContainText("New accounts are paused");
         }
       };
       await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);

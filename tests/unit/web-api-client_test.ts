@@ -165,6 +165,7 @@ Deno.test("run control dispatches exact path, input, headers, and signal", async
     inngestRunId: null,
     status: "running",
     budgetLimitUsd: "1",
+    environment: "live",
     startedAt: "2026-01-01T00:00:00.000Z",
     finishedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -845,6 +846,7 @@ Deno.test("installation settings save sends the read version and explicit stable
   const record = {
     registrationMode: "closed",
     organizationCreationPolicy: "installation_admins",
+    updateFailurePolicy: "go_back",
     version: 3,
     updatedByPrincipalId: null,
     updatedAt: "2026-10-12T00:00:00.000Z",
