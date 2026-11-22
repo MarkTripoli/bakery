@@ -6229,5 +6229,14 @@
   "settings.plugins.versions.restoreNamed": "⟪Go back to {version} and restore its data⟫",
   "settings.plugins.restore.bodyUnknown": "⟪Version {version} cannot read what {name} has saved since it moved to another version.⟫",
   "settings.plugins.restore.removedUnknown": "⟪Everything it saved after that is removed.⟫",
-  "settings.plugins.restore.captionUnknown": "⟪Bakery keeps one copy of the data as it is now. You can return to the version {name} runs now, with that data, until the next version change.⟫"
+  "settings.plugins.restore.captionUnknown": "⟪Bakery keeps one copy of the data as it is now. You can return to the version {name} runs now, with that data, until the next version change.⟫",
+  "settings.plugins.line.updateAvailableUnknown": "⟪{next} is available⟫",
+  "settings.plugins.line.updateFailedUnknown": "⟪The update to {next} did not start; the installed version is still running⟫",
+  "settings.plugins.line.notWorkingUnknown": "⟪It stopped working⟫",
+  "settings.plugins.page.cannotShow": "⟪Bakery cannot show what the installed version can do.⟫",
+  "settings.plugins.frame.providedUnknown": "⟪Provided by the plugin {name}⟫",
+  "settings.plugins.frame.failed.detailUnknown": "⟪If it keeps happening, give your administrator the page {page}.⟫",
+  "settings.plugins.turnOff.bodyUnknown": "⟪It stops for everyone and loses all its permissions. Its saved data is kept. You can turn it on again.⟫",
+  "settings.plugins.update.cannotRead.bodyUnknown": "⟪It cannot read the data {name} has saved. The installed version is still running with its data.⟫",
+  "settings.plugins.update.failed.bodyUnknown": "⟪The installed version is still running and nothing was lost. Bakery checked {next} before switching and it did not pass.⟫"
 }

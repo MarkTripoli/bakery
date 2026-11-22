@@ -329,10 +329,15 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                   </UI.Badge>
                 </UI.Inline>
                 <UI.Text variant="muted">
-                  {translate("settings.plugins.line.version", {
-                    version: row.versionName,
-                  })}
-                  {" · "}
+                  {/* No blank "Version" and dot when the installed version's name is unknown. */}
+                  {row.versionName === "" ? null : (
+                    <>
+                      {translate("settings.plugins.line.version", {
+                        version: row.versionName,
+                      })}
+                      {" · "}
+                    </>
+                  )}
                   {row.scope === "organization"
                     ? translate("settings.plugins.scope.organization")
                     : translate("settings.plugins.scope.personal")}
@@ -348,10 +353,17 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                       })}
                     </UI.Text>
                     <UI.Text>
-                      {translate("settings.plugins.update.failed.body", {
-                        version: row.versionName,
-                        next: failedNext,
-                      })}
+                      {row.versionName === ""
+                        ? translate(
+                          "settings.plugins.update.failed.bodyUnknown",
+                          {
+                            next: failedNext,
+                          },
+                        )
+                        : translate("settings.plugins.update.failed.body", {
+                          version: row.versionName,
+                          next: failedNext,
+                        })}
                     </UI.Text>
                     {mayChange
                       ? (
@@ -395,10 +407,15 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                       })}
                     </UI.Text>
                     <UI.Text>
-                      {translate("settings.plugins.update.cannotRead.body", {
-                        name,
-                        current: row.versionName,
-                      })}
+                      {row.versionName === ""
+                        ? translate(
+                          "settings.plugins.update.cannotRead.bodyUnknown",
+                          { name },
+                        )
+                        : translate("settings.plugins.update.cannotRead.body", {
+                          name,
+                          current: row.versionName,
+                        })}
                     </UI.Text>
                     {mayChange
                       ? (
@@ -509,7 +526,15 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     {translate("settings.plugins.page.whatItCanDoHelp")}
                   </UI.HelpTip>
                 </UI.Inline>
-                {capabilities.length === 0
+                {row.versionName === ""
+                  ? (
+                    // The installed version is not in the loaded list: its
+                    // permissions cannot be listed, and none is claimed.
+                    <UI.Text>
+                      {translate("settings.plugins.page.cannotShow")}
+                    </UI.Text>
+                  )
+                  : capabilities.length === 0
                   ? (
                     <UI.Text>
                       {translate("settings.plugins.page.noneAsked")}
@@ -813,7 +838,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
       {row === undefined || dialog?.kind !== "off" ? null : (
         <TurnOffDialog
           name={row.name}
-          count={capabilities.length}
+          count={row.versionName === "" ? null : capabilities.length}
           pending={changes.update.isPending}
           failure={failure}
           onCancel={close}
@@ -853,7 +878,6 @@ export function PluginPage({ installId }: { readonly installId: string }) {
             name={row.name}
             to={dialog.version}
             from={current}
-            currentName={row.versionName}
             copy={row.stateCopy}
             added={capabilityDifference(
               current === undefined ? [] : capabilitiesOf(current),

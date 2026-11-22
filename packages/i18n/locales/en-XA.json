@@ -6229,5 +6229,14 @@
   "settings.plugins.versions.restoreNamed": "⟦Ĝô ƀàçķ ŧô {version} àñð ŕëšŧôŕë ïŧš ðàŧà ŧëšŧ çôþÿ ŧë⟧",
   "settings.plugins.restore.bodyUnknown": "⟦Ṽëŕšïôñ {version} çàññôŧ ŕëàð ŵĥàŧ {name} ĥàš šàṽëð šïñçë ïŧ ɱôṽëð ŧô àñôŧĥëŕ ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "settings.plugins.restore.removedUnknown": "⟦Ëṽëŕÿŧĥïñĝ ïŧ šàṽëð àƒŧëŕ ŧĥàŧ ïš ŕëɱôṽëð. ŧëšŧ çôþÿ ŧë⟧",
-  "settings.plugins.restore.captionUnknown": "⟦Ɓàķëŕÿ ķëëþš ôñë çôþÿ ôƒ ŧĥë ðàŧà àš ïŧ ïš ñôŵ. Ÿôû çàñ ŕëŧûŕñ ŧô ŧĥë ṽëŕšïôñ {name} ŕûñš ñôŵ, ŵïŧĥ ŧĥàŧ ðàŧà, ûñŧïļ ŧĥë ñëẋŧ ṽëŕšïôñ çĥàñĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "settings.plugins.restore.captionUnknown": "⟦Ɓàķëŕÿ ķëëþš ôñë çôþÿ ôƒ ŧĥë ðàŧà àš ïŧ ïš ñôŵ. Ÿôû çàñ ŕëŧûŕñ ŧô ŧĥë ṽëŕšïôñ {name} ŕûñš ñôŵ, ŵïŧĥ ŧĥàŧ ðàŧà, ûñŧïļ ŧĥë ñëẋŧ ṽëŕšïôñ çĥàñĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "settings.plugins.line.updateAvailableUnknown": "⟦{next} ïš àṽàïļàƀļë ŧëšŧ⟧",
+  "settings.plugins.line.updateFailedUnknown": "⟦Ŧĥë ûþðàŧë ŧô {next} ðïð ñôŧ šŧàŕŧ; ŧĥë ïñšŧàļļëð ṽëŕšïôñ ïš šŧïļļ ŕûññïñĝ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "settings.plugins.line.notWorkingUnknown": "⟦Ïŧ šŧôþþëð ŵôŕķïñĝ ŧëšŧ⟧",
+  "settings.plugins.page.cannotShow": "⟦Ɓàķëŕÿ çàññôŧ šĥôŵ ŵĥàŧ ŧĥë ïñšŧàļļëð ṽëŕšïôñ çàñ ðô. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "settings.plugins.frame.providedUnknown": "⟦Þŕôṽïðëð ƀÿ ŧĥë þļûĝïñ {name} ŧëšŧ çôþ⟧",
+  "settings.plugins.frame.failed.detailUnknown": "⟦Ïƒ ïŧ ķëëþš ĥàþþëñïñĝ, ĝïṽë ÿôûŕ àðɱïñïšŧŕàŧôŕ ŧĥë þàĝë {page}. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "settings.plugins.turnOff.bodyUnknown": "⟦Ïŧ šŧôþš ƒôŕ ëṽëŕÿôñë àñð ļôšëš àļļ ïŧš þëŕɱïššïôñš. Ïŧš šàṽëð ðàŧà ïš ķëþŧ. Ÿôû çàñ ŧûŕñ ïŧ ôñ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "settings.plugins.update.cannotRead.bodyUnknown": "⟦Ïŧ çàññôŧ ŕëàð ŧĥë ðàŧà {name} ĥàš šàṽëð. Ŧĥë ïñšŧàļļëð ṽëŕšïôñ ïš šŧïļļ ŕûññïñĝ ŵïŧĥ ïŧš ðàŧà. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "settings.plugins.update.failed.bodyUnknown": "⟦Ŧĥë ïñšŧàļļëð ṽëŕšïôñ ïš šŧïļļ ŕûññïñĝ àñð ñôŧĥïñĝ ŵàš ļôšŧ. Ɓàķëŕÿ çĥëçķëð {next} ƀëƒôŕë šŵïŧçĥïñĝ àñð ïŧ ðïð ñôŧ þàšš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
 }

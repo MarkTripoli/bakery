@@ -376,10 +376,14 @@ export function VersionChangeDialog(
                 })}
               </UI.Text>
               <UI.Text>
-                {translate("settings.plugins.update.failed.body", {
-                  version: fromName,
-                  next: to.versionName,
-                })}
+                {fromName === ""
+                  ? translate("settings.plugins.update.failed.bodyUnknown", {
+                    next: to.versionName,
+                  })
+                  : translate("settings.plugins.update.failed.body", {
+                    version: fromName,
+                    next: to.versionName,
+                  })}
               </UI.Text>
             </UI.InlineNotice>
           )
@@ -427,7 +431,6 @@ export function RestoreDialog(
     name,
     to,
     from,
-    currentName,
     copy,
     added,
     pending,
@@ -438,8 +441,6 @@ export function RestoreDialog(
     readonly name: string;
     readonly to: PluginVersion;
     readonly from: PluginVersion | undefined;
-    /** The installed version's own name, for when it is not in the loaded list. */
-    readonly currentName: string;
     readonly copy: PluginStateCopy;
     /** Permissions the version being restored asks for beyond the installed one. */
     readonly added: readonly PluginCapability[];
@@ -457,7 +458,7 @@ export function RestoreDialog(
     timeStyle: "short",
     timeZone,
   }).format(new Date(copy.takenAt));
-  const current = from?.versionName ?? currentName;
+  const current = from?.versionName ?? "";
   // The installed version is not in the loaded list: say it without its name,
   // never with a blank where the name belongs.
   const known = current !== "";
@@ -558,7 +559,8 @@ export function RestoreDialog(
 export function TurnOffDialog(
   { name, count, pending, failure, onCancel, onConfirm }: {
     readonly name: string;
-    readonly count: number;
+    /** How many permissions it loses; null when the installed version cannot be read. */
+    readonly count: number | null;
     readonly pending: boolean;
     readonly failure: ChangeFailure | null;
     readonly onCancel: () => void;
@@ -585,7 +587,9 @@ export function TurnOffDialog(
     >
       <UI.Stack gap="tight">
         <UI.Text>
-          {translate("settings.plugins.turnOff.body", { count })}
+          {count === null
+            ? translate("settings.plugins.turnOff.bodyUnknown")
+            : translate("settings.plugins.turnOff.body", { count })}
         </UI.Text>
         {failure === null ? null : (
           <FailureNotice

@@ -1247,7 +1247,96 @@ for (
         "You can return to the version Notes runs now, with that data, until the next version change.",
       );
       await expect(dialog).not.toContainText(/moved to \.|on ,|return to {2}/);
+      // The page header leaves out "Version" and the dot when it has no name to give.
+      await expect(
+        page.getByText("Organization", { exact: true }).locator("visible=true")
+          .first(),
+      ).toBeVisible();
+      await expect(page.getByText(/^Version\s*·/)).toHaveCount(0);
       await still(page, "plugin-restore-unknown");
+    });
+
+    test("when the installed version is unknown, no sentence names it or counts its permissions", async ({ page }) => {
+      // The installed version is not in the list the page loaded.
+      const state = await pluginsFixture(page, {
+        installs: [install({ id: NOTES_INSTALL, pluginVersionId: id(999) })],
+      });
+      state.failNextUpdate = true;
+      await page.goto("/settings/organization/plugins");
+      // The list line has no version part: "1.1.0 is available", never "Version  · ...".
+      await expect(page.getByText("1.1.0 is available", { exact: true }))
+        .toBeVisible();
+      await expect(page.getByText(/Version\s*·/)).toHaveCount(0);
+      await page.getByRole("button", { name: "Review update of Notes" })
+        .click();
+      const update = page.getByRole("dialog");
+      await update.getByRole("button", { name: "Update and allow 3" }).click();
+      await expect(update).toContainText(
+        "The installed version is still running and nothing was lost. Bakery checked 1.1.0 before switching and it did not pass.",
+      );
+      await expect(update).not.toContainText(/Version\s+is still running/);
+      await update.getByRole("button", { name: "Not now" }).click();
+      await expect(
+        page.getByText(
+          "The update to 1.1.0 did not start; the installed version is still running",
+          { exact: true },
+        ),
+      ).toBeVisible();
+
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      // The page cannot list the permissions, so it says so and claims none.
+      await expect(page.getByRole("heading", { name: "What it can do" }))
+        .toBeVisible();
+      await expect(
+        page.getByText(
+          "Bakery cannot show what the installed version can do.",
+          {
+            exact: true,
+          },
+        ),
+      ).toBeVisible();
+      await expect(page.getByText("It asks for no permissions.")).toHaveCount(
+        0,
+      );
+      await expect(page.getByText("Save its own data")).toHaveCount(0);
+      // The notice for the update that did not start names no version either.
+      await expect(page.getByRole("alert")).toContainText(
+        "The installed version is still running and nothing was lost.",
+      );
+      // Turn off does not count permissions it cannot read.
+      await page.getByRole("button", { name: "Turn off" }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText(
+        "It stops for everyone and loses all its permissions. Its saved data is kept. You can turn it on again.",
+      );
+      await expect(dialog).not.toContainText(/loses its/);
+      await still(page, "plugin-turn-off-unknown");
+    });
+
+    test("when the installed version is unknown, the notice for data it cannot read names no version", async ({ page }) => {
+      await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: id(999),
+            lastUpdateFailure: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              reason: "plugin_state_incompatible",
+              at: "2026-11-20T00:00:00.000Z",
+              restoreState: false,
+              addedCapabilities: [],
+            },
+            cannotReadVersionIds: [NOTES_V2],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const notice = page.getByRole("alert");
+      await expect(notice).toContainText(
+        "It cannot read the data Notes has saved. The installed version is still running with its data.",
+      );
+      await expect(notice).not.toContainText(/Version\s+is still running/);
     });
 
     test("a refused approval keeps the dialog open with one warning and raises no page notice", async ({ page }) => {
