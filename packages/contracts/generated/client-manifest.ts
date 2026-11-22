@@ -91033,6 +91033,12 @@ export const clientManifest = {
               "minimum": 0,
               "maximum": 9007199254740991,
               "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+            },
+            "labeledBeforeWindow": {
+              "description": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it. TicketPreviewCounts.labeledBeforeWindow must be at least 0.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": [

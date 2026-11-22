@@ -29887,21 +29887,27 @@
         "wouldStart",
         "planOnly",
         "held",
-        "blocked"
+        "blocked",
+        "labeledBeforeWindow"
       ],
       "fieldTypes": {
         "wouldStart": "integer",
         "planOnly": "integer",
         "held": "integer",
-        "blocked": "integer"
+        "blocked": "integer",
+        "labeledBeforeWindow": "integer"
       },
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one of wouldStart, planOnly, held and blocked. labeledBeforeWindow is a part of blocked, not a bucket of its own.",
       "fieldDescriptions": {
         "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
         "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
         "held": "Issues carrying the hold label; the hold wins over every other label.",
-        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which.",
+        "labeledBeforeWindow": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it."
       },
+      "optionalFields": [
+        "labeledBeforeWindow"
+      ],
       "fieldBounds": {
         "wouldStart": {
           "min": 0
@@ -29913,6 +29919,9 @@
           "min": 0
         },
         "blocked": {
+          "min": 0
+        },
+        "labeledBeforeWindow": {
           "min": 0
         }
       }
