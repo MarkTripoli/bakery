@@ -30,6 +30,7 @@ import { TaskArtifactPane } from "./TaskArtifactPane.tsx";
 import { TaskRunSection } from "./TaskRunSection.tsx";
 import { TaskRunArtifactCard } from "./TaskRunArtifactCard.tsx";
 import { TaskStartRun } from "./TaskStartRun.tsx";
+import { RunPreviewCard } from "./RunPreviewCard.tsx";
 import { TaskSessionView } from "./task-session-view.tsx";
 import { questionOptions } from "./task-conversation/model.ts";
 import {
@@ -581,12 +582,20 @@ function Detail(
         state={syncConnectivity === "reconnecting" ? "reconnecting" : "ready"}
         aside={task.currentRunId
           ? (
-            <TaskArtifactPane
-              key={task.currentRunId}
-              taskId={id}
-              runId={task.currentRunId}
-              connectivity={syncConnectivity}
-            />
+            <UI.Stack gap="standard">
+              <RunPreviewCard
+                key={`preview-${task.currentRunId}`}
+                runId={task.currentRunId}
+                taskId={id}
+                connectivity={syncConnectivity}
+              />
+              <TaskArtifactPane
+                key={task.currentRunId}
+                taskId={id}
+                runId={task.currentRunId}
+                connectivity={syncConnectivity}
+              />
+            </UI.Stack>
           )
           : undefined}
         extras={

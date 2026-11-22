@@ -443,6 +443,12 @@ export function TaskRunSection(
               [offer.runStepId, stepRowCopy(offer, t)] as const
             ),
           ),
+          (iso) =>
+            formatDate(new Date(iso), locale, {
+              timeZone,
+              dateStyle: "medium",
+              timeStyle: "short",
+            }),
         ),
         ...(receipts.authority === authority ? receipts.events : []),
       ].reverse()

@@ -31,10 +31,13 @@ export type SkillVersionRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  published_at: Date | string | null;
+  label: string | null;
 };
 
 export const VERSION_COLUMNS = `id, skill_id, revision, source_revision, digest,
-  entry_path, manifest, status, created_by, created_at, updated_at, version`;
+  entry_path, manifest, status, created_by, created_at, updated_at, version,
+  published_at, label`;
 
 /** Domain limits enforced before version metadata reaches PostgreSQL. */
 function validPersistencePath(value: string): boolean {
@@ -129,6 +132,8 @@ export function toSkillVersion(row: SkillVersionRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
+    publishedAt: row.published_at === null ? null : iso(row.published_at),
+    label: row.label,
   };
 }
 
@@ -697,7 +702,8 @@ export async function finalizeSkillVersionPublication(options: {
     await assertReservedFiles(transaction, preparation);
     const published = await transaction.query<SkillVersionRow>(
       `update bakery.skill_versions
-          set status = 'published', updated_at = now(), version = version + 1
+          set status = 'published', published_at = now(), updated_at = now(),
+              version = version + 1
         where organization_id = $1 and id = $2 and status = 'draft'
         returning ${VERSION_COLUMNS}`,
       [organizationId, identity.versionId],
@@ -732,8 +738,8 @@ export async function finalizeSkillVersionPublication(options: {
     const inserted = await transaction.query<SkillVersionRow>(
       `insert into bakery.skill_versions (
          id, organization_id, skill_id, revision, source_revision, digest,
-         entry_path, manifest, status, created_by
-       ) values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'published', $9)
+         entry_path, manifest, status, created_by, published_at
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'published', $9, now())
        returning ${VERSION_COLUMNS}`,
       [
         identity.versionId,

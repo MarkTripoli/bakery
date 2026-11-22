@@ -27,6 +27,8 @@ export function createDeliveryRoutes(options: {
   app.use("/v1/merge-entries", options.session);
   app.use("/v1/pull-requests/:id/merge", options.session);
   app.use("/v1/merge-attempts/reconcile", options.session);
+  app.use("/v1/deployments", options.session);
+  app.use("/v1/deployments/:id/rollbacks", options.session);
   app.use("/v1/metrics", options.session);
   app.use("/v1/metrics/sources", options.session);
   app.route(

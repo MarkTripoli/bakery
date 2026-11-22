@@ -3274,13 +3274,23 @@ const transportSchemas = {
           "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see."
         },
         {
+          "name": "q",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
           "bounds": {
             "maxBytes": 512
           },
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter."
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search."
         },
         {
           "name": "limit",
@@ -3298,7 +3308,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "fields": [
@@ -4210,11 +4220,11 @@ const transportSchemas = {
         {
           "name": "revision",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
             "maxLength": 255
           },
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head."
+          "description": "Upstream revision to import, pinned so the imported version is reproducible: a Git commit, tag or branch for a Git source; for a web-address archive either a strong ETag or a content digest (sha256:<hex>). A web-address archive may omit it: Bakery fetches the archive once and pins its content digest, so importing unchanged content again is the same import and changed content is a new version. A Git source must name one."
         },
         {
           "name": "path",
@@ -4224,6 +4234,21 @@ const transportSchemas = {
             "maxLength": 500
           },
           "description": "Path within the source's repository or archive that the skill's manifest and files live under, for a source that bundles more than the skill at its root; omit to import from the source's root."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. A repeat of an earlier import (same source, revision, folder, scope and owner) returns that earlier run and keeps its first label; a different label here does not rename it."
+        },
+        {
+          "name": "scope",
+          "type": "enum(organization|personal)",
+          "required": false,
+          "description": "Who the imported skill is for: organization (the default; visible to everyone in the organization, and importing into it needs the Admin role) or personal (shown as Private, owned by the person importing, who must be a person rather than an agent or a token)."
         }
       ],
       "description": "Creates a durable import run that fetches a skill from a registered skill source at a pinned revision, and optional path, and publishes it as a new skill version."
@@ -14943,6 +14968,81 @@ const transportSchemas = {
         "Idempotency-Key is required (PRECONDITION_REQUIRED without it). A repeat with the same key and the same body answers with the run the key started instead of starting and paying for another; the same key with another body is IDEMPOTENCY_PAYLOAD_MISMATCH, and a repeat while that run is still working is IDEMPOTENCY_IN_FLIGHT."
       ],
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillActiveVersionSet": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+        }
+      ],
+      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+    },
+    "SkillSourceUpdateTake": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
+        },
+        {
+          "name": "revision",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the skill's version are required. The import pins this exact revision; a skill that follows a branch keeps following it."
+      ],
+      "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
+    },
+    "SkillDraftFileRename": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "path",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Current relative path of the file in the draft."
+        },
+        {
+          "name": "newPath",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
+      ],
+      "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     }
   },
   "projections": {
@@ -17795,6 +17895,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -17813,11 +17914,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "sourceColumns": {
@@ -17828,6 +17931,7 @@ const transportSchemas = {
         "status": "status",
         "stopReason": "stop_reason",
         "stoppedBy": "stopped_by",
+        "stoppedByName": "stopped_by_name",
         "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
@@ -17847,6 +17951,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
@@ -18302,7 +18407,7 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -23053,6 +23158,10 @@ const transportSchemas = {
         "turnId"
       ]
     },
+    "Page<WorkflowDefinitionProposal>": {
+      "pageOf": "WorkflowDefinitionProposal",
+      "description": "Cursor page of one conversation's workflow definition proposals, oldest first (the order the coordinator proposed them), returned by GET /v1/conversations/{id}/workflow-definition-proposals. items and nextCursor are always present, with nextCursor=null marking the last page."
+    },
     "WorkflowDefinitionProposal": {
       "fields": [
         "id",
@@ -23065,6 +23174,7 @@ const transportSchemas = {
         "digest",
         "state",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "supersededByVersionId",
         "createdAt",
@@ -23085,6 +23195,7 @@ const transportSchemas = {
         "digest": "string",
         "state": "enum(waiting|accepted|rejected|superseded)",
         "decidedBy": "uuid|null",
+        "decidedByName": "string|null",
         "decidedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -23095,6 +23206,7 @@ const transportSchemas = {
         "workflowId",
         "baseDraftVersion",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "supersededByVersionId"
       ],
@@ -23110,6 +23222,7 @@ const transportSchemas = {
         "digest": "SHA-256 of the canonical proposed definition.",
         "state": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled.",
         "decidedBy": "Person who decided the proposal; null while waiting.",
+        "decidedByName": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name.",
         "decidedAt": "When the proposal was decided or superseded; null while waiting.",
         "createdAt": "When the proposal was recorded.",
         "updatedAt": "When the proposal last changed.",
@@ -23789,6 +23902,7 @@ const transportSchemas = {
       "projection": "skill_sources",
       "fields": [
         "id",
+        "name",
         "sourceType",
         "locator",
         "publisher",
@@ -23809,12 +23923,14 @@ const transportSchemas = {
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "name": "string|null"
       },
       "nullableFields": [
         "publisher",
         "license",
-        "lastCheckedAt"
+        "lastCheckedAt",
+        "name"
       ],
       "description": "An external origin a skill was imported from: a Git repository, a URL, or a local bundle, with its normalized locator and optional publisher/license metadata; the importer only follows permitted origin kinds and checked archive paths, never an executable mutable URL.",
       "fieldDescriptions": {
@@ -23827,7 +23943,8 @@ const transportSchemas = {
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "name": "Name a person gave the source, shown wherever sources are listed; null when none was given."
       }
     },
     "Skill": {
@@ -23837,6 +23954,7 @@ const transportSchemas = {
         "sourceId",
         "slug",
         "name",
+        "description",
         "activeVersionId",
         "activeRevision",
         "enabled",
@@ -23862,7 +23980,8 @@ const transportSchemas = {
         "scope": "enum(global|organization|personal)",
         "ownerPrincipalId": "uuid|null",
         "copiedFromSkillId": "uuid|null",
-        "copiedFromVersionId": "uuid|null"
+        "copiedFromVersionId": "uuid|null",
+        "description": "string|null"
       },
       "nullableFields": [
         "sourceId",
@@ -23870,7 +23989,8 @@ const transportSchemas = {
         "activeRevision",
         "ownerPrincipalId",
         "copiedFromSkillId",
-        "copiedFromVersionId"
+        "copiedFromVersionId",
+        "description"
       ],
       "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
@@ -23887,7 +24007,8 @@ const transportSchemas = {
         "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
         "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
-        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying.",
+        "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
       }
     },
     "SkillVersion": {
@@ -23904,7 +24025,9 @@ const transportSchemas = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "publishedAt",
+        "label"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23918,9 +24041,14 @@ const transportSchemas = {
         "createdBy": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "publishedAt": "timestamp|null",
+        "label": "string|null"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "publishedAt",
+        "label"
+      ],
       "manifestContract": {
         "schemaVersion": 1,
         "files": "SkillFileManifestEntry[]",
@@ -23942,7 +24070,9 @@ const transportSchemas = {
         "createdBy": "Principal who created the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "publishedAt": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated).",
+        "label": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
       }
     },
     "IntegrationConnection": {
@@ -24668,6 +24798,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -24686,11 +24817,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned.",
@@ -24706,6 +24839,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
@@ -24878,7 +25012,7 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
-        "status": "enum(queued|deploying|verifying|healthy|failed|rolling_back|rolled_back)",
+        "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "createdAt": "timestamp",
@@ -30438,16 +30572,32 @@ const transportSchemas = {
     "WorkflowPresetStep": {
       "fields": [
         "id",
-        "uses"
+        "uses",
+        "repeatId",
+        "repeatMax"
       ],
       "fieldTypes": {
         "id": "string",
-        "uses": "string"
+        "uses": "string",
+        "repeatId": "string",
+        "repeatMax": "integer"
       },
-      "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs.",
+      "optionalFields": [
+        "repeatId",
+        "repeatMax"
+      ],
+      "fieldBounds": {
+        "repeatMax": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run.",
       "fieldDescriptions": {
         "id": "Stable step key within the preset.",
-        "uses": "Registered workflow action the step runs."
+        "uses": "Registered workflow action the step runs.",
+        "repeatId": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+        "repeatMax": "Most iterations of that repeat; present exactly when repeatId is."
       }
     },
     "WorkflowPresetAvailability": {
@@ -37678,6 +37828,35 @@ const transportSchemas = {
         "updatedAt": "When the run last changed.",
         "finishedAt": "When the run reached its outcome; null while running."
       }
+    },
+    "SkillImportResult": {
+      "fields": [
+        "runId",
+        "state",
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "state": "enum(queued|resolved|reserved|stored|completed|failed)",
+        "skillId": "uuid|null",
+        "versionId": "uuid|null",
+        "failureCode": "string|null"
+      },
+      "nullableFields": [
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the import run, as skills.import returned it.",
+        "state": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed.",
+        "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
+        "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
+        "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
     }
   },
   "pageEnvelope": {
@@ -38189,7 +38368,7 @@ const transportSchemas = {
         "resourceVersion": "integer"
       },
       "inngestTrigger": null,
-      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+      "description": "Authorized invalidation notification: a running-app preview was registered by its attempt's worker. Scoped to the run's task. Fetch the authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "principal.created": {
       "schemaVersion": 1,
@@ -39162,6 +39341,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification for a skill use grant its owner revoked; consumers re-read the skill use grants list."
+    },
+    "preview.stopped": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification: a running-app preview was stopped by a person. Fetch the authoritative current preview through its REST operation. Previews that end by themselves (time limit, run cancelled or ended, lost machine) send nothing: the readers derive that state when they read."
     }
   },
   "workerActions": {
