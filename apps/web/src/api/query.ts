@@ -2034,6 +2034,24 @@ export function installationHeldQueryOptions(
 }
 
 /**
+ * The public installation status the shell watches for an update (#59): whether
+ * the launcher has paused work, and which release answers. The caller sets how
+ * often it reads; a failure is not retried here, because a server that does
+ * not answer is exactly what the watch must notice.
+ */
+export function installationUpdateQueryOptions(
+  client: Pick<BakeryApiClient, "installationStatus">,
+) {
+  return queryOptions<InstallationStatus, ApiFailure>({
+    queryKey: ["installation", "update"],
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationStatus(signal)),
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+}
+
+/**
  * The restore that holds the installation, or null when none does. "No restore
  * is held" is the normal answer of a running installation (RESTORE_NOT_HELD),
  * not a failure: the banner and the Restore item show only while this is a

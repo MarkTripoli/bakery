@@ -9,6 +9,35 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
+/**
+ * The bar while an update has paused work and the server still answers
+ * (#59 slice 5): nothing to do, nothing to dismiss; it goes when the pause does.
+ */
+function UpdatePausedBar() {
+  const { translate } = useI18n();
+  return (
+    <>
+      <UI.InlineNotice
+        data-ui-region="update-paused"
+        layout="bar"
+        role="status"
+        tone="information"
+      >
+        <UI.Stack gap="tight">
+          <UI.Text variant="strong">
+            {translate("shell.states.updatePausedTitle")}
+          </UI.Text>
+          <UI.Text variant="muted">
+            {translate("shell.states.updatePausedDescription")}
+          </UI.Text>
+        </UI.Stack>
+      </UI.InlineNotice>
+      {/* Room between the bar and the page under it. */}
+      <UI.Spacer />
+    </>
+  );
+}
+
 /** The page where an installation administrator finishes the restore. */
 const RESTORE_PATH = "/installation/restore";
 
@@ -19,7 +48,13 @@ const RESTORE_PATH = "/installation/restore";
  * who can. It cannot be dismissed, and it is not drawn on the page where the
  * restore is finished, which says the same in full.
  */
-export function HeldBanner({ pathname }: { readonly pathname: string }) {
+export function HeldBanner(
+  { pathname, updatePaused = false }: {
+    readonly pathname: string;
+    /** The server answers and says an update has paused work (#59). */
+    readonly updatePaused?: boolean;
+  },
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
@@ -30,7 +65,9 @@ export function HeldBanner({ pathname }: { readonly pathname: string }) {
   const administrator = useQuery(
     installationRestoreQueryOptions(api, scope, held),
   ).data != null;
-  if (!held || pathname === RESTORE_PATH) return null;
+  // A held installation wins the slot: finishing the restore comes first.
+  if (!held) return updatePaused ? <UpdatePausedBar /> : null;
+  if (pathname === RESTORE_PATH) return null;
   return (
     <>
       <UI.InlineNotice
