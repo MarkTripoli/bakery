@@ -884,7 +884,12 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
+    // The main this branch merged, and the two main tips after it that changed
+    // no contract: the base a pull-request run compares against moves, the
+    // delta it authorises does not.
     "041d3deb72c80b50eba4ef0369bd37a86a1e89d4",
+    "b66186a951505668b12ef1774d43a12b9b680158",
+    "bf7a7885ed28afeb65f8234eea4e3c9a8c7d58c1",
   ];
   const approvedDigest =
     "sha256:c76c357c013c89599a608f0293ca6edef5f2c57e80dc9506dd87176ea7504a45";
