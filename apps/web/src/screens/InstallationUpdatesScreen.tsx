@@ -135,14 +135,16 @@ export function InstallationUpdatesScreen(
 
   if (state === "notFound") {
     return (
-      <UI.EmptyState
-        description={translate("installation.updates.notFound.body")}
-        inset="page"
-        layout="centered"
-        title={translate("installation.updates.notFound.title")}
-        titleStyle="heading"
-        variant="filtered"
-      />
+      <UI.SettingsContent data-page="installation-updates" variant="wide">
+        <UI.EmptyState
+          align="start"
+          description={translate("installation.updates.notFound.body")}
+          layout="centered"
+          title={translate("installation.updates.notFound.title")}
+          titleStyle="heading"
+          variant="filtered"
+        />
+      </UI.SettingsContent>
     );
   }
 
@@ -191,14 +193,13 @@ export function InstallationUpdatesScreen(
               <FailureNotice
                 dateTime={dateTime}
                 dismissing={props.dismissing}
-                held={props.uncertain?.total ?? 0}
                 onDismiss={props.onDismiss}
                 status={status}
               />
               <Facts date={date} status={status} />
+              <Held date={date} uncertain={props.uncertain} />
               <Policy {...props} />
               <History {...props} dateTime={dateTime} />
-              <Held date={date} uncertain={props.uncertain} />
             </>
           )}
       </UI.Stack>
@@ -206,10 +207,15 @@ export function InstallationUpdatesScreen(
   );
 }
 
+/**
+ * The one notice slot at the top (design revision 6). While Bakery is not
+ * healthy it holds the health notice, which cannot be dismissed; the notice for
+ * the last update that did not go through comes back with Dismiss when health
+ * does.
+ */
 function FailureNotice(
-  { status, held, dismissing, onDismiss, dateTime }: {
+  { status, dismissing, onDismiss, dateTime }: {
     readonly status: InstallationUpdateStatus;
-    readonly held: number;
     readonly dismissing: boolean;
     readonly onDismiss: (id: string) => void;
     readonly dateTime: (iso: string) => string;
@@ -218,6 +224,62 @@ function FailureNotice(
   const { translate } = useI18n();
   const phone = useShellViewport() === "phone";
   const failure = status.lastFailure;
+  const when = (iso: string) =>
+    translate("installation.updates.notice.when", { date: dateTime(iso) });
+  if (!status.healthy) {
+    const stayed = failure !== null && failure.kind === "decided_stay" &&
+      failure.fromRelease === status.runningRelease;
+    const nodes = {
+      release: (after: string) => (
+        <Release after={after} id={status.runningRelease} />
+      ),
+      command: (after: string) => (
+        <Command after={after}>bakery-release status</Command>
+      ),
+    };
+    const stayNodes = {
+      command: (after: string) => (
+        <Command after={after}>bakery-release rollback</Command>
+      ),
+    };
+    return (
+      <UI.InlineNotice data-notice="not-healthy" role="alert" tone="error">
+        <UI.Stack gap="tight">
+          <UI.Text variant="strong">
+            {translate("installation.updates.notHealthy.title")}
+          </UI.Text>
+          <UI.Text>
+            <Sentence
+              nodes={nodes}
+              text={translate("installation.updates.notHealthy.body", {
+                release: slot("release"),
+                command: slot("command"),
+              })}
+            />
+          </UI.Text>
+          {stayed
+            ? (
+              <UI.Text>
+                <Sentence
+                  nodes={stayNodes}
+                  text={translate(
+                    failure.by === null
+                      ? "installation.updates.notHealthy.stayNobody"
+                      : "installation.updates.notHealthy.stay",
+                    {
+                      when: when(failure.at),
+                      by: failure.by ?? "",
+                      command: slot("command"),
+                    },
+                  )}
+                />
+              </UI.Text>
+            )
+            : null}
+        </UI.Stack>
+      </UI.InlineNotice>
+    );
+  }
   const notice = failureNotice(failure);
   if (failure === null || notice === null) return null;
   const nodes = {
@@ -236,27 +298,12 @@ function FailureNotice(
     to: slot("to"),
     command: slot("command"),
     by: failure.by ?? "",
-    when: translate("installation.updates.notice.when", {
-      date: dateTime(failure.at),
-    }),
+    when: when(failure.at),
   };
   return (
     <UI.InlineNotice
       action={
         <UI.Inline gap="compact" variant={phone ? "actions" : "flow"}>
-          {held > 0
-            ? (
-              <UI.Button
-                onClick={() =>
-                  document.getElementById(HELD_SECTION)?.scrollIntoView()}
-                variant="secondary"
-              >
-                {translate("installation.updates.notice.seeThem", {
-                  count: held,
-                })}
-              </UI.Button>
-            )
-            : null}
           <UI.Button
             loading={dismissing}
             onClick={() => onDismiss(failure.id)}
@@ -278,13 +325,6 @@ function FailureNotice(
         <UI.Text>
           <Sentence nodes={nodes} text={translate(notice.body, values)} />
         </UI.Text>
-        {held > 0
-          ? (
-            <UI.Text>
-              {translate("installation.updates.notice.held", { count: held })}
-            </UI.Text>
-          )
-          : null}
       </UI.Stack>
     </UI.InlineNotice>
   );
@@ -366,22 +406,6 @@ function Facts(
           title={translate("installation.updates.facts.started")}
         />
       </UI.DescriptionList>
-      {status.healthy
-        ? null
-        : (
-          <UI.InlineNotice data-notice="not-healthy" role="alert" tone="error">
-            <Sentence
-              nodes={{
-                command: (after: string) => (
-                  <Command after={after}>bakery-release status</Command>
-                ),
-              }}
-              text={translate("installation.updates.notHealthy", {
-                command: slot("command"),
-              })}
-            />
-          </UI.InlineNotice>
-        )}
     </UI.Stack>
   );
 }
@@ -453,16 +477,20 @@ function Policy(props: InstallationUpdatesScreenProps) {
       <UI.Text variant="hint">
         {translate("installation.updates.policy.help")}
       </UI.Text>
-      <UI.Inline>
-        <UI.Button
-          data-action="save-policy"
-          disabled={!policy.dirty || disabled}
-          loading={policy.saving}
-          onClick={props.onSave}
-        >
-          {translate("installation.updates.policy.save")}
-        </UI.Button>
-      </UI.Inline>
+      {!locked && (policy.dirty || policy.saving)
+        ? (
+          <UI.Inline>
+            <UI.Button
+              data-action="save-policy"
+              disabled={disabled}
+              loading={policy.saving}
+              onClick={props.onSave}
+            >
+              {translate("installation.updates.policy.save")}
+            </UI.Button>
+          </UI.Inline>
+        )
+        : null}
       {/* Every result of pressing Save shows here, right under the button. */}
       {policy.saved
         ? (
@@ -563,6 +591,7 @@ function History(
         ? (
           <UI.EmptyState
             description={translate("installation.updates.history.empty.body")}
+            span="column"
             title={translate("installation.updates.history.empty.title")}
           />
         )
@@ -654,9 +683,7 @@ function Held(
     <UI.SettingsSection
       data-section="held"
       id={HELD_SECTION}
-      title={translate("installation.updates.held.title", {
-        count: uncertain.total,
-      })}
+      title={translate("installation.updates.held.title")}
       variant="stack"
     >
       <UI.Text variant="muted">
@@ -687,9 +714,7 @@ function Held(
         )
         : (
           <UI.DataTable
-            caption={translate("installation.updates.held.title", {
-              count: uncertain.total,
-            })}
+            caption={translate("installation.updates.held.title")}
             captionHidden
             columns={[
               {

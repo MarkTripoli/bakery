@@ -224,6 +224,10 @@
   padding: var(--space-6);
 }
 
+.ui-empty-state[data-span="column"] {
+  max-inline-size: none;
+}
+
 .ui-empty-state--page,
 .ui-error-state--page {
   min-block-size: 240px;
@@ -602,6 +606,10 @@
   max-inline-size: none;
   padding: var(--space-0);
   text-align: center;
+}
+.ui-empty-state--centered[data-align="start"] {
+  justify-items: start;
+  text-align: start;
 }
 .ui-empty-state--centered .ui-empty-state__icon {
   color: var(--color-fg-muted);

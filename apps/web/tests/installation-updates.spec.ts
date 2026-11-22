@@ -88,6 +88,10 @@ type Options = {
   held?: number;
   statusCode?: number;
   restoreHeld?: boolean;
+  /** An update is running: the launcher has paused work. */
+  updatePaused?: boolean;
+  /** The updates status answer waits for this, so the loading state shows. */
+  hold?: Promise<void>;
 };
 
 async function updatesFixture(page: Page, options: Options = {}) {
@@ -111,13 +115,14 @@ async function updatesFixture(page: Page, options: Options = {}) {
       body: JSON.stringify({
         bootstrapped: true,
         restoreHeld: options.restoreHeld ?? false,
-        updatePaused: false,
+        updatePaused: options.updatePaused ?? false,
         release: RUNNING,
       }),
     }));
   await page.route(
     (url) => url.pathname === "/v1/installation/updates/status",
-    (route) => {
+    async (route) => {
+      await options.hold;
       if (options.statusCode !== undefined) {
         return route.fulfill({
           status: options.statusCode,
@@ -288,11 +293,10 @@ for (
       await expect.poll(() => said(notice)).toContain(
         "the new version did not become ready, so Bakery went back to 4f2a9c1e by itself. Paused work carried on.",
       );
-      await expect.poll(() => said(notice)).toContain(
-        "3 outside actions are held until someone checks them.",
-      );
-      await expect(notice.getByRole("button", { name: "See them" }))
-        .toBeVisible();
+      // The held count is said once, in its section: never in the notice.
+      await expect.poll(() => said(notice)).not.toContain("held");
+      await expect(notice.getByRole("button", { name: /^See / }))
+        .toHaveCount(0);
       await expect.poll(() => said(page.locator("[data-fact='running']")))
         .toContain("4f2a9c1e · since");
       await expect.poll(() => said(page.locator("[data-fact='running']")))
@@ -302,8 +306,14 @@ for (
       await expect.poll(() => said(page.locator("[data-fact='started']")))
         .toContain("bakery-release deploy");
       await expect(
-        page.getByRole("heading", { name: "3 outside actions are held" }),
+        page.getByRole("heading", { name: "Held outside actions" }),
       ).toBeVisible();
+      // The held section sits right under the facts, above the policy.
+      const heldBox = (await page.locator("[data-section='held']")
+        .boundingBox())!;
+      const policyBox = (await page.locator("[data-section='policy']")
+        .boundingBox())!;
+      expect(heldBox.y).toBeLessThan(policyBox.y);
       // No search field: the list read has none.
       await expect(page.getByRole("searchbox")).toHaveCount(0);
       const rows = page.locator("[data-event]");
@@ -347,14 +357,9 @@ for (
       const textBox = (await text.boundingBox())!;
       const noticeBox = (await notice.boundingBox())!;
       if (viewport.name === "phone") {
-        // The notice's buttons sit on their own row under the text, sharing the width.
+        // The notice's button sits on its own row under the text, across the width.
         expect(actionBox.y).toBeGreaterThanOrEqual(textBox.y + textBox.height);
-        const see = (await notice.getByRole("button", { name: "See them" })
-          .boundingBox())!;
-        expect(Math.abs(see.width - actionBox.width)).toBeLessThan(2);
-        expect(see.width + actionBox.width).toBeGreaterThan(
-          noticeBox.width * 0.6,
-        );
+        expect(actionBox.width).toBeGreaterThan(noticeBox.width * 0.6);
         // Held actions are stacked rows, not a three-column table.
         await expect(page.getByRole("table")).toHaveCount(0);
         const held = page.locator("[data-held]");
@@ -387,7 +392,7 @@ for (
       await expect.poll(() => said(rows.first())).toContain("Went back");
     });
 
-    test("staying on a release that is not ready, with missing dates", async ({ page }) => {
+    test("not healthy after a stay decision: one notice, both commands, no Dismiss", async ({ page }) => {
       await updatesFixture(page, {
         failure: event(4, "decided_stay", {
           by: "ana",
@@ -398,26 +403,113 @@ for (
         dates: false,
       });
       await page.goto("/installation/updates");
-      const notice = page.locator("[data-failure='decided_stay']");
+      const notice = page.locator("[data-notice='not-healthy']");
       await expect.poll(() => said(notice)).toContain(
-        "Bakery is running 4f2a9c1e, which did not become ready",
+        "Bakery's health check fails",
       );
       await expect.poll(() => said(notice)).toContain(
-        "ana chose on the server to stay on it. To go back, run bakery-release rollback on the server.",
+        "Bakery answers, but 4f2a9c1e is not healthy. On the server, run bakery-release status.",
       );
+      await expect.poll(() => said(notice)).toMatch(
+        /ana chose to stay on it\. To go back, run bakery-release rollback\./,
+      );
+      // One notice slot: the stay notice is not drawn beside it, and nothing here is dismissed.
+      await expect(page.locator("[data-failure]")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Dismiss" }))
+        .toHaveCount(0);
+      await expect(page.getByRole("alert")).toHaveCount(1);
       await expect.poll(() => said(page.locator("[data-fact='running']")))
         .toContain("Not healthy");
       await expect.poll(() => said(page.locator("[data-fact='running']"))).not
         .toContain("since");
       await expect.poll(() => said(page.locator("[data-fact='previous']")))
         .toMatch(/9b81d3f0 · ran until /);
-      await expect.poll(() => said(page.locator("[data-notice='not-healthy']")))
-        .toContain(
-          "Bakery answers, but its health check fails. On the server, run bakery-release status.",
-        );
       await page.mouse.move(5, 5);
       await still(page, "updates-stayed-not-healthy");
     });
+
+    test("not healthy with no failure to explain: the health notice alone", async ({ page }) => {
+      await updatesFixture(page, { failure: null, healthy: false });
+      await page.goto("/installation/updates");
+      const notice = page.locator("[data-notice='not-healthy']");
+      await expect.poll(() => said(notice)).toContain(
+        "Bakery answers, but 4f2a9c1e is not healthy. On the server, run bakery-release status.",
+      );
+      await expect.poll(() => said(notice)).not.toContain("chose to stay");
+      await expect(page.getByRole("button", { name: "Dismiss" }))
+        .toHaveCount(0);
+      await page.mouse.move(5, 5);
+      await still(page, "updates-not-healthy");
+    });
+
+    test("a stay decision on a healthy release is a notice that can be dismissed", async ({ page }) => {
+      await updatesFixture(page, {
+        failure: event(4, "decided_stay", {
+          by: "ana",
+          from: RUNNING,
+          to: KEPT,
+        }),
+      });
+      await page.goto("/installation/updates");
+      const notice = page.locator("[data-failure='decided_stay']");
+      await expect.poll(() => said(notice)).toContain(
+        "ana chose on the server to stay on it. To go back, run bakery-release rollback on the server.",
+      );
+      await expect(page.locator("[data-notice='not-healthy']"))
+        .toHaveCount(0);
+      await expect(notice.getByRole("button", { name: "Dismiss" }))
+        .toBeVisible();
+      await page.mouse.move(5, 5);
+      await still(page, "updates-stayed-healthy");
+    });
+
+    for (
+      const kind of [
+        {
+          name: "chose to go back",
+          failure: event(6, "decided_go_back", {
+            by: "ana",
+            from: NEWER,
+            to: KEPT,
+          }),
+          attribute: "decided_go_back",
+          title: "The update to c3e5a7b9 did not go through",
+          body:
+            "the new version did not become ready. Bakery waited, and ana chose to go back to 9b81d3f0 on the server.",
+          still: "updates-decided-go-back",
+        },
+        {
+          name: "was interrupted",
+          failure: event(8, "interrupted", { from: NEWER, to: KEPT }),
+          attribute: "interrupted",
+          title: "The switch to c3e5a7b9 was interrupted",
+          body:
+            "the switch did not finish. bakery-release recover put 9b81d3f0 back.",
+          still: "updates-interrupted",
+        },
+        {
+          name: "stayed with nobody to ask",
+          failure: event(7, "decided_stay", { from: RUNNING, to: KEPT }),
+          attribute: "decided_stay",
+          title: "Bakery is running 4f2a9c1e, which did not become ready",
+          body:
+            "no one could be asked, so Bakery stayed on it. To go back, run bakery-release rollback on the server.",
+          still: "updates-stayed-nobody",
+        },
+      ]
+    ) {
+      test(`the notice for an update that ${kind.name}`, async ({ page }) => {
+        await updatesFixture(page, { failure: kind.failure });
+        await page.goto("/installation/updates");
+        const notice = page.locator(`[data-failure='${kind.attribute}']`);
+        await expect.poll(() => said(notice)).toContain(kind.title);
+        await expect.poll(() => said(notice)).toContain(kind.body);
+        await expect(notice.getByRole("button", { name: "Dismiss" }))
+          .toBeVisible();
+        await page.mouse.move(5, 5);
+        await still(page, kind.still);
+      });
+    }
 
     test("the policy saves the whole settings with its version, and says when someone else changed it", async ({ page }) => {
       const fixture = await updatesFixture(page, { failure: null });
@@ -425,20 +517,22 @@ for (
       const save = page.getByRole("button", { name: "Save" });
       await expect(page.getByRole("radio", { name: "Go back by itself" }))
         .toBeChecked();
-      await expect(save).toBeDisabled();
+      // Nothing to save, so no Save is drawn.
+      await expect(save).toHaveCount(0);
       await page.getByRole("radio", { name: "Stop and ask" }).check();
       await expect(save).toBeEnabled();
+      const saveBox = (await save.boundingBox())!;
+      await page.mouse.move(5, 5);
+      await still(page, "updates-policy-changed");
       await save.click();
       const policy = page.locator("[data-section='policy']");
       const savedToast = policy.locator("[data-result='saved']");
       await expect(savedToast).toHaveText(
         /Saved\. It applies from the next update\./,
       );
-      // The answer to Save sits right under the button, inside the section.
-      const saveBox = (await save.boundingBox())!;
+      // The answer to Save takes the button's place, inside the section.
       const savedBox = (await savedToast.boundingBox())!;
-      expect(savedBox.y).toBeGreaterThanOrEqual(saveBox.y + saveBox.height);
-      expect(savedBox.y - (saveBox.y + saveBox.height)).toBeLessThan(40);
+      expect(Math.abs(savedBox.y - saveBox.y)).toBeLessThan(40);
       expect(fixture.writes).toEqual([{
         body: {
           registrationMode: "invitation",
@@ -447,7 +541,7 @@ for (
         },
         ifMatch: '"v3"',
       }]);
-      await expect(save).toBeDisabled();
+      await expect(save).toHaveCount(0);
       await page.mouse.move(5, 5);
       await still(page, "updates-policy-saved");
       fixture.changeElsewhere();
@@ -462,7 +556,7 @@ for (
       const conflict = policy.locator("[data-result='conflict']");
       await expect(conflict).toBeVisible();
       const conflictBox = (await conflict.boundingBox())!;
-      expect(conflictBox.y).toBeGreaterThanOrEqual(saveBox.y + saveBox.height);
+      expect(Math.abs(conflictBox.y - saveBox.y)).toBeLessThan(80);
       // Changing the choice clears the saved message.
       await expect(savedToast).toHaveCount(0);
       await page.mouse.move(5, 5);
@@ -473,19 +567,19 @@ for (
       await updatesFixture(page, { held: 1 });
       await page.goto("/installation/updates");
       const notice = page.locator("[data-failure='went_back']");
-      await expect.poll(() => said(notice)).toContain(
-        "1 outside action is held until someone checks it.",
-      );
-      await expect(notice.getByRole("button", { name: "See it" }))
-        .toBeVisible();
+      await expect.poll(() => said(notice)).not.toContain("held");
+      await expect(notice.getByRole("button", { name: /^See / }))
+        .toHaveCount(0);
       await expect(
-        page.getByRole("heading", { name: "1 outside action is held" }),
+        page.getByRole("heading", { name: "Held outside actions" }),
       ).toBeVisible();
       await expect(
         page.getByText(
           "It may or may not have happened. Bakery never sends it again; it is checked first.",
         ),
       ).toBeVisible();
+      await page.mouse.move(5, 5);
+      await still(page, "updates-held-one");
     });
 
     test("held after a restore: the policy cannot change, with the way out", async ({ page }) => {
@@ -500,6 +594,43 @@ for (
         .toBeDisabled();
       await expect(page.getByRole("button", { name: "Finish the restore" }))
         .toBeVisible();
+      await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+      await page.mouse.move(5, 5);
+      await still(page, "updates-policy-restore-held");
+    });
+
+    test("an update is running: the policy cannot change and says why", async ({ page }) => {
+      await updatesFixture(page, { failure: null, updatePaused: true });
+      await page.goto("/installation/updates");
+      await expect(
+        page.getByText(
+          "An update is running. You can change this when it ends.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByRole("radio", { name: "Stop and ask" }))
+        .toBeDisabled();
+      await expect(page.getByRole("radio", { name: "Go back by itself" }))
+        .toBeDisabled();
+      await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+      await page.mouse.move(5, 5);
+      await still(page, "updates-policy-update-running");
+    });
+
+    test("while the page loads, rows stand in and it says it is loading", async ({ page }) => {
+      let release: () => void = () => {};
+      const hold = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await updatesFixture(page, { hold });
+      await page.goto("/installation/updates");
+      const loading = page.getByLabel("Loading updates");
+      await expect(loading).toBeVisible();
+      await expect(loading).toHaveAttribute("aria-busy", "true");
+      await page.mouse.move(5, 5);
+      await still(page, "updates-loading");
+      release();
+      await expect(page.locator("[data-fact='running']")).toBeVisible();
+      await expect(loading).toHaveCount(0);
     });
 
     test("no updates yet", async ({ page }) => {
@@ -518,6 +649,10 @@ for (
       await page.goto("/installation/updates");
       await expect(page.getByText("Updates could not be loaded."))
         .toBeVisible();
+      const titleX = (await page.getByRole("heading", {
+        name: "Updates",
+        level: 1,
+      }).boundingBox())!.x;
       await expect(page.getByRole("button", { name: "Try again" }))
         .toBeVisible();
       await page.mouse.move(5, 5);
@@ -533,6 +668,15 @@ for (
       await expect(
         page.locator("[data-ui-component='emptyState']"),
       ).toHaveAttribute("data-title-style", "heading");
+      // Title and line start at the page column's edge, where Updates' title sits.
+      const headline = (await page.getByRole("heading", {
+        name: "This page was not found",
+      }).boundingBox())!;
+      const line = (await page.getByText(
+        "It may not exist, or you may not have access to it.",
+      ).boundingBox())!;
+      expect(Math.abs(headline.x - titleX)).toBeLessThan(2);
+      expect(Math.abs(line.x - titleX)).toBeLessThan(2);
       await expect(page.getByRole("link", { name: "Updates" })).toHaveCount(0);
       await page.mouse.move(5, 5);
       await still(page, "updates-forbidden");

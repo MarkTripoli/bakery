@@ -6360,7 +6360,6 @@
   "installation.updates.facts.previousNone": "⟦Ñô ëàŕļïëŕ ṽëŕšïôñ ïš ķëþŧ. ŧëšŧ çô⟧",
   "installation.updates.facts.started": "⟦Ûþðàŧëš àŕë šŧàŕŧëð ŧëšŧ⟧",
   "installation.updates.facts.startedValue": "⟦Ôñ ŧĥë šëŕṽëŕ, ŵïŧĥ {command}. Ñôŧ ƒŕôɱ ŧĥïš þàĝë, šô à ƀŕôķëñ þàĝë çàñ ñëṽëŕ ƀļôçķ àñ ûþðàŧë ôŕ à ŕëçôṽëŕÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "installation.updates.notHealthy": "⟦Ɓàķëŕÿ àñšŵëŕš, ƀûŧ ïŧš ĥëàļŧĥ çĥëçķ ƒàïļš. Ôñ ŧĥë šëŕṽëŕ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "installation.updates.policy.title": "⟦Ïƒ àñ ûþðàŧë ƒàïļš ŧëšŧ⟧",
   "installation.updates.policy.goBack": "⟦Ĝô ƀàçķ ƀÿ ïŧšëļƒ ŧëš⟧",
   "installation.updates.policy.goBack.description": "⟦Ɓàķëŕÿ ŕëŧûŕñš ŧô ŧĥë ṽëŕšïôñ ŧĥàŧ ŵàš ŕûññïñĝ àñð ŕëšûɱëš ŵôŕķ. Àðɱïñïšŧŕàŧôŕš àŕë ŧôļð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
@@ -6412,10 +6411,7 @@
   "installation.updates.notice.decidedStay": "⟦{when} {by} çĥôšë ôñ ŧĥë šëŕṽëŕ ŧô šŧàÿ ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command} ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.updates.notice.decidedStayNobody": "⟦{when} ñô ôñë çôûļð ƀë àšķëð, šô Ɓàķëŕÿ šŧàÿëð ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command} ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "installation.updates.notice.interruptedBody": "⟦{when} ŧĥë šŵïŧçĥ ðïð ñôŧ ƒïñïšĥ. {command} þûŧ {to} ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "installation.updates.notice.held": "⟦{count, plural, one {# outside action is held until someone checks it.} other {# outside actions are held until someone checks them.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "installation.updates.notice.seeThem": "⟦{count, plural, one {See it} other {See them}} ŧëšŧ çôþÿ ŧëšŧ⟧",
   "installation.updates.notice.dismiss": "⟦Ðïšɱïšš…⟧",
-  "installation.updates.held.title": "⟦{count, plural, one {# outside action is held} other {# outside actions are held}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "installation.updates.held.body": "⟦{count, plural, one {It may or may not have happened. Bakery never sends it again; it is checked first.} other {They may or may not have happened. Bakery never sends them again; each is checked first.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.updates.held.row": "⟦{count} ĥëļð šïñçë {date} ŧëšŧ ç⟧",
   "installation.updates.held.action": "⟦Àçŧïôñ…⟧",
@@ -6430,5 +6426,10 @@
   "issues.work.progress.stopping": "⟦Šŧôþþïñĝ… ŧ⟧",
   "issues.work.stop.slow": "⟦Ɓàķëŕÿ ïš šŧôþþïñĝ ŧĥïš. Ïŧ çàñ ŧàķë ûþ ŧô 5 ɱïñûŧëš ŧô šĥôŵ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "issues.work.stop.failed": "⟦Ŵôŕķ çôûļð ñôŧ ƀë šŧôþþëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧",
-  "issues.work.stop.beforeStart": "⟦Ŧô šŧôþ ŧĥïš ƀëƒôŕë ïŧ šŧàŕŧš, ŕëɱôṽë ŧĥë ļàƀëļ ôñ ĜïŧĤûƀ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "issues.work.stop.beforeStart": "⟦Ŧô šŧôþ ŧĥïš ƀëƒôŕë ïŧ šŧàŕŧš, ŕëɱôṽë ŧĥë ļàƀëļ ôñ ĜïŧĤûƀ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "installation.updates.notHealthy.title": "⟦Ɓàķëŕÿ'š ĥëàļŧĥ çĥëçķ ƒàïļš ŧëšŧ çô⟧",
+  "installation.updates.notHealthy.body": "⟦Ɓàķëŕÿ àñšŵëŕš, ƀûŧ {release} ïš ñôŧ ĥëàļŧĥÿ. Ôñ ŧĥë šëŕṽëŕ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "installation.updates.notHealthy.stay": "⟦{when} {by} çĥôšë ŧô šŧàÿ ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "installation.updates.notHealthy.stayNobody": "⟦{when} ñô ôñë çôûļð ƀë àšķëð, šô Ɓàķëŕÿ šŧàÿëð ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "installation.updates.held.title": "⟦Ĥëļð ôûŧšïðë àçŧïôñš ŧëšŧ⟧"
 }

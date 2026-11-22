@@ -62,14 +62,16 @@ export function InstallationUsageScreen(
 
   if (state === "notFound") {
     return (
-      <UI.EmptyState
-        description={translate("installation.usage.notFound.body")}
-        inset="page"
-        layout="centered"
-        title={translate("installation.usage.notFound.title")}
-        titleStyle="heading"
-        variant="filtered"
-      />
+      <UI.SettingsContent data-page="installation-usage">
+        <UI.EmptyState
+          align="start"
+          description={translate("installation.usage.notFound.body")}
+          layout="centered"
+          title={translate("installation.usage.notFound.title")}
+          titleStyle="heading"
+          variant="filtered"
+        />
+      </UI.SettingsContent>
     );
   }
 
