@@ -11,6 +11,7 @@ import {
   type BoundInvocation,
   createActionContext,
   type ProviderRequestPort,
+  providerRequestsForEnvironment,
 } from "../catalog/integration-gate.ts";
 import {
   classifyDispatch,
@@ -143,7 +144,10 @@ export async function dispatchEffect(
   if (!action) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const snapshots = standaloneSnapshots(deps.database, deps.snapshotsFor);
   return await runObserved({
-    inner: deps.providerRequests,
+    inner: providerRequestsForEnvironment(
+      bound.runEnvironment,
+      deps.providerRequests,
+    ),
     deadlineMs: deps.deadlineMs ?? DEFAULT_DEADLINE_MS,
     generation: effect.dispatchGeneration,
     maxGenerations: deps.maxDispatchGenerations ??

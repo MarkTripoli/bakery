@@ -14,6 +14,7 @@ import {
 import { createMcpEffectPort } from "../mcp/effect-port.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
 import { McpToolCallError } from "../mcp/tool-transport.ts";
+import { toRunEnvironment } from "../work/run-environment.ts";
 import {
   connectionInvokeDeps,
   toConnectionInvokeResponse,
@@ -175,13 +176,16 @@ export function createToolCallStepRunner(
     // also carries an @n for every enclosing repeat round.
     const stepKey = request.stepKey.replace(/@\d+/g, "");
     const facts = await withPgTransaction(deps.database, async (tx) => {
-      const run = await tx.query<{ workflow_version_id: string | null }>(
-        `select workflow_version_id from bakery.workflow_runs
+      const run = await tx.query<
+        { workflow_version_id: string | null; environment: string }
+      >(
+        `select workflow_version_id, environment from bakery.workflow_runs
           where organization_id = $1 and id = $2`,
         [request.organizationId, request.runId],
       );
       const versionId = run.rows[0]?.workflow_version_id ?? null;
       if (versionId === null) return null;
+      const environment = toRunEnvironment(run.rows[0]?.environment);
       const pin = await tx.query<{ digest: string; allowed: unknown }>(
         `select mcp_snapshot_digest as digest,
                 allowed_operations as allowed
@@ -217,6 +221,7 @@ export function createToolCallStepRunner(
       );
       return {
         versionId,
+        environment,
         pinnedDigest: pin.rows[0].digest,
         allowed: Array.isArray(pin.rows[0].allowed)
           ? pin.rows[0].allowed as unknown[]
@@ -241,6 +246,14 @@ export function createToolCallStepRunner(
       return failed(
         "TOOL_CALL_MCP_CLASSIFICATION_STALE",
         "The tool was classified against a different snapshot than the step pinned.",
+      );
+    }
+    // An offline run may reach nothing outside (#427), so no tool of an MCP
+    // server is sent from it, read or write.
+    if (facts.environment !== "live") {
+      return failed(
+        "TOOL_CALL_MCP_OFFLINE",
+        "This run is offline, so it cannot call a tool on an MCP server.",
       );
     }
     const asArguments = input.arguments as Record<string, unknown>;

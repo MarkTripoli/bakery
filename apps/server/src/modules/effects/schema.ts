@@ -58,6 +58,7 @@ export const EFFECT_FAILURE_CODES = [
   "retry_exhausted",
   "provider_rejected",
   "provider_not_sent",
+  "environment_offline",
 ] as const;
 
 export const EffectFailureCodeSchema = z.enum(EFFECT_FAILURE_CODES).describe(

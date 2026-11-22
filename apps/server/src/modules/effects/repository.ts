@@ -282,6 +282,8 @@ export type RunScopeFacts = Readonly<{
   taskId: string;
   runStatus: string;
   stepStatus: string;
+  /** Where the run may reach (`live` or `offline`), pinned at creation. */
+  environment: string;
 }>;
 
 /** Reads the step and its run, locking the run row `for share`. */
@@ -292,7 +294,8 @@ export async function lockRunScope(
 ): Promise<RunScopeFacts | null> {
   const result = await tx.query<RunScopeFacts>(
     `select run.id as "runId", run.task_id as "taskId",
-            run.status as "runStatus", step.status as "stepStatus"
+            run.status as "runStatus", step.status as "stepStatus",
+            run.environment
        from bakery.run_steps step
        join bakery.workflow_runs run
          on run.organization_id = step.organization_id

@@ -126,6 +126,8 @@ async function world(
     effectClass?: string | null;
     classifiedDigest?: string;
     pinned?: boolean;
+    /** The run is pinned to the offline environment (#427), which may reach nothing outside. */
+    offline?: boolean;
     snapshotDigest?: string;
     /** The tool the step calls; its classification is the one inserted. */
     tool?: string;
@@ -236,6 +238,12 @@ async function world(
     "update bakery.workflow_runs set workflow_version_id = $3 where organization_id = $1 and id = $2",
     [org, job.runId, versionId],
   );
+  if (options.offline === true) {
+    await db.query(
+      "update bakery.workflow_runs set environment = 'offline' where organization_id = $1 and id = $2",
+      [org, job.runId],
+    );
+  }
   // The engine's own row for the step the effect belongs to.
   await db.query(
     `insert into bakery.run_steps (organization_id, run_id, step_key, position, iteration, status, input)
@@ -558,6 +566,25 @@ Deno.test("a remote schema that changed since the step was pinned refuses the ca
     assertEquals(code(result), "TOOL_CALL_MCP_REFUSED_SCHEMA_DRIFT");
     assertEquals(server.sent.length, 0);
   }, { snapshotDigest: OTHER_DIGEST }));
+
+Deno.test("an offline run sends no MCP tool, read or write (#435)", async () => {
+  await withRunner(async (fixture, runner, server, w) => {
+    const result = await runner.run(request(fixture, w));
+    assertEquals(code(result), "TOOL_CALL_MCP_OFFLINE");
+    assertEquals(server.sent.length, 0);
+  }, { offline: true });
+  await withRunner(
+    async (fixture, runner, server, w) => {
+      const result = await runner.run(
+        request(fixture, w, { text: "hello" }, "lookup@2", "create_note"),
+      );
+      assertEquals(code(result), "TOOL_CALL_MCP_OFFLINE");
+      assertEquals(server.sent.length, 0);
+      assertEquals((await ledger(fixture)).length, 0);
+    },
+    { offline: true, tool: "create_note", effectClass: "write_opaque" },
+  );
+});
 
 Deno.test("a step that was not pinned at publish is refused, not sent (#435)", () =>
   withRunner(async (fixture, runner, server, w) => {

@@ -65,6 +65,8 @@ export type CredentialRequest = Readonly<{
    * value carried here, and the broker refuses.
    */
   generation: number;
+  /** Where the run behind the request may reach; `offline` is never brokered. */
+  runEnvironment?: "live" | "offline";
   subject: Readonly<{
     installId: string;
     resourceKind: string;
@@ -455,6 +457,9 @@ export function createBrokerWithProfiles(
       // means the broker was built without a generation source, and the
       // credential port refuses rather than guessing.
       generation: generation as number,
+      ...(bound.runEnvironment === undefined
+        ? {}
+        : { runEnvironment: bound.runEnvironment }),
       subject: {
         installId: bound.installId,
         resourceKind: bound.resource.kind,
