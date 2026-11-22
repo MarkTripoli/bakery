@@ -56,6 +56,8 @@ import type { RemoteTicketCreator } from "./modules/work/ticket-create.ts";
 import type { TicketLabelWriter } from "./modules/work/ticket-labels.ts";
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
+import { createPluginAuthoringRoutes } from "./modules/workflows/plugin-authoring/routes.ts";
+import type { PluginAuthoringDependencies } from "./modules/workflows/plugin-authoring/runner.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import { createEvaluationRoutes } from "./modules/evaluations/routes.ts";
 import {
@@ -250,6 +252,12 @@ export function createApp(options: {
   ticketLabelWriter?: TicketLabelWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
+  /**
+   * The plugin generator and preview runtime for prompt-to-private-plugin
+   * authoring (#45). Absent in a deployment that configures none, in which case
+   * starting a run is refused as unavailable rather than faked.
+   */
+  pluginAuthoring?: Omit<PluginAuthoringDependencies, "bundles">;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
   /** Destination test runner; tests inject one so no suite reaches a real bucket. */
@@ -922,6 +930,18 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createPluginAuthoringRoutes({
+      database: options.pgDatabase,
+      ...(options.pluginAuthoring ?? {}),
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
   app.route(
