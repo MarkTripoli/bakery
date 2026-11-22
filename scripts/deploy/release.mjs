@@ -502,8 +502,9 @@ export async function transition(
   // A candidate never approves a change to its own checks or launcher: the
   // version running now, which is what this launcher compares it with, does.
   // Only an update of a running installation is held: a rollback goes to a
-  // release that was already trusted, and a first install has nothing running.
-  if (!rollback && !bootstrap && old.active) {
+  // release that was already trusted, and a first install has nothing running
+  // (bootstrap onto a running host is refused above, so it never gets here).
+  if (!rollback && old.active) {
     const gate = typeof operations.gate === "function"
       ? await operations.gate(old.active.sha, sha)
       : null;

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -49,20 +50,38 @@ test("digests cover only the trusted paths, nested files included, and links are
     [elsewhere]: "not trusted",
   });
   await symlink("/etc/passwd", join(directory, "scripts/deploy/escape"));
+  // A link to a directory with files in it: the files are outside the release.
+  const outside = join(root, "outside");
+  await mkdir(outside);
+  await writeFile(join(outside, "secret.txt"), "not part of the release");
+  await symlink(outside, join(directory, "scripts/deploy/linked"));
   const digests = await gateDigests(directory);
   assert.deepEqual(Object.keys(digests).sort(), [
     "apps/server/src/modules/repository-rules/effective.ts",
     "infra/production/migration-policy.json",
     "scripts/deploy/escape",
+    "scripts/deploy/linked",
     "scripts/deploy/nested/run.sh",
     "scripts/deploy/release.mjs",
   ]);
-  assert.ok(!(elsewhere in digests), "nothing outside the trusted paths");
-  const again = await gateDigests(directory);
-  assert.equal(
-    again["scripts/deploy/escape"],
-    digests["scripts/deploy/escape"],
+  // A link is digested by where it points, never by what it points at.
+  const linkDigest = (target) =>
+    createHash("sha256").update(`link:${target}`).digest("hex");
+  assert.equal(digests["scripts/deploy/escape"], linkDigest("/etc/passwd"));
+  assert.equal(digests["scripts/deploy/linked"], linkDigest(outside));
+  assert.ok(
+    !Object.keys(digests).some((path) => path.includes("secret.txt")),
+    "a linked directory is not walked",
   );
+  // Reading it again gives the same digests.
+  assert.deepEqual(await gateDigests(directory), digests);
+  // Pointing the link somewhere else is a change to the gate.
+  await rm(join(directory, "scripts/deploy/escape"));
+  await symlink("/etc/shadow", join(directory, "scripts/deploy/escape"));
+  assert.deepEqual(gateChanges(digests, await gateDigests(directory)), [
+    { path: "scripts/deploy/escape", kind: "changed" },
+  ]);
+  assert.ok(!(elsewhere in digests), "nothing outside the trusted paths");
   assert.deepEqual(
     await gateDigests(join(root, "nowhere")),
     {},

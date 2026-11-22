@@ -1008,6 +1008,16 @@ test("an approved change, or no change, goes ahead", async () => {
   }
 });
 
+test("bootstrap onto a running host is refused before the gate is asked, so it cannot be a way around it", async () => {
+  const h = harness(committed, { pause: null, gate: held });
+  await assert.rejects(
+    run(h, () => {}, green, false, true),
+    /BOOTSTRAP_ALREADY_INITIALIZED/,
+  );
+  assert.deepEqual(h.calls, [], "nothing was asked or started");
+  assert.deepEqual(h.state(), committed, "the journal was never touched");
+});
+
 test("a rollback and a first install are never held by the gate", async () => {
   const back = harness({
     ...committed,
