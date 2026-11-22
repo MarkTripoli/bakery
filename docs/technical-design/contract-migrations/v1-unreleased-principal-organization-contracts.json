@@ -1,23 +1,13 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "9e3fd53ee7d92968f99c0a55f0101903d8d24205"
+    "db286b23bef74fb5e122814f49ddc43079619d2b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:cb3a1978cf5e4730f8b340c60dd12b21fa30fdc45ee35065130ff4d7516bdab0",
-  "reason": "#57 accepter name by dev-bugfix on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 9e3fd53ee7d92968f99c0a55f0101903d8d24205: the ReviewCycle read gains acceptedByName, the display name of the principal in acceptedBy, so a client can name who accepted a review anyway. Main's own approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
+  "reason": "#72 handoff read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main db286b23bef74fb5e122814f49ddc43079619d2b: RunStep gains a required, nullable handoffManifest {id, status, savedAt} so the UI can tell a step has a saved handoff manifest. Main's own #59 slice 3 approval it displaces is kept unchanged first below.",
   "priorApprovals": [
-    {
-      "id": "v1-unreleased-principal-organization-contracts",
-      "fromBaseRefs": [
-        "db286b23bef74fb5e122814f49ddc43079619d2b"
-      ],
-      "status": "displaced",
-      "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
-      "reason": "#72 handoff read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main db286b23bef74fb5e122814f49ddc43079619d2b: RunStep gains a required, nullable handoffManifest {id, status, savedAt} so the UI can tell a step has a saved handoff manifest. Main's own #59 slice 3 approval it displaces is kept unchanged first below."
-    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

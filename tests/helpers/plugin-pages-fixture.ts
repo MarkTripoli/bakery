@@ -89,7 +89,7 @@ export function memoryStore(): SkillObjectStore & {
  * why this removes the dependent rows and then the principal and user, and
  * leaves the organization standing.
  */
-async function removeColleagues(pgDatabase: Fixture["pgDatabase"]) {
+export async function removeColleagues(pgDatabase: Fixture["pgDatabase"]) {
   const users = await pgDatabase.query<{ id: string }>(
     `select id from public."user"
       where email like 'plugin-colleague-%@example.test'
