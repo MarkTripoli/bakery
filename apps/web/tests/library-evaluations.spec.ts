@@ -659,6 +659,8 @@ for (
       await expect(list.getByRole("listitem").nth(2)).toContainText(
         "Interrupted: The machine went away. · cost not known",
       );
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-attempt-costs");
     });
   });
 }
