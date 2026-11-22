@@ -14,6 +14,8 @@ import {
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
+import { readBlobBytes } from "../knowledge/reads.ts";
 import {
   type CursorBinding,
   decodeCursor,
@@ -1265,7 +1267,10 @@ type RunRow = {
  * A result that is no longer missing is left alone, so a repeat or a
  * concurrent call settles each result once.
  */
-export async function runLocalCorpus(context: ActionContext) {
+export async function runLocalCorpus(
+  context: ActionContext,
+  blobStore?: OrganizationBlobStore,
+) {
   const { transaction: tx, organizationId } = requireWorkTransaction(context);
   const batchId = context.params.id;
   if (!batchId) notFound();
@@ -1299,21 +1304,21 @@ export async function runLocalCorpus(context: ActionContext) {
         .map((r) => r.input_artifact_version_id as string),
     ),
   ];
-  const outputs = new Map<string, { bytes: Uint8Array | null; size: number }>();
+  const outputs = new Map<string, RecordedOutput>();
   if (wanted.length > 0) {
-    const found = await tx.query<
-      { id: string; size_bytes: string; content: Uint8Array | null }
-    >(
-      `select id, size_bytes::text, case when size_bytes <= $3 then content end as content
+    // A version holds its bytes inline or names a blob in the object store;
+    // retention can also have removed both. Each shape is read its own way, and
+    // each way that cannot give bytes says why.
+    const found = await tx.query<RecordedVersionRow>(
+      `select id, size_bytes::text, sha256, blob_id, purged_at,
+              case when blob_id is null and size_bytes <= $3
+                   then content end as content
          from bakery.artifact_versions
         where organization_id = $1 and id = any($2::uuid[])`,
       [organizationId, wanted, LOCAL_RUN_MAX_INPUT_BYTES],
     );
     for (const v of found.rows) {
-      outputs.set(v.id, {
-        bytes: v.content === null ? null : new Uint8Array(v.content),
-        size: Number(v.size_bytes),
-      });
+      outputs.set(v.id, await readRecordedOutput(v, organizationId, blobStore));
     }
   }
   const now = () => new Date();
@@ -1363,13 +1368,7 @@ export async function runLocalCorpus(context: ActionContext) {
       continue;
     }
     if (output.bytes === null) {
-      await attempt({
-        state: "error",
-        score: null,
-        reason: "The recorded output is " + output.size +
-          " bytes, over the " + LOCAL_RUN_MAX_INPUT_BYTES +
-          " a local check reads.",
-      });
+      await attempt({ state: "error", score: null, reason: output.reason });
       continue;
     }
     await attempt(
@@ -1378,6 +1377,77 @@ export async function runLocalCorpus(context: ActionContext) {
   }
   await settleBatchState(tx, organizationId, batchId);
   return await batchView(tx, organizationId, batchId);
+}
+
+/** A recorded output's bytes, or the plain reason a local check cannot read them. */
+type RecordedOutput =
+  | { bytes: Uint8Array; reason?: undefined }
+  | { bytes: null; reason: string };
+
+interface RecordedVersionRow {
+  id: string;
+  size_bytes: string;
+  sha256: string;
+  blob_id: string | null;
+  purged_at: Date | null;
+  content: Uint8Array | null;
+}
+
+/**
+ * One recorded output, read within the cap a local check reads.
+ *
+ * The three shapes a version can have each get their own answer: inline bytes
+ * are returned, a blob is read through the object store (verified against the
+ * version's digest and size), and a version retention has removed says so
+ * instead of being reported as too large.
+ */
+async function readRecordedOutput(
+  version: RecordedVersionRow,
+  organizationId: string,
+  blobStore: OrganizationBlobStore | undefined,
+): Promise<RecordedOutput> {
+  if (version.purged_at !== null) {
+    return {
+      bytes: null,
+      reason:
+        "The recorded output was removed by retention, so it cannot be checked.",
+    };
+  }
+  const size = Number(version.size_bytes);
+  if (size > LOCAL_RUN_MAX_INPUT_BYTES) {
+    return {
+      bytes: null,
+      reason: "The recorded output is " + size + " bytes, over the " +
+        LOCAL_RUN_MAX_INPUT_BYTES + " a local check reads.",
+    };
+  }
+  if (version.blob_id !== null) {
+    if (blobStore === undefined) {
+      return {
+        bytes: null,
+        reason:
+          "This server has no object store to read the recorded output from.",
+      };
+    }
+    try {
+      return {
+        bytes: await readBlobBytes(blobStore, organizationId, {
+          size_bytes: size,
+          sha256: version.sha256,
+        }),
+      };
+    } catch {
+      return {
+        bytes: null,
+        reason:
+          "The recorded output could not be read back from the object store.",
+      };
+    }
+  }
+  if (version.content === null) {
+    return { bytes: null, reason: "The recorded output has no stored bytes." };
+  }
+  return { bytes: new Uint8Array(version.content) };
 }
 
 // -------------------------------------------------------------- comparison

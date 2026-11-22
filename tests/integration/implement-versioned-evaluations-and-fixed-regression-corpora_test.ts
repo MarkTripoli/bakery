@@ -13,6 +13,10 @@ import { withPgTransaction } from "@bakery/persistence/postgres";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { seedEligibleJob } from "../helpers/worker-execution.ts";
 import { recordAttempt } from "../../apps/server/src/modules/evaluations/store.ts";
+import { ScopedOrganizationBlobStore } from "../../apps/server/src/modules/catalog/blob-store.ts";
+import type { SkillFileStoreOperations } from "../../apps/server/src/modules/catalog/storage.ts";
+import { commitArtifactVersion } from "../../apps/server/src/modules/knowledge/persistence.ts";
+import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -798,3 +802,198 @@ Deno.test("AC1: runs are listed by the digest of what they measured, and the rep
       );
     }
   }));
+
+/** An in-memory object store keyed the way the real one is, so a blob-backed version can be read back. */
+function memoryObjectStore(): SkillFileStoreOperations {
+  const objects = new Map<string, Uint8Array>();
+  return {
+    putIfAbsent(key, content) {
+      if (!objects.has(key)) objects.set(key, content);
+      return Promise.resolve();
+    },
+    read(key) {
+      const found = objects.get(key);
+      return found
+        ? Promise.resolve(found)
+        : Promise.reject(new Error("missing object"));
+    },
+    recover() {
+      return Promise.resolve();
+    },
+    stat(key) {
+      const found = objects.get(key);
+      return Promise.resolve(found ? { sizeBytes: found.byteLength } : null);
+    },
+  };
+}
+
+/** A new artifact whose second version names a blob, as an upload is stored since #520. */
+async function blobBackedVersion(
+  fixture: Fixture,
+  store: ScopedOrganizationBlobStore,
+  content: Uint8Array,
+): Promise<string> {
+  const db = fixture.pgDatabase;
+  const job = await seedEligibleJob(
+    db,
+    fixture.organizationId,
+    fixture.principalId,
+  );
+  const artifactId = crypto.randomUUID();
+  const seedId = crypto.randomUUID();
+  const seed = new TextEncoder().encode("seed");
+  await db.query(
+    "insert into bakery.artifacts (id,organization_id,task_id,artifact_type,name) values ($1,$2,$3,'document','blob output')",
+    [artifactId, fixture.organizationId, job.taskId],
+  );
+  await db.query(
+    `insert into bakery.artifact_versions (id,organization_id,artifact_id,task_id,
+       author_id,revision,content,sha256,size_bytes,media_type,retention_class)
+     values ($1,$2,$3,$4,$5,1,$6,$7,$8,'text/plain','evidence')`,
+    [
+      seedId,
+      fixture.organizationId,
+      artifactId,
+      job.taskId,
+      fixture.principalId,
+      seed,
+      await sha256Bytes(seed),
+      seed.byteLength,
+    ],
+  );
+  await db.query(
+    "update bakery.artifacts set current_version_id = $1, revision = 2 where organization_id = $2 and id = $3",
+    [seedId, fixture.organizationId, artifactId],
+  );
+  const parent = (await db.query<{ revision: number; version: number }>(
+    "select revision, version from bakery.artifacts where organization_id = $1 and id = $2",
+    [fixture.organizationId, artifactId],
+  )).rows[0];
+  const published = await withPgTransaction(
+    db,
+    async (transaction) =>
+      await commitArtifactVersion(transaction, {
+        blobStore: store,
+        scope: {
+          organizationId: fixture.organizationId,
+          taskId: job.taskId,
+          applicationId: crypto.randomUUID(),
+          repositoryId: null,
+          conversationId: null,
+        },
+        parent: {
+          id: artifactId,
+          revision: parent.revision,
+          version: parent.version,
+          currentVersionId: seedId,
+        },
+        version: {
+          parentVersionId: '"' + seedId + '"',
+          runStepId: null,
+          authorId: fixture.principalId,
+          subjectHeadSha: null,
+          subjectBaseSha: null,
+          stepKey: null,
+          metadata: {},
+          content,
+          sha256: await sha256Bytes(content),
+          mediaType: "text/plain",
+        },
+        promotion: { kind: "human" },
+      }),
+  );
+  return String(published.id);
+}
+
+Deno.test("a local run reads an inline, a blob-backed and a purged recorded output, and keeps a too-large one apart", () => {
+  const objects = memoryObjectStore();
+  return withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const blobs = new ScopedOrganizationBlobStore(objects);
+    const enc = new TextEncoder();
+    const inline = w.versionId;
+    const blob = await blobBackedVersion(
+      fixture,
+      blobs,
+      enc.encode("hi from a blob"),
+    );
+    const purged = await blobBackedVersion(
+      fixture,
+      blobs,
+      enc.encode("hi, then removed"),
+    );
+    const huge = await blobBackedVersion(
+      fixture,
+      blobs,
+      new Uint8Array(1024 * 1024 + 1).fill(104),
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set content = null, blob_id = null, purged_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, purged],
+    );
+    const repositoryId = (await fixture.pgDatabase.query<{ id: string }>(
+      "select id from bakery.repositories where organization_id = $1 limit 1",
+      [fixture.organizationId],
+    )).rows[0].id;
+    const caseIds: string[] = [];
+    const names = {
+      [inline]: "inline",
+      [blob]: "blob",
+      [purged]: "purged",
+      [huge]: "huge",
+    };
+    for (const [versionId, name] of Object.entries(names)) {
+      const made = await ok(
+        await call(fixture, "POST", "/v1/evaluation-cases", {
+          body: {
+            repositoryId,
+            name: "out-" + name,
+            inputArtifactVersionId: versionId,
+            expected: { ok: true },
+          },
+        }),
+        201,
+      );
+      caseIds.push(String(made.id));
+    }
+    const dataset = await ok(
+      await call(fixture, "POST", "/v1/evaluation-datasets", {
+        body: { name: "outputs", caseIds },
+      }),
+      201,
+    );
+    const check = await definition(fixture, "has-hi-outputs", "deterministic", {
+      kind: "contains",
+      config: { substring: "hi" },
+    });
+    const batch = await ok(
+      await admitWith(fixture, w, {
+        datasetId: dataset.id,
+        scorerIds: [check.id],
+      }),
+      201,
+    );
+    await runBatch(fixture, batch.id);
+    const rows = await results(fixture, batch.id);
+    const by = (name: string) =>
+      rows.find((r) => r.caseName === "out-" + name)!;
+    assertEquals(by("inline").state, "passed");
+    assertEquals(
+      by("blob").state,
+      "passed",
+      "a blob-backed output is read through the store",
+    );
+    assertEquals(by("purged").state, "error");
+    assertEquals(
+      String(by("purged").reason).startsWith(
+        "The recorded output was removed by retention",
+      ),
+      true,
+      "a purged version says so, not that it is too large",
+    );
+    assertEquals(by("huge").state, "error");
+    assertEquals(String(by("huge").reason).includes("over the 1048576"), true);
+  }, { skillFileStore: objects });
+});

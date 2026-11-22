@@ -21,6 +21,7 @@ import {
   contractSchemas,
   OrganizationContextPolicy,
 } from "@bakery/contracts/contracts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
@@ -46,6 +47,7 @@ import {
 export function createEvaluationActionRegistry(
   database: PgDatabase,
   secret: string,
+  blobStore?: OrganizationBlobStore,
 ) {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -189,7 +191,8 @@ export function createEvaluationActionRegistry(
       explicitIdempotency: "key",
       successStatus: 200,
       policy: command,
-      handler: async (c) => S.EvaluationBatch.parse(await runLocalCorpus(c)),
+      handler: async (c) =>
+        S.EvaluationBatch.parse(await runLocalCorpus(c, blobStore)),
     })
     .register({
       name: A.EvaluationBatchesCompare,
@@ -235,6 +238,8 @@ export function createEvaluationRoutes(options: {
   session: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  /** Reads blob-backed recorded outputs; absent when no object store is configured. */
+  blobStore?: OrganizationBlobStore;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   for (
@@ -253,6 +258,7 @@ export function createEvaluationRoutes(options: {
       registry: createEvaluationActionRegistry(
         options.database,
         options.cursorSecret,
+        options.blobStore,
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
