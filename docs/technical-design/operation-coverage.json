@@ -677,6 +677,10 @@
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/bakery/0077_installation_settings.sql"
       },
+      "installation_update_history": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0319_installation_update_policy.sql"
+      },
       "integration_deliveries": {
         "module": "integrations",
         "migration": "apps/server/src/modules/integrations/migrations/bakery/0185_event_export.sql"
