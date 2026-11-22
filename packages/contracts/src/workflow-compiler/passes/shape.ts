@@ -138,6 +138,8 @@ const REPEAT_NODE_KEYS: ReadonlySet<string> = new Set([
 ]);
 const REPEAT_BODY_KEYS: ReadonlySet<string> = new Set([
   "max",
+  "min",
+  "allow",
   "seed",
   "until",
   "steps",
@@ -1193,6 +1195,26 @@ function shapeRepeat(
   } else {
     max = body["max"];
   }
+  // `min` and `allow` are bounded by `max` (and `allow` by `min`), so a loop can
+  // always reach its minimum and a soft cap is never past the hard one.
+  let min: number | undefined;
+  let allow: number | undefined;
+  if (Object.hasOwn(body, "min")) {
+    if (max > 0 && isInteger(body["min"], 1, max)) {
+      min = body["min"];
+    } else if (max > 0) {
+      report(context, [...bodyPath, "min"], "repeat_min_invalid");
+      failed = true;
+    }
+  }
+  if (Object.hasOwn(body, "allow")) {
+    if (max > 0 && isInteger(body["allow"], min ?? 1, max)) {
+      allow = body["allow"];
+    } else if (max > 0) {
+      report(context, [...bodyPath, "allow"], "repeat_allow_invalid");
+      failed = true;
+    }
+  }
   let seed: WorkflowRepeatSeed | undefined;
   if (!Object.hasOwn(body, "seed")) {
     report(context, [...bodyPath, "seed"], "field_missing");
@@ -1246,6 +1268,9 @@ function shapeRepeat(
     steps,
     currentCandidate,
   };
+  // Absent stays absent, so a definition without them keeps its digest.
+  if (min !== undefined) node.min = min;
+  if (allow !== undefined) node.allow = allow;
   if (condition) node.if = condition;
   return node;
 }

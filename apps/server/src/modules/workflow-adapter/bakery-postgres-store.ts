@@ -852,6 +852,9 @@ async function loadRunEndContext(
  * has no reason column, so the stable code goes to the audit log, which an
  * operator can read, next to the run it names.
  */
+/** The stable code of a run that stopped at a repeat's `allow` below its `max`. */
+export const PLAN_LIMIT_REACHED_CODE = "limit_reached";
+
 async function endPlanRunFailed(
   transaction: PgTransactionClient,
   context: RunEndRow,
@@ -1019,6 +1022,18 @@ async function findNextPlanKeys(
   }
   if (answer.kind === "finished") {
     await finishPlanRunIn(transaction, context, "completed", activeOwner);
+    return undefined;
+  }
+  if (answer.kind === "paused") {
+    // A repeat used its `allow` below its `max` with its exit condition still
+    // false. The run does not go on past the soft cap; until a limit decision
+    // can be recorded it ends with a stable code that names the limit.
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      PLAN_LIMIT_REACHED_CODE,
+    );
     return undefined;
   }
   if (answer.kind === "halted") {

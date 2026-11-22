@@ -358,7 +358,8 @@ inside Deliver) has an optional **minimum** and **maximum** iteration count, set
 in the loop's panel.
 
 - **Minimum** means "run at least N times even if the exit condition is already
-  met". The engine's `repeat` has no minimum today; `repeat.min` is a model gap.
+  met" (`repeat.min`, built in interpreter revision 3: `until` is not asked
+  before round `min`).
 - **Maximum** is `repeat.max`. It is bounded by the compiler's iteration cap,
   which is 1 to 8 today, and by the workflow's `limits.maxRepairCycles`. So
   `1 <= min <= max <= 8`. The compiler counts the worst case from `max`; `min`
@@ -366,7 +367,8 @@ in the loop's panel.
 - **Pausing for more rounds** (deliver-as-workflow D9) happens only below the
   maximum. A loop may start with a smaller allowance (`repeat.allow`). When it
   uses that allowance without meeting its exit condition, the run pauses for a
-  person, who can allow more rounds, accept as is, or stop. More rounds can
+  person (built so far: the engine stops the run with the stable code
+  `limit_reached` and goes no further; recording the decision comes next), who can allow more rounds, accept as is, or stop. More rounds can
   never go past `max`. When `max` is reached, the loop ends as exhausted and the
   run ends `needs_human` with `limit_reached`. Raising the cap of 8 is not part
   of this decision.

@@ -352,6 +352,10 @@ export type WorkflowRepeatNode = {
   needs: string[];
   if?: WorkflowExpressionNode | undefined;
   max: number;
+  /** Rounds that run even when `until` already holds; absent means none. */
+  min?: number | undefined;
+  /** Rounds allowed before the run pauses below `max`; absent means `max`. */
+  allow?: number | undefined;
   seed: WorkflowRepeatSeed;
   until: WorkflowExpressionNode;
   steps: WorkflowNode[];
@@ -518,6 +522,12 @@ const repeatNodeSchema = z.object({
   ...baseNodeShape,
   max: z.number().int().min(1).max(8).describe(
     "Maximum iteration count, bounded by the repair-cycle policy.",
+  ),
+  min: z.number().int().min(1).max(8).optional().describe(
+    "Minimum iteration count: the loop runs at least this many rounds even when the exit condition already holds; never more than max.",
+  ),
+  allow: z.number().int().min(1).max(8).optional().describe(
+    "Soft cap on iterations before the run pauses for a limit decision; between min and max, and never past max.",
   ),
   seed: repeatSeedSchema,
   until: z.lazy(() => WorkflowExpressionNodeSchema).describe(
