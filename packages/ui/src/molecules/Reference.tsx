@@ -187,7 +187,7 @@ export function Reference(
       {trailing === undefined || trailing === ""
         ? text
         : (
-          <span className="ui-data-text-keep">
+          <span className="ui-data-text-keep" data-trailing={trailing}>
             {text}
             {trailing}
           </span>
