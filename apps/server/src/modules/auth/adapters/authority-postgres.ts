@@ -464,9 +464,11 @@ function authorizeThroughBindings(
 
 /**
  * Conversation actions a direct mention grant can open, and only on the
- * conversation named by the route id: read the conversation and its
- * transcript, see who takes part, find people to mention, and reply. Agent
- * execution, turn control, task and repository actions are never here.
+ * conversation named by the route id (for a proposal read, the conversation
+ * that proposal belongs to): read the conversation and its transcript and
+ * proposals, see who takes part, find people to mention, and reply. Agent
+ * execution, turn control, deciding a proposal, task and repository actions
+ * are never here.
  */
 const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
   "conversations.get",
@@ -475,7 +477,26 @@ const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
   "conversationParticipants.list",
   "conversations.mentionCandidates",
   "conversationAccess.sharers",
+  "workflowDefinitionProposals.list",
+  "workflowDefinitionProposals.get",
 ]);
+
+/** The conversation a grant must cover for this action's route id. */
+async function grantConversationId(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  organizationId: string,
+  routeId: string | undefined,
+): Promise<string | undefined> {
+  if (action.name !== "workflowDefinitionProposals.get") return routeId;
+  if (routeId === undefined || !isUuid(routeId)) return undefined;
+  const row = await transaction.query<{ conversation_id: string }>(
+    `select conversation_id from bakery.workflow_definition_proposals
+      where organization_id = $1 and id = $2`,
+    [organizationId, routeId],
+  );
+  return row.rows[0]?.conversation_id;
+}
 
 /**
  * When the organization role refused a conversation action, a live direct
@@ -939,7 +960,12 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                   transaction,
                   action,
                   actor,
-                  context.params.id,
+                  await grantConversationId(
+                    transaction,
+                    action,
+                    organizationId,
+                    context.params.id,
+                  ),
                   denied,
                 );
               }

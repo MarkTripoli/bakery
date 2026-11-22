@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "c0f886bf8ac73fe9333f75534360e8a7a383db72"
+    "4bc760431e6b489d6ed1647b18ea222f0952ee5d"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:0ed6daa30949e9c443962b73fc84c0b890c7bf69466af9dc1eff0568e1b82cd2",
-  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main c0f886bf8ac73fe9333f75534360e8a7a383db72: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:3428fc0daed512dc4b5b86a3b937270ba7a3740191e24b1e2b90ff6cc2f49765",
+  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 4bc760431e6b489d6ed1647b18ea222f0952ee5d: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "c0f886bf8ac73fe9333f75534360e8a7a383db72"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b7783aa18b7e646a6a052a3735b601fac76c9523d0b4b3eabc3509250d7a6250",
+      "reason": "#39 proposals read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main c0f886bf8ac73fe9333f75534360e8a7a383db72: WorkflowDefinitionProposal gains a required, nullable decidedByName (the decider's current display name) so the conversation can say who accepted or rejected a proposal. Main's own #42 approval it displaces is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
