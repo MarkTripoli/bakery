@@ -2669,7 +2669,7 @@ test("what needs attention lists each check that did not pass with its reason, a
     "A repository rule.",
   );
   await expect(
-    row("pull request title").getByRole("button", {
+    row("pull request title").getByRole("link", {
       name: "Open repository rules",
     }),
   ).toBeVisible();

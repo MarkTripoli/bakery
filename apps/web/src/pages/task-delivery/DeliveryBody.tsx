@@ -116,6 +116,7 @@ function Rows<Row>(
           width: column.width,
         }))}
         getRowKey={rowKey}
+        variant="ruled"
         headingsHidden
         rows={[...rows]}
       />
@@ -156,18 +157,26 @@ function Attention(
       )
       : <UI.Text>{t(item.why.key, item.why.values)}</UI.Text>;
   const link = (item: AttentionItem) =>
-    item.kind === "finding"
-      ? null
-      : item.rule
+    item.kind === "finding" ? null : item.rule
       ? (
-        <UI.Button onClick={onOpenRules} variant="text">
+        <UI.Link
+          href="#run-details"
+          variant="sentence"
+          onClick={(event) => {
+            event.preventDefault();
+            onOpenRules();
+          }}
+        >
           {t("tasks.delivery.attention.openRules")}
-        </UI.Button>
+        </UI.Link>
       )
       : item.evidenceVersionId === null
       ? null
       : (
-        <UI.Link href={`/files/versions/${item.evidenceVersionId}`}>
+        <UI.Link
+          href={`/files/versions/${item.evidenceVersionId}`}
+          variant="sentence"
+        >
           {t("tasks.delivery.check.openOutput")}
         </UI.Link>
       );
