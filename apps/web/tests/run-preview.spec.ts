@@ -280,31 +280,32 @@ test.beforeEach(async ({ page }, testInfo) => {
   }
 });
 
-test("a running preview names its commit, says it is not a release, and offers Prepare and Stop", async ({ page }) => {
+const details = (page: Page) => card(page).getByTestId("run-preview-details");
+/** Opens the card's Details; its facts and Stop preview are not read while it is closed. */
+async function openDetails(page: Page) {
+  await details(page).locator("summary").click();
+}
+const actions = (page: Page) =>
+  card(page).getByRole("button", { name: /Prepare preview|Open|Stop preview/ });
+
+test("a running preview says one thing and offers one button; its facts wait in Details", async ({ page }) => {
   await prepare(page);
   await page.goto(`/tasks/${taskId}`);
   await expect(card(page)).toBeVisible({ timeout: 20_000 });
   await expect(
     card(page).getByRole("heading", { name: "Preview of this change" }),
-  )
-    .toBeVisible();
+  ).toBeVisible();
   await expect(card(page).getByText("Running", { exact: true })).toBeVisible();
-  await expect(card(page).getByTestId("run-preview-identity")).toHaveText(
-    "Commit 0123456 · not released",
-  );
   await expect(card(page).getByTestId("run-preview-body")).toHaveText(
-    "The app the agent is working on, as it runs now. It opens in a new tab on a separate address that cannot reach your Bakery account.",
+    "The app the agent is working on, as it runs now.",
   );
-  await expect(
-    card(page).getByText(
-      /Stops by itself at .* \(in \d+ minutes\) or when the run ends\./,
-    ),
-  )
-    .toBeVisible();
+  // One button on the face; the commit, the stop time and Stop are in Details.
+  await expect(actions(page)).toHaveCount(1);
   await expect(card(page).getByRole("button", { name: "Prepare preview" }))
     .toBeEnabled();
+  await expect(card(page).getByText("not released")).toBeHidden();
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
-    .toBeVisible();
+    .toBeHidden();
   // One status region announces the state; the countdown is not live.
   await expect(card(page).getByRole("status")).toHaveCount(1);
   // Nothing of the preview's address, route key or port is on the page.
@@ -313,6 +314,17 @@ test("a running preview names its commit, says it is not a release, and offers P
   expect(text).not.toContain("preview-0123456789");
   await cardStill(page, "run-preview-running");
   await still(page, "run-preview-in-pane");
+  await openDetails(page);
+  await expect(details(page).getByText("0123456, not released")).toBeVisible();
+  await expect(
+    details(page).getByText(/\(in \d+ minutes\) or when the run ends/),
+  )
+    .toBeVisible();
+  await expect(details(page).getByText("separate from your Bakery account"))
+    .toBeVisible();
+  await expect(card(page).getByRole("button", { name: "Stop preview" }))
+    .toBeVisible();
+  await cardStill(page, "run-preview-running-details");
 });
 
 test("opening is two steps and the grant travels in a form body to the preview's own origin", async ({ page }) => {
@@ -321,7 +333,10 @@ test("opening is two steps and the grant travels in a form body to the preview's
   await card(page).getByRole("button", { name: "Prepare preview" }).click();
   const open = card(page).getByRole("button", { name: "Open preview" });
   await expect(open).toBeVisible();
-  await expect(card(page).getByRole("timer")).toContainText("expires in");
+  await expect(actions(page)).toHaveCount(1);
+  await expect(card(page).getByRole("timer")).toHaveText(
+    /Opens in a new tab\. This link expires in \d+ seconds?\./,
+  );
   await cardStill(page, "run-preview-ready");
 
   const posted = page.context().waitForEvent(
@@ -343,45 +358,42 @@ test("opening is two steps and the grant travels in a form body to the preview's
   // The grant is in the body and never in the address.
   expect(request.url()).toBe(EXCHANGE);
   expect(request.postData()).toBe(`grant=${"G".repeat(43)}`);
-  await expect(
-    card(page).getByText(
-      "Preview opened in a new tab. You stay signed in to it for 1 hour, on this browser only.",
-    ),
-  ).toBeVisible();
+  await expect(card(page).getByTestId("run-preview-body")).toHaveText(
+    "Opened in a new tab. You stay signed in to it for 1 hour, on this browser only.",
+  );
   // The secret is gone from the page; opening again prepares a new grant.
   await expect(page.locator("body")).not.toContainText("G".repeat(43));
   await expect(page.locator(`input[value="${"G".repeat(43)}"]`)).toHaveCount(0);
+  await expect(actions(page)).toHaveCount(1);
   await expect(card(page).getByRole("button", { name: "Open again" }))
     .toBeVisible();
   await cardStill(page, "run-preview-opened");
 });
 
-test("stopping ends it for everyone, says who, and moves focus to the heading", async ({ page }) => {
+test("stopping from Details ends it for everyone, says who, and moves focus to the heading", async ({ page }) => {
   const world = await prepare(page);
   await page.goto(`/tasks/${taskId}`);
+  await openDetails(page);
   await card(page).getByRole("button", { name: "Stop preview" }).click();
   await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible();
-  await expect(card(page).getByText(/^Stopped by you at /)).toBeVisible();
+  await expect(card(page).getByTestId("run-preview-body")).toHaveText(
+    /^Stopped by you at .+ A new preview appears here when the agent starts the app again\.$/,
+  );
+  await expect(actions(page)).toHaveCount(0);
+  // Details stays open, and now says what stopping did to open tabs.
   await expect(
     card(page).getByText("Open tabs of this preview no longer load."),
-  )
-    .toBeVisible();
-  await expect(
-    card(page).getByText(
-      "A new preview appears here when the agent starts the app again.",
-    ),
   ).toBeVisible();
-  await expect(card(page).getByRole("button")).toHaveCount(0);
   // Focus moves to the card, which is named by its heading.
   await expect(card(page)).toBeFocused();
   await expect(
     card(page).getByRole("heading", { name: "Preview of this change" }),
-  )
-    .toBeVisible();
+  ).toBeVisible();
   expect(world.stopped).toBe(1);
   await cardStill(page, "run-preview-stopped");
 });
 
+const AGAIN = "A new preview appears here when the agent starts the app again.";
 const REASONS: {
   name: string;
   change: Partial<Preview>;
@@ -406,7 +418,7 @@ const REASONS: {
       stoppedAt: ago(5),
     },
     badge: "Stopped",
-    text: /^Stopped by Dana Rivera at /,
+    text: new RegExp(`^Stopped by Dana Rivera at .+ ${AGAIN}$`),
     tabs: true,
   },
   {
@@ -420,7 +432,7 @@ const REASONS: {
       stoppedAt: ago(5),
     },
     badge: "Stopped",
-    text: /^Stopped at /,
+    text: new RegExp(`^Stopped at .+ ${AGAIN}$`),
     tabs: true,
   },
   {
@@ -431,14 +443,14 @@ const REASONS: {
       stoppedAt: ago(5),
     },
     badge: "Stopped",
-    text: /^Stopped when the run was cancelled at /,
+    text: new RegExp(`^Stopped when the run was cancelled at .+ ${AGAIN}$`),
     tabs: true,
   },
   {
     name: "replaced by a newer attempt",
     change: { status: "stopped", stopReason: "replaced", stoppedAt: ago(5) },
     badge: "Stopped",
-    text: "A newer attempt replaced this preview.",
+    text: `A newer attempt replaced this preview. ${AGAIN}`,
     tabs: true,
   },
   {
@@ -450,21 +462,21 @@ const REASONS: {
     },
     badge: "Not reachable",
     text:
-      /The machine running this preview stopped answering at .*\.\s*The preview is offline\. If the run continues on another machine, a new preview appears here\./,
+      /^The machine running this preview stopped answering at .+\. If the run continues on another machine, a new preview appears here\.$/,
     tabs: false,
   },
   {
     name: "its time limit passed",
     change: { status: "expired", stopReason: "time_limit", stoppedAt: ago(5) },
     badge: "Ended",
-    text: /^Ended at .*, its time limit\./,
+    text: new RegExp(`^Ended at .+, its time limit\\. ${AGAIN}$`),
     tabs: true,
   },
   {
     name: "the run ended",
     change: { status: "stopped", stopReason: "run_ended", stoppedAt: ago(5) },
     badge: "Ended",
-    text: /^Ended at .*, when the run finished\./,
+    text: new RegExp(`^Ended at .+, when the run finished\\. ${AGAIN}$`),
     tabs: true,
   },
 ];
@@ -476,64 +488,43 @@ for (const reason of REASONS) {
     await expect(card(page)).toBeVisible({ timeout: 20_000 });
     await expect(card(page).getByText(reason.badge, { exact: true }))
       .toBeVisible();
-    await expect(card(page).getByTestId("run-preview-body")).toContainText(
+    // One sentence says what it means; nothing to press, and no second notice.
+    await expect(card(page).getByTestId("run-preview-body")).toHaveText(
       reason.text,
     );
     await expect(card(page).getByText("Running", { exact: true })).toHaveCount(
       0,
     );
-    await expect(card(page).getByText(/Stops by itself/)).toHaveCount(0);
-    await expect(card(page).getByTestId("run-preview-identity")).toContainText(
-      "not released",
-    );
-    // One status region announces the state, whichever notice shows it too.
+    await expect(actions(page)).toHaveCount(0);
+    await expect(card(page).locator('[data-ui-component="inlineNotice"]'))
+      .toHaveCount(0);
+    // One status region announces the state.
     await expect(card(page).getByRole("status")).toHaveCount(1);
-    if (reason.name === "starting" || reason.name === "the machine was lost") {
-      // Open is off, with its reason as the description, until the app runs
-      // (starting) or a preview is back (not reachable). Nothing else to press.
-      const prepareButton = card(page).getByRole("button", {
-        name: "Prepare preview",
-      });
-      await expect(prepareButton).toBeDisabled();
-      await expect(prepareButton).toHaveAccessibleDescription(
-        reason.name === "starting"
-          ? "Available once the app is running."
-          : "Not available while the preview is offline.",
-      );
-      await expect(card(page).getByRole("button")).toHaveCount(1);
-      await expect(card(page).getByRole("button", { name: "Stop preview" }))
-        .toHaveCount(0);
-    }
-    if (reason.name !== "starting") {
-      if (reason.name !== "the machine was lost") {
-        await expect(card(page).getByRole("button")).toHaveCount(0);
+    if (reason.name === "starting") {
+      await expect(details(page)).toHaveCount(0);
+      await cardStill(page, "run-preview-starting");
+    } else {
+      if (reason.name === "the run was cancelled") {
+        await cardStill(page, "run-preview-cancelled");
       }
-      // The not-reachable card already says a new preview may appear.
-      await expect(
-        card(page).getByText(
-          "A new preview appears here when the agent starts the app again.",
-        ),
-      ).toHaveCount(reason.name === "the machine was lost" ? 0 : 1);
+      if (reason.name === "the machine was lost") {
+        await cardStill(page, "run-preview-lost");
+      }
+      if (reason.name === "its time limit passed") {
+        await cardStill(page, "run-preview-ended");
+      }
+      // The commit, and what stopping did to open tabs, are in Details.
+      await openDetails(page);
+      await expect(details(page).getByText("0123456, not released"))
+        .toBeVisible();
       await expect(
         card(page).getByText("Open tabs of this preview no longer load."),
       ).toHaveCount(reason.tabs ? 1 : 0);
     }
-    if (reason.name === "starting") {
-      await cardStill(page, "run-preview-starting");
-    }
-    if (reason.name === "the run was cancelled") {
-      await cardStill(page, "run-preview-cancelled");
-    }
-    if (reason.name === "the machine was lost") {
-      await cardStill(page, "run-preview-lost");
-    }
-    if (reason.name === "its time limit passed") {
-      await cardStill(page, "run-preview-ended");
-    }
   });
 }
 
-test("a deployment with no preview address says Not set up and offers nothing", async ({ page }) => {
+test("a deployment with no preview address says Not set up in one sentence and offers nothing", async ({ page }) => {
   await prepare(page, { available: false });
   await page.goto(`/tasks/${taskId}`);
   await expect(card(page).getByText("Not set up", { exact: true })).toBeVisible(
@@ -542,14 +533,10 @@ test("a deployment with no preview address says Not set up and offers nothing", 
     },
   );
   await expect(card(page).getByTestId("run-preview-body")).toHaveText(
-    "Previews are not set up for this deployment, so the running app cannot be opened from here.",
+    "Previews are not set up for this deployment. An administrator sets the preview address in the deployment settings.",
   );
-  await expect(
-    card(page).getByText(
-      "An administrator sets the preview address in the deployment settings.",
-    ),
-  ).toBeVisible();
-  await expect(card(page).getByRole("button")).toHaveCount(0);
+  await expect(actions(page)).toHaveCount(0);
+  await expect(details(page)).toHaveCount(0);
   await cardStill(page, "run-preview-not-set-up");
 });
 
@@ -562,32 +549,35 @@ test("a run with no preview shows no card", async ({ page }) => {
   await expect(card(page)).toHaveCount(0);
 });
 
-test("a preview that could not be opened says so and can be tried again", async ({ page }) => {
+test("a preview that could not be opened says so once and can be tried again", async ({ page }) => {
   const world = await prepare(page, { accessStatus: 409 });
   await page.goto(`/tasks/${taskId}`);
   await card(page).getByRole("button", { name: "Prepare preview" }).click();
   await expect(
     card(page).getByText("The preview could not be opened. Try again."),
-  )
-    .toBeVisible();
+  ).toBeVisible();
+  await expect(card(page).getByRole("alert")).toHaveCount(1);
   await expect(card(page).getByRole("button", { name: "Prepare preview" }))
     .toBeEnabled();
   expect(world.accessCalls).toBe(1);
   await cardStill(page, "run-preview-open-failed");
-  // It tries again, and this time the grant comes.
+  // It tries again, and this time the grant comes; the error goes.
   world.accessStatus = 201;
   await card(page).getByRole("button", { name: "Prepare preview" }).click();
   await expect(card(page).getByRole("button", { name: "Open preview" }))
     .toBeVisible();
+  await expect(card(page).getByRole("alert")).toHaveCount(0);
 });
 
 test("a stop that fails says so, keeps the preview running and can be tried again", async ({ page }) => {
   const world = await prepare(page, { stopStatus: 409 });
   await page.goto(`/tasks/${taskId}`);
+  await openDetails(page);
   await card(page).getByRole("button", { name: "Stop preview" }).click();
   await expect(
     card(page).getByText("The preview could not be stopped. Try again."),
   ).toBeVisible();
+  await expect(card(page).getByRole("alert")).toHaveCount(1);
   await expect(card(page).getByText("Running", { exact: true })).toBeVisible();
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeEnabled();
@@ -596,6 +586,7 @@ test("a stop that fails says so, keeps the preview running and can be tried agai
   world.stopStatus = 201;
   await card(page).getByRole("button", { name: "Stop preview" }).click();
   await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible();
+  await expect(card(page).getByRole("alert")).toHaveCount(0);
 });
 
 test("a grant that is not used in its 30 seconds is dropped and the card says to prepare again", async ({ page }) => {
@@ -633,29 +624,27 @@ test("a preview that reaches its time limit while the page is open changes witho
   await expect(card(page).getByText("Ended", { exact: true })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(card(page).getByRole("button")).toHaveCount(0);
+  await expect(actions(page)).toHaveCount(0);
 });
 
-test("when the live reads drop the card says it is checking and Open stays off until it is read again", async ({ page }) => {
+test("when the live reads drop the card says it is checking, offers nothing, and recovers when read again", async ({ page }) => {
   await prepare(page);
   await page.goto(`/tasks/${taskId}`);
   await expect(card(page).getByRole("button", { name: "Prepare preview" }))
     .toBeEnabled({ timeout: 20_000 });
   await page.context().setOffline(true);
-  await expect(card(page).getByTestId("run-preview-checking")).toHaveText(
+  // The sentence is replaced, not added to, and nothing can be pressed.
+  await expect(card(page).getByTestId("run-preview-body")).toHaveText(
     "Checking whether this is still running…",
   );
+  await expect(actions(page)).toHaveCount(0);
   await cardStill(page, "run-preview-checking");
-  const prepareButton = card(page).getByRole("button", {
-    name: "Prepare preview",
-  });
-  await expect(prepareButton).toBeDisabled();
-  await expect(prepareButton).toHaveAccessibleDescription(
-    "Available once this has been checked.",
-  );
   await page.context().setOffline(false);
-  await expect(prepareButton).toBeEnabled({ timeout: 15_000 });
-  await expect(card(page).getByTestId("run-preview-checking")).toHaveCount(0);
+  await expect(card(page).getByRole("button", { name: "Prepare preview" }))
+    .toBeEnabled({ timeout: 15_000 });
+  await expect(card(page).getByTestId("run-preview-body")).toHaveText(
+    "The app the agent is working on, as it runs now.",
+  );
 });
 
 /** The task's pull requests as `pullRequests.list` returns them, served from `world`. */
@@ -691,40 +680,49 @@ async function servePullRequests(
   );
 }
 
-test("a preview of an older commit says so, and still opens when the person chooses to", async ({ page }) => {
+const BEHIND =
+  "The change has moved on since this preview started, so this is not what would be released.";
+
+test("a preview behind the change says so once, and still opens when the person chooses to", async ({ page }) => {
   await prepare(page);
   const rows = { current: [pullRequestRow()] };
   await servePullRequests(page, rows);
   await page.goto(`/tasks/${taskId}`);
-  await expect(card(page).getByText("Older commit", { exact: true }))
-    .toBeVisible({ timeout: 20_000 });
+  await expect(card(page).getByText("Behind", { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
   await expect(card(page)).toHaveAttribute("data-preview-state", "running");
-  await expect(card(page).getByTestId("run-preview-body")).toContainText(
-    "This preview shows an older commit.",
-  );
-  await expect(card(page).getByTestId("run-preview-newer")).toHaveText(
-    "The change is now at fedcba9. What you see here is not what would be released.",
-  );
-  // The preview's own commit and "not released" still show, and it is not "Running".
-  await expect(card(page).getByTestId("run-preview-identity")).toHaveText(
-    "Commit 0123456 · not released",
-  );
+  // One badge and one sentence: no warning box, no commit id on the face.
+  await expect(card(page).getByTestId("run-preview-body")).toHaveText(BEHIND);
+  await expect(card(page).locator('[data-ui-component="inlineNotice"]'))
+    .toHaveCount(0);
+  await expect(card(page).getByText("fedcba9")).toBeHidden();
   await expect(card(page).getByText("Running", { exact: true })).toHaveCount(0);
+  await expect(actions(page)).toHaveCount(1);
+  await expect(card(page).getByRole("status")).toHaveCount(1);
+  await cardStill(page, "run-preview-behind");
+  await still(page, "run-preview-behind-in-pane");
+  // The two commits are in Details.
+  await openDetails(page);
+  await expect(details(page).getByText("0123456, not released")).toBeVisible();
+  await expect(details(page).getByText("fedcba9")).toBeVisible();
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeVisible();
-  await expect(card(page).getByRole("status")).toHaveCount(1);
-  await cardStill(page, "run-preview-older-commit");
-  await still(page, "run-preview-older-commit-in-pane");
+  await cardStill(page, "run-preview-behind-details");
   // Opening anyway is still the two-step control, with the choice in its words.
   await card(page).getByRole("button", { name: "Prepare preview" }).click();
-  await expect(
-    card(page).getByRole("button", { name: "Open preview anyway" }),
-  ).toBeVisible();
-  // The change's pull request catches up with the preview: the notice goes.
+  await expect(card(page).getByRole("button", { name: "Open it anyway" }))
+    .toBeVisible();
+  await expect(card(page).getByRole("timer")).toContainText("expires in");
+  // The change's pull request catches up with the preview: it reads as current.
   rows.current = [pullRequestRow({ headSha: SHA })];
-  await expect(card(page).getByText("Older commit", { exact: true }))
-    .toHaveCount(0, { timeout: 15_000 });
-  await expect(card(page).getByTestId("run-preview-body")).toBeVisible();
+  await expect(card(page).getByText("Behind", { exact: true })).toHaveCount(0, {
+    timeout: 15_000,
+  });
+  await expect(card(page).getByText("Running", { exact: true })).toBeVisible();
+  await expect(card(page).getByTestId("run-preview-body")).toHaveText(
+    "The app the agent is working on, as it runs now.",
+  );
 });
 
 for (
@@ -744,14 +742,16 @@ for (
     await expect(card(page).getByText("Running", { exact: true })).toBeVisible({
       timeout: 20_000,
     });
-    await expect(card(page).getByText("Older commit")).toHaveCount(0);
-    await expect(card(page).getByTestId("run-preview-newer")).toHaveCount(0);
+    await expect(card(page).getByText("Behind")).toHaveCount(0);
+    await openDetails(page);
+    await expect(details(page).getByText("The change is now at"))
+      .toHaveCount(0);
     await expect(card(page).getByRole("button", { name: "Prepare preview" }))
       .toBeEnabled();
   });
 }
 
-test("a preview that is not live shows its own state, never the older-commit notice", async ({ page }) => {
+test("a preview that is not live shows its own state, never the behind state", async ({ page }) => {
   await prepare(page, {
     current: preview({
       status: "stopped",
@@ -765,7 +765,7 @@ test("a preview that is not live shows its own state, never the older-commit not
   await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(card(page).getByText("Older commit")).toHaveCount(0);
+  await expect(card(page).getByText("Behind")).toHaveCount(0);
 });
 
 test.afterEach(async ({ page }) => {

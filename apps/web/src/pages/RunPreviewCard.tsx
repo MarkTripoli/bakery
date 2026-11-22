@@ -85,61 +85,78 @@ const BADGE: Record<
 export function RunPreviewCardView(props: RunPreviewCardViewProps) {
   const { locale, timeZone, translate } = useI18n();
   const { preview, state, open, checking } = props;
-  const time = (value: string | null) =>
-    value === null ? "" : new Intl.DateTimeFormat(locale, {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone,
-    }).format(new Date(value));
+  const dayOf = (value: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone }).format(value);
+  // A time on today's date reads as the time alone; another day adds the date.
+  const time = (value: string | null) => {
+    if (value === null) return "";
+    const at = new Date(value);
+    return new Intl.DateTimeFormat(
+      locale,
+      dayOf(at) === dayOf(props.now)
+        ? { timeStyle: "short", timeZone }
+        : { dateStyle: "medium", timeStyle: "short", timeZone },
+    ).format(at);
+  };
   const older = state.kind === "running" ? props.newerHeadSha : null;
   const badge = older === null
     ? BADGE[state.kind]
     : { tone: "warning" as const, key: "tasks.preview.badge.older" as const };
-  const live = state.kind === "running" || state.kind === "starting";
-  const reasonId = useId();
-  const openDisabledReason: MessageKey | null = state.kind === "starting"
-    ? "tasks.preview.disabled.starting"
-    : state.kind === "lost"
-    ? "tasks.preview.disabled.lost"
-    : checking
-    ? "tasks.preview.disabled.checking"
-    : null;
 
+  const stopped = (): string => {
+    if (state.kind !== "stopped") return "";
+    if (state.reason === "person") {
+      return state.byName === null && state.by !== props.currentPrincipalId
+        ? translate("tasks.preview.stopped.unnamed", { time: time(state.at) })
+        : translate("tasks.preview.stopped.person", {
+          name: state.by !== null && state.by === props.currentPrincipalId
+            ? translate("tasks.preview.name.you")
+            : state.byName,
+          time: time(state.at),
+        });
+    }
+    return state.reason === "run_cancelled"
+      ? translate("tasks.preview.stopped.cancelled", { time: time(state.at) })
+      : translate("tasks.preview.stopped.replaced");
+  };
+
+  // The one sentence of the card: what the state means for the person.
   const sentence = (): string => {
+    const again = translate("tasks.preview.again");
     switch (state.kind) {
       case "unavailable":
-        return translate("tasks.preview.unavailable.body");
+        return `${translate("tasks.preview.unavailable.body")} ${
+          translate("tasks.preview.unavailable.admin")
+        }`;
       case "starting":
         return translate("tasks.preview.body.starting");
       case "running":
+        if (checking) return translate("tasks.preview.caption.checking");
+        if (open.kind === "opened") {
+          const length = sessionLength(open.sessionSeconds);
+          return translate("tasks.preview.opened", {
+            duration: translate(
+              length.unit === "hour"
+                ? "tasks.preview.duration.hours"
+                : "tasks.preview.duration.minutes",
+              { count: length.count },
+            ),
+          });
+        }
         return older === null
           ? translate("tasks.preview.body.running")
-          : `${translate("tasks.preview.older.lead")} ${
-            translate("tasks.preview.older.now")
-          } ${shortSha(older)}. ${translate("tasks.preview.older.rest")}`;
+          : translate("tasks.preview.older.body");
       case "stopped":
-        return state.reason === "person" && state.byName === null &&
-            state.by !== props.currentPrincipalId
-          ? translate("tasks.preview.stopped.unnamed", { time: time(state.at) })
-          : state.reason === "person"
-          ? translate("tasks.preview.stopped.person", {
-            name: state.by !== null && state.by === props.currentPrincipalId
-              ? translate("tasks.preview.name.you")
-              : state.byName,
-            time: time(state.at),
-          })
-          : state.reason === "run_cancelled"
-          ? translate("tasks.preview.stopped.cancelled", {
-            time: time(state.at),
-          })
-          : translate("tasks.preview.stopped.replaced");
+        return `${stopped()} ${again}`;
       case "ended":
-        return translate(
-          state.reason === "time_limit"
-            ? "tasks.preview.ended.timeLimit"
-            : "tasks.preview.ended.runEnded",
-          { time: time(state.at) },
-        );
+        return `${
+          translate(
+            state.reason === "time_limit"
+              ? "tasks.preview.ended.timeLimit"
+              : "tasks.preview.ended.runEnded",
+            { time: time(state.at) },
+          )
+        } ${again}`;
       case "lost":
         return `${
           translate("tasks.preview.lost.lead", { time: time(state.at) })
@@ -147,9 +164,20 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
     }
   };
 
-  const length = open.kind === "opened"
-    ? sessionLength(open.sessionSeconds)
+  // One error at a time: the newest. The card clears the older one.
+  const error: MessageKey | null = props.stopFailed
+    ? "tasks.preview.stopFailed"
+    : open.kind === "failed"
+    ? "tasks.preview.openFailed"
+    : open.kind === "linkExpired"
+    ? "artifact.handoff.expired"
     : null;
+  // Only a running preview that has been checked can be opened; every other
+  // state shows no button at all, and its sentence says why.
+  const canOpen = state.kind === "running" && !checking;
+  const running = state.kind === "running";
+  const hasDetails = state.kind !== "starting" && state.kind !== "unavailable";
+
   return (
     <UI.PaneSection
       ruled
@@ -164,211 +192,136 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
       data-preview-state={state.kind}
     >
       <UI.Stack gap="compact">
-        <UI.Text variant="caption" data-testid="run-preview-identity">
-          {translate("tasks.preview.identity.commit")}{" "}
-          <UI.DataText fit>{shortSha(preview.headSha)}</UI.DataText>
-          {" · "}
-          {translate("tasks.preview.identity.released")}
-        </UI.Text>
-        {state.kind === "lost"
-          ? (
-            // The card's one status region announces this; the notice does not
-            // announce it a second time.
-            <UI.InlineNotice
-              role="none"
-              tone="warning"
-              data-testid="run-preview-body"
-            >
-              <UI.Text variant="strong">
-                {translate("tasks.preview.lost.lead", { time: time(state.at) })}
-              </UI.Text>
-              <UI.Text>{translate("tasks.preview.lost.rest")}</UI.Text>
+        <UI.Text data-testid="run-preview-body">{sentence()}</UI.Text>
+        {error === null
+          ? null
+          : (
+            <UI.InlineNotice tone="error" data-testid="run-preview-error">
+              {translate(error)}
             </UI.InlineNotice>
-          )
-          : older !== null
-          ? (
-            <UI.InlineNotice
-              role="none"
-              tone="warning"
-              data-testid="run-preview-body"
-            >
-              <UI.Text variant="strong">
-                {translate("tasks.preview.older.lead")}
-              </UI.Text>
-              <UI.Text data-testid="run-preview-newer">
-                {translate("tasks.preview.older.now")}{" "}
-                <UI.DataText fit>{shortSha(older)}</UI.DataText>
-                {". "}
-                {translate("tasks.preview.older.rest")}
-              </UI.Text>
-            </UI.InlineNotice>
-          )
-          : <UI.Text data-testid="run-preview-body">{sentence()}</UI.Text>}
-        {state.kind === "unavailable"
-          ? (
-            <UI.Text variant="hint">
-              {translate("tasks.preview.unavailable.admin")}
-            </UI.Text>
-          )
-          : null}
-        {state.kind === "stopped" || state.kind === "ended" ||
-            state.kind === "lost"
-          ? (
-            <UI.Stack gap="none">
-              {state.kind !== "lost"
-                ? (
-                  <UI.Text variant="hint">
-                    {translate("tasks.preview.stopped.tabs")}
-                  </UI.Text>
-                )
-                : null}
-              {state.kind !== "lost"
-                ? (
-                  <UI.Text variant="hint">
-                    {translate("tasks.preview.again")}
-                  </UI.Text>
-                )
-                : null}
-            </UI.Stack>
-          )
-          : null}
-        {state.kind === "running" && checking
-          ? (
-            <UI.Text variant="caption" data-testid="run-preview-checking">
-              {translate("tasks.preview.caption.checking")}
-            </UI.Text>
-          )
-          : state.kind === "running"
-          ? (
-            <UI.Text variant="caption">
-              {translate("tasks.preview.caption.stops", {
-                time: time(state.expiresAt),
-                minutes: minutesLeft(state.expiresAt, props.now),
-              })}
-            </UI.Text>
-          )
-          : null}
+          )}
 
-        {open.kind === "opened" && length !== null
+        {canOpen && open.kind === "ready"
           ? (
-            <UI.InlineNotice tone="information">
-              {translate("tasks.preview.opened", {
-                duration: translate(
-                  length.unit === "hour"
-                    ? "tasks.preview.duration.hours"
-                    : "tasks.preview.duration.minutes",
-                  { count: length.count },
-                ),
-              })}
-            </UI.InlineNotice>
+            <>
+              <UI.HandoffForm
+                action={open.grant.exchangeUrl}
+                data-testid="run-preview-form"
+                fields={{ grant: open.grant.grant }}
+                id={FORM_ID}
+                onSubmit={props.onSubmitted}
+                target="_blank"
+              />
+              <UI.Inline gap="compact">
+                <UI.Button
+                  type="submit"
+                  form={FORM_ID}
+                  data-testid="run-preview-open"
+                >
+                  {translate(
+                    older === null
+                      ? "artifact.handoff.open"
+                      : "tasks.preview.openAnyway",
+                  )}
+                </UI.Button>
+              </UI.Inline>
+              <UI.Text variant="caption" role="timer" aria-live="off">
+                {translate("tasks.preview.linkExpires", {
+                  seconds: open.secondsLeft,
+                })}
+              </UI.Text>
+            </>
           )
-          : null}
-        {open.kind === "linkExpired"
-          ? (
-            <UI.InlineNotice tone="warning">
-              {translate("artifact.handoff.expired")}
-            </UI.InlineNotice>
-          )
-          : null}
-        {open.kind === "failed"
-          ? (
-            <UI.InlineNotice tone="error">
-              {translate("tasks.preview.openFailed")}
-            </UI.InlineNotice>
-          )
-          : null}
-        {props.stopFailed
-          ? (
-            <UI.InlineNotice tone="error">
-              {translate("tasks.preview.stopFailed")}
-            </UI.InlineNotice>
-          )
-          : null}
-
-        {live || state.kind === "lost"
+          : canOpen
           ? (
             <UI.Inline gap="compact">
-              {open.kind === "ready"
-                ? (
-                  <>
-                    <UI.HandoffForm
-                      action={open.grant.exchangeUrl}
-                      data-testid="run-preview-form"
-                      fields={{ grant: open.grant.grant }}
-                      id={FORM_ID}
-                      onSubmit={props.onSubmitted}
-                      target="_blank"
-                    />
-                    <UI.Button
-                      type="submit"
-                      form={FORM_ID}
-                      data-testid="run-preview-open"
-                    >
-                      {translate(
-                        older === null
-                          ? "artifact.handoff.open"
-                          : "tasks.preview.openAnyway",
-                      )}
-                    </UI.Button>
-                  </>
-                )
-                : (
-                  <>
-                    <UI.Button
-                      variant={open.kind === "opened" || older !== null
-                        ? "outline"
-                        : "primary"}
-                      data-testid="run-preview-prepare"
-                      disabled={openDisabledReason !== null}
-                      aria-describedby={openDisabledReason === null
-                        ? undefined
-                        : reasonId}
-                      state={open.kind === "preparing" ? "loading" : "default"}
-                      onClick={props.onPrepare}
-                    >
-                      {translate(
-                        open.kind === "preparing"
-                          ? "artifact.handoff.preparing"
-                          : open.kind === "opened"
-                          ? "tasks.preview.openAgain"
-                          : "artifact.handoff.prepare",
-                      )}
-                    </UI.Button>
-                    {openDisabledReason === null
-                      ? null
-                      : (
-                        <UI.VisuallyHidden id={reasonId}>
-                          {translate(openDisabledReason)}
-                        </UI.VisuallyHidden>
-                      )}
-                  </>
+              <UI.Button
+                variant={open.kind === "opened" || older !== null
+                  ? "outline"
+                  : "primary"}
+                data-testid="run-preview-prepare"
+                state={open.kind === "preparing" ? "loading" : "default"}
+                onClick={props.onPrepare}
+              >
+                {translate(
+                  open.kind === "preparing"
+                    ? "artifact.handoff.preparing"
+                    : open.kind === "opened"
+                    ? "tasks.preview.openAgain"
+                    : "artifact.handoff.prepare",
                 )}
-              {state.kind === "running"
-                ? (
-                  <UI.Button
-                    variant="outline"
-                    data-testid="run-preview-stop"
-                    state={props.stopping ? "loading" : "default"}
-                    onClick={props.onStop}
-                  >
-                    {translate(
-                      props.stopping
-                        ? "tasks.preview.stopping"
-                        : "tasks.preview.stop",
-                    )}
-                  </UI.Button>
-                )
-                : null}
+              </UI.Button>
             </UI.Inline>
           )
           : null}
-        {open.kind === "ready"
+
+        {hasDetails
           ? (
-            <UI.Text variant="caption" role="timer" aria-live="off">
-              {translate("artifact.handoff.ready", {
-                seconds: open.secondsLeft,
-              })}
-            </UI.Text>
+            <UI.Disclosure
+              summary={translate("tasks.preview.details.summary")}
+              data-testid="run-preview-details"
+            >
+              <UI.Stack gap="compact">
+                <UI.DetailRow
+                  label={translate("tasks.preview.details.preview")}
+                >
+                  <UI.DataText fit>{shortSha(preview.headSha)}</UI.DataText>
+                  {", "}
+                  {translate("tasks.preview.details.notReleased")}
+                </UI.DetailRow>
+                {older === null ? null : (
+                  <UI.DetailRow
+                    label={translate("tasks.preview.details.change")}
+                  >
+                    <UI.DataText fit>{shortSha(older)}</UI.DataText>
+                  </UI.DetailRow>
+                )}
+                {state.kind === "running"
+                  ? (
+                    <>
+                      <UI.DetailRow
+                        label={translate("tasks.preview.details.stops")}
+                      >
+                        {translate("tasks.preview.details.stopsValue", {
+                          time: time(state.expiresAt),
+                          minutes: minutesLeft(state.expiresAt, props.now),
+                        })}
+                      </UI.DetailRow>
+                      <UI.DetailRow
+                        label={translate("tasks.preview.details.address")}
+                      >
+                        {translate("tasks.preview.details.addressValue")}
+                      </UI.DetailRow>
+                    </>
+                  )
+                  : null}
+                {state.kind === "stopped" || state.kind === "ended"
+                  ? (
+                    <UI.Text variant="hint">
+                      {translate("tasks.preview.stopped.tabs")}
+                    </UI.Text>
+                  )
+                  : null}
+                {running
+                  ? (
+                    <UI.Inline gap="compact">
+                      <UI.Button
+                        variant="outline"
+                        data-testid="run-preview-stop"
+                        state={props.stopping ? "loading" : "default"}
+                        onClick={props.onStop}
+                      >
+                        {translate(
+                          props.stopping
+                            ? "tasks.preview.stopping"
+                            : "tasks.preview.stop",
+                        )}
+                      </UI.Button>
+                    </UI.Inline>
+                  )
+                  : null}
+              </UI.Stack>
+            </UI.Disclosure>
           )
           : null}
         {/* One status region announces every change of state. */}
@@ -484,6 +437,7 @@ export function RunPreviewCard(
     controller.current?.abort();
     const abort = new AbortController();
     controller.current = abort;
+    setStopFailed(false);
     setOpen({ kind: "preparing" });
     const result = await api.previews.access({
       organizationId,
@@ -515,6 +469,12 @@ export function RunPreviewCard(
     controller.current = abort;
     setStopping(true);
     setStopFailed(false);
+    // One error at a time: a new stop clears an older open error.
+    setOpen((current) =>
+      current.kind === "failed" || current.kind === "linkExpired"
+        ? { kind: "idle" }
+        : current
+    );
     const result = await api.previews.stop({
       organizationId,
       previewId: record.id,
