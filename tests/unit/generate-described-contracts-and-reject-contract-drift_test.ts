@@ -884,14 +884,16 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "4bc760431e6b489d6ed1647b18ea222f0952ee5d",
+    "d47335a48d070ccf7b8461b375b110984b6c1985",
   ];
   const approvedDigest =
-    "sha256:3428fc0daed512dc4b5b86a3b937270ba7a3740191e24b1e2b90ff6cc2f49765";
+    "sha256:569522ebdb6f6c31ea480378f1c208f1c65571bcd8ba98d2742022110feee84c";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #24 rpi.plan rebind onto main d47335a48: main's own approval, kept unchanged.
+    "sha256:3428fc0daed512dc4b5b86a3b937270ba7a3740191e24b1e2b90ff6cc2f49765",
     // Displaced by the #19 preview rebind onto main 4bc760431: main's own #892 approval, kept unchanged.
     "sha256:b7783aa18b7e646a6a052a3735b601fac76c9523d0b4b3eabc3509250d7a6250",
     // Displaced by the #39 proposals read rebind onto main c0f886bf8: main's own #42 approval, kept unchanged.
