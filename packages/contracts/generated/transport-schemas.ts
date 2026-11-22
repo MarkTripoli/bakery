@@ -23148,6 +23148,10 @@ const transportSchemas = {
         "turnId"
       ]
     },
+    "Page<WorkflowDefinitionProposal>": {
+      "pageOf": "WorkflowDefinitionProposal",
+      "description": "Cursor page of one conversation's workflow definition proposals, oldest first (the order the coordinator proposed them), returned by GET /v1/conversations/{id}/workflow-definition-proposals. items and nextCursor are always present, with nextCursor=null marking the last page."
+    },
     "WorkflowDefinitionProposal": {
       "fields": [
         "id",
@@ -23160,6 +23164,7 @@ const transportSchemas = {
         "digest",
         "state",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "supersededByVersionId",
         "createdAt",
@@ -23180,6 +23185,7 @@ const transportSchemas = {
         "digest": "string",
         "state": "enum(waiting|accepted|rejected|superseded)",
         "decidedBy": "uuid|null",
+        "decidedByName": "string|null",
         "decidedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -23190,6 +23196,7 @@ const transportSchemas = {
         "workflowId",
         "baseDraftVersion",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "supersededByVersionId"
       ],
@@ -23205,6 +23212,7 @@ const transportSchemas = {
         "digest": "SHA-256 of the canonical proposed definition.",
         "state": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled.",
         "decidedBy": "Person who decided the proposal; null while waiting.",
+        "decidedByName": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name.",
         "decidedAt": "When the proposal was decided or superseded; null while waiting.",
         "createdAt": "When the proposal was recorded.",
         "updatedAt": "When the proposal last changed.",
