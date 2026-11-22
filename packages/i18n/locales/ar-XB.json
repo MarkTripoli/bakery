@@ -6352,5 +6352,18 @@
   "issues.work.progress.stopping": "⟪Stopping…⟫",
   "issues.work.stop.slow": "⟪Bakery is stopping this. It can take up to 5 minutes to show here.⟫",
   "issues.work.stop.failed": "⟪Work could not be stopped. Try again.⟫",
-  "issues.work.stop.beforeStart": "⟪To stop this before it starts, remove the label on GitHub.⟫"
+  "issues.work.stop.beforeStart": "⟪To stop this before it starts, remove the label on GitHub.⟫",
+  "core.reference.kind.commit": "⟪Commit⟫",
+  "core.reference.kind.release": "⟪Release⟫",
+  "core.reference.kind.pullRequest": "⟪Pull request⟫",
+  "core.reference.kind.issue": "⟪Issue⟫",
+  "core.reference.kind.task": "⟪Task⟫",
+  "core.reference.kind.run": "⟪Run⟫",
+  "core.reference.kind.machine": "⟪Machine⟫",
+  "core.reference.kind.person": "⟪Person⟫",
+  "core.reference.copy": "⟪Copy⟫",
+  "core.reference.copied": "⟪Copied⟫",
+  "core.reference.copyFailed": "⟪Could not copy. Select the id above.⟫",
+  "core.reference.opensNewTab": "⟪(opens in a new tab)⟫",
+  "core.reference.opensOnGitHub": "⟪Opens on GitHub in a new tab.⟫"
 }

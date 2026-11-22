@@ -1,0 +1,47 @@
+/* A reference: an id that points at something. Plain text with a dotted line
+   when it goes nowhere; a small glyph after a link that opens outside Bakery;
+   a card under it with the whole value and Copy. */
+.ui-reference {
+  display: inline;
+  position: relative;
+}
+
+.ui-reference__plain {
+  text-decoration: underline dotted;
+  text-underline-offset: var(--space-0-5);
+}
+
+.ui-reference__glyph {
+  display: inline-block;
+  margin-inline-start: var(--space-0-5);
+  transform: rotate(-45deg);
+  vertical-align: middle;
+}
+
+.ui-reference__card {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-subtle);
+  color: var(--color-fg);
+  display: grid;
+  gap: var(--space-2);
+  inline-size: max-content;
+  inset-block-start: calc(100% + var(--space-2));
+  inset-inline-start: 0;
+  justify-items: start;
+  max-inline-size: var(--layout-menu);
+  padding: var(--space-3);
+  position: absolute;
+  text-align: start;
+  white-space: normal;
+  z-index: var(--layer-tooltip);
+}
+
+.ui-reference__card .ui-data-text {
+  overflow-wrap: anywhere;
+}
+
+.ui-reference__copy {
+  display: inline-flex;
+}

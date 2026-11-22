@@ -6352,5 +6352,18 @@
   "issues.work.progress.stopping": "⟦Šŧôþþïñĝ… ŧ⟧",
   "issues.work.stop.slow": "⟦Ɓàķëŕÿ ïš šŧôþþïñĝ ŧĥïš. Ïŧ çàñ ŧàķë ûþ ŧô 5 ɱïñûŧëš ŧô šĥôŵ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "issues.work.stop.failed": "⟦Ŵôŕķ çôûļð ñôŧ ƀë šŧôþþëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧",
-  "issues.work.stop.beforeStart": "⟦Ŧô šŧôþ ŧĥïš ƀëƒôŕë ïŧ šŧàŕŧš, ŕëɱôṽë ŧĥë ļàƀëļ ôñ ĜïŧĤûƀ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "issues.work.stop.beforeStart": "⟦Ŧô šŧôþ ŧĥïš ƀëƒôŕë ïŧ šŧàŕŧš, ŕëɱôṽë ŧĥë ļàƀëļ ôñ ĜïŧĤûƀ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "core.reference.kind.commit": "⟦Çôɱɱïŧ…⟧",
+  "core.reference.kind.release": "⟦Ŕëļëàšë…⟧",
+  "core.reference.kind.pullRequest": "⟦Þûļļ ŕëǫûëšŧ ŧë⟧",
+  "core.reference.kind.issue": "⟦Ïššûë⟧",
+  "core.reference.kind.task": "⟦Ŧàšķ⟧",
+  "core.reference.kind.run": "⟦Ŕûñ⟧",
+  "core.reference.kind.machine": "⟦Ṁàçĥïñë…⟧",
+  "core.reference.kind.person": "⟦Þëŕšôñ…⟧",
+  "core.reference.copy": "⟦Çôþÿ⟧",
+  "core.reference.copied": "⟦Çôþïëð…⟧",
+  "core.reference.copyFailed": "⟦Çôûļð ñôŧ çôþÿ. Šëļëçŧ ŧĥë ïð àƀôṽë. ŧëšŧ çôþÿŧ⟧",
+  "core.reference.opensNewTab": "⟦(ôþëñš ïñ à ñëŵ ŧàƀ) ŧëšŧ⟧",
+  "core.reference.opensOnGitHub": "⟦Ôþëñš ôñ ĜïŧĤûƀ ïñ à ñëŵ ŧàƀ. ŧëšŧ çôþ⟧"
 }

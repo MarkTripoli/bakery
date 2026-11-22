@@ -92,6 +92,10 @@
   overflow-wrap: anywhere;
 }
 /* Opt-in (the fingerprint beside Copy): the value's own width, not the line's. */
+/* A value and the punctuation after it in a sentence stay on one line. */
+.ui-data-text-keep {
+  white-space: nowrap;
+}
 .ui-data-text--fit {
   flex: 0 1 auto;
   inline-size: auto;
