@@ -194,7 +194,7 @@ function Attention(
             id: "what",
             header: t("tasks.delivery.attention.colItem"),
             cell: what,
-            width: "26%",
+            width: "30%",
           },
           {
             id: "why",

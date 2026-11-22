@@ -2937,11 +2937,18 @@ for (
         if (approve) await mockApprovals(page, [approvalRow()]);
         await page.goto(`/tasks/${id}`);
         const section = page.getByTestId("delivery-section");
-        await expect(section).toBeVisible();
-        for (const link of ["delivery-tried", "delivery-details"]) {
-          if (await section.getByTestId(link).count() > 0) {
-            await openLink(section, link);
-          }
+        await expect(section.getByTestId("delivery-now")).toBeVisible();
+        // Both links open: "What Bakery tried" exists once a repair was tried.
+        const tried = (scenario.decisions ?? []).some((entry) =>
+          entry.decision === "repair"
+        );
+        if (tried) await openLink(section, "delivery-tried");
+        await openLink(section, "delivery-details");
+        if (tried) {
+          await expect(section.getByTestId("delivery-tried")).toHaveAttribute(
+            "open",
+            "",
+          );
         }
         await page.setViewportSize({ width, height: TALL[size] });
         await stillOfSection(page, `open-${name}-${size}-${scheme}.png`);
