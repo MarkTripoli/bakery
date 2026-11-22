@@ -113,7 +113,7 @@ export type WorkflowWriteFacts = Readonly<{
   accessTokenId?: string | null;
 }>;
 
-function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
+export function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
   const { organizationId, principalId } = requireWorkTransaction(context);
   const attribution = attributeAction(context, principalId);
   return {
@@ -854,7 +854,7 @@ async function settlePersonalSkillUse(
 }
 
 /** Structural guard only: a JSON object within the size bound. */
-function requireDraftDefinition(definition: unknown): string {
+export function requireDraftDefinition(definition: unknown): string {
   if (
     definition === null || typeof definition !== "object" ||
     Array.isArray(definition)
