@@ -104,9 +104,26 @@ type Check = {
   result: string;
   minute: number;
   exitCode?: number | null;
+  /** The server's reason; passed → verified, anything else → exit_nonzero by default. */
+  reason?: string;
+  /** `command` unless the check is a repository rule (title, description, commits). */
+  kind?: string;
+  durationMs?: number | null;
+  /** The file version that holds the check's output. */
+  evidence?: string | null;
 };
 const checkRow = (
-  { name, head, result, minute, exitCode = 0 }: Check,
+  {
+    name,
+    head,
+    result,
+    minute,
+    exitCode = 0,
+    reason,
+    kind = "command",
+    durationMs,
+    evidence = null,
+  }: Check,
   n: number,
 ) => ({
   id: uuid(100 + n),
@@ -115,8 +132,8 @@ const checkRow = (
   pullRequestId: null,
   checkId: name,
   checkName: name,
-  kind: "command",
-  ruleKey: null,
+  kind,
+  ruleKey: kind === "title" ? "changeRequest.semanticTitle" : null,
   headSha: head,
   baseSha: BASE,
   profileDigest: null,
@@ -128,11 +145,20 @@ const checkRow = (
   mergeMessageDigest: null,
   commitSelectionDigest: null,
   result,
-  reason: result === "passed" ? "verified" : "exit_nonzero",
+  reason: reason ??
+    (result === "passed"
+      ? "verified"
+      : result === "pending"
+      ? "awaiting_result"
+      : "exit_nonzero"),
   exitCode: result === "pending" ? null : exitCode,
-  durationMs: result === "pending" ? null : 1000,
+  durationMs: durationMs !== undefined
+    ? durationMs
+    : result === "pending"
+    ? null
+    : 1000,
   outputDigest: null,
-  evidenceVersionId: null,
+  evidenceVersionId: evidence,
   providerRunId: null,
   createdAt: at(minute),
   updatedAt: at(minute),
@@ -145,6 +171,8 @@ const reviewRow = (
     findings: number;
     blocking: number;
     minute: number;
+    /** A person accepted the review anyway. */
+    accepted?: { at: string; reason: string };
   },
 ) => ({
   id: reviewId,
@@ -166,6 +194,9 @@ const reviewRow = (
   createdAt: at(over.minute),
   updatedAt: at(over.minute),
   version: 1,
+  acceptedBy: over.accepted ? uuid(77) : null,
+  acceptedAt: over.accepted?.at ?? null,
+  acceptReason: over.accepted?.reason ?? null,
 });
 const findingRow = (
   n: number,
@@ -193,6 +224,8 @@ const decisionRow = (
   reason: string,
   head: string,
   fingerprints: string[] = [],
+  /** The checks a repair was asked to fix, by id. */
+  failed: string[] = [],
 ) => ({
   id: uuid(500 + ordinal),
   runId,
@@ -203,7 +236,13 @@ const decisionRow = (
   headSha: head,
   baseSha: BASE,
   policyDigest: sha("c"),
-  failedChecks: [],
+  failedChecks: failed.map((checkId, index) => ({
+    checkRunId: uuid(900 + index),
+    checkId,
+    result: "failed",
+    reason: "exit_nonzero",
+    exitCode: 1,
+  })),
   blockingFingerprints: fingerprints,
   limits: { maxRepairCycles: 2, maxLoopDurationMs: 600000, maxFindings: 25 },
   createdAt: at(4 + ordinal),
@@ -688,13 +727,15 @@ test("a stopped run names the reason and its one button moves focus to the messa
   );
   await expect(now).toContainText("Send a message to say what to do next.");
   await expect(now).toHaveAttribute("data-variant", "warning");
+  // The last step, not the last list item: the Fixing step lists its tries.
   const fixing = page.getByRole("list", { name: "Delivery steps" })
-    .getByRole("listitem").last();
+    .locator(":scope > li").last();
   await expect(fixing).toContainText(
     "Stopped after 2 tries. 1 blocking finding remains.",
   );
   await expect(fixing).toContainText("Failed");
-  await expect(fixing).not.toContainText("finished");
+  // The summary never says a try finished (the list of tries has its own badge).
+  await expect(fixing).not.toContainText(/Try \d+ of \d+ finished/);
   await expect(now.getByRole("button")).toHaveCount(1);
   await now.getByRole("button", { name: "Tell Bakery what to change" }).click();
   await expect(page.locator("#task-message-field")).toBeFocused();
@@ -2612,5 +2653,195 @@ for (const scheme of ["light", "dark"] as const) {
       await page.setViewportSize({ width, height: TALL[size] });
       await stillOfSection(page, `merge-no-answer-${size}-${scheme}.png`);
     });
+  }
+}
+
+// ---------------------------------------------------------------- #57: checks, tries, acceptance
+
+const OUTPUT_VERSION = uuid(950);
+/** One of each: a failed command with its output, a pass, a broken rule, a check that could not run. */
+const REASONS: Scenario = {
+  ...CLEAN,
+  checks: [
+    {
+      name: "tests",
+      head: NEW,
+      result: "failed",
+      minute: 1,
+      exitCode: 2,
+      durationMs: 134_000,
+      evidence: OUTPUT_VERSION,
+    },
+    { name: "lint", head: NEW, result: "passed", minute: 1 },
+    {
+      name: "pull request title",
+      head: NEW,
+      result: "failed",
+      minute: 1,
+      kind: "title",
+      reason: "rule_violation",
+      durationMs: null,
+    },
+    {
+      name: "security scan",
+      head: NEW,
+      result: "unavailable",
+      minute: 1,
+      reason: "tool_missing",
+      exitCode: null,
+      durationMs: null,
+    },
+  ],
+};
+/** Two repairs, the second still running; the first was asked to fix a check and a finding. */
+const TRIES: Scenario = {
+  checks: [
+    { name: "tests", head: OLD, result: "failed", minute: 1, exitCode: 1 },
+    { name: "lint", head: OLD, result: "failed", minute: 1, exitCode: 1 },
+    { name: "tests", head: NEW, result: "pending", minute: 5 },
+  ],
+  review: {
+    head: OLD,
+    status: "changes_requested",
+    findings: 1,
+    blocking: 1,
+    minute: 2,
+  },
+  findings: [
+    findingRow(
+      2,
+      "blocker",
+      "Refund amount is not validated against the original charge.",
+    ),
+  ],
+  decisions: [
+    decisionRow(0, "repair", "repair_selected", OLD, [sha("1")], ["tests"]),
+    decisionRow(1, "repair", "repair_selected", NEW, [], ["tests", "lint"]),
+  ],
+};
+const ACCEPTED: Scenario = {
+  ...STOPPED,
+  review: {
+    head: NEW,
+    status: "changes_requested",
+    findings: 1,
+    blocking: 1,
+    minute: 2,
+    accepted: {
+      at: "2026-01-01T12:00:00.000Z",
+      reason: "The finding is about generated code.",
+    },
+  },
+};
+
+async function openDelivery(page: Page, scenario: Scenario) {
+  await mockRun(page);
+  await mockDelivery(page, scenario);
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(section).toBeVisible();
+  return section;
+}
+
+test("every check shows its reason, its time and its output, and the list opens while one has not passed", async ({ page }) => {
+  const section = await openDelivery(page, REASONS);
+  const detail = section.getByTestId("delivery-checks-detail");
+  const toggle = detail.getByRole("button", { name: "Hide the 4 checks" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const rows = detail.getByTestId("delivery-check-row");
+  await expect(rows).toHaveCount(4);
+  // Not passed first, in the server's order; the pass last.
+  await expect(rows.nth(0)).toContainText("tests");
+  await expect(rows.nth(0)).toContainText("Failed");
+  await expect(rows.nth(0)).toContainText("Ended with exit code 2.");
+  await expect(rows.nth(0)).toContainText("Took 2 min 14 s.");
+  await expect(rows.nth(0).getByRole("link", { name: "Open the output" }))
+    .toHaveAttribute("href", `/files/versions/${OUTPUT_VERSION}`);
+  await expect(rows.nth(1)).toContainText("pull request title");
+  await expect(rows.nth(1)).toContainText(
+    "Does not follow the repository's rule.",
+  );
+  await expect(rows.nth(1)).toContainText("A repository rule.");
+  await expect(rows.nth(1).getByRole("link")).toHaveCount(0);
+  await expect(rows.nth(2)).toContainText("security scan");
+  await expect(rows.nth(2)).toContainText(
+    "The tool it needs is not on the machine. This counts as not passed.",
+  );
+  await expect(rows.nth(3)).toContainText("lint");
+  await expect(rows.nth(3)).toContainText("Passed");
+  await expect(rows.nth(3)).toContainText("Took 1 s.");
+  // The person can close it, and it says how to open it again.
+  await toggle.click();
+  await expect(rows).toHaveCount(0);
+  await expect(detail.getByRole("button", { name: "Show the 4 checks" }))
+    .toHaveAttribute("aria-expanded", "false");
+});
+
+test("when every check passed the list is closed until opened", async ({ page }) => {
+  const section = await openDelivery(page, CLEAN);
+  const detail = section.getByTestId("delivery-checks-detail");
+  const toggle = detail.getByRole("button", { name: "Show the 2 checks" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(detail.getByTestId("delivery-check-row")).toHaveCount(0);
+  await toggle.click();
+  await expect(detail.getByTestId("delivery-check-row")).toHaveCount(2);
+  await expect(detail.getByRole("button", { name: "Hide the 2 checks" }))
+    .toBeVisible();
+});
+
+test("what Bakery tried lists every try, newest first, with what it was asked to fix", async ({ page }) => {
+  const section = await openDelivery(page, TRIES);
+  const detail = section.getByTestId("delivery-tries-detail");
+  await expect(detail.getByRole("button", { name: "Hide what Bakery tried" }))
+    .toHaveAttribute("aria-expanded", "true");
+  const rows = detail.getByTestId("delivery-try-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Try 2");
+  await expect(rows.nth(0)).toContainText("Running");
+  await expect(rows.nth(0)).toContainText(
+    "Asked to fix 2 checks that did not pass (tests and lint). Commit 91d0aa3.",
+  );
+  await expect(rows.nth(1)).toContainText("Try 1");
+  await expect(rows.nth(1)).toContainText("Finished");
+  await expect(rows.nth(1)).toContainText(
+    "Asked to fix 1 check that did not pass (tests) and 1 blocking finding. Commit 4be19c2.",
+  );
+  await expect(detail).toContainText(
+    "Bakery stops after 2 tries or 10 minutes, whichever comes first.",
+  );
+  await detail.getByRole("button", { name: "Hide what Bakery tried" }).click();
+  await expect(rows).toHaveCount(0);
+});
+
+test("a review accepted anyway says when and why, and a review nobody accepted shows no notice", async ({ page }) => {
+  const section = await openDelivery(page, ACCEPTED);
+  const notice = section.getByTestId("delivery-review-accepted");
+  await expect(notice).toContainText("Accepted anyway · Jan 1, 2026");
+  await expect(notice).toContainText("“The finding is about generated code.”");
+  await page.goto("about:blank");
+  const clean = await openDelivery(page, CLEAN);
+  await expect(clean.getByTestId("delivery-review-accepted")).toHaveCount(0);
+});
+
+// One still per state, size and scheme, like the merge stills above.
+for (
+  const [name, scenario] of [
+    ["reasons", REASONS],
+    ["tries", TRIES],
+    ["accepted", ACCEPTED],
+  ] as const
+) {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      test(`still: checks, ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await openDelivery(page, scenario);
+        await page.setViewportSize({ width, height: TALL[size] });
+        await stillOfSection(page, `checks-${name}-${size}-${scheme}.png`);
+      });
+    }
   }
 }

@@ -8,6 +8,7 @@ import {
   type DeliveryInput,
   type DeliveryMergeAttempt,
   type DeliveryMergeEntry,
+  type DeliveryModel,
   deliveryModel,
   type DeliveryPullRequest,
   type DeliveryReview,
@@ -71,6 +72,13 @@ const decision = (
   createdAt: `2026-11-13T10:0${over.ordinal}:00.000Z`,
   ...over,
 });
+
+/** The Fixing step without its list of tries and limits, which have their own tests. */
+const summary = (fixing: DeliveryModel["fixing"]) => {
+  if (fixing === null) return null;
+  const { tries: _tries, limits: _limits, ...rest } = fixing;
+  return rest;
+};
 
 const input = (over: Partial<DeliveryInput> = {}): DeliveryInput => ({
   runId: RUN,
@@ -254,7 +262,7 @@ Deno.test("an attempt is a repair decision; the maximum is the latest decision's
       }),
     ],
   }));
-  assertEquals(model.fixing, {
+  assertEquals(summary(model.fixing), {
     attempt: 2,
     max: 3,
     running: true,
@@ -340,7 +348,7 @@ Deno.test("a stopped run marks the Fixing step stopped with the blocking count",
         }),
       ],
     })).fixing;
-  assertEquals(stopped("repair_cycles_exhausted"), {
+  assertEquals(summary(stopped("repair_cycles_exhausted")), {
     attempt: 1,
     max: 2,
     running: false,
@@ -1202,5 +1210,134 @@ Deno.test("the Ready card names the branch the pull request merges into", () => 
   assertEquals(
     model.now.kind === "mergeReady" ? model.now.branch : null,
     "release/1.0",
+  );
+});
+
+Deno.test("a check row carries its reason, whether it is a rule, and where its output is", () => {
+  const model = deliveryModel(input({
+    revisionHeadSha: NEW,
+    checks: [
+      check({
+        id: "c1",
+        checkId: "tests",
+        result: "failed",
+        reason: "exit_nonzero",
+        exitCode: 2,
+        kind: "command",
+        evidenceVersionId: "v-out",
+      }),
+      check({
+        id: "c2",
+        checkId: "title",
+        result: "failed",
+        reason: "rule_violation",
+        kind: "title",
+        evidenceVersionId: null,
+      }),
+      check({ id: "c3", checkId: "lint" }),
+    ],
+  }));
+  const row = (name: string) =>
+    model.checks.rows.find((entry) => entry.name === name)!;
+  assertEquals(
+    [row("tests").reason, row("tests").rule, row("tests").evidenceVersionId],
+    ["exit_nonzero", false, "v-out"],
+  );
+  assertEquals(
+    [row("title").reason, row("title").rule, row("title").evidenceVersionId],
+    ["rule_violation", true, null],
+  );
+  assertEquals(
+    [row("lint").reason, row("lint").rule],
+    [null, false],
+    "nothing is shown that the server did not report",
+  );
+});
+
+Deno.test("what Bakery tried: every repair, newest first, with what it was asked to fix", () => {
+  const model = deliveryModel(input({
+    revisionHeadSha: NEW,
+    checks: [
+      check({ id: "c1", checkId: "tests", checkName: "Unit tests" }),
+      check({ id: "c2", checkId: "lint", checkName: "Lint" }),
+    ],
+    decisions: [
+      decision({
+        ordinal: 0,
+        decision: "repair",
+        reason: "repair_selected",
+        headSha: OLD,
+        failedChecks: [{ checkId: "tests" }, { checkId: "lint" }],
+        blockingFingerprints: ["f1"],
+        limits: { maxRepairCycles: 3, maxLoopDurationMs: 1_800_000 },
+      }),
+      decision({
+        ordinal: 1,
+        decision: "repair",
+        reason: "repair_selected",
+        headSha: NEW,
+        failedChecks: [{ checkId: "tests" }],
+        limits: { maxRepairCycles: 3, maxLoopDurationMs: 1_800_000 },
+      }),
+    ],
+  }));
+  const fixing = model.fixing!;
+  assertEquals(fixing.tries, [
+    {
+      n: 2,
+      running: true,
+      checkNames: ["Unit tests"],
+      blocking: 0,
+      sha: "91d0aa3",
+    },
+    {
+      n: 1,
+      running: false,
+      checkNames: ["Unit tests", "Lint"],
+      blocking: 1,
+      sha: "4be19c2",
+    },
+  ]);
+  assertEquals(fixing.limits, { max: 3, durationMs: 1_800_000 });
+});
+
+Deno.test("a try whose check is not in the list is named by its id, and a missing time bound is null", () => {
+  const model = deliveryModel(input({
+    revisionHeadSha: NEW,
+    decisions: [decision({
+      ordinal: 0,
+      decision: "repair",
+      reason: "repair_selected",
+      failedChecks: [{ checkId: "gone" }],
+    })],
+  }));
+  assertEquals(model.fixing!.tries[0].checkNames, ["gone"]);
+  assertEquals(model.fixing!.limits.durationMs, null);
+});
+
+Deno.test("a review accepted anyway shows who-less acceptance: when and why, from the server's record", () => {
+  const accepted = deliveryModel(input({
+    revisionHeadSha: NEW,
+    reviews: [review({
+      status: "changes_requested",
+      blockingCount: 1,
+      findingCount: 1,
+      acceptedBy: "p1",
+      acceptedAt: "2026-11-14T09:00:00.000Z",
+      acceptReason: "The finding is about generated code.",
+    })],
+  }));
+  assertEquals(accepted.review!.accepted, {
+    at: "2026-11-14T09:00:00.000Z",
+    reason: "The finding is about generated code.",
+  });
+  assertEquals(
+    deliveryModel(input({
+      revisionHeadSha: NEW,
+      reviews: [
+        review({ acceptedBy: null, acceptedAt: null, acceptReason: null }),
+      ],
+    })).review!.accepted,
+    null,
   );
 });

@@ -3,7 +3,17 @@ import { focusAfterPaint } from "../../app/focus.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import type { MessageKey } from "@bakery/i18n";
+import { formatDate, formatList, type MessageKey } from "@bakery/i18n";
+import {
+  countsAsNotPassed,
+  limitMinutes,
+  nameList,
+  needsAttention,
+  orderChecks,
+  reasonSentence,
+  took,
+  tryKey,
+} from "./check-copy.ts";
 import type {
   ApprovalChoice,
   ApprovalState,
@@ -1064,9 +1074,181 @@ function ReadyView(
   );
 }
 
-function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
+/** One check: its name and result, then why, how long it took and where its output is. */
+function CheckLine({ row }: Readonly<{ row: CheckRow }>) {
   const { translate: t } = useI18n();
-  const [showAllChecks, setShowAllChecks] = useState(false);
+  const sentence = reasonSentence(row);
+  const time = took(row);
+  return (
+    <UI.Stack data-testid="delivery-check-row" gap="tight" role="listitem">
+      <UI.Inline gap="compact">
+        <UI.DataText fit>{row.name}</UI.DataText>
+        {row.olderSha === null
+          ? (
+            <UI.Badge tone={CHECK_TONE[row.result]}>
+              {t(CHECK_LABEL[row.result])}
+            </UI.Badge>
+          )
+          : (
+            <UI.Badge>
+              {t(OLDER_RESULT_LABEL[row.result], { sha: row.olderSha })}
+            </UI.Badge>
+          )}
+      </UI.Inline>
+      <UI.Inline gap="compact">
+        {sentence !== null && (
+          <UI.Text>
+            {t(sentence.key, sentence.values)}
+            {countsAsNotPassed(row)
+              ? ` ${t("tasks.delivery.check.countsAsNotPassed")}`
+              : ""}
+          </UI.Text>
+        )}
+        {row.rule
+          ? <UI.Text>{t("tasks.delivery.check.rule")}</UI.Text>
+          : time !== null && (
+            <UI.Text>
+              {t(
+                time.key,
+                "values" in time ? time.values : undefined,
+              )}
+            </UI.Text>
+          )}
+        {row.evidenceVersionId !== null && (
+          <UI.Link
+            href={`/files/versions/${row.evidenceVersionId}`}
+            variant="quiet"
+          >
+            {t("tasks.delivery.check.openOutput")}
+          </UI.Link>
+        )}
+      </UI.Inline>
+    </UI.Stack>
+  );
+}
+
+/** Every check with its reason, opened in place under the line it explains. */
+function CheckDetails(
+  { onToggle, open, rows }: Readonly<{
+    rows: readonly CheckRow[];
+    open: boolean;
+    onToggle: () => void;
+  }>,
+) {
+  const { translate: t } = useI18n();
+  const listId = useId();
+  return (
+    <UI.Stack data-testid="delivery-checks-detail" gap="compact">
+      <UI.Button
+        aria-controls={listId}
+        aria-expanded={open}
+        onClick={onToggle}
+        variant="text"
+      >
+        {t(
+          open ? "tasks.delivery.checks.hide" : "tasks.delivery.checks.show",
+          { count: rows.length },
+        )}
+      </UI.Button>
+      {open && (
+        <UI.Stack gap="compact" id={listId} role="list">
+          {orderChecks(rows).map((row) => <CheckLine key={row.id} row={row} />)}
+        </UI.Stack>
+      )}
+    </UI.Stack>
+  );
+}
+
+/** What Bakery tried to fix, newest first, and what bounds it. */
+function TryDetails(
+  { fixing, onToggle, open }: Readonly<{
+    fixing: NonNullable<DeliveryModel["fixing"]>;
+    open: boolean;
+    onToggle: () => void;
+  }>,
+) {
+  const { locale, translate: t } = useI18n();
+  const listId = useId();
+  const minutes = limitMinutes(fixing.limits.durationMs);
+  const names = (all: readonly string[]) => {
+    const { shown, more } = nameList(all);
+    const list = formatList(shown, locale);
+    return more === 0
+      ? list
+      : t("tasks.delivery.fixing.tried.andMore", { names: list, count: more });
+  };
+  return (
+    <UI.Stack data-testid="delivery-tries-detail" gap="compact">
+      <UI.Button
+        aria-controls={listId}
+        aria-expanded={open}
+        onClick={onToggle}
+        variant="text"
+      >
+        {t(
+          open
+            ? "tasks.delivery.fixing.tried.hide"
+            : "tasks.delivery.fixing.tried.show",
+        )}
+      </UI.Button>
+      {open && (
+        <UI.Stack gap="compact" id={listId} role="list">
+          {fixing.tries.map((entry) => (
+            <UI.Inline
+              data-testid="delivery-try-row"
+              gap="compact"
+              key={entry.n}
+              role="listitem"
+            >
+              <UI.Text>
+                {t("tasks.delivery.fixing.tried.try", { n: entry.n })}
+              </UI.Text>
+              <UI.Badge>
+                {t(
+                  entry.running
+                    ? "tasks.delivery.fixing.tried.running"
+                    : "tasks.delivery.fixing.tried.finished",
+                )}
+              </UI.Badge>
+              <UI.Text>
+                {t(
+                  tryKey({
+                    checks: entry.checkNames.length,
+                    blocking: entry.blocking,
+                  }),
+                  {
+                    checks: entry.checkNames.length,
+                    names: names(entry.checkNames),
+                    blocking: entry.blocking,
+                    sha: entry.sha,
+                  },
+                )}
+              </UI.Text>
+            </UI.Inline>
+          ))}
+          <UI.Text variant="caption">
+            {minutes === null
+              ? t("tasks.delivery.fixing.tried.limitTries", {
+                max: fixing.limits.max,
+              })
+              : t("tasks.delivery.fixing.tried.limit", {
+                max: fixing.limits.max,
+                minutes,
+              })}
+          </UI.Text>
+        </UI.Stack>
+      )}
+    </UI.Stack>
+  );
+}
+
+function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
+  const { locale, timeZone, translate: t } = useI18n();
+  // Until the person opens or closes a list it follows the facts: the checks
+  // open by themselves while any has not passed, the tries while one runs or
+  // the loop stopped.
+  const [checksToggled, setChecksToggled] = useState<boolean | null>(null);
+  const [triesToggled, setTriesToggled] = useState<boolean | null>(null);
   const [showAllFindings, setShowAllFindings] = useState(false);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
@@ -1127,12 +1309,9 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
     : checks.total > 0 && checks.passed === checks.total
     ? "done"
     : "upcoming";
-  const sortedChecks = [...checks.rows].sort((a, b) =>
-    Number(b.result === "failed") - Number(a.result === "failed")
-  );
-  const shownChecks = showAllChecks
-    ? sortedChecks
-    : sortedChecks.slice(0, SHOWN);
+  const checksOpen = checksToggled ?? needsAttention(checks.rows);
+  const triesOpen = triesToggled ?? (fixing !== null &&
+    (fixing.running || fixing.stopped));
 
   const reviewStatus = review === null
     ? "upcoming"
@@ -1240,37 +1419,13 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
             })}
           title={<>{t("tasks.delivery.checks.title")}{helpTip("checks")}</>}
         >
-          {checksStatus === "done" || checks.rows.length === 0
-            ? null
-            : (
-              <UI.Stack gap="compact">
-                {shownChecks.map((row) => (
-                  <UI.Text key={row.id}>
-                    {row.name} {row.olderSha === null
-                      ? (
-                        <UI.Badge tone={CHECK_TONE[row.result]}>
-                          {t(CHECK_LABEL[row.result])}
-                        </UI.Badge>
-                      )
-                      : (
-                        <UI.Badge>
-                          {t(OLDER_RESULT_LABEL[row.result], {
-                            sha: row.olderSha,
-                          })}
-                        </UI.Badge>
-                      )}
-                  </UI.Text>
-                ))}
-                {!showAllChecks && sortedChecks.length > SHOWN && (
-                  <UI.Button
-                    onClick={() => setShowAllChecks(true)}
-                    variant="text"
-                  >
-                    {t("tasks.delivery.showAll")}
-                  </UI.Button>
-                )}
-              </UI.Stack>
-            )}
+          {checks.rows.length === 0 ? null : (
+            <CheckDetails
+              onToggle={() => setChecksToggled(!checksOpen)}
+              open={checksOpen}
+              rows={checks.rows}
+            />
+          )}
         </UI.StepItem>
         <UI.StepItem
           status={reviewStatus}
@@ -1303,6 +1458,27 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
           )}
           title={<>{t("tasks.delivery.review.title")}{helpTip("review")}</>}
         >
+          {review?.accepted != null && (
+            <UI.InlineNotice
+              data-testid="delivery-review-accepted"
+              icon="info"
+              tone="neutral"
+            >
+              <UI.Text>
+                {t("tasks.delivery.review.accepted.title", {
+                  date: formatDate(new Date(review.accepted.at), locale, {
+                    dateStyle: "medium",
+                    timeZone,
+                  }),
+                })}
+              </UI.Text>
+              <UI.Text>
+                {t("tasks.delivery.review.accepted.reason", {
+                  reason: review.accepted.reason,
+                })}
+              </UI.Text>
+            </UI.InlineNotice>
+          )}
           {findings.length === 0 ? null : (
             <UI.Stack gap="compact">
               {shownFindings.map((finding) => (
@@ -1359,7 +1535,13 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
                 {helpTip("fixing", { max: fixing.max })}
               </>
             }
-          />
+          >
+            <TryDetails
+              fixing={fixing}
+              onToggle={() => setTriesToggled(!triesOpen)}
+              open={triesOpen}
+            />
+          </UI.StepItem>
         )}
         {model.approval !== null && (
           <UI.StepItem
