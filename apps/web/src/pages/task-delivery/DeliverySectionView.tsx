@@ -635,10 +635,35 @@ function ReadyView(
       </UI.Button>
     )
     : null;
+  const phoneActions = !phone
+    ? null
+    : copy.action === "merge"
+    ? [mergeButton("primary")]
+    : copy.action === "mergeAgain"
+    ? [mergeButton("primary", true)]
+    : copy.action === "openOnGitHub"
+    ? [openOnGitHub]
+    : copy.action === "checkAgain"
+    ? [checkAgainButton]
+    : copy.action === "refused"
+    ? [
+      openOnGitHub,
+      merge?.startable === true ? mergeButton("secondary") : null,
+    ]
+    : canDecide
+    ? [rejectButton, changesButton, approveButton]
+    : copy.action === "retryApprovals"
+    ? [retryButton]
+    : null;
   // Beside the text where they fit and under it where they do not; on a phone
   // the answers are full width and stacked, with the primary last.
   const action = phone
-    ? otherButton
+    ? (phoneActions === null ? otherButton : (
+      // In the banner's action slot, so the buttons span the banner, however many.
+      <UI.Inline data-testid="delivery-now-actions" gap="compact">
+        {phoneActions}
+      </UI.Inline>
+    ))
     : copy.action === "merge"
     ? mergeButton("primary")
     : copy.action === "mergeAgain"
@@ -661,26 +686,6 @@ function ReadyView(
     : copy.action === "retryApprovals"
     ? retryButton
     : otherButton;
-  const phoneActions = !phone
-    ? null
-    : copy.action === "merge"
-    ? [mergeButton("primary")]
-    : copy.action === "mergeAgain"
-    ? [mergeButton("primary", true)]
-    : copy.action === "openOnGitHub"
-    ? [openOnGitHub]
-    : copy.action === "checkAgain"
-    ? [checkAgainButton]
-    : copy.action === "refused"
-    ? [
-      openOnGitHub,
-      merge?.startable === true ? mergeButton("secondary") : null,
-    ]
-    : canDecide
-    ? [rejectButton, changesButton, approveButton]
-    : copy.action === "retryApprovals"
-    ? [retryButton]
-    : null;
 
   const refusal = decisionPhase in NOTICE_COPY
     ? NOTICE_COPY[decisionPhase as keyof typeof NOTICE_COPY]
@@ -781,18 +786,7 @@ function ReadyView(
         data-testid="delivery-now"
         tone={nowTone(model.now)}
       >
-        {phoneActions === null ? nowContent : (
-          // On a phone the answers stack under the text. The heading and text
-          // keep their own gap-free group; one compact stack puts the gap
-          // above the answers that they have between them. No shared banner
-          // style changes.
-          <UI.Stack gap="compact">
-            <UI.Stack gap="none">{nowContent}</UI.Stack>
-            <UI.Stack data-testid="delivery-now-actions" gap="compact">
-              {phoneActions}
-            </UI.Stack>
-          </UI.Stack>
-        )}
+        {nowContent}
       </UI.AlertBanner>
       {refusal !== null && dialog === null && (
         // Nothing failed when a decision lost or the answer is unknown, and a

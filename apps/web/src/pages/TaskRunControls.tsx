@@ -225,7 +225,12 @@ export function TaskRunControls(
     <>
       {/* One group, so Resume run and the menu wrap together, never apart. */}
       {(showResume || items.length > 0) && (
-        <UI.Inline data-placement="end" gap="compact">
+        <UI.Inline
+          // A lone menu sits at the end of the first row on a phone too.
+          data-buttons={showResume ? "two" : "one"}
+          data-placement="end"
+          gap="compact"
+        >
           {showResume && (
             <UI.Button
               disabled={busy}
@@ -238,8 +243,9 @@ export function TaskRunControls(
           {items.length > 0 && (
             <UI.Popover
               // The trigger is at the end of the run line, so the panel lines
-              // up with its end edge; on a phone it wraps to the line start.
-              align={phone ? "start" : "end"}
+              // up with its end edge; with Resume run beside it on a phone, the pair wraps
+              // to the line start.
+              align={phone && showResume ? "start" : "end"}
               label={t("tasks.controls.menu.label")}
               onOpenChange={setMenuOpen}
               open={menuOpen}

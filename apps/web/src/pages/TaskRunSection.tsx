@@ -360,29 +360,39 @@ export function TaskRunSection(
   const runLine = (() => {
     if (!validRun || !run.data) return null;
     const current = run.data;
-    if (!online) return <UI.Text>{t("tasks.controls.offline")}</UI.Text>;
+    if (!online) {
+      return (
+        <UI.Text data-placement="line">{t("tasks.controls.offline")}</UI.Text>
+      );
+    }
     switch (current.status) {
       case "queued":
-        return <UI.Text>{t("tasks.run.line.queued")}</UI.Text>;
+        return (
+          <UI.Text data-placement="line">{t("tasks.run.line.queued")}</UI.Text>
+        );
       case "running":
       case "waiting_input":
       case "waiting_capacity":
         return (
-          <UI.Text>
+          <UI.Text data-placement="line">
             {t("tasks.run.line.started", {
               time: timeOf(current.startedAt ?? current.createdAt),
             })}
           </UI.Text>
         );
       case "paused":
-        return <UI.Text>{t("tasks.run.line.paused")}</UI.Text>;
+        return (
+          <UI.Text data-placement="line">{t("tasks.run.line.paused")}</UI.Text>
+        );
       case "blocked":
         return <BlockedNotice run={current} />;
       case "failed":
-        return <UI.Text>{t("tasks.run.line.failed")}</UI.Text>;
+        return (
+          <UI.Text data-placement="line">{t("tasks.run.line.failed")}</UI.Text>
+        );
       case "canceled":
         return (
-          <UI.Text>
+          <UI.Text data-placement="line">
             {t("tasks.run.line.canceled", {
               time: timeOf(current.finishedAt ?? current.updatedAt),
             })}
@@ -399,7 +409,7 @@ export function TaskRunSection(
           : null;
         if (!stepsKnown || lasted === null) {
           return (
-            <UI.Text>
+            <UI.Text data-placement="line">
               {t("tasks.run.line.finishedAt", {
                 time: timeOf(current.finishedAt ?? current.updatedAt),
               })}
@@ -408,7 +418,7 @@ export function TaskRunSection(
         }
         const whole = Math.round(lasted / 1000);
         return (
-          <UI.Text>
+          <UI.Text data-placement="line">
             {t("tasks.run.line.finished", {
               steps: steps.data.items.length,
               duration: lasted < 1000

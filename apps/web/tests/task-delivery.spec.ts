@@ -1229,15 +1229,12 @@ for (const width of [320, 390, 820, 1280]) {
       expect(changes.y).toBeLessThan(approve.y);
       expect(Math.abs(reject.width - approve.width)).toBeLessThan(2);
       expect(Math.abs(changes.width - approve.width)).toBeLessThan(2);
-      expect(approve.width).toBeGreaterThan(width * 0.6);
-      // The first answer starts one gap below the text, the gap between answers.
-      const text = (await now.getByText(
-        "Approving lets Bakery merge these changes.",
-      ).boundingBox())!;
-      const between = changes.y - (reject.y + reject.height);
-      const above = reject.y - (text.y + text.height);
-      expect(Math.abs(above - between), "gap above equals the gap between")
-        .toBeLessThan(2);
+      // They span the banner, under the icon as well as the text, the way
+      // "Tell Bakery what to change" does in the other headlines.
+      for (const [name, box] of boxes) {
+        expect(box.width, name).toBeGreaterThan(card.width - 40);
+        expect(box.x - card.x, name).toBeLessThan(24);
+      }
       // Grouping the answers must not move the heading or the text: the
       // heading-to-text gap is the one the Approved card (no answers) has.
       const headingToText = async (body: string) => {
@@ -2700,6 +2697,20 @@ test("what needs attention lists each check that did not pass with its reason, a
   await expect(rowsOf(page, all).filter({ hasText: "lint" })).toContainText(
     "Passed",
   );
+  // The time and the exit code are bare numbers, so on a wide screen this one
+  // table names its columns; a phone's cards say "Exit code" in the row.
+  const wide = (page.viewportSize()?.width ?? 1280) > 743;
+  for (const name of ["Check", "Result", "Took", "Exit code"]) {
+    const heading = all.getByRole("columnheader", { name });
+    if (wide) await expect(heading).toBeVisible();
+    else await expect(heading).toHaveCount(0);
+  }
+  if (wide) {
+    // A heading row hidden for screen readers is still "visible" to Playwright
+    // but its table head is one pixel tall; a drawn one is a readable row.
+    const head = (await all.locator("thead").boundingBox())!;
+    expect(head.height).toBeGreaterThan(16);
+  }
 });
 
 test("a check list of more than five rows folds under Show all", async ({ page }) => {

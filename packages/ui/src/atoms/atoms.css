@@ -140,6 +140,18 @@
     margin-inline-start: auto;
   }
 }
+/* On a phone a lone button at the end sits at the end of the first row, and the
+   line of text goes under it on a row of its own. */
+@media (max-width: 743px) {
+  .ui-inline > [data-placement="end"][data-buttons="one"] {
+    margin-inline-start: auto;
+    order: 1;
+  }
+  .ui-inline:has(> [data-buttons="one"]) > [data-placement="line"] {
+    flex-basis: 100%;
+    order: 2;
+  }
+}
 .ui-stack--none {
   gap: var(--space-0);
 }

@@ -49,7 +49,7 @@ const SEVERITY_TONE = {
 
 type Column<Row> = Readonly<{
   id: string;
-  header: string;
+  header: ReactNode;
   cell: (row: Row) => ReactNode;
   width?: string;
   /** `end` puts the cell's content at the end of the row. */
@@ -62,18 +62,22 @@ type Column<Row> = Readonly<{
  * phone shows the same cells in a different order, never different facts.
  */
 function Rows<Row>(
-  { caption, columns, phone, rowKey, rows, testId }: Readonly<{
-    caption: string;
-    columns: readonly Column<Row>[];
-    phone: (row: Row) => Readonly<{
-      title: ReactNode;
-      status?: ReactNode;
-      lines: readonly ReactNode[];
-    }>;
-    rowKey: (row: Row) => string;
-    rows: readonly Row[];
-    testId: string;
-  }>,
+  { caption, columns, headings = false, phone, rowKey, rows, testId }: Readonly<
+    {
+      caption: string;
+      /** Show the column headings on a wide screen (a table whose bare numbers need them). */
+      headings?: boolean;
+      columns: readonly Column<Row>[];
+      phone: (row: Row) => Readonly<{
+        title: ReactNode;
+        status?: ReactNode;
+        lines: readonly ReactNode[];
+      }>;
+      rowKey: (row: Row) => string;
+      rows: readonly Row[];
+      testId: string;
+    }
+  >,
 ) {
   const narrow = useShellViewport() === "phone";
   if (narrow) {
@@ -120,7 +124,7 @@ function Rows<Row>(
         }))}
         getRowKey={rowKey}
         variant="ruled"
-        headingsHidden
+        headingsHidden={!headings}
         rows={[...rows]}
       />
     </div>
@@ -477,7 +481,12 @@ function ChecksTable(
         },
         {
           id: "link",
-          header: t("tasks.delivery.attention.colLink"),
+          // The link needs no visible heading; the name is for a screen reader.
+          header: (
+            <UI.VisuallyHidden>
+              {t("tasks.delivery.attention.colLink")}
+            </UI.VisuallyHidden>
+          ),
           cell: link,
           width: "20%",
         },
@@ -495,6 +504,8 @@ function ChecksTable(
           link(row),
         ].filter((line) => line !== null),
       })}
+      // The time and the exit code are bare numbers: only a heading says which is which.
+      headings
       rowKey={(row: CheckRow) => row.id}
       rows={rows}
       testId="delivery-checks-rows"

@@ -2093,6 +2093,19 @@ test(
       expect(trigger.x + trigger.width).toBeGreaterThan(
         list.x + list.width - 8,
       );
+    } else {
+      // A phone: the heading, the badge and Run actions share the first row,
+      // the button at its end; the line of text goes under them.
+      const trigger = (await runActionsTrigger(page).boundingBox())!;
+      const heading = (await page.getByRole("heading", { name: "Current run" })
+        .boundingBox())!;
+      const started = (await page.getByText(/^Started /).boundingBox())!;
+      const viewport = page.viewportSize()!.width;
+      expect(Math.abs(
+        (trigger.y + trigger.height / 2) - (heading.y + heading.height / 2),
+      )).toBeLessThan(heading.height);
+      expect(trigger.x + trigger.width).toBeGreaterThan(viewport - 40);
+      expect(started.y).toBeGreaterThan(trigger.y + trigger.height - 2);
     }
   },
 );
