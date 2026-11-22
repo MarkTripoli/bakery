@@ -109,6 +109,7 @@ export function SkillsTab() {
   const filterControl = phone
     ? (
       <UI.Combobox
+        appearance="filter"
         label={filterLabel}
         name="skills-filter"
         onChange={(event) => go({ filter: skillFilter(event.target.value) })}
