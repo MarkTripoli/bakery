@@ -608,6 +608,34 @@ for (
       await still(page, "updates-policy-restore-held");
     });
 
+    test("a release id is plain text with a card: the whole id and Copy, closed with Escape", async ({ page, context }) => {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"])
+        .catch(() => {});
+      await updatesFixture(page, { failure: null });
+      await page.goto("/installation/updates");
+      const running = page.locator("[data-fact='running']");
+      const reference = running.locator("[data-ui-component='reference']");
+      await expect(reference).toHaveAttribute("data-linked", "false");
+      await expect.poll(() => said(reference)).toBe("4f2a9c1e");
+      // No link: a release has no page.
+      await expect(reference.getByRole("link")).toHaveCount(0);
+      // Keyboard focus opens the card with the whole id; the next Tab is Copy.
+      await page.keyboard.press("Tab");
+      await reference.locator(".ui-reference__plain").focus();
+      const card = reference.getByRole("group", { name: "Release" });
+      await expect(card).toBeVisible();
+      await expect.poll(() => said(card)).toContain(RUNNING);
+      await page.keyboard.press("Tab");
+      await expect(card.getByRole("button", { name: "Copy" })).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(card.getByRole("button", { name: "Copied" })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(card).toHaveCount(0);
+      await page.mouse.move(5, 5);
+      await reference.locator(".ui-reference__plain").focus();
+      await still(page, "updates-release-card");
+    });
+
     test("an update is running: the saved choice is plain text and the hint says when it unlocks", async ({ page }) => {
       await updatesFixture(page, {
         failure: null,

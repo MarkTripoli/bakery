@@ -4,6 +4,7 @@ import type {
   InstallationUncertainActions,
   InstallationUpdateStatus,
 } from "../api/client.ts";
+import { ReferenceLink } from "../app/ReferenceLink.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
@@ -11,7 +12,6 @@ import {
   joinPunctuation,
   previousFact,
   runningFact,
-  shortRelease,
   slot,
   splitSlots,
   type UpdateRow,
@@ -81,17 +81,14 @@ function Sentence(
   );
 }
 
-/** A release as its first 8 characters, with the full id on hover and focus. */
+/**
+ * A release: its short form with the whole id and Copy in a card. It has no
+ * page, so it is plain text, never a link (design-ux comment 7085237524).
+ */
 function Release(
   { id, after = "" }: { readonly id: string; readonly after?: string },
 ) {
-  return (
-    <UI.Tooltip content={id}>
-      <UI.DataText fit tabIndex={0} trailing={after} variant="identifier">
-        {shortRelease(id)}
-      </UI.DataText>
-    </UI.Tooltip>
-  );
+  return <ReferenceLink kind="release" trailing={after} value={id} />;
 }
 
 /** A release slot, or nothing when the event has no such release. */

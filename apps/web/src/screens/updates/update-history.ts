@@ -10,11 +10,6 @@ import type {
   InstallationUpdateStatus,
 } from "../../api/client.ts";
 
-/** A release as a person reads it: the first 8 characters of its id. */
-export function shortRelease(release: string): string {
-  return release.slice(0, 8);
-}
-
 export type UpdateBadgeTone =
   | "neutral"
   | "success"

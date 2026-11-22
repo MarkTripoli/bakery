@@ -9,7 +9,6 @@ import {
   policyLock,
   previousFact,
   runningFact,
-  shortRelease,
   slot,
   splitSlots,
   updateRows,
@@ -46,10 +45,6 @@ const status = (
   previousRanUntil: "2026-11-20T10:00:00.000Z",
   lastFailure: null,
   ...fields,
-});
-
-Deno.test("a release reads as its first 8 characters", () => {
-  assertEquals(shortRelease(A), "aaaaaaaa");
 });
 
 Deno.test("each kind has its badge, tone, sentence and new version", () => {
