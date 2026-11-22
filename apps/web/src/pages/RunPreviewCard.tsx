@@ -8,12 +8,14 @@ import type {
 import { useBakeryApi } from "../api/context.tsx";
 import {
   previewAvailabilityQueryOptions,
+  pullRequestsQueryOptions,
   runPreviewQueryOptions,
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useSession } from "../app/session-context.tsx";
 import {
   minutesLeft,
+  newerHeadSha,
   type PreviewCardState,
   previewCardState,
   sessionLength,
@@ -21,6 +23,7 @@ import {
 } from "../app/run-preview.ts";
 import type { MessageKey } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { choosePullRequest } from "./task-delivery/model.ts";
 
 /** Where the live task reads stand; anything but `online`/`unknown` is "checking". */
 export type PreviewConnectivity =
@@ -52,6 +55,8 @@ export type RunPreviewCardViewProps = {
   readonly open: PreviewOpenState;
   /** The live reads dropped: say so, and keep Open off until the state is read again. */
   readonly checking: boolean;
+  /** The change's open pull request is at this commit, not the preview's; null when it is not. */
+  readonly newerHeadSha: string | null;
   readonly stopping: boolean;
   readonly stopFailed: boolean;
   readonly currentPrincipalId: string | null;
@@ -86,7 +91,10 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
       timeStyle: "short",
       timeZone,
     }).format(new Date(value));
-  const badge = BADGE[state.kind];
+  const older = state.kind === "running" ? props.newerHeadSha : null;
+  const badge = older === null
+    ? BADGE[state.kind]
+    : { tone: "warning" as const, key: "tasks.preview.badge.older" as const };
   const live = state.kind === "running" || state.kind === "starting";
   const reasonId = useId();
   const openDisabledReason: MessageKey | null = state.kind === "starting"
@@ -102,7 +110,11 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
       case "starting":
         return translate("tasks.preview.body.starting");
       case "running":
-        return translate("tasks.preview.body.running");
+        return older === null
+          ? translate("tasks.preview.body.running")
+          : `${translate("tasks.preview.older.lead")} ${
+            translate("tasks.preview.older.now")
+          } ${shortSha(older)}. ${translate("tasks.preview.older.rest")}`;
       case "stopped":
         return state.reason === "person" && state.byName === null &&
             state.by !== props.currentPrincipalId
@@ -163,6 +175,20 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
                 {translate("tasks.preview.lost.lead", { time: time(state.at) })}
               </UI.Text>
               <UI.Text>{translate("tasks.preview.lost.rest")}</UI.Text>
+            </UI.InlineNotice>
+          )
+          : older !== null
+          ? (
+            <UI.InlineNotice tone="warning" data-testid="run-preview-body">
+              <UI.Text variant="strong">
+                {translate("tasks.preview.older.lead")}
+              </UI.Text>
+              <UI.Text data-testid="run-preview-newer">
+                {translate("tasks.preview.older.now")}{" "}
+                <UI.DataText fit>{shortSha(older)}</UI.DataText>
+                {". "}
+                {translate("tasks.preview.older.rest")}
+              </UI.Text>
             </UI.InlineNotice>
           )
           : <UI.Text data-testid="run-preview-body">{sentence()}</UI.Text>}
@@ -266,14 +292,20 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
                       form={FORM_ID}
                       data-testid="run-preview-open"
                     >
-                      {translate("artifact.handoff.open")}
+                      {translate(
+                        older === null
+                          ? "artifact.handoff.open"
+                          : "tasks.preview.openAnyway",
+                      )}
                     </UI.Button>
                   </>
                 )
                 : (
                   <>
                     <UI.Button
-                      variant={open.kind === "opened" ? "outline" : "primary"}
+                      variant={open.kind === "opened" || older !== null
+                        ? "outline"
+                        : "primary"}
                       data-testid="run-preview-prepare"
                       disabled={openDisabledReason !== null}
                       aria-describedby={openDisabledReason === null
@@ -342,8 +374,9 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
  * refresh it, and it re-reads when its own time limit passes.
  */
 export function RunPreviewCard(
-  { runId, connectivity = "online" }: {
+  { runId, taskId, connectivity = "online" }: {
     readonly runId: string;
+    readonly taskId: string;
     readonly connectivity?: PreviewConnectivity;
   },
 ) {
@@ -363,6 +396,18 @@ export function RunPreviewCard(
     enabled: scope.organizationId !== null && record !== null,
   });
   const state = previewCardState(record, availability.data?.available);
+  // Only a live preview is compared, and only with the change's open pull
+  // request. A read that fails says nothing: no comparison, no notice.
+  const pullRequests = useQuery({
+    ...pullRequestsQueryOptions(api, scope, taskId),
+    enabled: scope.organizationId !== null && state?.kind === "running",
+    refetchInterval: 5000,
+  });
+  const newer = record === null ? null : newerHeadSha(
+    state,
+    record.headSha,
+    choosePullRequest(pullRequests.data?.items ?? [], runId),
+  );
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -484,6 +529,7 @@ export function RunPreviewCard(
       state={state}
       open={open}
       checking={connectivity === "offline" || connectivity === "reconnecting"}
+      newerHeadSha={newer}
       stopping={stopping}
       stopFailed={stopFailed}
       currentPrincipalId={session.identity?.principalId ?? null}

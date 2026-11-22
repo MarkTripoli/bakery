@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
   minutesLeft,
+  newerHeadSha,
   previewCardState,
   sessionLength,
   shortSha,
@@ -121,4 +122,63 @@ Deno.test("time left, commit and session length are plain", () => {
   assertEquals(sessionLength(86_400), { unit: "hour", count: 24 });
   assertEquals(sessionLength(90), { unit: "minute", count: 2 });
   assertEquals(sessionLength(60), { unit: "minute", count: 1 });
+});
+
+Deno.test("an older commit is said only for a live preview and the change's open pull request at another commit", () => {
+  const running = previewCardState(base, true);
+  const head = "b".repeat(40);
+  // The change moved on: the notice names the new head.
+  assertEquals(
+    newerHeadSha(running, base.headSha, { status: "open", headSha: head }),
+    head,
+  );
+  // Same commit, whatever the letter case: nothing to say.
+  assertEquals(
+    newerHeadSha(running, base.headSha, {
+      status: "open",
+      headSha: base.headSha.toUpperCase(),
+    }),
+    null,
+  );
+  // No open pull request (none, merged or closed): no comparison, no notice.
+  assertEquals(newerHeadSha(running, base.headSha, undefined), null);
+  for (const status of ["merged", "closed"]) {
+    assertEquals(
+      newerHeadSha(running, base.headSha, { status, headSha: head }),
+      null,
+      status,
+    );
+  }
+  // A preview that is not live never gets the notice: it already says why.
+  for (
+    const preview of [
+      { ...base, status: "starting" as const },
+      { ...base, status: "stopped" as const, stopReason: "person" as const },
+      {
+        ...base,
+        status: "expired" as const,
+        stopReason: "time_limit" as const,
+      },
+    ]
+  ) {
+    assertEquals(
+      newerHeadSha(previewCardState(preview, true), base.headSha, {
+        status: "open",
+        headSha: head,
+      }),
+      null,
+      preview.status,
+    );
+  }
+  assertEquals(
+    newerHeadSha(null, base.headSha, { status: "open", headSha: head }),
+    null,
+  );
+  assertEquals(
+    newerHeadSha(previewCardState(base, false), base.headSha, {
+      status: "open",
+      headSha: head,
+    }),
+    null,
+  );
 });

@@ -635,6 +635,116 @@ test("when the live reads drop the card says it is checking and Open stays off u
   await expect(card(page).getByTestId("run-preview-checking")).toHaveCount(0);
 });
 
+/** The task's pull requests as `pullRequests.list` returns them, served from `world`. */
+const NEWER = "fedcba9876543210fedcba9876543210fedcba98";
+const pullRequestRow = (over: Record<string, unknown> = {}) => ({
+  id: "00000000-0000-4000-8000-000000000070",
+  taskId,
+  repositoryId: "00000000-0000-4000-8000-000000000005",
+  runId,
+  providerNumber: 7,
+  url: "https://github.com/o/r/pull/7",
+  headSha: NEWER,
+  baseSha: "1111111111111111111111111111111111111111",
+  status: "open",
+  mergedSha: null,
+  createdAt: stamp,
+  updatedAt: stamp,
+  version: 1,
+  mayMerge: false,
+  mergeMethod: "squash",
+  targetBranch: "main",
+  ...over,
+});
+
+async function servePullRequests(
+  page: Page,
+  rows: { current: Record<string, unknown>[] },
+) {
+  await page.route(
+    "**/v1/pull-requests?*",
+    (route) =>
+      route.fulfill({ json: { items: rows.current, nextCursor: null } }),
+  );
+}
+
+test("a preview of an older commit says so, and still opens when the person chooses to", async ({ page }) => {
+  await prepare(page);
+  const rows = { current: [pullRequestRow()] };
+  await servePullRequests(page, rows);
+  await page.goto(`/tasks/${taskId}`);
+  await expect(card(page).getByText("Older commit", { exact: true }))
+    .toBeVisible({ timeout: 20_000 });
+  await expect(card(page)).toHaveAttribute("data-preview-state", "running");
+  await expect(card(page).getByTestId("run-preview-body")).toContainText(
+    "This preview shows an older commit.",
+  );
+  await expect(card(page).getByTestId("run-preview-newer")).toHaveText(
+    "The change is now at fedcba9. What you see here is not what would be released.",
+  );
+  // The preview's own commit and "not released" still show, and it is not "Running".
+  await expect(card(page).getByTestId("run-preview-identity")).toHaveText(
+    "Commit 0123456 · not released",
+  );
+  await expect(card(page).getByText("Running", { exact: true })).toHaveCount(0);
+  await expect(card(page).getByRole("button", { name: "Stop preview" }))
+    .toBeVisible();
+  await expect(card(page).getByRole("status")).toHaveCount(1);
+  await still(page, "run-preview-older-commit", card(page));
+  await still(page, "run-preview-older-commit-in-pane");
+  // Opening anyway is still the two-step control, with the choice in its words.
+  await card(page).getByRole("button", { name: "Prepare preview" }).click();
+  await expect(
+    card(page).getByRole("button", { name: "Open preview anyway" }),
+  ).toBeVisible();
+  // The change's pull request catches up with the preview: the notice goes.
+  rows.current = [pullRequestRow({ headSha: SHA })];
+  await expect(card(page).getByText("Older commit", { exact: true }))
+    .toHaveCount(0, { timeout: 15_000 });
+  await expect(card(page).getByTestId("run-preview-body")).toBeVisible();
+});
+
+for (
+  const [name, rows] of [
+    ["no pull request", []],
+    ["a pull request at the preview's commit", [{ headSha: SHA }]],
+    ["a pull request that was merged", [{ status: "merged" }]],
+    ["a pull request that was closed", [{ status: "closed" }]],
+  ] as const
+) {
+  test(`a running preview says nothing about commits when the change has ${name}`, async ({ page }) => {
+    await prepare(page);
+    await servePullRequests(page, {
+      current: rows.map((over) => pullRequestRow(over)),
+    });
+    await page.goto(`/tasks/${taskId}`);
+    await expect(card(page).getByText("Running", { exact: true })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(card(page).getByText("Older commit")).toHaveCount(0);
+    await expect(card(page).getByTestId("run-preview-newer")).toHaveCount(0);
+    await expect(card(page).getByRole("button", { name: "Prepare preview" }))
+      .toBeEnabled();
+  });
+}
+
+test("a preview that is not live shows its own state, never the older-commit notice", async ({ page }) => {
+  await prepare(page, {
+    current: preview({
+      status: "stopped",
+      stopReason: "person",
+      stoppedBy: MOCK_PRINCIPAL_ID,
+      stoppedAt: ago(5),
+    }),
+  });
+  await servePullRequests(page, { current: [pullRequestRow()] });
+  await page.goto(`/tasks/${taskId}`);
+  await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(card(page).getByText("Older commit")).toHaveCount(0);
+});
+
 test.afterEach(async ({ page }) => {
   await page.context().setOffline(false);
 });

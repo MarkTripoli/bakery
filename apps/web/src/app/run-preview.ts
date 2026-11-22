@@ -73,6 +73,25 @@ export function previewCardState(
   }
 }
 
+/**
+ * The head of the change's open pull request when it is not the commit a live
+ * preview was built from, and null when there is nothing to say: the preview is
+ * not live, the change has no open pull request, or both name the same commit.
+ * Both values come from the server; the page only checks that they are equal.
+ */
+export function newerHeadSha(
+  state: PreviewCardState | null,
+  previewHeadSha: string,
+  pullRequest:
+    | { readonly status: string; readonly headSha: string }
+    | undefined,
+): string | null {
+  if (state?.kind !== "running" || pullRequest?.status !== "open") return null;
+  return pullRequest.headSha.toLowerCase() === previewHeadSha.toLowerCase()
+    ? null
+    : pullRequest.headSha;
+}
+
 /** Whole minutes until `expiresAt`, never below zero. */
 export function minutesLeft(expiresAt: string, now: Date): number {
   const left = new Date(expiresAt).getTime() - now.getTime();

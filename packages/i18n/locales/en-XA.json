@@ -6114,5 +6114,10 @@
   "library.workflow.editor.skills.slot.unavailable.body": "⟦Ïŧ ŵàš ŕëɱôṽëð ôŕ šŵïŧçĥëð ôƒƒ, ôŕ ïŧš ôŵñëŕ ļëƒŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.workflow.editor.skills.slot.stopped.title": "⟦{name} çàññôŧ ƀë ûšëð ĥëŕë. ŧëšŧ çô⟧",
   "library.workflow.editor.skills.slot.stopped.titleUnnamed": "⟦À šķïļļ çàññôŧ ƀë ûšëð ĥëŕë. ŧëšŧ çô⟧",
-  "library.workflow.editor.skills.slot.stopped.body": "⟦Ïŧš ôŵñëŕ ðôëš ñôŧ àļļôŵ ŧĥïš ŵôŕķƒļôŵ ŧô ûšë ïŧ. Ôñļÿ ïŧš ôŵñëŕ çàñ àļļôŵ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "library.workflow.editor.skills.slot.stopped.body": "⟦Ïŧš ôŵñëŕ ðôëš ñôŧ àļļôŵ ŧĥïš ŵôŕķƒļôŵ ŧô ûšë ïŧ. Ôñļÿ ïŧš ôŵñëŕ çàñ àļļôŵ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "tasks.preview.badge.older": "⟦Ôļðëŕ çôɱɱïŧ ŧë⟧",
+  "tasks.preview.older.lead": "⟦Ŧĥïš þŕëṽïëŵ šĥôŵš àñ ôļðëŕ çôɱɱïŧ. ŧëšŧ çôþÿŧ⟧",
+  "tasks.preview.older.now": "⟦Ŧĥë çĥàñĝë ïš ñôŵ àŧ ŧëšŧ⟧",
+  "tasks.preview.older.rest": "⟦Ŵĥàŧ ÿôû šëë ĥëŕë ïš ñôŧ ŵĥàŧ ŵôûļð ƀë ŕëļëàšëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.preview.openAnyway": "⟦Ôþëñ þŕëṽïëŵ àñÿŵàÿ ŧëšŧ⟧"
 }

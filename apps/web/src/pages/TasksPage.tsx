@@ -586,6 +586,7 @@ function Detail(
               <RunPreviewCard
                 key={`preview-${task.currentRunId}`}
                 runId={task.currentRunId}
+                taskId={id}
                 connectivity={syncConnectivity}
               />
               <TaskArtifactPane
