@@ -8,6 +8,7 @@ import {
   read,
   ticketCall,
 } from "../helpers/ticket-admission/operations-http.ts";
+import { addMember } from "../helpers/durable-questions.ts";
 
 /**
  * Issue 61: `ticketRequests.cancel` stops a start request that has no run
@@ -157,3 +158,56 @@ Deno.test("issue 61: a request with a live run is refused and names the run", ()
       false,
     );
   }, { budget: true }));
+
+Deno.test("issue 61: a viewer cannot stop a request and nothing is written; a developer can", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    fx.reader.setIssue({ number: 712, labels: [EXECUTE_LABEL] });
+    const admitted = await fx.admit(sourceId, { number: 712, intent: "plan" });
+    const request = admitted.request!;
+    const context = {
+      organizationId: fx.organizationId,
+      principalId: fx.adminId,
+      cookie: fx.f.adminCookie,
+      applicationId: fx.applicationId,
+      repositoryId: fx.repositoryId,
+      conversationId: "",
+      agentVersionId: "",
+    };
+    const viewer = await addMember(fx.f, context, "stop-viewer", "viewer");
+    const asViewer = await ticketCall(fx, "POST", cancelPath(request.id), {
+      body: {},
+      ifMatch: request.version,
+      cookie: viewer.cookie,
+    });
+    assertEquals(asViewer.status, 403, await asViewer.clone().text());
+    assertEquals(
+      (await fx.requestFacts(request.id)).audit.includes(
+        "ticketRequests.cancel",
+      ),
+      false,
+    );
+    const row = await fx.owner.query<{ disposition: string }>(
+      "select disposition from bakery.ticket_requests where id = $1",
+      [request.id],
+    );
+    assertEquals(row.rows[0].disposition, "waiting");
+
+    const developer = await addMember(fx.f, context, "stop-dev", "developer");
+    const asDeveloper = await ticketCall(fx, "POST", cancelPath(request.id), {
+      body: {},
+      ifMatch: request.version,
+      cookie: developer.cookie,
+    });
+    assertEquals(asDeveloper.status, 201, await asDeveloper.clone().text());
+    const who = await fx.owner.query<{ principal_id: string }>(
+      `select principal_id from bakery.audit_events
+        where resource_id = $1 and operation = 'ticketRequests.cancel'`,
+      [request.id],
+    );
+    assertEquals(who.rows.length, 1);
+    assert(
+      who.rows[0].principal_id !== fx.adminId,
+      "recorded as the developer",
+    );
+  }));

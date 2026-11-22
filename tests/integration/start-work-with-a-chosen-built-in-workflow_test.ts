@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   EXECUTE_LABEL,
   recordOpenIssues,
@@ -137,3 +137,22 @@ Deno.test("issue 61: a source policy's built-in workflow is the one admission ju
     );
     assertEquals(admitted.report.preset.id, "fixed-coding-reviewed");
   }, { budget: true }));
+
+Deno.test("issue 61: a ready reviewed workflow is admitted and its run is that workflow", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({
+      policy: { ...fx.policy(), preset: "fixed-coding-reviewed" },
+    });
+    fx.reader.setIssue({ number: 616, labels: [EXECUTE_LABEL] });
+    const admitted = await fx.admit(sourceId, { number: 616, intent: "start" });
+    const request = admitted.request;
+    assert(request, JSON.stringify(admitted.report.checks));
+    assertEquals(admitted.report.preset.id, "fixed-coding-reviewed");
+    const run = await fx.owner.query<{ workflow_run_id: string | null }>(
+      `select workflow_run_id from bakery.ticket_requests where id = $1`,
+      [request.id],
+    );
+    const runId = run.rows[0]?.workflow_run_id;
+    assert(runId, "the admitted request started a run");
+    assertEquals(await runPreset(fx, runId), "preset:fixed-coding-reviewed");
+  }, { budget: true, reviewed: true }));
