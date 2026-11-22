@@ -108,6 +108,9 @@ function walkNode(walk: Walk, node: WorkflowNode, depth: number): void {
       walkNodes(walk, node.steps, depth + 1, REPEAT_RESERVED, seedSteps);
       return;
     }
+    case "forEach":
+      walkNodes(walk, node.steps, depth + 1, REPEAT_RESERVED);
+      return;
     case "parallel": {
       const laneIds = checkScope(walk, node.lanes, undefined);
       for (const lane of node.lanes) {
@@ -141,8 +144,8 @@ function walkNode(walk: Walk, node: WorkflowNode, depth: number): void {
 /**
  * Identifier pass over a shaped document. Direct children of a node share one
  * namespace: sequence steps; both branch arms; repeat seed and body steps;
- * lanes (and each lane's steps separately). `iterations` and `outcome` are
- * reserved under a repeat. Branch and lane export names may not equal a
+ * lanes (and each lane's steps separately); a forEach's steps. `iterations`
+ * and `outcome` are reserved under a repeat and under a forEach. Branch and lane export names may not equal a
  * direct child identifier. Also bounds node depth and total node count.
  */
 export function indexWorkflowNodes(

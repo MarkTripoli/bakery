@@ -32,9 +32,13 @@ const RUN_STATUSES = [
 /** The expected progress, written out row by row for every disposition. */
 const EXPECTED: Record<string, Record<string, string>> = {
   pending: Object.fromEntries(RUN_STATUSES.map((s) => [String(s), "pending"])),
-  suspended: Object.fromEntries(
-    RUN_STATUSES.map((s) => [String(s), "suspended"]),
-  ),
+  // A suspended request shows its run's end once the run finished (#61).
+  suspended: {
+    ...Object.fromEntries(RUN_STATUSES.map((s) => [String(s), "suspended"])),
+    canceled: "canceled",
+    completed: "completed",
+    failed: "failed",
+  },
   rejected: Object.fromEntries(
     RUN_STATUSES.map((s) => [String(s), "rejected"]),
   ),
@@ -90,6 +94,27 @@ Deno.test("issue 32: a completed run reads as active until the completion policy
     ticketRequestProgress("completed", "completed", false),
     "completed",
   );
+});
+
+Deno.test("issue 61: a suspended request reports the end of its run", () => {
+  // Stop work cancels a paused run: the page must read canceled, not wait
+  // for the recheck to move the disposition.
+  assertEquals(
+    ticketRequestProgress("suspended", "canceled", false),
+    "canceled",
+  );
+  assertEquals(ticketRequestProgress("suspended", "failed", false), "failed");
+  assertEquals(
+    ticketRequestProgress("suspended", "completed", true),
+    "completed",
+  );
+  // An undelivered completed run, and a paused or running one, stay suspended.
+  assertEquals(
+    ticketRequestProgress("suspended", "completed", false),
+    "suspended",
+  );
+  assertEquals(ticketRequestProgress("suspended", "paused", true), "suspended");
+  assertEquals(ticketRequestProgress("suspended", null, true), "suspended");
 });
 
 Deno.test("issue 69: a stored disposition reason maps to its closed code, anything else to null", () => {
