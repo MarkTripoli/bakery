@@ -584,6 +584,24 @@ export async function transition(
   }
 }
 
+/**
+ * What `recover` records: the switch that did not finish, and the release it
+ * put back. Only a journal that really was mid-switch counts, so running
+ * recover again (or on a committed host) records nothing.
+ */
+export function interruptedMove(before, after) {
+  if (
+    !before?.desired || before.phase === "committed" ||
+    before.phase === "enrollment" || !after?.active
+  ) return null;
+  return {
+    kind: "interrupted",
+    from: before.desired.sha,
+    to: after.active.sha,
+    via: after.active.sha,
+  };
+}
+
 /** Removes a marker a crashed launcher left; recover and a reboot are the ways out. */
 async function clearMarker(operations) {
   await setMarker(operations, false);
@@ -1288,17 +1306,8 @@ async function run(
       await recover(store, operations);
       const after = await readState();
       // A switch that never finished is part of the history; so is clearing it.
-      if (
-        before?.desired && before.phase !== "committed" &&
-        before.phase !== "enrollment" && after?.active
-      ) {
-        await note(operations, progress, {
-          kind: "interrupted",
-          from: before.desired.sha,
-          to: after.active.sha,
-          via: after.active.sha,
-        });
-      }
+      const moved = interruptedMove(before, after);
+      if (moved) await note(operations, progress, moved);
       await clearMarker(operations);
       // Events kept while the database could not be reached.
       if (after?.active) {

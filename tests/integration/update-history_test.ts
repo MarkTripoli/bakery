@@ -477,3 +477,113 @@ Deno.test("an update left running unhealthy, by a person's stay or because no on
       assertEquals((await status(o)).lastFailure, null);
     }
   }));
+
+Deno.test("a stay that recover put back is one incident: one notice, and the kept release is still known", () =>
+  withFixture(async (o) => {
+    const running = await runningRelease(o);
+    for (const by of ["mark", null] as const) {
+      await o.f.pgDatabase.query(
+        "delete from bakery.installation_update_history",
+      );
+      // What the launcher records: the running release was installed over A,
+      // an update to B was left unhealthy, and recover put the running one back.
+      await record(o, {
+        kind: UpdateEventKind.Updated,
+        occurredAt: at(3),
+        fromRelease: A,
+        toRelease: running,
+      });
+      await record(o, {
+        kind: UpdateEventKind.Updated,
+        occurredAt: at(5),
+        fromRelease: running,
+        toRelease: B,
+      });
+      await record(o, {
+        kind: UpdateEventKind.DecidedStay,
+        occurredAt: at(6),
+        byName: by,
+        fromRelease: B,
+        toRelease: running,
+      });
+      await record(o, {
+        kind: UpdateEventKind.Interrupted,
+        occurredAt: at(7),
+        fromRelease: B,
+        toRelease: running,
+      });
+      const body = await status(o);
+      assertEquals(body.lastFailure?.kind, "interrupted", String(by));
+      assertEquals(
+        body.previousRelease,
+        A,
+        "recover does not forget what is kept",
+      );
+      assertEquals(body.previousRanUntil, at(3).toISOString());
+      assertEquals(body.runningSince, at(3).toISOString());
+      const dismissed = await o.admin(
+        "POST",
+        `${LIST}/${body.lastFailure!.id}/dismiss`,
+        undefined,
+        { keyed: true },
+      );
+      assertEquals(dismissed.status, 200, await dismissed.clone().text());
+      await dismissed.body?.cancel();
+      assertEquals(
+        (await status(o)).lastFailure,
+        null,
+        "dismissing the newest clears the incident; the older stay does not come back",
+      );
+      const listed = await (await o.admin("GET", LIST)).json() as Page;
+      assertEquals(listed.items.length, 4, "every row stays in the history");
+    }
+  }));
+
+Deno.test("a new incident after a dismissed one shows again, and a later successful update clears the last one", () =>
+  withFixture(async (o) => {
+    const running = await runningRelease(o);
+    const dismiss = async (id: string) => {
+      const response = await o.admin(
+        "POST",
+        `${LIST}/${id}/dismiss`,
+        undefined,
+        {
+          keyed: true,
+        },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      await response.body?.cancel();
+    };
+    await record(o, {
+      kind: UpdateEventKind.DecidedStay,
+      occurredAt: at(2),
+      fromRelease: B,
+      toRelease: running,
+    });
+    await dismiss((await status(o)).lastFailure!.id);
+    assertEquals((await status(o)).lastFailure, null);
+    await record(o, {
+      kind: UpdateEventKind.WentBack,
+      occurredAt: at(8),
+      byName: null,
+      fromRelease: C,
+      toRelease: running,
+    });
+    assertEquals((await status(o)).lastFailure?.kind, "went_back");
+    await dismiss((await status(o)).lastFailure!.id);
+    assertEquals((await status(o)).lastFailure, null);
+    await record(o, {
+      kind: UpdateEventKind.Interrupted,
+      occurredAt: at(9),
+      fromRelease: C,
+      toRelease: running,
+    });
+    assertEquals((await status(o)).lastFailure?.kind, "interrupted");
+    await record(o, {
+      kind: UpdateEventKind.Updated,
+      occurredAt: at(10),
+      fromRelease: running,
+      toRelease: C,
+    });
+    assertEquals((await status(o)).lastFailure, null);
+  }));

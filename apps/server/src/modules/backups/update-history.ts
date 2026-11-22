@@ -86,19 +86,22 @@ export async function readUpdateStatus(
     `select occurred_at as "at", from_release as "fromRelease",
             to_release as "toRelease"
        from bakery.installation_update_history
-      where kind = any($1::text[])
+      where kind = any($1::text[]) and to_release = $2
       order by occurred_at desc, id desc limit 1`,
-    [MOVE_KINDS],
+    [MOVE_KINDS, running.release],
   );
-  const latest = moved.rows[0];
-  // The kept release is only known when the latest move is the one that put the
-  // running release here; anything else means the history does not cover it.
-  const kept = latest?.toRelease === running.release && latest.fromRelease
-    ? latest
-    : undefined;
+  // The release the launcher keeps is the one the latest move into the running
+  // release replaced. A later move somewhere else (an update that was left
+  // unhealthy and then put back by `recover`) does not change that: the journal
+  // keeps the same earlier release. No move into it means the history does not
+  // cover it, and nothing is guessed.
+  const kept = moved.rows[0]?.fromRelease ? moved.rows[0] : undefined;
+  // One incident, one notice: only the newest failure counts, and if that one
+  // was dismissed there is no notice, however many older ones were not. (A stay
+  // that `recover` then put back is a decided_stay and an interrupted.)
   const failure = await transaction.query<Row>(
     `select ${COLUMNS} from bakery.installation_update_history failed
-      where kind = any($1::text[]) and dismissed_at is null
+      where kind = any($1::text[])
         and not exists (
           select 1 from bakery.installation_update_history later
            where later.kind = 'updated'
@@ -118,7 +121,9 @@ export async function readUpdateStatus(
         ?.toISOString() ?? null
       : null,
     previousRanUntil: kept?.at.toISOString() ?? null,
-    lastFailure: failure.rows[0] ? view(failure.rows[0]) : null,
+    lastFailure: failure.rows[0] && failure.rows[0].dismissedAt === null
+      ? view(failure.rows[0])
+      : null,
   });
 }
 

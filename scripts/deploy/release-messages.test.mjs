@@ -20,6 +20,7 @@ import { join } from "node:path";
 import {
   askAtTerminal,
   forgetEvent,
+  interruptedMove,
   keepEvent,
   MAX_KEPT_EVENTS,
   recover,
@@ -928,4 +929,33 @@ test("a release that fails its background check under policy go_back goes back o
     ["record went_back"],
   );
   assert.equal(h.calls.filter((c) => c === "resume green").length, 1);
+});
+
+test("recover after a stay records one interrupted switch, and running recover again records nothing", async () => {
+  for (const answer of ["stay", null]) {
+    const h = harness(committed, { ...ask, fail: true, answer });
+    await assert.rejects(run(h, () => {}), /UPDATE_LEFT_UNHEALTHY/);
+    const before = h.state();
+    assert.notEqual(before.phase, "committed");
+    await recover(h.store, h.operations);
+    const first = interruptedMove(before, h.state());
+    assert.deepEqual(first, {
+      kind: "interrupted",
+      from: green,
+      to: blue,
+      via: blue,
+    }, String(answer));
+    // The host is back on the old release: a second recover has nothing to say.
+    const again = h.state();
+    assert.equal(again.phase, "committed");
+    await recover(h.store, h.operations);
+    assert.equal(interruptedMove(again, h.state()), null);
+  }
+  assert.equal(interruptedMove(null, null), null);
+  assert.equal(
+    interruptedMove({ phase: "enrollment", desired: { sha: green } }, {
+      active: { sha: blue },
+    }),
+    null,
+  );
 });
