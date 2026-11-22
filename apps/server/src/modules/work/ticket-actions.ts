@@ -28,6 +28,7 @@ import {
 } from "./ticket-operation-runner.ts";
 import {
   authorizeTicketAdmission,
+  cancelTicketRequest,
   createTicketReadinessHandler,
   createTicketRequestHandler,
   createTicketTaskLink,
@@ -309,6 +310,21 @@ export function createTicketActionRegistry(
     output: contractSchemas.TicketRequestView,
     policy: query,
     handler: getTicketRequest,
+  }).register({
+    name: TicketImplementedAction.TicketRequestsCancel,
+    method: HttpMethod.Post,
+    path: "/v1/ticket-requests/:id/cancellations",
+    input: contractSchemas.TicketRequestCancel,
+    output: contractSchemas.TicketRequestView,
+    // Stopping work is held to starting it: task:write and run:write now.
+    policy: {
+      ...developer,
+      access: ActionAccess.DeveloperAndAdmissionAuthority,
+      authorize: authorizeTicketAdmission,
+    },
+    // The request version is the precondition; the handler checks it.
+    explicitIdempotency: "key-and-if-match",
+    handler: cancelTicketRequest,
   });
 
   assertRegisteredActions(registry);

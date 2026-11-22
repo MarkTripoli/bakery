@@ -464,6 +464,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketRequestsCreate: "ticketRequests.create",
     TicketRequestsList: "ticketRequests.list",
     TicketRequestsGet: "ticketRequests.get",
+    TicketRequestsCancel: "ticketRequests.cancel",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const ticketImplementedActions = Object.freeze(
@@ -880,6 +881,8 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsTakeSourceUpdate: "skills.takeSourceUpdate",
     SkillDraftFilesRename: "skillDraftFiles.rename",
     SkillVersionsList: "skillVersions.list",
+    SkillVersionsGet: "skillVersions.get",
+    SkillFilesGet: "skillFiles.get",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );

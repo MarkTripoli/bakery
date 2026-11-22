@@ -13,7 +13,10 @@ import {
   prepareEffect,
   ReconciliationEvidenceSchema,
 } from "../../apps/server/src/modules/effects/index.ts";
-import { recordOutcome } from "../../apps/server/src/modules/effects/dispatch.ts";
+import {
+  dispatchEffect,
+  recordOutcome,
+} from "../../apps/server/src/modules/effects/dispatch.ts";
 import { MAX_RECONCILIATION_EVIDENCE_BYTES } from "../../apps/server/src/modules/effects/schema.ts";
 import {
   findEffectById,
@@ -36,6 +39,7 @@ import {
   persistReleaseEvidence,
   seededEffectRig,
   seedPlanApproval,
+  testBroker,
 } from "../helpers/external-effects.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 
@@ -1139,6 +1143,55 @@ Deno.test("executor: prepare, claim, POST and confirm a comment", () =>
     assertEquals(again.outcome, "confirmed");
     assertEquals(again.dispatched, false);
     assertEquals(d.github.posts(), 1);
+  }));
+
+Deno.test("executor: an offline run's effect ends failed with environment_offline and never reaches the provider", () =>
+  withWorkerFixture(async (fixture) => {
+    const offline = await dispatchStage(fixture, "exec-offline");
+    // The environment is pinned at run creation; the fixture seeds a live run,
+    // so the test pins this one offline before the effect is claimed.
+    await offline.s.db.query(
+      `update bakery.workflow_runs set environment = 'offline'
+        where organization_id = $1 and id = $2`,
+      [offline.s.organizationId, offline.s.run.runId],
+    );
+    const blocked = await offline.run();
+    assertEquals(blocked.outcome, "failed");
+    assertEquals(blocked.dispatched, false);
+    assertEquals(blocked.effect.status, "failed");
+    assertEquals(blocked.effect.failureCode, "environment_offline");
+    assertEquals(offline.github.posts(), 0);
+    assertEquals(offline.github.comments.length, 0);
+    // A live run in the same organization is unchanged: it sends and confirms.
+    const live = await dispatchStage(fixture, "exec-live");
+    const sent = await live.run();
+    assertEquals(sent.outcome, "confirmed");
+    assertEquals(sent.dispatched, true);
+    assertEquals(live.github.posts(), 1);
+  }));
+
+Deno.test("dispatch of an offline-bound invocation never reaches the provider", () =>
+  withWorkerFixture(async (fixture) => {
+    // The claim refuses an offline run, so the dispatch port is the last guard:
+    // the claim pins the run's environment on the bound invocation, and an
+    // offline value there denies every provider request.
+    const s = await stage(fixture, "dispatch-offline");
+    const prepared = await s.prepare();
+    const claim = await s.claim(prepared.effectId);
+    assertEquals(claim.outcome, "claimed");
+    if (claim.outcome !== "claimed") return;
+    assertEquals(claim.bound.runEnvironment, "live");
+    const github = fakeGithub();
+    const { broker } = testBroker(s.rig, github);
+    const result = await dispatchEffect({
+      database: fixture.pgDatabase,
+      registry: effectRegistry,
+      snapshotsFor: () => s.rig.port,
+      providerRequests: broker,
+    }, { ...claim, bound: { ...claim.bound, runEnvironment: "offline" } });
+    assert(result.outcome.kind !== "confirmed", JSON.stringify(result.outcome));
+    assertEquals(github.posts(), 0);
+    assertEquals(github.comments.length, 0);
   }));
 
 Deno.test("executor: a 429 returns the effect to prepared, then a due retry is generation 2", () =>

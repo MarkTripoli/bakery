@@ -22,6 +22,7 @@ import {
   WORKFLOW_COMPILER_LIMITS,
   WORKFLOW_COMPILER_MESSAGES,
   WorkflowCompilerInvariantError,
+  WorkflowExecutionPlanSchema,
   WorkflowSemanticDocumentSchema,
 } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import {
@@ -4233,8 +4234,18 @@ Deno.test("a forEach normalizes to a bounded loop whose steps run max times at w
   assertEquals(result.plan.worstCase.steps, 1 + 3 + 1);
   // A literal list is a list too.
   await accepted(workflow([forEachNode({}, { items: ["a", "b"] })]));
-  // A loop up to the ceiling of 12 items is accepted.
-  await accepted(workflow([noop("prepare"), forEachNode({}, { max: 12 })]));
+  // A loop up to the ceiling of 12 items is accepted, and its plan parses
+  // under the published plan schema (loops[].max allows forEachMax).
+  const twelve = await accepted(
+    workflow([noop("prepare"), forEachNode({}, { max: 12 })]),
+  );
+  assertEquals(
+    twelve.plan.steps.find((step) => step.qualifiedId === "cases.run_case")
+      ?.loops[0]?.max,
+    WORKFLOW_COMPILER_LIMITS.forEachMax,
+  );
+  const parsed = WorkflowExecutionPlanSchema.safeParse(twelve.plan);
+  assert(parsed.success, parsed.success ? "" : parsed.error.message);
 });
 
 Deno.test("every forEach shape and scope code reports its exact path", async () => {

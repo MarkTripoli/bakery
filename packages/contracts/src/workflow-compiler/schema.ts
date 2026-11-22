@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WorkflowCompilerDiagnosticSchema } from "./diagnostics.ts";
+import { WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
 import type { WorkflowJsonValue } from "./json-value.ts";
 import {
   type WorkflowStepFiles,
@@ -752,8 +753,13 @@ export const WorkflowPlanStepSchema = z.object({
       repeat: z.string().max(2048).describe(
         "Qualified identifier of the enclosing repeat or forEach.",
       ),
-      max: z.number().int().min(1).max(8).describe(
-        "Iteration ceiling of the enclosing repeat or forEach (its max).",
+      max: z.number().int().min(1).max(
+        Math.max(
+          WORKFLOW_COMPILER_LIMITS.repeatMax,
+          WORKFLOW_COMPILER_LIMITS.forEachMax,
+        ),
+      ).describe(
+        "Iteration ceiling of the enclosing repeat or forEach (its max): at most repeatMax for a repeat, forEachMax for a forEach.",
       ),
       seed: z.boolean().describe(
         "True for a seed step, whose only iteration is 0; body steps run 1..max.",
