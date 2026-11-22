@@ -132,6 +132,19 @@ function flatten(
         );
         return;
       }
+      case "forEach":
+        // Iterations reuse the repeat encoding: `<id>@n`, n = 1..max.
+        flatten(
+          out,
+          node.steps,
+          child(`${node.id}${MARKER}`, [
+            ...frame.loops,
+            { repeat: joined, max: node.max, seed: false },
+          ]),
+          0,
+          depth + 1,
+        );
+        return;
       case "parallel":
         for (const lane of node.lanes) {
           const laneId = `${joined}.${lane.id}`;
@@ -170,8 +183,8 @@ export function buildWorkflowPlan(
 
 /**
  * Allocates the concrete step key of a plan step for one iteration path.
- * The path holds one entry per enclosing repeat, outermost first: `0` for a
- * seed step, `1..max` for a body step. Throws on a wrong length or range.
+ * The path holds one entry per enclosing repeat or forEach, outermost first:
+ * `0` for a seed step, `1..max` for a body or forEach step. Throws on a wrong length or range.
  */
 export function allocateStepKey(
   step: Pick<PlanStep, "keyTemplate" | "loops">,

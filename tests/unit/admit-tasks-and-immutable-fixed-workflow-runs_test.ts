@@ -94,6 +94,54 @@ Deno.test("fixed workflow repository requirements use declarative markers", () =
     workflowRequiresRepository({
       ...WORKFLOW,
       steps: [{
+        id: "cases",
+        forEach: {
+          items: "$step.prepare.cases",
+          max: 2,
+          as: "case",
+          steps: [{ id: "nested", requires: ["git"] }],
+        },
+      }],
+    }),
+    true,
+  );
+  assertEquals(
+    workflowRequiresRepository({
+      ...WORKFLOW,
+      steps: [{
+        id: "cases",
+        forEach: {
+          items: "$step.prepare.cases",
+          max: 2,
+          as: "case",
+          steps: [{
+            id: "nested",
+            with: { target: "$each.case.repositoryId" },
+          }],
+        },
+      }],
+    }),
+    true,
+  );
+  assertEquals(
+    workflowRequiresRepository({
+      ...WORKFLOW,
+      steps: [{
+        id: "cases",
+        forEach: {
+          items: "$step.prepare.cases",
+          max: 2,
+          as: "case",
+          steps: [{ id: "nested", with: { note: "$each.case.name" } }],
+        },
+      }],
+    }),
+    false,
+  );
+  assertEquals(
+    workflowRequiresRepository({
+      ...WORKFLOW,
+      steps: [{
         id: "repeat",
         repeat: {
           steps: [{
