@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertInstanceOf } from "@std/assert";
 import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
 import {
   authRequest,
@@ -26,6 +26,12 @@ import {
   withWorkerFixture,
 } from "../helpers/worker-execution/scenarios.ts";
 import { rawClaim } from "../helpers/coordinator-turn-jobs-worker.ts";
+import { withPgTransaction } from "@bakery/persistence/postgres";
+import {
+  type HostRow,
+  rebindLiveClaimAttempt,
+} from "../../packages/persistence/src/index.ts";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 
 type AppFixture = Awaited<ReturnType<typeof openAuthFixture>>;
 
@@ -240,5 +246,65 @@ Deno.test("an iOS-only job stays queued while only a Linux host with free capaci
     );
     const linuxAssignment = await claimAssignment(fixture, linux);
     assertEquals(linuxAssignment.jobId, anywhere.jobId);
+  });
+});
+
+// #52 (B15.06) AC2, past the claim query: an attempt already leased to a Mac
+// host is rebound (pending-claim heartbeat, claim replay) only while that host
+// still meets the job's platform. The claim SQL cannot see this case, so the
+// recheck in the rebind path is the only guard: a host whose enrolled OS no
+// longer matches `requirements.platform` is refused with AUTH_FORBIDDEN.
+Deno.test("rebinding a macOS-only attempt is refused once the host's enrolled OS is not macOS", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const job = await seedFundedModelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.jobs
+          set requirements = requirements || '{"platform":"macos"}'::jsonb
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, job.jobId],
+    );
+    const mac = await registeredWorker(fixture, {
+      os: "macos",
+      architecture: "arm64",
+    });
+    const assignment = await claimAssignment(fixture, mac);
+    assertEquals(assignment.jobId, job.jobId);
+
+    const rebind = (os: string) =>
+      withPgTransaction(fixture.pgDatabase, async (transaction) => {
+        const host = await transaction.query<HostRow>(
+          `select id, organization_id as "organizationId",
+                  principal_id as "principalId", principal_type as "principalType",
+                  name, $2::text as os, architecture, capabilities, slots, status,
+                  desired_mode as "desiredMode", credential_hash as "credentialHash",
+                  credential_generation as "credentialGeneration",
+                  protocol_version as "protocolVersion",
+                  inventory_revision as "inventoryRevision",
+                  readiness_revision as "readinessRevision",
+                  worker_session_id as "workerSessionId",
+                  worker_session_generation as "workerSessionGeneration",
+                  last_heartbeat_at as "lastHeartbeatAt"
+             from bakery.worker_hosts where id = $1`,
+          [mac.registration.workerHostId, os],
+        );
+        return await rebindLiveClaimAttempt(
+          transaction,
+          { tokenHash: host.rows[0].credentialHash, host: host.rows[0] },
+          assignment.attemptId,
+        );
+      });
+
+    // Control: the same host, still on macOS, passes the recheck.
+    await rebind("macos");
+    const refused = await rebind("linux").then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    assertInstanceOf(refused, StandardError);
+    assertEquals(refused.code, "AUTH_FORBIDDEN");
   });
 });
