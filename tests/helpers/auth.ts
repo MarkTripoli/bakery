@@ -149,6 +149,9 @@ export async function openAuthFixture(options: {
   draftIsolation?: Parameters<typeof createApp>[0]["draftIsolation"];
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
+  pluginBrokerOperations?: Parameters<
+    typeof createApp
+  >[0]["pluginBrokerOperations"];
   /** Plugin generator and preview runtime for authoring runs (#45); tests script both. */
   pluginAuthoring?: Parameters<typeof createApp>[0]["pluginAuthoring"];
   /** Where a skill source is read again for an update; tests inject a fake so none reaches the network. */
@@ -283,6 +286,7 @@ export async function openAuthFixture(options: {
       ticketCreator: options.ticketCreator,
       draftIsolation: options.draftIsolation,
       skillFileStore: options.skillFileStore,
+      pluginBrokerOperations: options.pluginBrokerOperations,
       pluginAuthoring: options.pluginAuthoring,
       skillSourceAdapter: options.skillSourceAdapter,
       skillStorageProbe: options.skillStorageProbe,
