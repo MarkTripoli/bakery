@@ -881,6 +881,8 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsTakeSourceUpdate: "skills.takeSourceUpdate",
     SkillDraftFilesRename: "skillDraftFiles.rename",
     SkillVersionsList: "skillVersions.list",
+    SkillVersionsGet: "skillVersions.get",
+    SkillFilesGet: "skillFiles.get",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
