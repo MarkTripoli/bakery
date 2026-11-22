@@ -793,6 +793,14 @@
         "module": "catalog",
         "migration": "apps/server/src/modules/catalog/migrations/bakery/0200_plugin_installs_grants_and_state.sql"
       },
+      "plugin_install_snapshot_state": {
+        "module": "catalog",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0312_plugin_install_snapshots.sql"
+      },
+      "plugin_install_snapshots": {
+        "module": "catalog",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0312_plugin_install_snapshots.sql"
+      },
       "preview_sessions": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0270_private_previews.sql"
@@ -1064,6 +1072,14 @@
       "worker_link_requests": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0311_worker_link_codes.sql"
+      },
+      "worker_maintenance_operations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0309_worker_maintenance_operations.sql"
+      },
+      "worker_maintenance_receipts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0310_worker_maintenance_receipts.sql"
       },
       "worker_provider_auth_reports": {
         "module": "work",
