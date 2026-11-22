@@ -6171,5 +6171,6 @@
   "tasks.delivery.now.checksFailed.title": "⟦{count, plural, one {# check did not pass} other {# checks did not pass}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.delivery.now.checksFailed.body": "⟦Ŧĥë çĥàñĝë šŧàÿš ƀļôçķëð. ŧëšŧ ç⟧",
   "tasks.delivery.now.stopped.cycles.body": "⟦Ïŧ šŧôþþëð àƒŧëŕ {max, plural, one {# try} other {# tries}}. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "tasks.conversation.steering.paused": "⟦Ŧĥïš ŕûñ ïš þàûšëð. Ÿôûŕ ɱëššàĝë ïš šàṽëð àñð ŧĥë àĝëñŧ ŕëàðš ïŧ ŵĥëñ ŧĥë ŕûñ ïš ŕëšûɱëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
+  "tasks.conversation.steering.paused": "⟦Ŧĥïš ŕûñ ïš þàûšëð. Ÿôûŕ ɱëššàĝë ïš šàṽëð àñð ŧĥë àĝëñŧ ŕëàðš ïŧ ŵĥëñ ŧĥë ŕûñ ïš ŕëšûɱëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "session.thread.noSessionNamed": "⟦{step} ĥàš ñô àĝëñŧ šëššïôñ. ŧëšŧ çô⟧"
 }

@@ -5324,6 +5324,7 @@
   "session.thread.statusName.active": "running",
   "session.thread.statusName.waiting": "waiting",
   "session.thread.noSession": "This step has no agent session.",
+  "session.thread.noSessionNamed": "{step} has no agent session.",
   "session.thread.rawOutput": "Raw output",
   "session.thread.stepSelect": "Step",
   "projects.repository.edit.menu": "Change default branch",

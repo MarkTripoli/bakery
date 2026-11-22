@@ -34,7 +34,7 @@ import {
   RunRulesDetails,
   useRunRules,
 } from "./RunRules.tsx";
-import { runTimelineEvents } from "./task-timeline.ts";
+import { runTimelineEvents, stepTitle } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
@@ -742,6 +742,10 @@ export function TaskRunSection(
                           key={selectedStepId}
                           taskId={taskId}
                           source={selectedThread}
+                          // With one step there is no Step select to say which step this is.
+                          stepName={steps.data.items.length === 1
+                            ? stepTitle(t, steps.data.items[0]!.stepKey)
+                            : undefined}
                           highlightedItemId={itemParam ?? undefined}
                           rawOutput={
                             <TaskRunOutput

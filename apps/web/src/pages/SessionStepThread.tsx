@@ -20,8 +20,13 @@ import type { SessionThreadSource } from "./useSessionThread.ts";
  * saying so. A failed read still offers the raw output.
  */
 export function SessionStepThread(
-  { highlightedItemId, rawOutput, source, taskId }: {
+  { highlightedItemId, rawOutput, source, stepName, taskId }: {
     highlightedItemId?: string;
+    /**
+     * The step's name, given when no Step select is drawn (a run with one step),
+     * so the sentence about its session says which step it means.
+     */
+    stepName?: string;
     /** Today's output panel for the same step. */
     rawOutput: ReactNode;
     source: SessionThreadSource;
@@ -56,7 +61,9 @@ export function SessionStepThread(
     return (
       <UI.Stack gap="standard">
         <UI.Text variant="muted">
-          {translate("session.thread.noSession")}
+          {stepName === undefined
+            ? translate("session.thread.noSession")
+            : translate("session.thread.noSessionNamed", { step: stepName })}
         </UI.Text>
         {raw(true)}
       </UI.Stack>

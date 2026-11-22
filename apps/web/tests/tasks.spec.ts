@@ -2027,6 +2027,11 @@ test("still: the run line when it is paused, with Resume run as the one button",
     ),
   ).toBeVisible();
   await expect(page.getByText("A run is in progress.")).toHaveCount(0);
+  // With one step there is no Step select, so the sentence names its step.
+  await expect(page.getByText("Write task brief has no agent session."))
+    .toBeVisible();
+  await expect(page.getByText("This step has no agent session."))
+    .toHaveCount(0);
   await still(page, "run-line-paused");
 });
 
