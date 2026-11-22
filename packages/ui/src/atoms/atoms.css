@@ -120,6 +120,38 @@
   flex-wrap: wrap;
   min-inline-size: 0;
 }
+/* A status line is an icon and one sentence: a long sentence wraps beside the
+   icon, lined up with its own text, never under the icon. */
+.ui-inline[data-line="status"] {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+.ui-inline[data-line="status"] > .ui-icon {
+  flex: none;
+}
+.ui-inline[data-line="status"] > .ui-text {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+/* On a wide screen an item marked for the end of the line sits there (the run
+   actions at the end of the run line); on a phone the row wraps as before. */
+@media (min-width: 744px) {
+  .ui-inline > [data-placement="end"] {
+    margin-inline-start: auto;
+  }
+}
+/* On a phone a lone button at the end sits at the end of the first row, and the
+   line of text goes under it on a row of its own. */
+@media (max-width: 743px) {
+  .ui-inline > [data-placement="end"][data-buttons="one"] {
+    margin-inline-start: auto;
+    order: 1;
+  }
+  .ui-inline:has(> [data-buttons="one"]) > [data-placement="line"] {
+    flex-basis: 100%;
+    order: 2;
+  }
+}
 .ui-stack--none {
   gap: var(--space-0);
 }

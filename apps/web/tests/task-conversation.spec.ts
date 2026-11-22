@@ -1273,10 +1273,10 @@ test("unsupported steering is explicit in the run controls while a run is active
   await expect(page.getByText("A run is in progress.")).toBeVisible();
   await expect(page.locator('[data-ui-region="steering-unsupported"]'))
     .toContainText("You cannot redirect this run while it works");
-  await expect(
-    page.getByText("This machine cannot pause a run.")
-      .first(),
-  ).toBeVisible();
+  // The menu leaves out what the machine cannot do; the notice says why, once.
+  await expect(page.getByText("This machine cannot pause a run.")).toHaveCount(
+    0,
+  );
   // Questions to the agent are still accepted and saved to the conversation.
   await page.getByRole("textbox", { name: "Message this task" }).fill(
     "How is it going?",
@@ -1286,7 +1286,7 @@ test("unsupported steering is explicit in the run controls while a run is active
 });
 
 test(
-  "the artifact section of a run with no artifact is an inset pane section",
+  "a run with no artifact draws no artifact section in the inspector",
   async ({ page }, testInfo) => {
     // The inspector is a sheet on a phone; the inline pane is the desktop surface.
     test.skip(testInfo.project.name === "mobile", "desktop inspector only");
@@ -1344,29 +1344,16 @@ test(
     );
     await page.goto(`/tasks/${taskId}`);
     const inspector = page.getByRole("complementary", { name: "Plan" });
-    const artifact = inspector.getByRole("complementary", { name: "Artifact" });
-    const notice = artifact.getByText(
-      "This run has published no artifact yet.",
-    );
-    await expect(notice).toBeVisible();
+    await expect(inspector).toBeVisible();
+    // The section appears with the run's first artifact: an empty one has no
+    // heading and no "published no artifact yet" sentence.
+    await expect(inspector.getByRole("complementary", { name: "Artifact" }))
+      .toHaveCount(0);
+    await expect(page.getByText("This run has published no artifact yet."))
+      .toHaveCount(0);
     // No stray brief heading: the brief is the first transcript entry.
     await expect(inspector.getByRole("heading", { name: "Task brief" }))
       .toHaveCount(0);
-    // The pane body and the notice both sit at least 16px inside the inspector.
-    const box = await inspector.boundingBox();
-    expect(box).not.toBeNull();
-    for (
-      const target of [
-        artifact.locator('[data-ui-component="artifactPane"]'),
-        notice,
-      ]
-    ) {
-      const inner = await target.boundingBox();
-      expect(inner).not.toBeNull();
-      expect(inner!.x - box!.x).toBeGreaterThanOrEqual(16);
-      expect(box!.x + box!.width - (inner!.x + inner!.width))
-        .toBeGreaterThanOrEqual(16);
-    }
     // Heading levels never skip: every inspector heading is an h2.
     const levels = await inspector.getByRole("heading").evaluateAll((nodes) =>
       nodes.map((node) => Number(node.tagName.slice(1)))
@@ -2448,6 +2435,10 @@ for (
       "A run is in progress. Your message is saved and the agent reads it at its next step.",
     ],
     [
+      "paused",
+      "This run is paused. Your message is saved and the agent reads it when the run is resumed.",
+    ],
+    [
       "blocked",
       "This run is blocked. Your message is saved and the agent reads it when the run continues.",
     ],
@@ -2462,8 +2453,15 @@ for (
     if (notice === null) {
       await expect(composer.getByText("A run is in progress.")).toHaveCount(0);
       await expect(composer.getByText(/^This run is blocked\./)).toHaveCount(0);
+      await expect(composer.getByText(/^This run is paused\./)).toHaveCount(0);
     } else {
       await expect(composer.getByText(notice, { exact: true })).toBeVisible();
+      // A paused run does not say a run is in progress: nothing runs until it resumes.
+      if (status === "paused") {
+        await expect(composer.getByText("A run is in progress.")).toHaveCount(
+          0,
+        );
+      }
     }
   });
 }

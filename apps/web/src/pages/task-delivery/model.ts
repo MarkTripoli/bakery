@@ -21,6 +21,27 @@ export type CheckResult =
   | "unavailable"
   | "canceled";
 
+/** Why a check ended as it did: the server's word, as the design's table reads it. */
+export type CheckReason =
+  | "verified"
+  | "exit_nonzero"
+  | "signal"
+  | "deadline"
+  | "output_limit"
+  | "rule_violation"
+  | "description_placeholder"
+  | "tool_missing"
+  | "unsupported_checker"
+  | "revision_unavailable"
+  | "skipped"
+  | "metadata_missing"
+  | "metadata_too_large"
+  | "rule_unbound"
+  | "rule_binding_ambiguous"
+  | "policy_missing"
+  | "awaiting_result"
+  | "canceled";
+
 export type DeliveryCheck = Readonly<{
   /** The check run's id, named when a merge is queued on its result. */
   id: string;
@@ -31,6 +52,12 @@ export type DeliveryCheck = Readonly<{
   exitCode: number | null;
   durationMs: number | null;
   createdAt: string;
+  /** Why it ended as it did; absent when the server did not say. */
+  reason?: CheckReason;
+  /** `command` for a command, else the repository rule kind it checks. */
+  kind?: string;
+  /** The file version that holds the check's output, when one was kept. */
+  evidenceVersionId?: string | null;
 }>;
 
 export type ReviewStatus =
@@ -50,6 +77,12 @@ export type DeliveryReview = Readonly<{
   findingCount: number;
   blockingCount: number;
   createdAt: string;
+  /** Set once a person accepted the review anyway; the server's record. */
+  acceptedBy?: string | null;
+  /** The accepter's display name, resolved by the server; null when none. */
+  acceptedByName?: string | null;
+  acceptedAt?: string | null;
+  acceptReason?: string | null;
 }>;
 
 export type FindingSeverity = "blocker" | "major" | "minor" | "note";
@@ -81,7 +114,9 @@ export type DeliveryDecision = Readonly<{
   reason: string;
   headSha: string;
   blockingFingerprints: readonly string[];
-  limits: Readonly<{ maxRepairCycles: number }>;
+  /** The checks a repair was asked to fix, as the decision recorded them. */
+  failedChecks?: readonly Readonly<{ checkId: string }>[];
+  limits: Readonly<{ maxRepairCycles: number; maxLoopDurationMs?: number }>;
   createdAt: string;
 }>;
 
@@ -380,6 +415,12 @@ export type CheckRow = Readonly<{
   id: string;
   name: string;
   result: CheckResult;
+  /** Why it ended as it did, or null when the server did not say. */
+  reason: CheckReason | null;
+  /** A repository rule rather than a command: it has no run time. */
+  rule: boolean;
+  /** The file version holding the output, else null. */
+  evidenceVersionId: string | null;
   exitCode: number | null;
   durationMs: number | null;
   /** The short sha of the older commit this result belongs to, else null. */
@@ -429,6 +470,7 @@ export type NowCard =
   >
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
+  /** `failed` counts every check that did not pass: failed, could not run or canceled. */
   | Readonly<{ kind: "checksFailed"; failed: number }>
   | Readonly<
     {
@@ -438,6 +480,8 @@ export type NowCard =
       blocking: number;
       unavailableChecks: number;
       findingTitle: string | null;
+      /** A merge attempt on this pull request merged, so "Nothing was merged." would be false. */
+      merged: boolean;
     }
   >;
 
@@ -456,6 +500,17 @@ export type ApprovalView = Readonly<{
   id: string;
   version: number;
   state: ApprovalState;
+}>;
+
+/** One repair try, as the decision that started it recorded it. */
+export type Try = Readonly<{
+  n: number;
+  running: boolean;
+  /** The checks it was asked to fix, by name, in the order recorded. */
+  checkNames: readonly string[];
+  /** Blocking findings it was asked to fix. */
+  blocking: number;
+  sha: string;
 }>;
 
 export type DeliveryModel = Readonly<{
@@ -482,6 +537,10 @@ export type DeliveryModel = Readonly<{
       blocking: number;
       others: number;
       findings: readonly FindingRow[];
+      /** A person accepted this review anyway, else null. */
+      accepted:
+        | Readonly<{ at: string; reason: string; by: string | null }>
+        | null;
     } | null
   >;
   fixing: Readonly<
@@ -493,6 +552,10 @@ export type DeliveryModel = Readonly<{
       stopped: boolean;
       /** Blocking findings still open, from the stop decision when stopped. */
       blocking: number;
+      /** Every repair try, newest first. */
+      tries: readonly Try[];
+      /** What bounds the loop; the duration is null when the server did not say. */
+      limits: Readonly<{ max: number; durationMs: number | null }>;
     } | null
   >;
   /** The approval asked about the latest decision, else null. */
@@ -522,6 +585,14 @@ const SEVERITY_ORDER: Readonly<Record<FindingSeverity, number>> = {
   minor: 2,
   note: 3,
 };
+
+/** The stops that are about findings a person can accept anyway. */
+const FINDING_STOPS: ReadonlySet<string> = new Set<StopReason>([
+  "repeated_blocker",
+  "repair_cycles_exhausted",
+  "repair_time_exhausted",
+  "repair_budget_exhausted",
+]);
 
 const DEFAULT_MAX_REPAIRS = 2;
 
@@ -825,6 +896,9 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     id: check.id,
     name: check.checkName,
     result: check.result,
+    reason: check.reason ?? null,
+    rule: check.kind !== undefined && check.kind !== "command",
+    evidenceVersionId: check.evidenceVersionId ?? null,
     exitCode: check.exitCode,
     durationMs: check.durationMs,
     olderSha: headSha !== null && check.headSha !== headSha
@@ -865,6 +939,14 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     blocking: newestReview.blockingCount,
     others: Math.max(0, newestReview.findingCount - newestReview.blockingCount),
     findings: open,
+    accepted:
+      newestReview.acceptedAt != null && newestReview.acceptReason != null
+        ? {
+          at: newestReview.acceptedAt,
+          reason: newestReview.acceptReason,
+          by: newestReview.acceptedByName ?? null,
+        }
+        : null,
   } as const;
 
   const outOfDate = headSha !== null && (
@@ -877,6 +959,23 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     latestDecision.reason !== "stale_evidence" &&
     STOP_REASONS.has(latestDecision.reason);
   const openBlocking = open.filter((finding) => finding.blocking).length;
+  const nameOf = new Map(
+    [...input.checks].sort(byCreatedAt).map((
+      check,
+    ) => [check.checkId, check.checkName] as const),
+  );
+  const repairDecisions = input.decisions.filter((entry) =>
+    entry.decision === "repair"
+  ).sort((a, b) => a.ordinal - b.ordinal);
+  const tries: Try[] = repairDecisions.map((entry, index) => ({
+    n: index + 1,
+    running: entry.id === latestDecision?.id,
+    checkNames: (entry.failedChecks ?? []).map((failed) =>
+      nameOf.get(failed.checkId) ?? failed.checkId
+    ),
+    blocking: entry.blockingFingerprints.length,
+    sha: shortSha(entry.headSha),
+  })).reverse();
   const fixing = repairs === 0 ? null : {
     attempt: repairs,
     max: maxRepairs,
@@ -885,6 +984,11 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     blocking: stopped
       ? latestDecision.blockingFingerprints.length || openBlocking
       : openBlocking,
+    tries,
+    limits: {
+      max: maxRepairs,
+      durationMs: latestDecision?.limits.maxLoopDurationMs ?? null,
+    },
   };
 
   const mergePullRequest = choosePullRequest(input.pullRequests, input.runId);
@@ -1061,11 +1165,17 @@ function nowCard(
   >,
 ): NowCard {
   if (input.paused) return { kind: "paused" };
-  const blocking = open.filter((finding) => finding.blocking);
+  // A person accepted the review anyway: its blocking findings are accepted,
+  // so none of them remains, and a stop for them no longer applies.
+  const accepted = review?.accepted != null;
+  const blocking = accepted ? [] : open.filter((finding) => finding.blocking);
   if (latestDecision?.decision === "stop") {
-    // Stale evidence is the out-of-date notice's job; the card says checking.
+    // Stale evidence is not a stop: the card says the results are being checked.
     if (latestDecision.reason === "stale_evidence") return { kind: "checking" };
-    if (STOP_REASONS.has(latestDecision.reason)) {
+    if (
+      STOP_REASONS.has(latestDecision.reason) &&
+      !(accepted && FINDING_STOPS.has(latestDecision.reason))
+    ) {
       return {
         kind: "stopped",
         reason: latestDecision.reason as StopReason,
@@ -1074,18 +1184,22 @@ function nowCard(
           blocking.length,
         unavailableChecks: checks.unavailable,
         findingTitle: blocking[0] ? findingTitle(blocking[0].body) : null,
+        merged: input.mergeAttempts.some((attempt) =>
+          attempt.state === "merged"
+        ),
       };
     }
   }
-  if (latestDecision?.decision === "repair") {
+  if (latestDecision?.decision === "repair" && !accepted) {
     return { kind: "fixing", attempt: repairs, max: maxRepairs };
   }
   if (checks.running > 0 || review === null || review.status === "running") {
     return { kind: "checking" };
   }
-  if (review.status === "approved") {
-    if (checks.failed > 0) {
-      return { kind: "checksFailed", failed: checks.failed };
+  if (review.status === "approved" || accepted) {
+    const notPassed = checks.failed + checks.unavailable + checks.canceled;
+    if (notPassed > 0) {
+      return { kind: "checksFailed", failed: notPassed };
     }
     // Results for an older commit cannot be approved: the notice says so and
     // the card keeps saying the results are being checked.

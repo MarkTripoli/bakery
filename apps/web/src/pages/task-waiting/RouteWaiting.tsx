@@ -158,6 +158,10 @@ export function RouteWaiting(
     if (refusal.reload) void refresh();
   };
 
+  // Nothing to show is nothing drawn: an empty stack still takes a full gap in
+  // the run section.
+  if (offers.length === 0 && !failed && notice === null) return null;
+
   return (
     <UI.Stack gap="standard" data-testid="route-waiting">
       {failed && offers.length === 0
