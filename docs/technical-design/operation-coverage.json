@@ -193,28 +193,6 @@
       "owner": "#37",
       "reason": "Retrying a run belongs with bounded repair; only task-level retry exists today."
     },
-    "skillFiles.get": {
-      "state": "served-outside-registry",
-      "route": {
-        "file": "apps/server/src/modules/execution/routes.ts",
-        "literal": "/v1/skill-versions/:id/files/:path{.+}"
-      },
-      "test": {
-        "file": "tests/integration/materialize-authorized-skills-worker_test.ts",
-        "contains": "/files/"
-      }
-    },
-    "skillVersions.get": {
-      "state": "served-outside-registry",
-      "route": {
-        "file": "apps/server/src/modules/execution/routes.ts",
-        "literal": "/v1/skill-versions/:id"
-      },
-      "test": {
-        "file": "tests/integration/materialize-authorized-skills-worker_test.ts",
-        "contains": "skill-versions/"
-      }
-    },
     "worker.artifacts": {
       "state": "served-outside-registry",
       "route": {
