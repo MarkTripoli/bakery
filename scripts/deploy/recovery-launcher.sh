@@ -242,7 +242,12 @@ const next = target + '/current.json.recovery-' + process.pid;
 writeFileSync(next, JSON.stringify(JSON.parse(plan).pointer), { mode: 0o600 });
 renameSync(next, target + '/current.json');
 JS
-  bash "$root/deploy/runtime.sh" api-start "$(active_slot)" "$expected"
+  # A failed start must not end the run here: the pointer has already moved,
+  # so the operator still needs the verification and the record below.
+  set +e
+  bash "$root/deploy/runtime.sh" api-start "$(active_slot)" "$expected" >&2
+  api_start=$?
+  set -e
 else
   set +e
   bash "$root/deploy/restore.sh" "$set_dir" "$identity" --confirm "$confirm" >&2
@@ -262,13 +267,14 @@ after=$(snapshot)
 mkdir -p "$state/deploy/recovery"
 record=$state/deploy/recovery/$(date -u +%Y%m%dT%H%M%SZ)-$command.json
 set +e
-node --input-type=module - "$command" "$expected" "$(basename "${set_dir:-none}")" "$before" "$after" <<'JS' | redact | tee "$record"
-const [command, expected, setName, beforeText, afterText] = process.argv.slice(2);
+node --input-type=module - "$command" "$expected" "$(basename "${set_dir:-none}")" "$before" "$after" "${api_start:-}" <<'JS' | redact | tee "$record"
+const [command, expected, setName, beforeText, afterText, apiStart] = process.argv.slice(2);
 const before = JSON.parse(beforeText);
 const after = JSON.parse(afterText);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const checks = [];
 const check = (name, ok, detail) => checks.push({ name, ok: Boolean(ok), detail });
+if (command === 'rollback') check('api_start', apiStart === '0', { exitCode: Number(apiStart) });
 check('health', after.health.ok && after.health.version === expected, { expected, observed: after.health.version });
 const drifted = Object.entries(before.migrations ?? {}).filter(([v, c]) => (after.migrations ?? {})[v] !== c).map(([v]) => v);
 check('migration_checksums', typeof before.migrations === 'object' && !before.migrations.error && drifted.length === 0, { drifted });

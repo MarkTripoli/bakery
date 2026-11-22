@@ -233,6 +233,7 @@ Deno.test("a broken release with the API down is rolled back by the independent 
               c: { name: string; ok: boolean },
             ) => [c.name, c.ok]),
             [
+              ["api_start", true],
               ["health", true],
               ["migration_checksums", true],
               ["core_row_counts", true],
@@ -264,6 +265,59 @@ Deno.test("a broken release with the API down is rolled back by the independent 
       ).finally(() => health?.stop());
     } finally {
       await removeSeededEffects(database);
+      await database.query(
+        "delete from bakery.deployments where repository_id = $1",
+        [world.repositoryId],
+      );
+      await database.query(
+        "delete from bakery.pull_requests where repository_id = $1 and provider_number > 500",
+        [world.repositoryId],
+      );
+    }
+  }, { bare: true });
+});
+
+Deno.test("a rollback whose API start fails still verifies and keeps a record, and reports failure", async () => {
+  await withReviewedRun(async (loop) => {
+    const database = loop.fixture.pgDatabase;
+    const world = {
+      organizationId: loop.repository.organizationId,
+      repositoryId: loop.repository.repositoryId,
+      runId: loop.runId,
+      taskId: loop.taskId,
+    } satisfies Ledger & { runId: string; taskId: string };
+    try {
+      let health: ReturnType<typeof startPointerHealth> | undefined;
+      await withLauncherSandbox(
+        { healthUrl: "http://127.0.0.1:9/health/ready", runtimeExit: 1 },
+        async (sandbox) => {
+          health = startPointerHealth(sandbox.target, new Set([SHA_BAD]));
+          await deployGoodThenBad(database, world, sandbox.target);
+          const recovered = await sandbox.run(
+            ["rollback", "--environment", "staging", "--confirm", SHA_GOOD],
+            { BAKERY_RECOVERY_HEALTH_URL: health.url },
+          );
+          assertEquals(recovered.code, 71, recovered.stderr + recovered.stdout);
+          const result = JSON.parse(recovered.stdout);
+          assertEquals(result.outcome, "RECOVERY_VERIFY_FAILED");
+          const apiStart = result.checks.find((c: { name: string }) =>
+            c.name === "api_start"
+          );
+          assertEquals(apiStart, {
+            name: "api_start",
+            ok: false,
+            detail: { exitCode: 1 },
+          });
+          const kept = [];
+          for await (
+            const entry of Deno.readDir(join(sandbox.state, "deploy/recovery"))
+          ) {
+            kept.push(entry.name);
+          }
+          assertEquals(kept.length, 1, "the failed recovery is recorded");
+        },
+      ).finally(() => health?.stop());
+    } finally {
       await database.query(
         "delete from bakery.deployments where repository_id = $1",
         [world.repositoryId],

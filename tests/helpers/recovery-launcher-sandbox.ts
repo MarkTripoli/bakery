@@ -61,6 +61,8 @@ export async function withLauncherSandbox(
     composeExtra?: string;
     /** A restore.sh stand-in body; the default records its call only. */
     restoreScript?: string;
+    /** Exit code of the runtime.sh stand-in; it succeeds by default. */
+    runtimeExit?: number;
     activeSha?: string;
   },
   body: (sandbox: LauncherSandbox) => Promise<void>,
@@ -129,7 +131,9 @@ export async function withLauncherSandbox(
     );
     await stub(
       join(opt, "deploy/runtime.sh"),
-      `echo "runtime $*" >> ${JSON.stringify(log)}`,
+      `echo "runtime $*" >> ${JSON.stringify(log)}${
+        options.runtimeExit ? `\nexit ${options.runtimeExit}` : ""
+      }`,
     );
     await stub(
       join(opt, "deploy/restore.sh"),
