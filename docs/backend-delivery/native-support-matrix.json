@@ -11,7 +11,7 @@
       "evidence": [
         "tests/native/verify-native-worker-platforms-and-real-browser-authentication_test.ts"
       ],
-      "proof": "Rendered systemd unit run in a disposable systemd container on an x86_64 host: install, pair, 0600 secrets, kill, restart, freeze/thaw, upgrade, canceled download, reboot, stop."
+      "proof": "Rendered systemd unit run in a disposable systemd container on an x86_64 host: install, pair, 0600 secrets, kill, restart, freeze/thaw, upgrade, canceled download, reboot, stop. The unit starts a shell stand-in for the worker, so this proves install, pairing and the service lifecycle on this architecture, not the worker program itself."
     },
     {
       "id": "worker-target-linux-arm64",
@@ -21,7 +21,7 @@
       "evidence": [
         "tests/native/verify-native-worker-platforms-and-real-browser-authentication_test.ts"
       ],
-      "proof": "Same native file, run green on agx64 (aarch64, cgroup v2) on 2026-11-22."
+      "proof": "Same native file, run green on agx64 (aarch64, cgroup v2) on 2026-11-22. The unit starts a shell stand-in for the worker, so this proves install, pairing and the service lifecycle on this architecture, not the worker program itself."
     },
     {
       "id": "worker-target-darwin-arm64",
