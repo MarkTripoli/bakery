@@ -15,12 +15,12 @@ import {
   grantRefusal,
   matchingGrants,
 } from "../auth/application/agent-power-grants.ts";
+import { requireWorkTransaction } from "./work-transaction.ts";
 
 /** An agent asked on a run other than the one its session belongs to. */
 export const AGENT_ASK_OWN_RUN_ONLY = "agent_ask_own_run_only";
 /** An agent asked a person, role or group no live ask grant names. */
 export const AGENT_ASK_AUDIENCE_NOT_GRANTED = "agent_ask_audience_not_granted";
-import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
  * Requests on a run (issue #456, chapter 25 section 19).
