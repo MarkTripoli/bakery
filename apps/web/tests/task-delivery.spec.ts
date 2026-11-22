@@ -736,7 +736,9 @@ test("a stopped run names the reason and its one button moves focus to the messa
   );
   await expect(fixing).toContainText("Failed");
   // The summary never says a try finished (the list of tries has its own badge).
-  await expect(fixing).not.toContainText(/Try \d+ of \d+ finished/);
+  await expect(fixing.locator(".ui-step-item__summary")).not.toContainText(
+    "finished",
+  );
   await expect(now.getByRole("button")).toHaveCount(1);
   await now.getByRole("button", { name: "Tell Bakery what to change" }).click();
   await expect(page.locator("#task-message-field")).toBeFocused();

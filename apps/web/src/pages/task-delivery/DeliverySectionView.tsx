@@ -1080,50 +1080,51 @@ function CheckLine({ row }: Readonly<{ row: CheckRow }>) {
   const sentence = reasonSentence(row);
   const time = took(row);
   return (
-    <UI.Stack data-testid="delivery-check-row" gap="tight" role="listitem">
-      <UI.Inline gap="compact">
-        <UI.DataText fit>{row.name}</UI.DataText>
-        {row.olderSha === null
-          ? (
-            <UI.Badge tone={CHECK_TONE[row.result]}>
-              {t(CHECK_LABEL[row.result])}
-            </UI.Badge>
-          )
-          : (
-            <UI.Badge>
-              {t(OLDER_RESULT_LABEL[row.result], { sha: row.olderSha })}
-            </UI.Badge>
-          )}
-      </UI.Inline>
-      <UI.Inline gap="compact">
-        {sentence !== null && (
+    <UI.StackedRow
+      data-testid="delivery-check-row"
+      flush
+      role="listitem"
+      status={row.olderSha === null
+        ? (
+          <UI.Badge tone={CHECK_TONE[row.result]}>
+            {t(CHECK_LABEL[row.result])}
+          </UI.Badge>
+        )
+        : (
+          <UI.Badge>
+            {t(OLDER_RESULT_LABEL[row.result], { sha: row.olderSha })}
+          </UI.Badge>
+        )}
+      title={<UI.DataText fit>{row.name}</UI.DataText>}
+      titleLines="wrap"
+    >
+      {sentence !== null && (
+        <UI.Text>
+          {t(sentence.key, sentence.values)}
+          {countsAsNotPassed(row)
+            ? ` ${t("tasks.delivery.check.countsAsNotPassed")}`
+            : ""}
+        </UI.Text>
+      )}
+      {/* A rule has no time; its sentence already says it is a rule. */}
+      {row.rule
+        ? sentence === null && (
+          <UI.Text>{t("tasks.delivery.check.rule")}</UI.Text>
+        )
+        : time !== null && (
           <UI.Text>
-            {t(sentence.key, sentence.values)}
-            {countsAsNotPassed(row)
-              ? ` ${t("tasks.delivery.check.countsAsNotPassed")}`
-              : ""}
+            {t(
+              time.key,
+              "values" in time ? time.values : undefined,
+            )}
           </UI.Text>
         )}
-        {row.rule
-          ? <UI.Text>{t("tasks.delivery.check.rule")}</UI.Text>
-          : time !== null && (
-            <UI.Text>
-              {t(
-                time.key,
-                "values" in time ? time.values : undefined,
-              )}
-            </UI.Text>
-          )}
-        {row.evidenceVersionId !== null && (
-          <UI.Link
-            href={`/files/versions/${row.evidenceVersionId}`}
-            variant="quiet"
-          >
-            {t("tasks.delivery.check.openOutput")}
-          </UI.Link>
-        )}
-      </UI.Inline>
-    </UI.Stack>
+      {row.evidenceVersionId !== null && (
+        <UI.Link href={`/files/versions/${row.evidenceVersionId}`}>
+          {t("tasks.delivery.check.openOutput")}
+        </UI.Link>
+      )}
+    </UI.StackedRow>
   );
 }
 
@@ -1194,22 +1195,22 @@ function TryDetails(
       {open && (
         <UI.Stack gap="compact" id={listId} role="list">
           {fixing.tries.map((entry) => (
-            <UI.Inline
+            <UI.StackedRow
               data-testid="delivery-try-row"
-              gap="compact"
+              flush
               key={entry.n}
               role="listitem"
+              status={
+                <UI.Badge>
+                  {t(
+                    entry.running
+                      ? "tasks.delivery.fixing.tried.running"
+                      : "tasks.delivery.fixing.tried.finished",
+                  )}
+                </UI.Badge>
+              }
+              title={t("tasks.delivery.fixing.tried.try", { n: entry.n })}
             >
-              <UI.Text>
-                {t("tasks.delivery.fixing.tried.try", { n: entry.n })}
-              </UI.Text>
-              <UI.Badge>
-                {t(
-                  entry.running
-                    ? "tasks.delivery.fixing.tried.running"
-                    : "tasks.delivery.fixing.tried.finished",
-                )}
-              </UI.Badge>
               <UI.Text>
                 {t(
                   tryKey({
@@ -1224,7 +1225,7 @@ function TryDetails(
                   },
                 )}
               </UI.Text>
-            </UI.Inline>
+            </UI.StackedRow>
           ))}
           <UI.Text variant="caption">
             {minutes === null
