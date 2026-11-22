@@ -16,6 +16,7 @@ import { createCheckExecutor } from "./check-runner.ts";
 import { createClaudeJudgeTransport } from "./bounded-judge.ts";
 import { createEvaluationExecutor } from "./evaluation-executor.ts";
 import { createPiHarnessExecutor } from "./pi-harness.ts";
+import { designToolAvailableFrom } from "./harness-rpi.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
 import { createCodexHarnessExecutor } from "./codex-harness.ts";
 import { createReviewerExecutor } from "./reviewer.ts";
@@ -286,6 +287,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
         readAttemptContext,
+        designToolAvailable: designToolAvailableFrom(config.capabilities),
         inner: checkedExecutor,
       })
       : codingHarness?.name === "pi"
@@ -302,6 +304,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         capabilities: config.adapterCapabilities,
         readAttemptContext,
+        designToolAvailable: designToolAvailableFrom(config.capabilities),
         inner: checkedExecutor,
       })
       : codingHarness?.name === "codex"
@@ -315,6 +318,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         authSourceDir: config.codexAuthSourceDir ?? join(home!, ".codex"),
         redactionSecrets: config.outputRedactionSecrets,
         readAttemptContext,
+        designToolAvailable: designToolAvailableFrom(config.capabilities),
         inner: checkedExecutor,
       })
       : checkedExecutor;
