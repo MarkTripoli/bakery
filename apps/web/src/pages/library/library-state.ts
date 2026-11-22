@@ -5,11 +5,17 @@ import type {
 } from "../../api/client.ts";
 
 /** The lists the Library offers. */
-export type LibraryTab = "workflows" | "agents" | "memory" | "evaluations";
+export type LibraryTab =
+  | "workflows"
+  | "agents"
+  | "skills"
+  | "memory"
+  | "evaluations";
 
 /** The tab a `?tab=` value names; anything else is Workflows. */
 export function libraryTab(value: unknown): LibraryTab {
-  return value === "agents" || value === "memory" || value === "evaluations"
+  return value === "agents" || value === "skills" || value === "memory" ||
+      value === "evaluations"
     ? value
     : "workflows";
 }

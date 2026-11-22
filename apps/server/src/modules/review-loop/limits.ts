@@ -39,3 +39,18 @@ export function planReviewLoopLimits(
     maxFindings: REVIEW_LOOP_LIMITS.maxFindings,
   };
 }
+
+/**
+ * The step key of the repeat a plan's review sits in (the one with the largest
+ * bound, as in {@link planReviewLoopLimits}), or `null` when the review sits in
+ * no repeat. It names the repeat whose bound an allowance of more tries raises.
+ */
+export function planReviewRepeatKey(
+  document: WorkflowSemanticDocument,
+): string | null {
+  const loops = buildWorkflowPlan(document).steps.filter((step) =>
+    step.kind === "action" && step.action === REVIEW_ACTION
+  ).flatMap((step) => step.loops.filter((loop) => !loop.seed));
+  if (loops.length === 0) return null;
+  return loops.reduce((best, loop) => loop.max > best.max ? loop : best).repeat;
+}

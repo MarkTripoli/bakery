@@ -2802,8 +2802,8 @@ export const clientManifest = {
       "method": "POST",
       "path": "/v1/skill-imports",
       "action": "skills.import",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
       "input": "SkillImport",
       "output": "Run",
       "event": "skill.import.requested",
@@ -2821,6 +2821,28 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "INSTALLATION_QUIESCED",
         "INSTALLATION_RESTORING"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-imports/{id}",
+      "action": "skillImports.get",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "IdPath",
+      "output": "SkillImportResult",
+      "event": "",
+      "mcp": "bakery_skillImports_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -3005,6 +3027,33 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/active-version",
+      "action": "skills.setActiveVersion",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillActiveVersionSet",
+      "output": "Skill",
+      "event": "skills.updated",
+      "mcp": "bakery_skills_setActiveVersion",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft",
       "action": "skillDrafts.open",
       "access": "Owner for personal; Admin for organization",
@@ -3131,6 +3180,34 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/source-update/take",
+      "action": "skills.takeSourceUpdate",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillSourceUpdateTake",
+      "output": "Run",
+      "event": "skill.import.requested",
+      "mcp": "bakery_skills_takeSourceUpdate",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/check",
       "action": "skillDrafts.check",
       "access": "Owner for personal; Admin for organization",
@@ -3208,6 +3285,34 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/files/rename",
+      "action": "skillDraftFiles.rename",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFileRename",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "bakery_skillDraftFiles_rename",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -3307,6 +3412,29 @@ export const clientManifest = {
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/versions",
+      "action": "skillVersions.list",
+      "access": "Developer",
+      "permission": "skillVersion:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillVersion>",
+      "event": "",
+      "mcp": "bakery_skillVersions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -5325,7 +5453,7 @@ export const clientManifest = {
       "action": "workers.list",
       "access": "Developer",
       "permission": "worker:read",
-      "input": "CursorQuery",
+      "input": "WorkerListQuery",
       "output": "Page<WorkerHost>",
       "event": "",
       "mcp": "bakery_workers_list",
@@ -5531,6 +5659,87 @@ export const clientManifest = {
     },
     {
       "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/link.tgz",
+      "action": "worker.linkPackage",
+      "access": "Public",
+      "permission": null,
+      "input": "Empty",
+      "output": "WorkerLinkPackageBytes",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; public, cacheable (max-age 300) with an ETag; If-None-Match answers 304",
+      "errors": [
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-code-inspection",
+      "action": "worker.inspectLinkCode",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkCodeInspect",
+      "output": "WorkerLinkCodeInspection",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read-only inspection; rate-limited per source and code; no-store",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-requests",
+      "action": "worker.createLinkRequest",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkRequestCreate",
+      "output": "WorkerLinkRequestCreated",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; every call opens a new ten-minute request; rate-limited per source",
+      "errors": [
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-requests/{requestId}/polls",
+      "action": "worker.pollLinkRequest",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkRequestPoll",
+      "output": "WorkerLinkRequestPollResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; an approved poll mints a fresh link code each time; rate-limited per source",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
       "method": "POST",
       "path": "/v1/worker/inventory",
       "action": "worker.reportInventory",
@@ -5577,6 +5786,99 @@ export const clientManifest = {
     {
       "group": "Workers",
       "method": "POST",
+      "path": "/v1/workers/{id}/maintenance",
+      "action": "workerMaintenance.create",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerMaintenanceCreate",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/maintenance",
+      "action": "workerMaintenance.list",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkerMaintenanceOperation>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/maintenance/{operationId}",
+      "action": "workerMaintenance.get",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "IdPath",
+      "output": "WorkerMaintenanceOperation",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/workers/{id}/maintenance/{operationId}/cancellations",
+      "action": "workerMaintenance.cancel",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "Empty",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; canceling a canceled operation returns it unchanged",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
       "path": "/v1/workers/{id}/enrollments",
       "action": "workers.repairEnrollment",
       "access": "Admin",
@@ -5603,6 +5905,81 @@ export const clientManifest = {
     {
       "group": "Workers",
       "method": "POST",
+      "path": "/v1/worker-link-requests/lookups",
+      "action": "workerLinkRequests.find",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestLookup",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; rate-limited per principal and per code",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/{id}/approvals",
+      "action": "workerLinkRequests.approve",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestApprove",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; a request is decided once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/{id}/declines",
+      "action": "workerLinkRequests.decline",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestDecline",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; a request is decided once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
       "path": "/v1/workers/{id}/revocations",
       "action": "workers.revoke",
       "access": "Admin",
@@ -5612,6 +5989,29 @@ export const clientManifest = {
       "event": "worker.updated",
       "mcp": "",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/workers/{id}/archives",
+      "action": "workers.archive",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "IdPath",
+      "output": "WorkerHost",
+      "event": "worker.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; archiving an archived host returns its archived state",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -6027,6 +6427,30 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/maintenance/{operationId}/reports",
+      "action": "worker.reportMaintenance",
+      "access": "Worker",
+      "permission": null,
+      "input": "WorkerMaintenanceReport",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; the per-operation sequence replays exactly",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
       "group": "Workers",
       "method": "PATCH",
       "path": "/v1/workers/{id}",
@@ -6133,7 +6557,7 @@ export const clientManifest = {
       "permission": "preview:access",
       "input": "IdPath",
       "output": "Preview",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
       "errors": [
@@ -6983,6 +7407,55 @@ export const clientManifest = {
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/runs/{id}/repair-allowances",
+      "action": "runRepairAllowances.create",
+      "access": "Admin",
+      "permission": "review:accept",
+      "input": "RepairAllowanceCreate",
+      "output": "DeliveryDecision",
+      "event": "",
+      "mcp": "bakery_runRepairAllowances_create",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/runs/{id}/repair-tries",
+      "action": "runRepairTries.list",
+      "access": "Developer",
+      "permission": "review:read",
+      "input": "CursorQuery",
+      "output": "Page<RepairTry>",
+      "event": "",
+      "mcp": "bakery_runRepairTries_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/runs/{id}/delivery-decisions",
       "action": "runDeliveryDecisions.list",
@@ -7038,6 +7511,81 @@ export const clientManifest = {
       "output": "MergeEntry",
       "event": "merge.queued",
       "mcp": "bakery_mergeEntries_create",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/deployments",
+      "action": "deployments.list",
+      "access": "Developer",
+      "permission": "deployment:read",
+      "input": "RepositoryQuery",
+      "output": "Page<Deployment>",
+      "event": "",
+      "mcp": "bakery_deployments_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/deployments",
+      "action": "deployments.create",
+      "access": "Developer+deploy grant",
+      "permission": "deployment:promote",
+      "input": "DeploymentCreate",
+      "output": "Deployment",
+      "event": "deployment.queued",
+      "mcp": "bakery_deployments_create",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/deployments/{id}/rollbacks",
+      "action": "deployments.rollback",
+      "access": "Developer+deploy grant",
+      "permission": "deployment:promote",
+      "input": "DeploymentRollback",
+      "output": "Deployment",
+      "event": "deployment.rollback_requested",
+      "mcp": "bakery_deployments_rollback",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
       "errors": [
         "AUTH_REQUIRED",
@@ -7295,7 +7843,7 @@ export const clientManifest = {
       "action": "evaluationBatches.list",
       "access": "Developer",
       "permission": "evaluationRun:read",
-      "input": "CursorQuery",
+      "input": "EvaluationBatchListQuery",
       "output": "Page<EvaluationBatch>",
       "event": "",
       "mcp": "",
@@ -7352,6 +7900,30 @@ export const clientManifest = {
         "RESOURCE_NOT_FOUND",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/run",
+      "action": "evaluationBatches.run",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchRun",
+      "output": "EvaluationBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
         "UNPROCESSABLE"
       ],
       "organizationContext": "required_authenticated_context",
@@ -7606,6 +8178,29 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/workflow-definition-proposals",
+      "action": "workflowDefinitionProposals.list",
+      "access": "Developer",
+      "permission": "conversation:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkflowDefinitionProposal>",
+      "event": "",
+      "mcp": "bakery_workflowDefinitionProposals_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -8628,6 +9223,107 @@ export const clientManifest = {
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/uncertain-actions",
+      "action": "installationUncertainActions.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUncertainActions",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates/status",
+      "action": "installationUpdates.status",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUpdateStatus",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates",
+      "action": "installationUpdates.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<InstallationUpdateEvent>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/updates/{id}/dismiss",
+      "action": "installationUpdates.dismiss",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "IdPath",
+      "output": "InstallationUpdateEvent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; dismissing again returns the same event",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",
@@ -8767,6 +9463,61 @@ export const clientManifest = {
       "permission": "backup:manage",
       "input": "BackupSchedulePut",
       "output": "BackupSchedule",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/backup-point-in-time",
+      "action": "backupPointInTime.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "BackupPointInTime",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/backup-point-in-time",
+      "action": "backupPointInTime.put",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "BackupPointInTimePut",
+      "output": "BackupPointInTime",
       "event": "",
       "mcp": "",
       "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
@@ -11010,6 +11761,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-sources/{id}/tickets",
+      "action": "externalTickets.create",
+      "access": "Developer+exact external action grant",
+      "permission": "externalTicket:write",
+      "input": "RemoteTicketCreate",
+      "output": "IntegrationActionReceipt",
+      "event": "integration.action_requested",
+      "mcp": "bakery_externalTickets_create",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Plugins",
       "method": "GET",
       "path": "/v1/plugin-packages",
@@ -11413,6 +12190,56 @@ export const clientManifest = {
         "VERSION_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "POST",
+      "path": "/v1/plugin-authoring-runs",
+      "action": "pluginAuthoringRuns.create",
+      "access": "Developer",
+      "permission": "pluginInstall:manage",
+      "input": "PluginAuthoringRunCreate",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-authoring-runs/{id}",
+      "action": "pluginAuthoringRuns.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "IdPath",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
       ],
@@ -15173,7 +16000,7 @@ export const clientManifest = {
           }
         },
         "accessLevel": {
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -15870,6 +16697,68 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Path identifying one task-dependency edge to remove, addressed by its owning task and its own dependency record id."
+    },
+    "DeploymentCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Repository whose release is being deployed."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow run whose merge produced the commit and artifact being deployed, tying this deployment back to its originating evidence."
+        },
+        "environment": {
+          "type": "string",
+          "enum": [
+            "preview",
+            "staging",
+            "production"
+          ],
+          "description": "Target for this release: preview for an ephemeral review environment, staging for pre-production validation, or production for live traffic. Deployments to the same environment are serialized."
+        },
+        "commitSha": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{40}(?:[a-fA-F0-9]{24})?$",
+          "description": "Commit SHA of the merged revision being deployed; must match the commit the merge step produced for this repository."
+        },
+        "artifactDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 digest of the built release artifact being deployed, verified against the stored artifact before the delivery adapter runs prepare."
+        }
+      },
+      "required": [
+        "repositoryId",
+        "runId",
+        "environment",
+        "commitSha",
+        "artifactDigest"
+      ],
+      "additionalProperties": false,
+      "description": "Registers a release for deployment to one environment; deployments to the same environment are serialized and only a merged, tested revision is accepted."
+    },
+    "DeploymentRollback": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Operator-supplied explanation for the rollback, kept with the deployment record for audit; it does not affect which prior release is restored. DeploymentRollback.reason must contain at most 2000 characters."
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false,
+      "description": "Requests reverting an environment to its previous deployment; the adapter issues a new stable effect key and the restored commit becomes the new current release."
     },
     "Empty": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -18684,6 +19573,7 @@ export const clientManifest = {
             "skillSources.create",
             "skillSources.update",
             "skills.import",
+            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -18691,14 +19581,17 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
+            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
+            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -18796,10 +19689,22 @@ export const clientManifest = {
             "workerEnrollments.cancel",
             "workerEnrollments.replace",
             "worker.inspectEnrollment",
+            "worker.linkPackage",
+            "worker.inspectLinkCode",
+            "worker.createLinkRequest",
+            "worker.pollLinkRequest",
             "worker.reportInventory",
             "workerComponents.list",
+            "workerMaintenance.create",
+            "workerMaintenance.list",
+            "workerMaintenance.get",
+            "workerMaintenance.cancel",
             "workers.repairEnrollment",
+            "workerLinkRequests.find",
+            "workerLinkRequests.approve",
+            "workerLinkRequests.decline",
             "workers.revoke",
+            "workers.archive",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
             "providerRoutes.list",
@@ -18817,6 +19722,7 @@ export const clientManifest = {
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -18874,6 +19780,8 @@ export const clientManifest = {
             "checks.list",
             "runReviews.list",
             "runReviews.accept",
+            "runRepairAllowances.create",
+            "runRepairTries.list",
             "runDeliveryDecisions.list",
             "mergeEntries.list",
             "mergeEntries.create",
@@ -18896,6 +19804,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",
@@ -18915,6 +19824,7 @@ export const clientManifest = {
             "conversations.mentionCandidates",
             "conversationAccess.list",
             "conversationAccess.sharers",
+            "workflowDefinitionProposals.list",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -18956,12 +19866,18 @@ export const clientManifest = {
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
             "backupSchedule.get",
             "backupSchedule.put",
+            "backupPointInTime.get",
+            "backupPointInTime.put",
             "backupOffsite.get",
             "backupOffsite.put",
             "backupOffsite.verify",
@@ -19080,6 +19996,8 @@ export const clientManifest = {
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -19460,8 +20378,14 @@ export const clientManifest = {
             "personal"
           ]
         },
+        "q": {
+          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "cursor": {
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
@@ -19474,7 +20398,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -20940,20 +21864,32 @@ export const clientManifest = {
           "description": "Skill source to import from; determines which locator and permitted-origin policy governs the fetch."
         },
         "revision": {
+          "description": "Upstream revision to import, pinned so the imported version is reproducible: a Git commit, tag or branch for a Git source; for a web-address archive either a strong ETag or a content digest (sha256:<hex>). A web-address archive may omit it: Bakery fetches the archive once and pins its content digest, so importing unchanged content again is the same import and changed content is a new version. A Git source must name one. SkillImport.revision must contain at most 255 characters.",
           "type": "string",
-          "maxLength": 255,
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head. SkillImport.revision must contain at most 255 characters."
+          "maxLength": 255
         },
         "path": {
           "description": "Path within the source's repository or archive that the skill's manifest and files live under, for a source that bundles more than the skill at its root; omit to import from the source's root. SkillImport.path must contain at most 500 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 500
+        },
+        "label": {
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. A repeat of an earlier import (same source, revision, folder, scope and owner) returns that earlier run and keeps its first label; a different label here does not rename it. SkillImport.label must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "scope": {
+          "description": "Who the imported skill is for: organization (the default; visible to everyone in the organization, and importing into it needs the Admin role) or personal (shown as Private, owned by the person importing, who must be a person rather than an agent or a token).",
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ]
         }
       },
       "required": [
-        "sourceId",
-        "revision"
+        "sourceId"
       ],
       "additionalProperties": false,
       "description": "Creates a durable import run that fetches a skill from a registered skill source at a pinned revision, and optional path, and publishes it as a new skill version."
@@ -21471,22 +22407,23 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerEnrollmentCreate.name must contain at most 200 characters. WorkerEnrollmentCreate.name must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$.",
           "type": "string",
           "maxLength": 200,
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views. WorkerEnrollmentCreate.name must contain at most 200 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
         },
         "os": {
+          "description": "Intended operating system of the machine being enrolled; omitted means the machine reports its own system when it links, and Bakery checks it against the supported systems.",
           "type": "string",
           "enum": [
             "linux",
             "macos"
-          ],
-          "description": "Intended operating system of the machine being enrolled; the setup command and installed worker binary target this platform."
+          ]
         },
         "architecture": {
+          "description": "Intended CPU architecture of the machine being enrolled; omitted means the machine reports its own processor when it links. When given, a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant. WorkerEnrollmentCreate.architecture must contain at most 100 characters.",
           "type": "string",
-          "maxLength": 100,
-          "description": "Intended CPU architecture of the machine being enrolled; a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant. WorkerEnrollmentCreate.architecture must contain at most 100 characters."
+          "maxLength": 100
         },
         "capabilities": {
           "description": "Ceiling of capability names this machine is allowed to run; a later worker registration's requested capabilities must be a subset of this set. WorkerEnrollmentCreate.capabilities must contain at most 32000 UTF-8 bytes.",
@@ -21536,9 +22473,6 @@ export const clientManifest = {
         }
       },
       "required": [
-        "name",
-        "os",
-        "architecture",
         "capabilities",
         "slots"
       ],
@@ -22233,6 +23167,105 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Admin creation of one provider binding: an explicit authorized account placement naming provider, billing route, harness component and credential location for one machine."
+    },
+    "WorkerMaintenanceCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "verb": {
+          "type": "string",
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb. refresh_inventory and verify only read the host; every other verb changes it and closes the machine's claim gate until the operation ends."
+        },
+        "componentKey": {
+          "description": "Inventory component key the verb acts on. Required for install, update, rollback and remove; optional for verify; not allowed for refresh_inventory. An existing component must be Bakery-managed, never an external install. WorkerMaintenanceCreate.componentKey must contain at most 255 characters.",
+          "type": "string",
+          "maxLength": 255
+        },
+        "targetVersion": {
+          "description": "Exact version to install, update or roll back to. Required for install_component and update_component; not allowed for refresh_inventory, verify or remove_component. WorkerMaintenanceCreate.targetVersion must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "targetDigest": {
+          "description": "Lowercase hex SHA-256 of the release manifest the target version must match; only allowed together with targetVersion.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedInventoryRevision": {
+          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "verb"
+      ],
+      "additionalProperties": false,
+      "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
+    "WorkerMaintenanceReport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "fence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        "installedDigest": {
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "installedVersion": {
+          "description": "Version string actually installed now, as the host adapter reports it. WorkerMaintenanceReport.installedVersion must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "reason": {
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone. WorkerMaintenanceReport.reason must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "diagnostic": {
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it. WorkerMaintenanceReport.diagnostic must contain at most 8192 characters.",
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "fence",
+        "sequence",
+        "phase"
+      ],
+      "additionalProperties": false,
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
     },
     "WorkerProviderBindingUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -23550,6 +24583,14 @@ export const clientManifest = {
             "any_user"
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
+        },
+        "updateFailurePolicy": {
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ]
         }
       },
       "required": [
@@ -25065,6 +26106,181 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Requests Bakery to admit this external ticket for planning or implementation; current actor authority, source state, duplicate admission, readiness and budget are all checked atomically before one request generation is created."
     },
+    "RemoteTicketCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Title for the new remote ticket (for example, a GitHub issue title), passed through unchanged to the connected provider when the effect is submitted. RemoteTicketCreate.title must contain at most 200 characters."
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 20000,
+          "description": "Body or description text for the new remote ticket (for example, rendered as a GitHub issue body), passed through unchanged to the connected provider. RemoteTicketCreate.body must contain at most 20000 characters."
+        },
+        "providerFields": {
+          "description": "Additional provider-specific fields for the new ticket, such as labels or assignees, that don't map to Bakery's normalized title and body; passed through opaquely to the provider adapter. RemoteTicketCreate.providerFields must contain at most 16000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 16000
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "additionalProperties": false,
+      "description": "Requests creation of a new ticket in the connected external tracker (GitHub first) through this ticket source's connection; the write goes through the external-effects ledger and remote identity is reconciled before any linked execution starts.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "PluginPackageQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -25961,10 +27177,32 @@ export const clientManifest = {
         "dismissUpdateFailure": {
           "description": "True to clear the install's recorded last update failure without changing its version or status.",
           "type": "boolean"
+        },
+        "approveCapabilities": {
+          "description": "The capabilities the new version asks for that the version this install pins now did not, approved by the caller for this move: exactly those and no others. Without them, a version that asks for more is not activated and the install stays as it is. Only meaningful with a versionId that differs from the pinned one. PluginInstallUpdate.approveCapabilities must contain at most 7 items.",
+          "maxItems": 7,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the new version asks for that the version this install pins now did not, approved by the caller for this move: exactly those and no others. Without them, a version that asks for more is not activated and the install stays as it is. Only meaningful with a versionId that differs from the pinned one. Each array item follows this format."
+          }
+        },
+        "restoreState": {
+          "description": "True to move back to a version the install left by restoring the state as that version left it, discarding what was saved since. Only the version the install's snapshot was taken from can be restored, and only when it can read that state; only meaningful with a versionId that differs from the pinned one.",
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
-      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active; added capabilities need the caller's approval, and incompatible state blocks the move unless a restore is asked for. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -30216,7 +31454,7 @@ export const clientManifest = {
           "description": "The person to give access to: an active human member of this organization."
         },
         "level": {
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
           "type": "string",
           "enum": [
             "read_comment",
@@ -30490,6 +31728,23 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "RepairAllowanceCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "tries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes. RepairAllowanceCreate.tries must be at least 1. RepairAllowanceCreate.tries must be at most 8."
+        }
+      },
+      "required": [
+        "tries"
+      ],
+      "additionalProperties": false,
+      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31250,6 +32505,21 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
     },
+    "BackupPointInTimePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Turn Restore to any minute on or off. Off stops archiving and forgets the reported window; backups taken by the schedule are not affected."
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "description": "Turns Restore to any minute on or off for the installation."
+    },
     "BackupOffsitePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -31430,7 +32700,7 @@ export const clientManifest = {
           "description": "The immutable dataset the batch measures."
         },
         "candidate": {
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. EvaluationBatchCreate.candidate must contain at most 4000 UTF-8 bytes.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused. EvaluationBatchCreate.candidate must contain at most 4000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -31470,7 +32740,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 4000
         },
         "baseline": {
-          "description": "Optional pin of what the candidate is compared with, in the same shape. EvaluationBatchCreate.baseline must contain at most 4000 UTF-8 bytes.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape. EvaluationBatchCreate.baseline must contain at most 4000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -31520,6 +32790,17 @@ export const clientManifest = {
             "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. Each array item follows this format."
           },
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. EvaluationBatchCreate.scorerIds must contain at least 1 items. EvaluationBatchCreate.scorerIds must contain at most 50 items."
+        },
+        "optionalScorerIds": {
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away. EvaluationBatchCreate.optionalScorerIds must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away. Each array item follows this format."
+          }
         },
         "requireAllPassed": {
           "description": "Gate rule: every required result must pass. Defaults to true.",
@@ -31775,6 +33056,39 @@ export const clientManifest = {
         }
       }
     },
+    "EvaluationBatchListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pinDigest": {
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it. EvaluationBatchListQuery.pinDigest must contain at most 64 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 64
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationBatchListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationBatchListQuery.limit must be at least 1. EvaluationBatchListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
+    },
+    "EvaluationBatchRun": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -31816,6 +33130,10 @@ export const clientManifest = {
             "missing"
           ]
         },
+        "required": {
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both.",
+          "type": "boolean"
+        },
         "cursor": {
           "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationResultQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
@@ -31830,7 +33148,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -32663,6 +33981,450 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "WorkerListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "Opaque continuation token from a previous page of the machine list, bound to the caller, organization and includeArchived choice; pass it back verbatim. WorkerListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Most machines returned in one page; defaults to 25 and cannot exceed 100. WorkerListQuery.limit must be at least 1. WorkerListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeArchived": {
+          "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+    },
+    "WorkerLinkCodeInspect": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "linkCode": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Link code from the command, XXXX-XXXX; capitals and the dash do not matter. Inspection does not use it up. WorkerLinkCodeInspect.linkCode must contain at most 20 characters."
+        },
+        "os": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Operating system the machine reports, such as linux or macos; compared with the supported systems and with any system the Admin set. WorkerLinkCodeInspect.os must contain at most 50 characters."
+        },
+        "architecture": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkCodeInspect.architecture must contain at most 100 characters. WorkerLinkCodeInspect.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        },
+        "hostname": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkCodeInspect.hostname must contain at most 200 characters. WorkerLinkCodeInspect.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        }
+      },
+      "required": [
+        "linkCode",
+        "os",
+        "architecture",
+        "hostname"
+      ],
+      "additionalProperties": false,
+      "description": "What the link command sends before it asks its one question: the link code and what the machine is, so Bakery can say which organization, name and slots it would join and whether the system is supported."
+    },
+    "WorkerLinkRequestCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "os": {
+          "type": "string",
+          "enum": [
+            "linux",
+            "macos"
+          ],
+          "description": "Operating system the machine reports: linux or macos. Anything else is refused, so an unauthenticated machine cannot put its own words on an Admin's screen."
+        },
+        "architecture": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestCreate.architecture must contain at most 100 characters. WorkerLinkRequestCreate.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        },
+        "hostname": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestCreate.hostname must contain at most 200 characters. WorkerLinkRequestCreate.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        }
+      },
+      "required": [
+        "os",
+        "architecture",
+        "hostname"
+      ],
+      "additionalProperties": false,
+      "description": "A machine with no link code asks to be linked: Bakery returns a short user code to show an Admin and a device secret only this terminal keeps."
+    },
+    "WorkerLinkRequestPoll": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "deviceSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "The device secret this terminal received when it created the request; a wrong one answers not found. WorkerLinkRequestPoll.deviceSecret must contain at most 200 characters."
+        }
+      },
+      "required": [
+        "deviceSecret"
+      ],
+      "additionalProperties": false,
+      "description": "The waiting terminal asks whether its link request was approved, declined or expired; an approval returns a fresh link code bound to the approved settings."
+    },
+    "WorkerLinkRequestLookup": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "userCode": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "The code the terminal shows, XXXX-XXXX; capitals and the dash do not matter. WorkerLinkRequestLookup.userCode must contain at most 20 characters."
+        }
+      },
+      "required": [
+        "userCode"
+      ],
+      "additionalProperties": false,
+      "description": "An Admin types the code a terminal shows to find the machine that is waiting to join."
+    },
+    "WorkerLinkRequestApprove": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestApprove.name must contain at most 200 characters. WorkerLinkRequestApprove.name must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$.",
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+        },
+        "slots": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "How many tasks the machine may run at once; registration cannot exceed it. WorkerLinkRequestApprove.slots must be at least 1. WorkerLinkRequestApprove.slots must be at most 100."
+        },
+        "capabilities": {
+          "description": "Capabilities the machine may run; registration cannot exceed them. WorkerLinkRequestApprove.capabilities must contain at most 32000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 32000
+        }
+      },
+      "required": [
+        "slots",
+        "capabilities"
+      ],
+      "additionalProperties": false,
+      "description": "An Admin approves a waiting machine with its name, slots and coding-agent capabilities.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "WorkerLinkRequestDecline": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
+    },
+    "PluginAuthoringRunCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "What the backend plugin should do, in the requester's own words. The generator reads it with the pinned authoring kit; its SHA-256 is kept as the version's source evidence. PluginAuthoringRunCreate.request must contain at least 1 characters. PluginAuthoringRunCreate.request must contain at most 8000 characters. PluginAuthoringRunCreate.request must match the pattern ^(?!\\s)(?=.*\\S)."
+        },
+        "authorizedCapabilities": {
+          "maxItems": 7,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. Each array item follows this format."
+          },
+          "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. PluginAuthoringRunCreate.authorizedCapabilities must contain at most 7 items."
+        },
+        "budgetUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "How many packages the generator may write, 1 to 3. Each failed attempt is handed back with every diagnostic; when the last one fails the run ends blocked and nothing is published. PluginAuthoringRunCreate.maxAttempts must be at least 1. PluginAuthoringRunCreate.maxAttempts must be at most 3."
+        },
+        "installId": {
+          "description": "The caller's own personal install of an authored plugin to revise. Omitted for a new plugin, which is installed privately for the caller. A revision moves that install to the new version only after its preview passes, approving exactly the added capabilities, and puts it back as it was when the preview or state migration fails.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "request",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "maxAttempts"
+      ],
+      "additionalProperties": false,
+      "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillActiveVersionSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+        }
+      },
+      "required": [
+        "id",
+        "versionId"
+      ],
+      "additionalProperties": false,
+      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+    },
+    "SkillSourceUpdateTake": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed. SkillSourceUpdateTake.revision must contain at most 200 characters."
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
+    },
+    "SkillDraftFileRename": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Current relative path of the file in the draft. SkillDraftFileRename.path must contain at most 500 characters."
+        },
+        "newPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals. SkillDraftFileRename.newPath must contain at most 500 characters."
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "newPath"
+      ],
+      "additionalProperties": false,
+      "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -38894,6 +40656,48 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "handoffManifest": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the stored manifest, the id GET /v1/handoff-manifests/{id} reads."
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "continued",
+                          "blocked"
+                        ],
+                        "description": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused)."
+                      },
+                      "savedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when the source attempt saved the manifest."
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "status",
+                      "savedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The newest handoff manifest an attempt of this step saved, so a reader can tell the step has somewhere to continue from; null until one is saved. Read the whole manifest with GET /v1/handoff-manifests/{id}."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunStep.handoffManifest may be null in this transport value."
               }
             },
             "required": [
@@ -38909,7 +40713,8 @@ export const clientManifest = {
               "finishedAt",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "handoffManifest"
             ],
             "additionalProperties": false,
             "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body."
@@ -43824,6 +45629,20 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID identifying the skill source record."
               },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillSource.name may be null in this transport value."
+              },
               "sourceType": {
                 "type": "string",
                 "enum": [
@@ -43906,6 +45725,7 @@ export const clientManifest = {
             },
             "required": [
               "id",
+              "name",
               "sourceType",
               "locator",
               "publisher",
@@ -44014,6 +45834,20 @@ export const clientManifest = {
                 "maxLength": 65536,
                 "description": "Human-readable name displayed for the record."
               },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.description may be null in this transport value."
+              },
               "activeVersionId": {
                 "anyOf": [
                   {
@@ -44028,6 +45862,21 @@ export const clientManifest = {
                   }
                 ],
                 "description": "Skill.activeVersionId may be null in this transport value."
+              },
+              "activeRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.activeRevision may be null in this transport value."
               },
               "enabled": {
                 "type": "boolean",
@@ -44111,7 +45960,9 @@ export const clientManifest = {
               "sourceId",
               "slug",
               "name",
+              "description",
               "activeVersionId",
+              "activeRevision",
               "enabled",
               "scope",
               "ownerPrincipalId",
@@ -44177,6 +46028,337 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of Skill."
+    },
+    "Page<SkillVersion>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the skill version record."
+              },
+              "skillId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related skill entity."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision number used to order updates to the record."
+              },
+              "sourceRevision": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Revision of the external source used for this version."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Content digest used to verify the record."
+              },
+              "entryPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Relative path of the entry file within the source."
+              },
+              "manifest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Structured manifest describing the package."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published",
+                  "retired"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "createdBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal who created the record."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "publishedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillVersion.publishedAt may be null in this transport value."
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillVersion.label may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "skillId",
+              "revision",
+              "sourceRevision",
+              "digest",
+              "entryPath",
+              "manifest",
+              "status",
+              "createdBy",
+              "createdAt",
+              "updatedAt",
+              "version",
+              "publishedAt",
+              "label"
+            ],
+            "additionalProperties": false,
+            "description": "One revision of a skill, draft or published: its source revision and entry path, plus a manifest digest that must match the exact file inventory. A draft cannot become a skill's active version until publish verifies every file was durably written."
+          },
+          "description": "SkillVersion items in this cursor page. Page<SkillVersion>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillVersion>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillVersion>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillVersion>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillVersion.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<IntegrationConnection>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46197,6 +48379,7 @@ export const clientManifest = {
                   "skillSources.create",
                   "skillSources.update",
                   "skills.import",
+                  "skillImports.get",
                   "skills.create",
                   "skills.copy",
                   "skills.list",
@@ -46204,14 +48387,17 @@ export const clientManifest = {
                   "skills.get",
                   "skills.update",
                   "skills.usedBy",
+                  "skills.setActiveVersion",
                   "skillDrafts.open",
                   "skillDrafts.get",
                   "skillDrafts.update",
                   "skillDrafts.discard",
                   "skills.sourceUpdate",
+                  "skills.takeSourceUpdate",
                   "skillDrafts.check",
                   "skillDrafts.publish",
                   "skillDraftFiles.save",
+                  "skillDraftFiles.rename",
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
@@ -46309,10 +48495,22 @@ export const clientManifest = {
                   "workerEnrollments.cancel",
                   "workerEnrollments.replace",
                   "worker.inspectEnrollment",
+                  "worker.linkPackage",
+                  "worker.inspectLinkCode",
+                  "worker.createLinkRequest",
+                  "worker.pollLinkRequest",
                   "worker.reportInventory",
                   "workerComponents.list",
+                  "workerMaintenance.create",
+                  "workerMaintenance.list",
+                  "workerMaintenance.get",
+                  "workerMaintenance.cancel",
                   "workers.repairEnrollment",
+                  "workerLinkRequests.find",
+                  "workerLinkRequests.approve",
+                  "workerLinkRequests.decline",
                   "workers.revoke",
+                  "workers.archive",
                   "modelProviderAccounts.list",
                   "workerProviderBindings.list",
                   "providerRoutes.list",
@@ -46330,6 +48528,7 @@ export const clientManifest = {
                   "workerProviderAuth.get",
                   "workerProviderAuth.cancel",
                   "worker.reportProviderAuth",
+                  "worker.reportMaintenance",
                   "workers.update",
                   "jobs.list",
                   "jobAttempts.list",
@@ -46387,6 +48586,8 @@ export const clientManifest = {
                   "checks.list",
                   "runReviews.list",
                   "runReviews.accept",
+                  "runRepairAllowances.create",
+                  "runRepairTries.list",
                   "runDeliveryDecisions.list",
                   "mergeEntries.list",
                   "mergeEntries.create",
@@ -46409,6 +48610,7 @@ export const clientManifest = {
                   "evaluationBatches.list",
                   "evaluationBatches.get",
                   "evaluationBatches.cancel",
+                  "evaluationBatches.run",
                   "evaluationBatches.compare",
                   "evaluationBatchResults.list",
                   "evaluationAttempts.list",
@@ -46428,6 +48630,7 @@ export const clientManifest = {
                   "conversations.mentionCandidates",
                   "conversationAccess.list",
                   "conversationAccess.sharers",
+                  "workflowDefinitionProposals.list",
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
@@ -46469,12 +48672,18 @@ export const clientManifest = {
                   "backups.list",
                   "backups.drills.list",
                   "installationRestore.get",
+                  "installationUncertainActions.get",
+                  "installationUpdates.status",
+                  "installationUpdates.list",
+                  "installationUpdates.dismiss",
                   "installationRestore.step",
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
                   "backupSchedule.get",
                   "backupSchedule.put",
+                  "backupPointInTime.get",
+                  "backupPointInTime.put",
                   "backupOffsite.get",
                   "backupOffsite.put",
                   "backupOffsite.verify",
@@ -46593,6 +48802,8 @@ export const clientManifest = {
                   "pluginPageDocuments.get",
                   "userPreferences.get",
                   "userPreferences.update",
+                  "pluginAuthoringRuns.create",
+                  "pluginAuthoringRuns.get",
                   "artifacts.update",
                   "worker.output.open",
                   "worker.output.close",
@@ -48110,6 +50321,12 @@ export const clientManifest = {
                 ],
                 "description": "Check identifiers with a fresh failing result, sorted; empty when none."
               },
+              "unsettledAttemptCount": {
+                "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "lastHeartbeatAt": {
                 "anyOf": [
                   {
@@ -48130,6 +50347,72 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Credential generation loaded by the worker host."
+              },
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerHost.archivedAt may be null in this transport value."
+              },
+              "cleanup": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "not_requested",
+                      "unconfirmed",
+                      "confirmed"
+                    ],
+                    "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+                  },
+                  "requestedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+                  },
+                  "confirmedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "state",
+                  "requestedAt",
+                  "confirmedAt"
+                ],
+                "additionalProperties": false,
+                "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
               },
               "createdAt": {
                 "type": "string",
@@ -48162,12 +50445,14 @@ export const clientManifest = {
               "status",
               "lastHeartbeatAt",
               "credentialGeneration",
+              "archivedAt",
+              "cleanup",
               "createdAt",
               "updatedAt",
               "version"
             ],
             "additionalProperties": false,
-            "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response."
+            "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list."
           },
           "description": "WorkerHost items in this cursor page. Page<WorkerHost>.items must contain at most 100 items."
         },
@@ -48585,22 +50870,49 @@ export const clientManifest = {
                 "description": "Derived pending, consumed, canceled or expired state at the server's current time."
               },
               "name": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Intended machine display name."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Intended machine display name. Null when the Admin left it to the machine's host name and the machine has not registered yet."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerEnrollmentSummary.name may be null in the safe projection."
               },
               "os": {
-                "type": "string",
-                "enum": [
-                  "linux",
-                  "macos"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "linux",
+                      "macos"
+                    ],
+                    "description": "Intended operating system. Null when the machine reports it when it links."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
                 ],
-                "description": "Intended operating system."
+                "description": "WorkerEnrollmentSummary.os may be null in the safe projection."
               },
               "architecture": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Intended machine architecture."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Intended machine architecture. Null when the machine reports it when it links."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerEnrollmentSummary.architecture may be null in the safe projection."
               },
               "capabilities": {
                 "anyOf": [
@@ -49254,6 +51566,722 @@ export const clientManifest = {
         }
       }
     },
+    "WorkerMaintenanceOperation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the maintenance operation."
+        },
+        "workerHostId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Machine the operation runs on."
+        },
+        "verb": {
+          "type": "string",
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine."
+        },
+        "componentKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.componentKey may be null in the safe projection."
+        },
+        "targetVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Exact version the operation installs, updates or rolls back to, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.targetVersion may be null in the safe projection."
+        },
+        "targetDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the release manifest the target version must match, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.targetDigest may be null in the safe projection."
+        },
+        "requestedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal ID of the Admin who requested the operation."
+        },
+        "expectedInventoryRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory."
+        },
+        "expectedCredentialGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Machine credential generation at request time; a re-paired machine cannot pick up the operation."
+        },
+        "capturedDesiredMode": {
+          "type": "string",
+          "enum": [
+            "accepting",
+            "paused",
+            "draining",
+            "revoked"
+          ],
+          "description": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it."
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "waiting_for_idle",
+            "assigned",
+            "applying",
+            "reconciling",
+            "succeeded",
+            "failed",
+            "canceled",
+            "expired",
+            "needs_attention"
+          ],
+          "description": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown."
+        },
+        "deadlineAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request)."
+        },
+        "result": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Bounded, redacted outcome reported for a finished operation, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.result may be null in the safe projection."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the operation was requested."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last phase change."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Row version, incremented on every phase change."
+        }
+      },
+      "required": [
+        "id",
+        "workerHostId",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "requestedBy",
+        "expectedInventoryRevision",
+        "expectedCredentialGeneration",
+        "capturedDesiredMode",
+        "phase",
+        "deadlineAt",
+        "expiresAt",
+        "result",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "Page<WorkerMaintenanceOperation>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the maintenance operation."
+              },
+              "workerHostId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Machine the operation runs on."
+              },
+              "verb": {
+                "type": "string",
+                "enum": [
+                  "refresh_inventory",
+                  "verify",
+                  "install_component",
+                  "update_component",
+                  "rollback_component",
+                  "remove_component"
+                ],
+                "description": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine."
+              },
+              "componentKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.componentKey may be null in the safe projection."
+              },
+              "targetVersion": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Exact version the operation installs, updates or rolls back to, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.targetVersion may be null in the safe projection."
+              },
+              "targetDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "SHA-256 of the release manifest the target version must match, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.targetDigest may be null in the safe projection."
+              },
+              "requestedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal ID of the Admin who requested the operation."
+              },
+              "expectedInventoryRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory."
+              },
+              "expectedCredentialGeneration": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Machine credential generation at request time; a re-paired machine cannot pick up the operation."
+              },
+              "capturedDesiredMode": {
+                "type": "string",
+                "enum": [
+                  "accepting",
+                  "paused",
+                  "draining",
+                  "revoked"
+                ],
+                "description": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it."
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "waiting_for_idle",
+                  "assigned",
+                  "applying",
+                  "reconciling",
+                  "succeeded",
+                  "failed",
+                  "canceled",
+                  "expired",
+                  "needs_attention"
+                ],
+                "description": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown."
+              },
+              "deadlineAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request)."
+              },
+              "result": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Bounded, redacted outcome reported for a finished operation, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.result may be null in the safe projection."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the operation was requested."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the last phase change."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Row version, incremented on every phase change."
+              }
+            },
+            "required": [
+              "id",
+              "workerHostId",
+              "verb",
+              "componentKey",
+              "targetVersion",
+              "targetDigest",
+              "requestedBy",
+              "expectedInventoryRevision",
+              "expectedCredentialGeneration",
+              "capturedDesiredMode",
+              "phase",
+              "deadlineAt",
+              "expiresAt",
+              "result",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets."
+          },
+          "description": "WorkerMaintenanceOperation items in this cursor page. Page<WorkerMaintenanceOperation>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<WorkerMaintenanceOperation>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkerMaintenanceOperation>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<WorkerMaintenanceOperation>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<WorkerMaintenanceOperation>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of WorkerMaintenanceOperation.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "Page<ModelProviderAccount>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -49709,6 +52737,20 @@ export const clientManifest = {
                 ],
                 "description": "Preview.stoppedBy may be null in the safe projection."
               },
+              "stoppedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedByName may be null in the safe projection."
+              },
               "stoppedAt": {
                 "anyOf": [
                   {
@@ -49757,6 +52799,7 @@ export const clientManifest = {
               "status",
               "stopReason",
               "stoppedBy",
+              "stoppedByName",
               "stoppedAt",
               "expiresAt",
               "createdAt",
@@ -50170,6 +53213,20 @@ export const clientManifest = {
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "acceptedByName": {
+                "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
                   },
                   {
                     "type": "null",
@@ -50598,6 +53655,226 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of DeliveryDecision."
+    },
+    "Page<RepairTry>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the review cycle that judged this try."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow run the try belongs to."
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "One-based position of the try among the run's repair tries; try 1 is the first repair and the review that followed it. RepairTry.number must be at least 1."
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "proceed",
+                  "repair",
+                  "stop"
+                ],
+                "description": "What the loop did after this try's review: proceed when the candidate was clean, repair when another try was selected, stop when the loop ended. When a person allowed more tries after a stop, this is still the first decision the loop itself took."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "clean",
+                  "repair_selected",
+                  "policy_missing",
+                  "stale_evidence",
+                  "checks_unavailable",
+                  "repeated_blocker",
+                  "repair_cycles_exhausted",
+                  "repair_time_exhausted",
+                  "repair_budget_exhausted",
+                  "reviewer_unavailable",
+                  "review_failed"
+                ],
+                "description": "Machine-readable reason for that decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted."
+              },
+              "fixedFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings of the earlier review are gone from this try's review. RepairTry.fixedFindings must be at least 0."
+              },
+              "cameBackFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings of the earlier review are still there in this try's review, matched by fingerprint. RepairTry.cameBackFindings must be at least 0."
+              },
+              "newFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings this try's review reported that the earlier review did not. RepairTry.newFindings must be at least 0."
+              },
+              "blockingFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings this try's review reported in all. RepairTry.blockingFindings must be at least 0."
+              },
+              "checksPassed": {
+                "type": "boolean",
+                "description": "True when no required check was failing on the candidate this try produced."
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the try's first step started, or null when the run kept no start time for it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RepairTry.startedAt may be null in this transport value."
+              },
+              "durationMs": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Milliseconds from the start of the try to the end of its review, or null when the start is not known. RepairTry.durationMs must be at least 0."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RepairTry.durationMs may be null in this transport value."
+              },
+              "costUsd": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "US dollars the try's steps cost, as a decimal string, or null when no usage was recorded for them."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RepairTry.costUsd may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the try's review was recorded."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated; equals createdAt because a try is derived."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "Always 1 because a repair try is derived from immutable records. RepairTry.version must be at least 1."
+              }
+            },
+            "required": [
+              "id",
+              "runId",
+              "number",
+              "decision",
+              "reason",
+              "fixedFindings",
+              "cameBackFindings",
+              "newFindings",
+              "blockingFindings",
+              "checksPassed",
+              "startedAt",
+              "durationMs",
+              "costUsd",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One repair try of a run's review and repair loop, read from what the run already recorded: what the try fixed, whether a finding of the earlier review came back, what is still blocking, whether the required checks passed, and the time and money the try used. Try 1 is the first repair and its review; the first review before any repair is not a try. It is derived, never edited: updatedAt equals createdAt and version is always 1."
+          },
+          "description": "RepairTry items in this cursor page. Page<RepairTry>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<RepairTry>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<RepairTry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<RepairTry>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<RepairTry>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of RepairTry."
     },
     "Page<ReviewFinding>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -51416,6 +54693,200 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of MergeEntry."
+    },
+    "Page<Deployment>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the deployment record."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related repository entity."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related run entity."
+              },
+              "environment": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Deployment environment targeted by the record."
+              },
+              "commitSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Commit SHA deployed by the record."
+              },
+              "artifactDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Digest of the artifact deployed by the record."
+              },
+              "previousDeploymentId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related previous deployment entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Deployment.previousDeploymentId may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "deploying",
+                  "verifying",
+                  "healthy",
+                  "degraded",
+                  "failed",
+                  "unknown",
+                  "rolling_back",
+                  "rolled_back"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "externalEffectId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related external effect entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Deployment.externalEffectId may be null in this transport value."
+              },
+              "healthEvidenceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related health evidence entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Deployment.healthEvidenceId may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "repositoryId",
+              "runId",
+              "environment",
+              "commitSha",
+              "artifactDigest",
+              "previousDeploymentId",
+              "status",
+              "externalEffectId",
+              "healthEvidenceId",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks."
+          },
+          "description": "Deployment items in this cursor page. Page<Deployment>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<Deployment>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Deployment>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<Deployment>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<Deployment>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of Deployment."
     },
     "Page<EvaluationDefinition>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -54064,6 +57535,48 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "handoffManifest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the stored manifest, the id GET /v1/handoff-manifests/{id} reads."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "continued",
+                    "blocked"
+                  ],
+                  "description": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused)."
+                },
+                "savedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the source attempt saved the manifest."
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "savedAt"
+              ],
+              "additionalProperties": false,
+              "description": "The newest handoff manifest an attempt of this step saved, so a reader can tell the step has somewhere to continue from; null until one is saved. Read the whole manifest with GET /v1/handoff-manifests/{id}."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunStep.handoffManifest may be null in this transport value."
         }
       },
       "required": [
@@ -54079,7 +57592,8 @@ export const clientManifest = {
         "finishedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "handoffManifest"
       ],
       "additionalProperties": false,
       "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body.",
@@ -54571,6 +58085,20 @@ export const clientManifest = {
             }
           ]
         },
+        "acceptedByName": {
+          "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "acceptedAt": {
           "description": "ReviewCycle.acceptedAt may be null in this transport value.",
           "anyOf": [
@@ -54624,6 +58152,260 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1."
+    },
+    "DeliveryDecision": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the delivery decision record."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the workflow run this decision governs."
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Zero-based position of this decision among the run's decisions; the latest ordinal is the one that governs delivery. DeliveryDecision.ordinal must be at least 0."
+        },
+        "reviewCycleId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Review cycle the decision followed, or null for a stop taken without a recorded cycle such as an unavailable reviewer."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DeliveryDecision.reviewCycleId may be null in this transport value."
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "proceed",
+            "repair",
+            "stop"
+          ],
+          "description": "What the run does next: proceed when the candidate is clean, repair when a bounded repair iteration was appended, stop when the loop ended."
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "repair_selected",
+            "policy_missing",
+            "stale_evidence",
+            "checks_unavailable",
+            "repeated_blocker",
+            "repair_cycles_exhausted",
+            "repair_time_exhausted",
+            "repair_budget_exhausted",
+            "reviewer_unavailable",
+            "review_failed"
+          ],
+          "description": "Machine-readable reason for the decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted."
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Head commit SHA of the candidate the decision was taken for."
+        },
+        "baseSha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Base commit SHA pinned for the run, or null when it was not known to the decision."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DeliveryDecision.baseSha may be null in this transport value."
+        },
+        "policyDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Digest of the effective policy the decision was evaluated under, or null when it was not known to the decision."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DeliveryDecision.policyDigest may be null in this transport value."
+        },
+        "failedChecks": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "checkRunId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifier of the immutable check run row that recorded the failed observation; the repair evidence is this row, not the output text."
+              },
+              "checkId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "Fixed policy command id of the check that did not pass, as pinned in the repository profile. FailedCheck.checkId must contain at least 1 characters. FailedCheck.checkId must contain at most 100 characters."
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "failed",
+                  "unavailable",
+                  "canceled"
+                ],
+                "description": "Observed outcome of the check; never passed, because a passing check is not a failed check."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "exit_nonzero",
+                  "signal",
+                  "deadline",
+                  "output_limit",
+                  "rule_violation",
+                  "description_placeholder",
+                  "tool_missing",
+                  "unsupported_checker",
+                  "revision_unavailable",
+                  "skipped",
+                  "metadata_missing",
+                  "metadata_too_large",
+                  "rule_unbound",
+                  "rule_binding_ambiguous",
+                  "policy_missing",
+                  "awaiting_result",
+                  "canceled"
+                ],
+                "description": "Machine-readable reason for the result, such as exit_nonzero, deadline or tool_missing; verified is excluded because it explains only a pass."
+              },
+              "exitCode": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "description": "Process exit code the check produced, or null when it produced no exit status. FailedCheck.exitCode must be at least 0. FailedCheck.exitCode must be at most 255."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FailedCheck.exitCode may be null in this transport value."
+              }
+            },
+            "required": [
+              "checkRunId",
+              "checkId",
+              "result",
+              "reason",
+              "exitCode"
+            ],
+            "additionalProperties": false,
+            "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. Each array item follows this format."
+          },
+          "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. DeliveryDecision.failedChecks must contain at most 32 items."
+        },
+        "blockingFingerprints": {
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. Each array item follows this format."
+          },
+          "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. DeliveryDecision.blockingFingerprints must contain at most 25 items."
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "maxRepairCycles": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8,
+              "description": "Most repair iterations the run may spend; the loop stops with repair_cycles_exhausted once that many repairs were used and a blocker remains. DeliveryLoopLimits.maxRepairCycles must be at least 0. DeliveryLoopLimits.maxRepairCycles must be at most 8."
+            },
+            "maxLoopDurationMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400000,
+              "description": "Longest time in milliseconds from the first review cycle to the latest decision; the loop stops with repair_time_exhausted once it is reached. DeliveryLoopLimits.maxLoopDurationMs must be at least 1. DeliveryLoopLimits.maxLoopDurationMs must be at most 86400000."
+            },
+            "maxFindings": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25,
+              "description": "Most findings one review report may carry; the server rejects a longer report. DeliveryLoopLimits.maxFindings must be at least 1. DeliveryLoopLimits.maxFindings must be at most 25."
+            }
+          },
+          "required": [
+            "maxRepairCycles",
+            "maxLoopDurationMs",
+            "maxFindings"
+          ],
+          "additionalProperties": false,
+          "description": "Loop bounds the decision was taken under, frozen when the run was admitted."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Always 1 because delivery decision rows are immutable. DeliveryDecision.version must be at least 1."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "ordinal",
+        "reviewCycleId",
+        "decision",
+        "reason",
+        "headSha",
+        "baseSha",
+        "policyDigest",
+        "failedChecks",
+        "blockingFingerprints",
+        "limits",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One immutable decision the review and repair loop took for a run: proceed, repair or stop, with the reason, the candidate it was taken for, the failed checks and blocking fingerprints it acted on, and the limits it was bound by. A stop ends the run with this record as its durable explanation and never approves a candidate; proceed is not an approval either, because a merge still requires the candidate evidence to be current. Rows are never updated, so updatedAt equals createdAt and version is always 1."
     },
     "Application": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -58786,6 +62568,388 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
     },
+    "Page<WorkflowDefinitionProposal>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the proposal."
+              },
+              "conversationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Conversation whose coordinator made the proposal."
+              },
+              "turnId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Coordinator turn that emitted the definitionProposal effect."
+              },
+              "workflowId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Unlisted definition the proposal edits, or that accepting it created; null for a new-definition proposal not yet accepted."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.workflowId may be null in this transport value."
+              },
+              "baseDraftVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Draft version the proposal was made against; accepting refuses with PRECONDITION_FAILED when the draft has moved on. Null when the target had no draft."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.baseDraftVersion may be null in this transport value."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Plain-language name the coordinator gave the proposed workflow."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Complete proposed workflow definition document, stored as canonical JSON."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 of the canonical proposed definition."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "waiting",
+                  "accepted",
+                  "rejected",
+                  "superseded"
+                ],
+                "description": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled."
+              },
+              "decidedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Person who decided the proposal; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedBy may be null in this transport value."
+              },
+              "decidedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedByName may be null in this transport value."
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the proposal was decided or superseded; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
+              },
+              "supersededByVersionId": {
+                "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the proposal was recorded."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the proposal last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version a decision must name in If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "conversationId",
+              "turnId",
+              "workflowId",
+              "baseDraftVersion",
+              "name",
+              "definition",
+              "digest",
+              "state",
+              "decidedBy",
+              "decidedByName",
+              "decidedAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates."
+          },
+          "description": "WorkflowDefinitionProposal items in this cursor page. Page<WorkflowDefinitionProposal>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<WorkflowDefinitionProposal>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkflowDefinitionProposal>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<WorkflowDefinitionProposal>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<WorkflowDefinitionProposal>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of WorkflowDefinitionProposal.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "WorkflowDefinitionProposal": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -58912,6 +63076,20 @@ export const clientManifest = {
           ],
           "description": "WorkflowDefinitionProposal.decidedBy may be null in this transport value."
         },
+        "decidedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowDefinitionProposal.decidedByName may be null in this transport value."
+        },
         "decidedAt": {
           "anyOf": [
             {
@@ -58972,6 +63150,7 @@ export const clientManifest = {
         "digest",
         "state",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "createdAt",
         "updatedAt",
@@ -64213,6 +68392,20 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID identifying the skill source record."
         },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSource.name may be null in this transport value."
+        },
         "sourceType": {
           "type": "string",
           "enum": [
@@ -64295,6 +68488,7 @@ export const clientManifest = {
       },
       "required": [
         "id",
+        "name",
         "sourceType",
         "locator",
         "publisher",
@@ -64343,6 +68537,20 @@ export const clientManifest = {
           "maxLength": 65536,
           "description": "Human-readable name displayed for the record."
         },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.description may be null in this transport value."
+        },
         "activeVersionId": {
           "anyOf": [
             {
@@ -64357,6 +68565,21 @@ export const clientManifest = {
             }
           ],
           "description": "Skill.activeVersionId may be null in this transport value."
+        },
+        "activeRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.activeRevision may be null in this transport value."
         },
         "enabled": {
           "type": "boolean",
@@ -64440,7 +68663,9 @@ export const clientManifest = {
         "sourceId",
         "slug",
         "name",
+        "description",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
@@ -64561,6 +68786,35 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "publishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillVersion.publishedAt may be null in this transport value."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillVersion.label may be null in this transport value."
         }
       },
       "required": [
@@ -64575,7 +68829,9 @@ export const clientManifest = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "publishedAt",
+        "label"
       ],
       "additionalProperties": false,
       "description": "One revision of a skill, draft or published: its source revision and entry path, plus a manifest digest that must match the exact file inventory. A draft cannot become a skill's active version until publish verifies every file was durably written.",
@@ -66683,6 +70939,7 @@ export const clientManifest = {
             "skillSources.create",
             "skillSources.update",
             "skills.import",
+            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -66690,14 +70947,17 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
+            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
+            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -66795,10 +71055,22 @@ export const clientManifest = {
             "workerEnrollments.cancel",
             "workerEnrollments.replace",
             "worker.inspectEnrollment",
+            "worker.linkPackage",
+            "worker.inspectLinkCode",
+            "worker.createLinkRequest",
+            "worker.pollLinkRequest",
             "worker.reportInventory",
             "workerComponents.list",
+            "workerMaintenance.create",
+            "workerMaintenance.list",
+            "workerMaintenance.get",
+            "workerMaintenance.cancel",
             "workers.repairEnrollment",
+            "workerLinkRequests.find",
+            "workerLinkRequests.approve",
+            "workerLinkRequests.decline",
             "workers.revoke",
+            "workers.archive",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
             "providerRoutes.list",
@@ -66816,6 +71088,7 @@ export const clientManifest = {
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -66873,6 +71146,8 @@ export const clientManifest = {
             "checks.list",
             "runReviews.list",
             "runReviews.accept",
+            "runRepairAllowances.create",
+            "runRepairTries.list",
             "runDeliveryDecisions.list",
             "mergeEntries.list",
             "mergeEntries.create",
@@ -66895,6 +71170,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",
@@ -66914,6 +71190,7 @@ export const clientManifest = {
             "conversations.mentionCandidates",
             "conversationAccess.list",
             "conversationAccess.sharers",
+            "workflowDefinitionProposals.list",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -66955,12 +71232,18 @@ export const clientManifest = {
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
             "backupSchedule.get",
             "backupSchedule.put",
+            "backupPointInTime.get",
+            "backupPointInTime.put",
             "backupOffsite.get",
             "backupOffsite.put",
             "backupOffsite.verify",
@@ -67079,6 +71362,8 @@ export const clientManifest = {
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -68296,6 +72581,12 @@ export const clientManifest = {
           ],
           "description": "Check identifiers with a fresh failing result, sorted; empty when none."
         },
+        "unsettledAttemptCount": {
+          "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
         "lastHeartbeatAt": {
           "anyOf": [
             {
@@ -68316,6 +72607,72 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Credential generation loaded by the worker host."
+        },
+        "archivedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkerHost.archivedAt may be null in this transport value."
+        },
+        "cleanup": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "not_requested",
+                "unconfirmed",
+                "confirmed"
+              ],
+              "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+            },
+            "requestedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+            },
+            "confirmedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "state",
+            "requestedAt",
+            "confirmedAt"
+          ],
+          "additionalProperties": false,
+          "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
         },
         "createdAt": {
           "type": "string",
@@ -68348,12 +72705,14 @@ export const clientManifest = {
         "status",
         "lastHeartbeatAt",
         "credentialGeneration",
+        "archivedAt",
+        "cleanup",
         "createdAt",
         "updatedAt",
         "version"
       ],
       "additionalProperties": false,
-      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
+      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -68763,6 +73122,20 @@ export const clientManifest = {
           ],
           "description": "Preview.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -68811,6 +73184,7 @@ export const clientManifest = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -69285,6 +73659,140 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."
+    },
+    "Deployment": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the deployment record."
+        },
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related repository entity."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related run entity."
+        },
+        "environment": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Deployment environment targeted by the record."
+        },
+        "commitSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Commit SHA deployed by the record."
+        },
+        "artifactDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Digest of the artifact deployed by the record."
+        },
+        "previousDeploymentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related previous deployment entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Deployment.previousDeploymentId may be null in this transport value."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "deploying",
+            "verifying",
+            "healthy",
+            "degraded",
+            "failed",
+            "unknown",
+            "rolling_back",
+            "rolled_back"
+          ],
+          "description": "Current lifecycle status of the record."
+        },
+        "externalEffectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related external effect entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Deployment.externalEffectId may be null in this transport value."
+        },
+        "healthEvidenceId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related health evidence entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Deployment.healthEvidenceId may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "repositoryId",
+        "runId",
+        "environment",
+        "commitSha",
+        "artifactDigest",
+        "previousDeploymentId",
+        "status",
+        "externalEffectId",
+        "healthEvidenceId",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks."
     },
     "MetricSeries": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -72259,15 +76767,27 @@ export const clientManifest = {
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the record expires."
+        },
+        "linkCode": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Ten-minute, one-use link code (XXXX-XXXX) for the same enrollment; it may appear in a command because it expires with the enrollment, works once, only adds one machine to this organization within the settings above, and is useless once the machine registers. Persisted only as a hash."
+        },
+        "command": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The whole one-line command an Admin pastes on the machine: npx -y <origin>/v1/worker/link.tgz link --server <origin> --code <linkCode>. Until an npm scope is chosen the link command is served from this Bakery's own origin as an npm tarball."
         }
       },
       "required": [
         "enrollmentId",
         "enrollmentToken",
-        "expiresAt"
+        "expiresAt",
+        "linkCode",
+        "command"
       ],
       "additionalProperties": false,
-      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential."
+      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential. It also returns a short link code for the same enrollment and the one-line command that carries it (#70)."
     },
     "DispatchBlockers": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -72399,22 +76919,49 @@ export const clientManifest = {
           "description": "Display name of the enrolling organization the token pairs to."
         },
         "name": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Intended machine display name from the enrollment."
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Intended machine display name from the enrollment. Null when the Admin left it to the machine's host name and the machine has not registered yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerEnrollmentInspection.name may be null in the safe projection."
         },
         "os": {
-          "type": "string",
-          "enum": [
-            "linux",
-            "macos"
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "linux",
+                "macos"
+              ],
+              "description": "Intended operating system from the enrollment. Null when the machine reports it when it links."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
           ],
-          "description": "Intended operating system from the enrollment."
+          "description": "WorkerEnrollmentInspection.os may be null in the safe projection."
         },
         "architecture": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Intended architecture from the enrollment."
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Intended architecture from the enrollment. Null when the machine reports it when it links."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerEnrollmentInspection.architecture may be null in the safe projection."
         },
         "slots": {
           "type": "integer",
@@ -72861,6 +77408,12 @@ export const clientManifest = {
                   ],
                   "description": "Check identifiers with a fresh failing result, sorted; empty when none."
                 },
+                "unsettledAttemptCount": {
+                  "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
                 "lastHeartbeatAt": {
                   "anyOf": [
                     {
@@ -72881,6 +77434,72 @@ export const clientManifest = {
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991,
                   "description": "Credential generation loaded by the worker host."
+                },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "WorkerHost.archivedAt may be null in this transport value."
+                },
+                "cleanup": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "not_requested",
+                        "unconfirmed",
+                        "confirmed"
+                      ],
+                      "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+                    },
+                    "requestedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+                    },
+                    "confirmedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "requestedAt",
+                    "confirmedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
                 },
                 "createdAt": {
                   "type": "string",
@@ -72913,6 +77532,8 @@ export const clientManifest = {
                 "status",
                 "lastHeartbeatAt",
                 "credentialGeneration",
+                "archivedAt",
+                "cleanup",
                 "createdAt",
                 "updatedAt",
                 "version"
@@ -74175,13 +78796,29 @@ export const clientManifest = {
         "bootstrapped": {
           "type": "boolean",
           "description": "Whether a first installation administrator already exists; carries no identity."
+        },
+        "restoreHeld": {
+          "type": "boolean",
+          "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        },
+        "updatePaused": {
+          "type": "boolean",
+          "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
+        },
+        "release": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
         }
       },
       "required": [
-        "bootstrapped"
+        "bootstrapped",
+        "restoreHeld",
+        "updatePaused",
+        "release"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity."
     },
     "BrowserSessionList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -76689,7 +81326,6 @@ export const clientManifest = {
               "automationFiring:read",
               "skillSource:read",
               "skillSource:manage",
-              "skill:manage",
               "skill:author",
               "skill:read",
               "library:read",
@@ -84702,13 +89338,71 @@ export const clientManifest = {
                   "description": "JSON object value."
                 }
               ],
-              "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+              "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
             },
             {
               "type": "null",
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "stateCopy": {
+          "description": "PluginInstall.stateCopy may be null in this transport value.",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "cannotReadVersionIds": {
+          "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -84829,6 +89523,117 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -85004,13 +89809,71 @@ export const clientManifest = {
                         "description": "JSON object value."
                       }
                     ],
-                    "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+                    "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "stateCopy": {
+                "description": "PluginInstall.stateCopy may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "cannotReadVersionIds": {
+                "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it.",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it. Each array item follows this format."
+                }
               }
             },
             "required": [
@@ -85185,6 +90048,117 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -85674,6 +90648,14 @@ export const clientManifest = {
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
         },
+        "updateFailurePolicy": {
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ],
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
+        },
         "version": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -85705,6 +90687,7 @@ export const clientManifest = {
       "required": [
         "registrationMode",
         "organizationCreationPolicy",
+        "updateFailurePolicy",
         "version",
         "updatedByPrincipalId",
         "updatedAt"
@@ -85901,6 +90884,39 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of InstallationAdministrator."
+    },
+    "IntegrationActionReceipt": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "effectId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related effect entity."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "submitted",
+            "uncertain"
+          ],
+          "description": "Current lifecycle status of the record."
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider location associated with the redirect."
+        }
+      },
+      "required": [
+        "effectId",
+        "status",
+        "location"
+      ],
+      "additionalProperties": false,
+      "description": "Durable 202 write receipt. It never claims provider completion."
     },
     "IntegrationDiscoveryReceipt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -87418,6 +92434,17 @@ export const clientManifest = {
                       "type": "string",
                       "maxLength": 65536,
                       "description": "Registered workflow action the step runs."
+                    },
+                    "repeatId": {
+                      "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                      "type": "string",
+                      "maxLength": 65536
+                    },
+                    "repeatMax": {
+                      "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 8
                     }
                   },
                   "required": [
@@ -101293,7 +106320,7 @@ export const clientManifest = {
             "read_comment",
             "edit"
           ],
-          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+          "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
         },
         "grantedById": {
           "type": "string",
@@ -101404,7 +106431,7 @@ export const clientManifest = {
                   "read_comment",
                   "edit"
                 ],
-                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
               },
               "grantedById": {
                 "type": "string",
@@ -102708,6 +107735,81 @@ export const clientManifest = {
           },
           "description": "The issues it considered, in order."
         },
+        "waitingOn": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "question",
+                    "approval"
+                  ],
+                  "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                },
+                "questionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The open question or approval; answer it through the questions actions."
+                },
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The task of the issue being worked on, where the person answers."
+                },
+                "since": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when it was put."
+                },
+                "askedOf": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "A person the question or approval was put to."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                  },
+                  "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                }
+              },
+              "required": [
+                "kind",
+                "questionId",
+                "taskId",
+                "since",
+                "askedOf"
+              ],
+              "additionalProperties": false,
+              "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.waitingOn may be null in the safe projection."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -102748,6 +107850,7 @@ export const clientManifest = {
         "elapsedSeconds",
         "spentUsd",
         "issues",
+        "waitingOn",
         "createdAt",
         "updatedAt",
         "version"
@@ -103090,6 +108193,81 @@ export const clientManifest = {
                 },
                 "description": "The issues it considered, in order."
               },
+              "waitingOn": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "question",
+                          "approval"
+                        ],
+                        "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                      },
+                      "questionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The open question or approval; answer it through the questions actions."
+                      },
+                      "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The task of the issue being worked on, where the person answers."
+                      },
+                      "since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when it was put."
+                      },
+                      "askedOf": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "principalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "A person the question or approval was put to."
+                            },
+                            "displayName": {
+                              "type": "string",
+                              "maxLength": 200,
+                              "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                            }
+                          },
+                          "required": [
+                            "principalId",
+                            "displayName"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                        },
+                        "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "questionId",
+                      "taskId",
+                      "since",
+                      "askedOf"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.waitingOn may be null in the safe projection."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -103130,6 +108308,7 @@ export const clientManifest = {
               "elapsedSeconds",
               "spentUsd",
               "issues",
+              "waitingOn",
               "createdAt",
               "updatedAt",
               "version"
@@ -107525,6 +112704,92 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The automatic backup schedule as an installation administrator sees it. Before any save it reads as off with a daily 03:00 UTC default and a 30 day keep."
     },
+    "BackupPointInTime": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether Postgres write-ahead log is archived continuously so a restore can return to any minute."
+        },
+        "earliestRestorableAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Start of the oldest kept base backup: the earliest minute a restore can return to. Null when off or not reported yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.earliestRestorableAt may be null in this transport value."
+        },
+        "latestRestorableAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Time of the newest write-ahead log segment copied off-site: the latest minute a restore can return to. Null when off or not reported yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.latestRestorableAt may be null in this transport value."
+        },
+        "reportedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the host runner last reported the window, or null before its first report."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.reportedAt may be null in this transport value."
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the switch last changed, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.updatedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+        }
+      },
+      "required": [
+        "enabled",
+        "earliestRestorableAt",
+        "latestRestorableAt",
+        "reportedAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Restore to any minute as an installation administrator sees it: the switch, and the window of minutes a restore can return to, from what the host runner holds off-site."
+    },
     "BackupOffsite": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -107847,6 +113112,10 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Destination settings revision, 0 before any save."
+        },
+        "pointInTimeEnabled": {
+          "type": "boolean",
+          "description": "Whether Restore to any minute is on: the runner takes base backups and copies archived write-ahead log off-site only while it is."
         }
       },
       "required": [
@@ -107863,7 +113132,8 @@ export const clientManifest = {
         "offsiteAccessKeyId",
         "offsiteSecretAccessKey",
         "offsiteRefusal",
-        "offsiteVersion"
+        "offsiteVersion",
+        "pointInTimeEnabled"
       ],
       "additionalProperties": false,
       "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released."
@@ -109241,18 +114511,28 @@ export const clientManifest = {
                   "model"
                 ],
                 "description": "Deterministic check or model rubric."
+              },
+              "required": {
+                "type": "boolean",
+                "description": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
               }
             },
             "required": [
               "scorerId",
               "slug",
               "scorerRevision",
-              "evaluatorType"
+              "evaluatorType",
+              "required"
             ],
             "additionalProperties": false,
-            "description": "The scorer revisions pinned. Each array item follows this format."
+            "description": "The scorer revisions pinned, each with whether the gate requires it. Each array item follows this format."
           },
-          "description": "The scorer revisions pinned."
+          "description": "The scorer revisions pinned, each with whether the gate requires it."
+        },
+        "pinDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it."
         },
         "state": {
           "type": "string",
@@ -109335,6 +114615,304 @@ export const clientManifest = {
           ],
           "additionalProperties": false,
           "description": "Required candidate results per state."
+        },
+        "report": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results in the set."
+            },
+            "attempted": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results with at least one attempt."
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, and the latest attempt measured a pass."
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, and the latest attempt measured a fail."
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+            },
+            "unrun": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Never attempted: neither a pass nor a failure."
+            },
+            "interrupted": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results with at least one attempt that was interrupted before it measured anything."
+            },
+            "recovered": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Of those, results whose latest attempt measured a pass or a fail."
+            },
+            "passedOfAttempted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "passed divided by attempted; null when nothing was attempted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+            },
+            "failedOfAttempted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "failed divided by attempted; null when nothing was attempted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+            },
+            "recoveredOfInterrupted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "recovered divided by interrupted; null when nothing was interrupted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+            }
+          },
+          "required": [
+            "total",
+            "attempted",
+            "passed",
+            "failed",
+            "unknown",
+            "unrun",
+            "interrupted",
+            "recovered",
+            "passedOfAttempted",
+            "failedOfAttempted",
+            "recoveredOfInterrupted"
+          ],
+          "additionalProperties": false,
+          "description": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those."
+        },
+        "optionalReport": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results in the set."
+                },
+                "attempted": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results with at least one attempt."
+                },
+                "passed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, and the latest attempt measured a pass."
+                },
+                "failed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, and the latest attempt measured a fail."
+                },
+                "unknown": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                },
+                "unrun": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Never attempted: neither a pass nor a failure."
+                },
+                "interrupted": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results with at least one attempt that was interrupted before it measured anything."
+                },
+                "recovered": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Of those, results whose latest attempt measured a pass or a fail."
+                },
+                "passedOfAttempted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "passed divided by attempted; null when nothing was attempted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                },
+                "failedOfAttempted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "failed divided by attempted; null when nothing was attempted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                },
+                "recoveredOfInterrupted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "recovered divided by interrupted; null when nothing was interrupted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                }
+              },
+              "required": [
+                "total",
+                "attempted",
+                "passed",
+                "failed",
+                "unknown",
+                "unrun",
+                "interrupted",
+                "recovered",
+                "passedOfAttempted",
+                "failedOfAttempted",
+                "recoveredOfInterrupted"
+              ],
+              "additionalProperties": false,
+              "description": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.optionalReport may be null in this transport value."
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "limitUsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                  "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.limitUsd may be null in this transport value."
+            },
+            "settledUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+            },
+            "estimatedUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+            },
+            "unknownCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "none",
+                "within",
+                "exhausted",
+                "unsettled"
+              ],
+              "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+            },
+            "blocksNewAttempts": {
+              "type": "boolean",
+              "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+            },
+            "oldestUnknownAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "limitUsd",
+            "settledUsd",
+            "estimatedUsd",
+            "unknownCount",
+            "status",
+            "blocksNewAttempts",
+            "oldestUnknownAt"
+          ],
+          "additionalProperties": false,
+          "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
         },
         "gate": {
           "type": "object",
@@ -109483,10 +115061,14 @@ export const clientManifest = {
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -109951,18 +115533,28 @@ export const clientManifest = {
                         "model"
                       ],
                       "description": "Deterministic check or model rubric."
+                    },
+                    "required": {
+                      "type": "boolean",
+                      "description": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
                     }
                   },
                   "required": [
                     "scorerId",
                     "slug",
                     "scorerRevision",
-                    "evaluatorType"
+                    "evaluatorType",
+                    "required"
                   ],
                   "additionalProperties": false,
-                  "description": "The scorer revisions pinned. Each array item follows this format."
+                  "description": "The scorer revisions pinned, each with whether the gate requires it. Each array item follows this format."
                 },
-                "description": "The scorer revisions pinned."
+                "description": "The scorer revisions pinned, each with whether the gate requires it."
+              },
+              "pinDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it."
               },
               "state": {
                 "type": "string",
@@ -110045,6 +115637,304 @@ export const clientManifest = {
                 ],
                 "additionalProperties": false,
                 "description": "Required candidate results per state."
+              },
+              "report": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results in the set."
+                  },
+                  "attempted": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results with at least one attempt."
+                  },
+                  "passed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, and the latest attempt measured a pass."
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, and the latest attempt measured a fail."
+                  },
+                  "unknown": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                  },
+                  "unrun": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Never attempted: neither a pass nor a failure."
+                  },
+                  "interrupted": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results with at least one attempt that was interrupted before it measured anything."
+                  },
+                  "recovered": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Of those, results whose latest attempt measured a pass or a fail."
+                  },
+                  "passedOfAttempted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "passed divided by attempted; null when nothing was attempted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                  },
+                  "failedOfAttempted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "failed divided by attempted; null when nothing was attempted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                  },
+                  "recoveredOfInterrupted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "recovered divided by interrupted; null when nothing was interrupted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "total",
+                  "attempted",
+                  "passed",
+                  "failed",
+                  "unknown",
+                  "unrun",
+                  "interrupted",
+                  "recovered",
+                  "passedOfAttempted",
+                  "failedOfAttempted",
+                  "recoveredOfInterrupted"
+                ],
+                "additionalProperties": false,
+                "description": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those."
+              },
+              "optionalReport": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "total": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results in the set."
+                      },
+                      "attempted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results with at least one attempt."
+                      },
+                      "passed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, and the latest attempt measured a pass."
+                      },
+                      "failed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, and the latest attempt measured a fail."
+                      },
+                      "unknown": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                      },
+                      "unrun": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Never attempted: neither a pass nor a failure."
+                      },
+                      "interrupted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results with at least one attempt that was interrupted before it measured anything."
+                      },
+                      "recovered": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Of those, results whose latest attempt measured a pass or a fail."
+                      },
+                      "passedOfAttempted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "passed divided by attempted; null when nothing was attempted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                      },
+                      "failedOfAttempted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "failed divided by attempted; null when nothing was attempted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                      },
+                      "recoveredOfInterrupted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "recovered divided by interrupted; null when nothing was interrupted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "total",
+                      "attempted",
+                      "passed",
+                      "failed",
+                      "unknown",
+                      "unrun",
+                      "interrupted",
+                      "recovered",
+                      "passedOfAttempted",
+                      "failedOfAttempted",
+                      "recoveredOfInterrupted"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.optionalReport may be null in this transport value."
+              },
+              "budget": {
+                "type": "object",
+                "properties": {
+                  "limitUsd": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                        "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.limitUsd may be null in this transport value."
+                  },
+                  "settledUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+                  },
+                  "estimatedUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+                  },
+                  "unknownCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "within",
+                      "exhausted",
+                      "unsettled"
+                    ],
+                    "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                  },
+                  "blocksNewAttempts": {
+                    "type": "boolean",
+                    "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+                  },
+                  "oldestUnknownAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "limitUsd",
+                  "settledUsd",
+                  "estimatedUsd",
+                  "unknownCount",
+                  "status",
+                  "blocksNewAttempts",
+                  "oldestUnknownAt"
+                ],
+                "additionalProperties": false,
+                "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
               },
               "gate": {
                 "type": "object",
@@ -110193,10 +116083,14 @@ export const clientManifest = {
               "baseline",
               "baselineDefinition",
               "scorers",
+              "pinDigest",
               "state",
               "requiredCount",
               "measuredCount",
               "counts",
+              "report",
+              "optionalReport",
+              "budget",
               "gate",
               "hiddenCount",
               "canceledAt",
@@ -110554,7 +116448,7 @@ export const clientManifest = {
               },
               "required": {
                 "type": "boolean",
-                "description": "Whether the gate needs it."
+                "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
               },
               "state": {
                 "type": "string",
@@ -110736,9 +116630,10 @@ export const clientManifest = {
                   "unscored",
                   "canceled",
                   "skipped",
-                  "missing"
+                  "missing",
+                  "interrupted"
                 ],
-                "description": "The attempt's outcome state."
+                "description": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered."
               },
               "reason": {
                 "anyOf": [
@@ -110811,6 +116706,49 @@ export const clientManifest = {
                 ],
                 "description": "EvaluationAttempt.traceRef may be null in this transport value."
               },
+              "usage": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "measurement": {
+                        "type": "string",
+                        "enum": [
+                          "reported",
+                          "estimated",
+                          "unknown"
+                        ],
+                        "description": "reported by the provider, estimated by Bakery, or unknown."
+                      },
+                      "costUsd": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                            "description": "Cost in USD; null when unknown. Never zero for an unknown cost."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationAttemptUsage.costUsd may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "measurement",
+                      "costUsd"
+                    ],
+                    "additionalProperties": false,
+                    "description": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.usage may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -110828,6 +116766,7 @@ export const clientManifest = {
               "startedAt",
               "endedAt",
               "traceRef",
+              "usage",
               "createdAt"
             ],
             "additionalProperties": false,
@@ -112879,6 +118818,37 @@ export const clientManifest = {
           ],
           "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
         },
+        "intakeEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on new work; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.intakeEnabledBy may be null in this transport value."
+        },
         "dispatchEnabledAt": {
           "anyOf": [
             {
@@ -112894,6 +118864,37 @@ export const clientManifest = {
           ],
           "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
         },
+        "dispatchEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on the background consumers; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.dispatchEnabledBy may be null in this transport value."
+        },
         "workersEnabledAt": {
           "anyOf": [
             {
@@ -112908,6 +118909,37 @@ export const clientManifest = {
             }
           ],
           "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+        },
+        "workersEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned workers on and released the restore; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.workersEnabledBy may be null in this transport value."
         },
         "releasedAt": {
           "anyOf": [
@@ -112953,13 +118985,390 @@ export const clientManifest = {
         "jobsAwaitingReconciliation",
         "workersRevoked",
         "intakeEnabledAt",
+        "intakeEnabledBy",
         "dispatchEnabledAt",
+        "dispatchEnabledBy",
         "workersEnabledAt",
+        "workersEnabledBy",
         "releasedAt",
         "nextStep"
       ],
       "additionalProperties": false,
-      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
+      "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown."
+    },
+    "InstallationUncertainActions": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+              }
+            },
+            "required": [
+              "operation",
+              "count",
+              "since"
+            ],
+            "additionalProperties": false,
+            "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain. Each array item follows this format."
+          },
+          "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain."
+        },
+        "total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+        }
+      },
+      "required": [
+        "kinds",
+        "total"
+      ],
+      "additionalProperties": false,
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
+    },
+    "InstallationUpdateEvent": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The event's id, made by the launcher so a resent event is recorded once."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "installed",
+            "updated",
+            "rolled_back",
+            "went_back",
+            "refused",
+            "decided_go_back",
+            "decided_stay",
+            "interrupted"
+          ],
+          "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it happened, on the server's clock."
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.by may be null in this transport value."
+        },
+        "fromRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+        },
+        "toRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id the event moved to or kept, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The launcher's first line for a refusal, in words; null for every other kind."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.detail may be null in this transport value."
+        },
+        "dismissedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "at",
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+    },
+    "InstallationUpdateStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runningRelease": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running now."
+        },
+        "runningSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the launcher made this release the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.runningSince may be null in this transport value."
+        },
+        "healthy": {
+          "type": "boolean",
+          "description": "Whether this server's own health check passes: its database and configuration answer."
+        },
+        "previousRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release the launcher keeps so it can go back, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRelease may be null in this transport value."
+        },
+        "previousRanFrom": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release became the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanFrom may be null in this transport value."
+        },
+        "previousRanUntil": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release stopped running, which is when the current one took over, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanUntil may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The event's id, made by the launcher so a resent event is recorded once."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "installed",
+                    "updated",
+                    "rolled_back",
+                    "went_back",
+                    "refused",
+                    "decided_go_back",
+                    "decided_stay",
+                    "interrupted"
+                  ],
+                  "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When it happened, on the server's clock."
+                },
+                "by": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.by may be null in this transport value."
+                },
+                "fromRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+                },
+                "toRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id the event moved to or kept, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.detail may be null in this transport value."
+                },
+                "dismissedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "at",
+                "by",
+                "fromRelease",
+                "toRelease",
+                "detail",
+                "dismissedAt"
+              ],
+              "additionalProperties": false,
+              "description": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.lastFailure may be null in this transport value."
+        }
+      },
+      "required": [
+        "runningRelease",
+        "runningSince",
+        "healthy",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "additionalProperties": false,
+      "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only."
     },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -113306,6 +119715,1925 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of BackupDrill."
+    },
+    "Page<InstallationUpdateEvent>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The event's id, made by the launcher so a resent event is recorded once."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "installed",
+                  "updated",
+                  "rolled_back",
+                  "went_back",
+                  "refused",
+                  "decided_go_back",
+                  "decided_stay",
+                  "interrupted"
+                ],
+                "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it happened, on the server's clock."
+              },
+              "by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.by may be null in this transport value."
+              },
+              "fromRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+              },
+              "toRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id the event moved to or kept, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.detail may be null in this transport value."
+              },
+              "dismissedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "at",
+              "by",
+              "fromRelease",
+              "toRelease",
+              "detail",
+              "dismissedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+          },
+          "description": "InstallationUpdateEvent items in this cursor page. Page<InstallationUpdateEvent>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<InstallationUpdateEvent>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<InstallationUpdateEvent>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<InstallationUpdateEvent>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<InstallationUpdateEvent>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of InstallationUpdateEvent."
+    },
+    "WorkerLinkCodeInspection": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "organizationName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of the organization the machine would join."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Machine name the Admin set, or the reported host name when it was left empty."
+        },
+        "slots": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many tasks the machine may run at once."
+        },
+        "capabilities": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Capabilities the machine may run."
+        },
+        "supported": {
+          "type": "boolean",
+          "description": "Whether the reported system and processor are supported (and match any system the Admin set); false means nothing should be installed and the code stays unused."
+        },
+        "supportedSystems": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The supported systems as a list of {os, architecture} pairs, such as linux arm64."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp after which the code no longer works."
+        }
+      },
+      "required": [
+        "organizationName",
+        "name",
+        "slots",
+        "capabilities",
+        "supported",
+        "supportedSystems",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "WorkerLinkRequestCreated": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the link request; the terminal polls it."
+        },
+        "userCode": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Short code (XXXX-XXXX) the terminal prints for an Admin to approve."
+        },
+        "deviceSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Secret only this terminal holds, returned once; every poll must present it."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp, ten minutes after creation, when an undecided request expires."
+        },
+        "pollIntervalSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many seconds the terminal waits between polls."
+        }
+      },
+      "required": [
+        "requestId",
+        "userCode",
+        "deviceSecret",
+        "expiresAt",
+        "pollIntervalSeconds"
+      ],
+      "additionalProperties": false,
+      "description": "A new link request: the user code the terminal prints for an Admin and the device secret only the terminal keeps. Both are stored as hashes."
+    },
+    "WorkerLinkRequestPollResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "declined",
+            "expired"
+          ],
+          "description": "pending while no Admin has decided, approved, declined, or expired after ten minutes."
+        },
+        "linkCode": {
+          "description": "Present only when approved and the machine has not registered yet: a fresh link code bound to the approved settings, replacing any earlier one.",
+          "type": "string",
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "additionalProperties": false,
+      "description": "Where a link request stands for the waiting terminal."
+    },
+    "WorkerLinkRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the link request."
+        },
+        "userCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The code as the Admin typed it on lookup, normalized to XXXX-XXXX; null on approve and decline answers, since only its hash is stored."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.userCode may be null in the safe projection."
+        },
+        "hostname": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Host name the machine reported."
+        },
+        "os": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Operating system the machine reported."
+        },
+        "architecture": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Processor the machine reported."
+        },
+        "supported": {
+          "type": "boolean",
+          "description": "Whether the reported system is supported today."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "declined",
+            "expired"
+          ],
+          "description": "pending, approved, declined or expired."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the machine asked."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when an undecided request expires."
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the approval or decline, or null while pending."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.decidedAt may be null in the safe projection."
+        },
+        "decidedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who approved or declined, or null while pending."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.decidedBy may be null in the safe projection."
+        },
+        "enrollmentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Enrollment the approval created, or null; its status is watched through workerEnrollments.get."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.enrollmentId may be null in the safe projection."
+        },
+        "workerHostId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Machine registered from the approval, or null until it registers."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.workerHostId may be null in the safe projection."
+        }
+      },
+      "required": [
+        "id",
+        "userCode",
+        "hostname",
+        "os",
+        "architecture",
+        "supported",
+        "state",
+        "createdAt",
+        "expiresAt",
+        "decidedAt",
+        "decidedBy",
+        "enrollmentId",
+        "workerHostId"
+      ],
+      "additionalProperties": false,
+      "description": "A machine waiting to be linked, as an Admin sees it: only what the machine said about itself, and the decision once made. Never the device secret or any hash."
+    },
+    "WorkerLinkPackageBytes": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
+      "type": "string",
+      "format": "binary"
+    },
+    "PluginAuthoringRun": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this authoring run."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization that owns this run."
+        },
+        "actorPrincipalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person who asked for the plugin; only they can read the run."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "running",
+            "succeeded",
+            "unchanged",
+            "blocked",
+            "budget_exhausted",
+            "interrupted"
+          ],
+          "description": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone."
+        },
+        "request": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The request text as sent."
+        },
+        "requestDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the request text, the published version's source evidence."
+        },
+        "authorizedCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the request allowed, the only ones a package could ask for. Each array item follows this format."
+          },
+          "description": "The capabilities the request allowed, the only ones a package could ask for."
+        },
+        "budgetUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "The budget the request set, in USD."
+        },
+        "spentUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "What the attempts cost in total, in USD."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The attempt cap the request set."
+        },
+        "kitDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the pinned authoring kit the generator was shown."
+        },
+        "sdkVersion": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The plugin SDK version the host checked against."
+        },
+        "modelId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The generator's model id."
+        },
+        "basePluginInstallId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The install a revision started from; null for a new plugin."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.basePluginInstallId may be null in this transport value."
+        },
+        "pluginPackageId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The package published to; null unless the run succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginPackageId may be null in this transport value."
+        },
+        "pluginVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginVersionId may be null in this transport value."
+        },
+        "pluginInstallId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The personal install now running that version; null unless the run succeeded or was unchanged."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginInstallId may be null in this transport value."
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.failure may be null in this transport value."
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "attemptNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The attempt's position in the run, from 1."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "checked",
+                  "passed",
+                  "failed"
+                ],
+                "description": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise."
+              },
+              "filesDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.filesDigest may be null in this transport value."
+              },
+              "checkReport": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.checkReport may be null in this transport value."
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema2"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema2"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt. Each array item follows this format."
+                },
+                "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt."
+              },
+              "costUsd": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                "description": "What the generator reported this attempt cost."
+              },
+              "pluginVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The private version published from this attempt; null unless it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.pluginVersionId may be null in this transport value."
+              },
+              "previewResult": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema3"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema3"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The value the job returned in its private preview; null unless the attempt passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.previewResult may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the attempt was recorded."
+              }
+            },
+            "required": [
+              "attemptNumber",
+              "outcome",
+              "filesDigest",
+              "checkReport",
+              "diagnostics",
+              "costUsd",
+              "pluginVersionId",
+              "previewResult",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "Every attempt in order. Each array item follows this format."
+          },
+          "description": "Every attempt in order."
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "published",
+                  "compensated",
+                  "rolled_back",
+                  "rollback_refused",
+                  "install_moved",
+                  "interrupted"
+                ],
+                "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it was recorded."
+              }
+            },
+            "required": [
+              "kind",
+              "detail",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption. Each array item follows this format."
+          },
+          "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the run started."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the run last changed."
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the run reached its outcome; null while running."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.finishedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "actorPrincipalId",
+        "status",
+        "request",
+        "requestDigest",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "spentUsd",
+        "maxAttempts",
+        "kitDigest",
+        "sdkVersion",
+        "modelId",
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "attempts",
+        "events",
+        "createdAt",
+        "updatedAt",
+        "finishedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One request to author a private backend plugin: what was asked and authorized, the kit, SDK and model it ran with, every attempt, and where it ended.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema3": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema4": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "SkillImportResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the import run, as skills.import returned it."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "resolved",
+            "reserved",
+            "stored",
+            "completed",
+            "failed"
+          ],
+          "description": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed."
+        },
+        "skillId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.skillId may be null in this transport value."
+        },
+        "versionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.versionId may be null in this transport value."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.failureCode may be null in this transport value."
+        }
+      },
+      "required": [
+        "runId",
+        "state",
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "additionalProperties": false,
+      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
     }
   }
 } as const;

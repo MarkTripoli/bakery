@@ -4,7 +4,7 @@ import type { SemanticNativeProps } from "../foundations/semantic-native-props.t
 import "../navigation.css";
 
 export type SettingsSectionProps =
-  & SemanticNativeProps<HTMLAttributes<HTMLElement>>
+  & SemanticNativeProps<Omit<HTMLAttributes<HTMLElement>, "title">>
   & {
     /** The `<h2>` naming the group of rows, e.g. "Account protection". */
     title: ReactNode;

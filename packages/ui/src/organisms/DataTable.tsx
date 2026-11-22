@@ -120,6 +120,22 @@ export function DataTable<Row>(
         aria-busy={state === "loading" || state === "sorting" || undefined}
       >
         <caption>{caption}</caption>
+        {
+          /* The widths go on the columns themselves: with the headings hidden the
+            header row is out of the layout, so its cells cannot size them. */
+        }
+        {columns.some((column) => column.width)
+          ? (
+            <colgroup>
+              {columns.map((column) => (
+                <col
+                  key={column.id}
+                  style={column.width ? { width: column.width } : undefined}
+                />
+              ))}
+            </colgroup>
+          )
+          : null}
         <thead>
           <tr>
             {columns.map((column) => (

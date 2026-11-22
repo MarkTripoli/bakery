@@ -19,6 +19,11 @@ import {
 import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
 import { runStoragePurgesTask } from "./platform/storage-purges-task.ts";
 import { runRestoreFenceTask } from "./platform/restore-fence-task.ts";
+import {
+  runUpdateTask,
+  UPDATE_REFUSAL_EXIT_CODES,
+  UpdatePauseRefusal,
+} from "./platform/update-task.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
 import {
   authEnvironmentNames,
@@ -149,6 +154,7 @@ const tasks = [
   "reset",
   "storage-purges",
   "restore-fence",
+  "update",
   "probe-runner",
 ];
 if (!task || !tasks.includes(task)) {
@@ -197,6 +203,26 @@ if (task === "restore-fence") {
       await runRestoreFenceTask(databaseConfig.url, Deno.args.slice(1)),
     ),
   );
+  Deno.exit(0);
+}
+
+if (task === "update") {
+  // Run by the launcher around an update (issue #59): hold the installation,
+  // resume it, or count what is waiting. A refused pause exits with its own
+  // code (see UPDATE_REFUSAL_EXIT_CODES) so the launcher need not read text.
+  try {
+    console.log(
+      JSON.stringify(
+        await runUpdateTask(databaseConfig.url, Deno.args.slice(1)),
+      ),
+    );
+  } catch (error) {
+    if (error instanceof UpdatePauseRefusal) {
+      console.error(error.code);
+      Deno.exit(UPDATE_REFUSAL_EXIT_CODES[error.code]);
+    }
+    throw error;
+  }
   Deno.exit(0);
 }
 

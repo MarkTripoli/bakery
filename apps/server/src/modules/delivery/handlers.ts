@@ -10,6 +10,11 @@ import {
 } from "./merge-entries.ts";
 import { listMergeAttempts } from "./merge-attempts.ts";
 import {
+  createDeployment,
+  listDeployments,
+  rollbackDeployment,
+} from "./deployments.ts";
+import {
   type MergeDispatchDependencies,
   mergePullRequest,
   reconcileMergeAttempts,
@@ -19,9 +24,11 @@ import {
   createPullRequestsListHandler,
   createReviewFindingsListHandler,
   createRunDeliveryDecisionsListHandler,
+  createRunRepairTriesListHandler,
   createRunReviewsListHandler,
 } from "./postgres.ts";
 import { acceptReview } from "./review-accept.ts";
+import { createRepairAllowance } from "./repair-allowance-action.ts";
 import { createMetricSourcesLister, getMetricSeries } from "./metrics.ts";
 
 export function createDeliveryHandlers(
@@ -36,6 +43,11 @@ export function createDeliveryHandlers(
       contractSchemas.ReviewCycle.parse(await acceptReview(context, input)),
     reviewFindingsList: createReviewFindingsListHandler(secret),
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
+    runRepairTriesList: createRunRepairTriesListHandler(secret),
+    runRepairAllowancesCreate: async (context, input) =>
+      contractSchemas.DeliveryDecision.parse(
+        await createRepairAllowance(context, input),
+      ),
     pullRequestsList: createPullRequestsListHandler(secret),
     metricsGet: async (context, input) =>
       contractSchemas.MetricSeries.parse(await getMetricSeries(context, input)),
@@ -87,5 +99,46 @@ export function createDeliveryHandlers(
       mergePullRequest(merge, context, input),
     mergeAttemptsReconcile: (context, input) =>
       reconcileMergeAttempts(merge, context, input),
+    deploymentsList: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas["Page<Deployment>"].parse(
+        await listDeployments(
+          transaction,
+          organizationId,
+          principalId,
+          secret,
+          input,
+        ),
+      );
+    },
+    deploymentsCreate: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas.Deployment.parse(
+        await createDeployment(transaction, organizationId, principalId, {
+          requestId: context.requestId,
+          traceId: context.traceId,
+          create: input,
+        }),
+      );
+    },
+    deploymentsRollback: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas.Deployment.parse(
+        await rollbackDeployment(
+          transaction,
+          organizationId,
+          principalId,
+          context.params.id,
+          {
+            requestId: context.requestId,
+            traceId: context.traceId,
+            reason: input.reason,
+          },
+        ),
+      );
+    },
   };
 }

@@ -28,7 +28,14 @@ export type VersionRow = {
   workflowId: string;
   revision: number;
   status: "draft" | "published" | "retired";
-  steps: { id: string; uses: string; agentVersionId?: string }[];
+  steps: {
+    id: string;
+    uses: string;
+    agentVersionId?: string;
+    skills?: string[];
+    /** A step that waits for others is written in code: the panel cannot show it. */
+    needs?: string[];
+  }[];
   /** The definition's own `steps` value, when a test needs nodes beyond plain actions. */
   spec?: unknown;
   /** The workflow's agent bindings by action. */
@@ -90,6 +97,12 @@ export type Options = {
   offline?: boolean;
   /** Every workflows page says there is another, so the list is cut short. */
   endless?: boolean;
+  /** What the skills read answers for any version: its items, or "fail" for a read that cannot be answered. */
+  skills?: { items: unknown[] } | "fail";
+  /** The skills the picker may offer (the skills list read): the skills, or "fail". Empty by default. */
+  catalog?: unknown[] | "fail";
+  /** Milliseconds the draft save takes to answer, so a test can edit while one is in flight. */
+  saveDelayMs?: number;
 };
 
 const json = (body: unknown, status = 200) => ({
@@ -220,6 +233,12 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     workflowReads: 0,
     agentReads: 0,
     presetReads: 0,
+    /** Reads of a version's skills, and what the next one answers (a test may change it). */
+    skillReads: 0,
+    skillsAnswer: options.skills as Options["skills"],
+    /** Reads of the skills catalog, and what the next one answers. */
+    catalogReads: 0,
+    catalogAnswer: options.catalog as Options["catalog"],
     failing: options.failing ?? null as Options["failing"] | null,
   };
   await page.route(
@@ -324,8 +343,31 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     },
   );
   await page.route(
-    (url) => /^\/v1\/workflows\/[^/]+\/versions\/[^/]+$/.test(url.pathname),
+    (url) => url.pathname === "/v1/skills",
     (route) => {
+      seen.catalogReads += 1;
+      if (seen.catalogAnswer === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      return route.fulfill(
+        json({ items: seen.catalogAnswer ?? [], nextCursor: null }),
+      );
+    },
+  );
+  await page.route(
+    (url) =>
+      /^\/v1\/workflows\/[^/]+\/versions\/[^/]+\/skills$/.test(url.pathname),
+    (route) => {
+      seen.skillReads += 1;
+      if (seen.skillsAnswer === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      return route.fulfill(json(seen.skillsAnswer ?? { items: [] }));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/versions\/[^/]+$/.test(url.pathname),
+    async (route) => {
       const parts = new URL(route.request().url()).pathname.split("/");
       seen.draftSaves.push({
         versionId: parts[5] ?? "",
@@ -333,6 +375,25 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         body: route.request().postDataJSON() as Record<string, unknown>,
       });
       const row = versions.find((one) => one.id === parts[5]);
+      // As the server does: a slot the save settled is gone from the next read of the skills.
+      const settled = (route.request().postDataJSON() as {
+        resolveSkillSlots?: string[];
+      }).resolveSkillSlots;
+      if (
+        settled !== undefined && typeof seen.skillsAnswer === "object" &&
+        seen.skillsAnswer !== null
+      ) {
+        seen.skillsAnswer = {
+          items: seen.skillsAnswer.items.filter((item) => {
+            const held = item as {
+              skillVersionId?: unknown;
+              stepPath?: string;
+            };
+            return !(held.skillVersionId === null &&
+              settled.includes(held.stepPath ?? ""));
+          }),
+        };
+      }
       const saved = {
         id: parts[5] ?? "",
         workflowId: parts[3] ?? "",
@@ -351,6 +412,11 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         updatedAt: "2026-01-01T00:00:00.000Z",
         version: 2,
       };
+      if (options.saveDelayMs) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, options.saveDelayMs)
+        );
+      }
       return route.fulfill(json(saved));
     },
   );

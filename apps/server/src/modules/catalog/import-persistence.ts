@@ -91,6 +91,9 @@ export type SkillImportCheckpointRow = {
   entry_path: string | null;
   file_inventory: unknown | null;
   terminal_fault: unknown | null;
+  /** Who the imported skill is for; a personal import has its importer as owner. */
+  scope: "organization" | "personal";
+  owner_principal_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -101,7 +104,8 @@ export const SKILL_IMPORT_CHECKPOINT_COLUMNS = `id, organization_id, run_id,
   registered_locator, registered_license, state, recovery_generation,
   recovery_lease_token, recovery_lease_expires_at, resolved_revision,
   source_proof_digest, skill_id, ordinal, skill_version_id, manifest_digest,
-  entry_path, file_inventory, terminal_fault, created_at, updated_at, version`;
+  entry_path, file_inventory, terminal_fault, created_at, updated_at, version,
+  scope, owner_principal_id`;
 
 export async function loadSkillImportCheckpoint(
   transaction: PgTransactionClient,
@@ -391,6 +395,17 @@ export async function completeSkillImportExecution(
       where organization_id = $1 and run_id = $2 and state = 'stored'
       returning ${SKILL_IMPORT_CHECKPOINT_COLUMNS}`,
     [options.organizationId, options.runId],
+  );
+  // The label the importer asked for travels on the run until the version
+  // exists, and is written onto it once.
+  await transaction.query(
+    `update bakery.skill_versions as version
+        set label = run.snapshot #>> '{request,label}'
+       from bakery.workflow_runs as run
+      where version.organization_id = $1 and version.id = $3
+        and run.organization_id = $1 and run.id = $2
+        and run.snapshot #>> '{request,label}' is not null`,
+    [options.organizationId, options.runId, options.skillVersionId],
   );
   await transaction.query(
     `update bakery.workflow_runs

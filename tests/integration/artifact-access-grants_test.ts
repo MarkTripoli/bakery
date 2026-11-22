@@ -6,6 +6,9 @@ import {
   signSessionCookie,
 } from "../helpers/auth.ts";
 import { commentFixture } from "../helpers/artifact-comments.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { resolveOrganizationActor } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
+import { authorizeDraftAccess } from "../../apps/server/src/modules/auth/adapters/artifact-grants-postgres.ts";
 
 /**
  * #73 revision 3: direct access to one document, through the real routes, the
@@ -22,6 +25,8 @@ type Grant = {
   level: string;
   version: number;
   revokedAt: string | null;
+  /** The comment that gave the access; null when it was given by hand. */
+  sourceCommentId: string | null;
 };
 
 Deno.test("a document grant opens that document, comments and nothing else", async (t) => {
@@ -269,19 +274,36 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
         assertEquals(posted.status, 201, await posted.text());
         // Not the task, not publishing, not resharing, not the grant list's writes.
         assertDenied(await status(await as(ana, `/v1/tasks/${f.taskId}`)));
-        // `edit` is not served yet: it is refused, so no grant promises what it
-        // does not do, and a grantee still cannot reshare.
-        const refusedEdit = await as(
-          writer,
-          `/v1/artifacts/${artifact}/access`,
-          {
+        // The editor is closed at read_comment and open at edit: opening a draft
+        // gets past authority (this fixture has no draft isolation, so it then
+        // answers 503), and revoking the access closes it again.
+        const openDraft = () =>
+          as(ana, `/v1/artifacts/${artifact}/drafts`, {
+            method: "POST",
+            body: {},
+          });
+        assertDenied(await status(await openDraft()));
+        await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access`, {
             method: "POST",
             body: { principalId: ana.principalId, level: "edit" },
-          },
+          }),
+          200,
         );
-        const refusedText = await refusedEdit.text();
-        assertEquals(refusedEdit.status, 422, refusedText);
-        assert(refusedText.includes("access_level_unavailable"), refusedText);
+        const editing = await status(await openDraft());
+        assert(
+          editing !== 403 && editing !== 404 && editing !== 405,
+          `edit level reaches the editor, got ${editing}`,
+        );
+        grant = await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: ana.principalId, level: "read_comment" },
+          }),
+          200,
+        );
+        assertEquals([grant.level], ["read_comment"]);
+        assertDenied(await status(await openDraft()));
         assertDenied(
           await status(
             await as(ana, `/v1/artifacts/${artifact}/access`, {
@@ -296,6 +318,76 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
         );
         assertEquals(list.items.map((item) => item.principalId), [
           ana.principalId,
+        ]);
+      },
+    );
+
+    await t.step(
+      "the collaboration socket's check follows the grant, by draft and level",
+      async () => {
+        // The editor check above may already have opened this document's one
+        // draft; take it, or make it.
+        await db.query(
+          `insert into bakery.artifact_drafts
+             (organization_id, artifact_id, task_id, epoch, status)
+           values ($1, $2, $3, 1, 'active')
+           on conflict (organization_id, artifact_id) do nothing`,
+          [f.organizationId, artifact, f.taskId],
+        );
+        const draftId = (await db.query<{ id: string }>(
+          "select id from bakery.artifact_drafts where organization_id = $1 and artifact_id = $2",
+          [f.organizationId, artifact],
+        )).rows[0]!.id;
+        const allowed = async (
+          who: Person,
+          id: string | null,
+          permission: "draft:read" | "draft:write",
+        ) =>
+          await withPgTransaction(db, async (transaction) => {
+            const actor = await resolveOrganizationActor(
+              transaction,
+              who.principalId as never,
+              f.organizationId as never,
+            );
+            try {
+              await authorizeDraftAccess(transaction, actor, permission, {
+                action: "drafts.edit",
+              }, id);
+              return true;
+            } catch {
+              return false;
+            }
+          });
+        // Ana holds read_comment: the editor stays closed, for a room and to connect.
+        assertEquals(await allowed(ana, draftId, "draft:read"), false);
+        assertEquals(await allowed(ana, null, "draft:read"), false);
+        await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: ana.principalId, level: "edit" },
+          }),
+          200,
+        );
+        assertEquals(await allowed(ana, draftId, "draft:read"), true);
+        assertEquals(await allowed(ana, draftId, "draft:write"), true);
+        assertEquals(await allowed(ana, null, "draft:read"), true);
+        // Another draft, and someone with no grant, are refused.
+        assertEquals(
+          await allowed(ana, crypto.randomUUID(), "draft:write"),
+          false,
+        );
+        assertEquals(await allowed(cy, draftId, "draft:write"), false);
+        assertEquals(await allowed(cy, null, "draft:read"), false);
+        await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: ana.principalId, level: "read_comment" },
+          }),
+          200,
+        );
+        assertEquals(await allowed(ana, draftId, "draft:write"), false);
+        await db.query("delete from bakery.artifact_drafts where id = $1", [
+          draftId,
         ]);
       },
     );
@@ -386,6 +478,34 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           item.principalId === cy.principalId
         );
         assert(cyGrant, "the mention gave Cy a grant");
+        // The comment that gave the access is the grant's source.
+        assertEquals(cyGrant.sourceCommentId, posted.id);
+        // Changing the level by hand keeps that source, so Cy stays "added by a
+        // mention" in People added, which lists and counts by it (#870).
+        const regrant = (level: string) =>
+          as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: cy.principalId, level },
+          });
+        const raised = await json<Grant>(await regrant("edit"), 200);
+        assertEquals([raised.level, raised.sourceCommentId], [
+          "edit",
+          posted.id,
+        ]);
+        const lowered = await json<Grant>(await regrant("read_comment"), 200);
+        assertEquals([lowered.level, lowered.sourceCommentId], [
+          "read_comment",
+          posted.id,
+        ]);
+        const relisted = await json<{ items: Grant[] }>(
+          await as(writer, `/v1/artifacts/${artifact}/access`),
+          200,
+        );
+        assertEquals(
+          relisted.items.find((item) => item.principalId === cy.principalId)
+            ?.sourceCommentId,
+          posted.id,
+        );
         // The inbox item opens the document at the comment, not the task page.
         const inbox = await json<{
           items: { id: string; kind: string }[];
@@ -425,7 +545,7 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           `/v1/artifacts/${artifact}/access/revoke`,
           {
             method: "POST",
-            ifMatch: cyGrant.version + 1,
+            ifMatch: lowered.version + 1,
             body: { principalId: cy.principalId },
           },
         );
@@ -433,7 +553,7 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
         const revoked = await json<Grant>(
           await as(writer, `/v1/artifacts/${artifact}/access/revoke`, {
             method: "POST",
-            ifMatch: cyGrant.version,
+            ifMatch: lowered.version,
             body: { principalId: cy.principalId },
           }),
           200,
@@ -444,6 +564,22 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           200,
         );
         assertEquals(after.items.map((row) => row.kind), ["comment"]);
+        assertDenied(
+          await status(await as(cy, `/v1/artifacts/${artifact}`)),
+        );
+        // Granting again by hand after the revoke starts fresh: no comment gave
+        // this access, so Cy is not "added by a mention" any more.
+        const again = await json<Grant>(await regrant("read_comment"), 200);
+        assertEquals([again.sourceCommentId, again.revokedAt], [null, null]);
+        const ended = await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access/revoke`, {
+            method: "POST",
+            ifMatch: again.version,
+            body: { principalId: cy.principalId },
+          }),
+          200,
+        );
+        assert(ended.revokedAt !== null);
         assertDenied(
           await status(await as(cy, `/v1/artifacts/${artifact}`)),
         );

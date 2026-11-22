@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  NO_PULL_REQUEST_GRACE_SECONDS,
   type TicketDeliveryEvidence,
   ticketDeliveryVerdict,
 } from "../../apps/server/src/modules/work/ticket-delivery.ts";
@@ -11,6 +12,7 @@ function evidence(
     workFinished: true,
     pullRequests: [],
     deployment: null,
+    finishedSecondsAgo: null,
     ...overrides,
   };
 }
@@ -170,4 +172,33 @@ Deno.test("work that has not finished is never delivered, whatever else is true"
       { delivered: false, waitingFor: "work", closedUnmerged: false },
     );
   }
+});
+
+Deno.test("merged: a run that ended moments ago with no pull request is held, then delivered", () => {
+  assertEquals(
+    ticketDeliveryVerdict("merged", evidence({ finishedSecondsAgo: 5 })),
+    { delivered: false, waitingFor: "pull_request", closedUnmerged: false },
+  );
+  assertEquals(
+    ticketDeliveryVerdict(
+      "merged",
+      evidence({ finishedSecondsAgo: NO_PULL_REQUEST_GRACE_SECONDS }),
+    ),
+    { delivered: true },
+  );
+  // A pull request registered after the run ended is judged on its own status.
+  assertEquals(
+    ticketDeliveryVerdict(
+      "merged",
+      evidence({ finishedSecondsAgo: 5, pullRequests: [{ status: "merged" }] }),
+    ),
+    { delivered: true },
+  );
+});
+
+Deno.test("task: the hold never applies, finished is delivered", () => {
+  assertEquals(
+    ticketDeliveryVerdict("task", evidence({ finishedSecondsAgo: 5 })),
+    { delivered: true },
+  );
 });

@@ -4,6 +4,13 @@ import { fileURLToPath } from "node:url";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
+import {
+  cancelRun,
+  chooseRunAction,
+  openRunActions,
+  runAction,
+  runActionsTrigger,
+} from "./helpers/run-actions.ts";
 
 /**
  * Real-API proof of the gate and run-control side of the FS26 task loop
@@ -160,8 +167,6 @@ const controls = (page: Page, runId: string) =>
   );
 const reasonOf = async (page: Page, runId: string, action: string) =>
   (await controls(page, runId)).actions.find((item) => item.action === action);
-const controlButton = (page: Page, name: string) =>
-  page.getByRole("button", { name, exact: true });
 const receipt = (page: Page) =>
   page.getByRole("status", { name: "Request sent" });
 
@@ -266,17 +271,17 @@ test("cancel ends an admitted run that no worker has claimed", async ({ browser 
     canRequest: false,
     reason: "no_active_attempt",
   });
-  await expect(controlButton(page, "Request pause")).toBeDisabled();
-  await expect(
-    page.getByText("Nothing is running that this can be sent to.")
-      .first(),
-  ).toBeVisible();
+  // Only what the server allows is listed, so a pause that cannot be sent is not there.
+  await openRunActions(page);
+  await expect(runAction(page, "Cancel run")).toBeVisible();
+  await expect(runAction(page, "Pause run")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await shot(page, "cancel-before");
   expect(await reasonOf(page, runId, "cancel")).toMatchObject({
     canRequest: true,
     reason: "allowed",
   });
-  await controlButton(page, "Request cancellation").click();
+  await cancelRun(page);
   await expect(receipt(page)).toContainText("Request admitted");
   await expect.poll(
     async () =>
@@ -303,12 +308,11 @@ test("a message during a run is kept and live steering is stated unsupported", a
     canRequest: false,
     reason: "unsupported",
   });
-  await expect(controlButton(page, "Request pause")).toBeDisabled();
-  await expect(
-    page.getByText(
-      "This machine cannot pause a run.",
-    ).first(),
-  ).toBeVisible();
+  // A machine that cannot pause is not offered a Pause entry at all.
+  await expect(runActionsTrigger(page)).toBeVisible();
+  await openRunActions(page);
+  await expect(runAction(page, "Pause run")).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   const body = "Mid-run: please keep the retry step small.";
   script(task.conversationId, "fs26-reply");
@@ -364,14 +368,14 @@ test("pause, resume and cancel are admitted for a worker that advertises steer (
   const runVersion = async () =>
     (await api<{ version: number }>(page, `/v1/runs/${runId}`)).version;
   let seen = await runVersion();
-  const request = async (label: string) => {
-    await controlButton(page, label).click();
+  const request = async (action: "pause" | "cancel") => {
+    if (action === "pause") await chooseRunAction(page, "Pause run");
+    else await cancelRun(page);
     await expect(receipt(page)).toContainText("Request admitted");
     // Each admitted request is its own run revision.
     await expect.poll(runVersion).toBeGreaterThan(seen);
     seen = await runVersion();
-    await shot(page, `control-${label.replaceAll(" ", "-").toLowerCase()}`);
-    await controlButton(page, "Start a new control request").click();
+    await shot(page, `control-${action}`);
   };
   const stepsNow = async () =>
     (await api<{ items: { id: string; status: string }[] }>(
@@ -380,15 +384,17 @@ test("pause, resume and cancel are admitted for a worker that advertises steer (
     )).items;
   const statusNow = async () =>
     (await api<{ status: string }>(page, `/v1/runs/${runId}`)).status;
-  await request("Request pause");
-  await request("Request resume");
-  // Admission only. No worker consumes the queued commands, so this does not
-  // show a pause holding anything back: it shows the server admitted each
-  // request and the run did not move. Whether a paused run keeps its next
+  await request("pause");
+  // Resume is offered only on a run that is paused, and no worker consumes the
+  // queued commands here, so the run never reads as paused and Resume is not
+  // reachable from the page; the server's own admission of resume is asserted
+  // above.
+  // Admission only. This does not show a pause holding anything back: it shows
+  // the server admitted the request and the run did not move. Whether a paused run keeps its next
   // gated stage from starting is untested here.
   expect(["canceled", "completed", "failed"]).not.toContain(await statusNow());
   expect(await stepsNow()).toEqual(stepsBefore);
-  await request("Request cancellation");
+  await request("cancel");
   // Cancel is admitted too. Whatever state the server settles on, no extra
   // step or run row exists.
   expect((await stepsNow()).map((step) => step.id)).toEqual(

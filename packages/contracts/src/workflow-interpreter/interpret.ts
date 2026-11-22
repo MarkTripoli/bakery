@@ -36,6 +36,12 @@ export type RunState = Readonly<{
   task: JsonValue;
   /** `$delivery`, resolved by the host from run state; absent until it is. */
   delivery?: JsonValue;
+  /**
+   * Tries the host allowed beyond a repeat's own `max`, by the repeat's step
+   * key (`repair`). The document stays pinned; the host records each allowance
+   * as a fact of the run, and a key with no entry keeps the document's bound.
+   */
+  repeatExtra?: Readonly<Record<string, number>>;
   /** Recorded step results, keyed by step key (`repair@2.repair_test`). */
   steps: ReadonlyMap<string, StepRecord>;
   /** The run was canceled: nothing further may be dispatched. */
@@ -68,6 +74,13 @@ export type ActionDispatch = Readonly<{
    */
   effectKey?: string;
   agentVersionId?: string;
+  /**
+   * The step's declared input slots in authored order, each with the value its
+   * `from` resolved to (normally an artifact reference). Present only when the
+   * step declares slots, so a dispatch of a step without them is unchanged.
+   * The host pins what each value names at admission.
+   */
+  inputs?: readonly Readonly<{ slot: string; value: JsonValue }>[];
   requires: readonly string[];
   timeoutMs: number;
   retry: WorkflowActionNode["retry"];
@@ -418,6 +431,12 @@ class Run {
         ...(node.agentVersionId === undefined
           ? {}
           : { agentVersionId: node.agentVersionId }),
+        ...(node.inputs === undefined || node.inputs.length === 0 ? {} : {
+          inputs: node.inputs.map((slot) => ({
+            slot: slot.name,
+            value: evaluateValue(slot.from, read),
+          })),
+        }),
         requires: node.requires,
         timeoutMs: node.timeoutMs,
         retry: node.retry,
@@ -618,7 +637,8 @@ class Run {
         outcome = "completed";
         break;
       }
-      if (iterations === node.max) {
+      const allowed = node.max + (this.state.repeatExtra?.[key] ?? 0);
+      if (iterations === allowed) {
         outcome = "exhausted";
         break;
       }

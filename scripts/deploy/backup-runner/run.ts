@@ -45,7 +45,11 @@ export type RunnerDeps = {
   readonly api: RunnerApi;
   readonly secrets: Secrets;
   /** Takes the backup on this host; throws StepError. */
-  readonly backup: (signal: AbortSignal, cutoff: Cutoff) => Promise<Artifact>;
+  readonly backup: (
+    signal: AbortSignal,
+    cutoff: Cutoff,
+    pointInTime?: boolean,
+  ) => Promise<Artifact>;
   /** Reads what to upload to from the settings; null when there is no off-site copy. Throws OffsiteError. */
   readonly offsite: (settings: RunnerSettings) => Offsite | null;
   /** Uploads and verifies the set; throws OffsiteError. */
@@ -325,7 +329,11 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
 
     let artifact: Artifact;
     try {
-      artifact = await deps.backup(work.signal, cutoff);
+      artifact = await deps.backup(
+        work.signal,
+        cutoff,
+        settings.pointInTimeEnabled === true,
+      );
     } catch (error) {
       if (fatal !== null) return await finish();
       if (error instanceof StepError) {

@@ -41,7 +41,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { TaskFromIssue } from "../TaskFromIssue.tsx";
 import { useMentionField } from "../../mentions/useMentionField.tsx";
 import { Composer } from "./Composer.tsx";
-import { PeopleAddedDialog } from "./PeopleAddedDialog.tsx";
+import { PeopleAddedDialog } from "../../mentions/PeopleAddedDialog.tsx";
 import {
   browserDraftStore,
   type Draft,
@@ -456,6 +456,7 @@ export function TaskConversation(
   const runEnded = runStatus === "completed" || runStatus === "failed" ||
     runStatus === "canceled";
   const runBlocked = runStatus === "blocked";
+  const runPaused = runStatus === "paused";
   const runActive = task.currentRunId !== null && !runBlocked &&
     (runStatus === undefined
       ? task.status !== "completed" && task.status !== "failed" &&
@@ -548,11 +549,6 @@ export function TaskConversation(
     t("tasks.conversation.subtitle.preset"),
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
-  const statusTone = runBlocked
-    ? "warning"
-    : stage === "discuss"
-    ? "neutral"
-    : "information";
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
   const planCard = (
     <UI.PlanSummaryCard
@@ -663,11 +659,6 @@ export function TaskConversation(
       {!phone && (
         <ShellSlot name="actions">
           <UI.Inline gap="standard">
-            <UI.StatusDot tone={statusTone}>
-              {runBlocked
-                ? t("tasks.conversation.status.blocked")
-                : t(`tasks.conversation.status.${stage}`)}
-            </UI.StatusDot>
             {coordinationLink && (
               <RouterLink
                 to="/tasks/$taskId/coordination"
@@ -830,6 +821,7 @@ export function TaskConversation(
               phase={sendPhase}
               offline={!online}
               runActive={runActive}
+              runPaused={runPaused}
               runBlocked={runBlocked}
               resultsHint={task.status === "completed" &&
                 task.currentRunId !== null}
@@ -854,7 +846,7 @@ export function TaskConversation(
                     )
                     : null}
                   <PeopleAddedDialog
-                    conversationId={conversationId}
+                    subject={{ kind: "conversation", id: conversationId }}
                     onOpenChange={setAddedOpen}
                     open={addedOpen}
                   />

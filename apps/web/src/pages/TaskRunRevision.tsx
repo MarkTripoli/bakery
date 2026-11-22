@@ -69,7 +69,7 @@ export function TaskRunRevision(
             />
           </>
         )
-        : <UnknownRevision baseSha={baseSha} />}
+        : null}
       {(artifacts.isError || steps.isError) && (
         <UI.Text>{t("tasks.run.revision.unavailable")}</UI.Text>
       )}
@@ -86,21 +86,6 @@ export function TaskRunRevision(
         </UI.Button>
       )}
     </UI.Stack>
-  );
-}
-
-function UnknownRevision({ baseSha }: { readonly baseSha: string | null }) {
-  const { translate: t } = useI18n();
-  return (
-    <UI.RevisionSummary
-      title={t("tasks.run.revision.title")}
-      baseRevision={baseSha?.slice(0, 7) ?? null}
-      candidateRevision={null}
-      summary={null}
-      disclaimer={t("tasks.run.revision.disclaimer")}
-      unknownLabel={t("tasks.run.unknown")}
-      noneRecorded={t("tasks.run.revision.noneRecorded")}
-    />
   );
 }
 
@@ -142,7 +127,7 @@ function PatchRevisions(
   return (
     <UI.Stack>
       {candidates.length === 0
-        ? <UnknownRevision baseSha={baseSha} />
+        ? null
         : candidates.map((version) => (
           <PatchContent
             key={version.id}

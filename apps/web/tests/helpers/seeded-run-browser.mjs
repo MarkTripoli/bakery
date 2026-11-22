@@ -279,9 +279,13 @@ async function run() {
       await expect(page.getByText(runId, { exact: true })).toHaveCount(1);
       await expect(page.getByText("inspect", { exact: true })).toHaveCount(1);
       console.error("SEEDED_BROWSER_STEP", phase, "loaded-run-and-step");
-      const controls = page.getByRole("button", { name: /Request/ });
-      await controls.first().waitFor({ state: "visible" });
-      assert.equal(await controls.count(), 4);
+      // One "Run actions" menu lists only what the server allows; a finished
+      // run offers nothing, so there is no menu at all.
+      const trigger = page.getByRole("button", {
+        name: "Run actions",
+        exact: true,
+      });
+      if (phase !== "terminal") await trigger.waitFor({ state: "visible" });
       if (phase === "terminal") {
         await page.reload({ waitUntil: "domcontentloaded" });
         await expect(page.getByText(runId, { exact: true })).toHaveCount(1);
@@ -311,13 +315,12 @@ async function run() {
             item.canRequest === false && item.reason === "already_terminal"
           ),
         );
-        for (const button of await controls.all()) {
-          assert.equal(await button.isDisabled(), true);
-        }
+        await expect(trigger).toHaveCount(0);
         return;
       }
-      const cancel = page.getByRole("button", {
-        name: "Request cancellation",
+      await trigger.click();
+      const cancel = page.locator(".ui-popover__content").getByRole("button", {
+        name: "Cancel run",
         exact: true,
       });
       await expect(cancel).toBeEnabled();
@@ -363,6 +366,11 @@ async function run() {
         response.url().endsWith(`/v1/runs/${runId}/controls`)
       );
       await cancel.click();
+      // Cancel asks first.
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Cancel run",
+        exact: true,
+      }).click();
       const admitted = await admissionResponse;
       console.error("SEEDED_BROWSER_POST_STATUS", admitted.status());
       assert.equal(admitted.status(), 201);

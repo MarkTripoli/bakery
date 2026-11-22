@@ -108,3 +108,21 @@ Deno.test("an input that is not the action's own shape is refused, and an action
   assertEquals(reasonOf(notProjection), "workflow_action_unavailable");
   assert(true);
 });
+
+Deno.test("an engine-settled delivery action may redeclare the capability its registry entry holds, and nothing else (#43)", () => {
+  for (
+    const name of ["delivery.prepare", "delivery.deploy", "delivery.health"]
+  ) {
+    assertEquals(executionActionCapabilities(name), ["delivery"]);
+    assertEquals(executionActionCapabilities(name, ["delivery"]), ["delivery"]);
+    assertEquals(executionActionCapabilities(name, []), ["delivery"]);
+    const extra = assertThrows(() =>
+      executionActionCapabilities(name, ["not-a-capability"])
+    );
+    assertEquals(reasonOf(extra), "workflow_action_requirements_invalid");
+    const twice = assertThrows(() =>
+      executionActionCapabilities(name, ["delivery", "delivery"])
+    );
+    assertEquals(reasonOf(twice), "workflow_action_requirements_invalid");
+  }
+});
