@@ -1,23 +1,13 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "3b0330664f195cf0ec6e938a1291771a8f16a7ff"
+    "8cad16fd684a429cb8026ca22c26945ab8eb8511"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:8e4bec84e86456c1e88d4fdd7eca394b478988e0077f3837797bffd5f8894916",
-  "reason": "#42 and #74 rev 3-4 by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09): Skill carries its description, skills.list takes a name search, skillVersions.list is implemented, skills.setActiveVersion, skillImports.get, skills.takeSourceUpdate and skillDraftFiles.rename are new, and SkillSource carries its name. Main's own approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:a8721cd04c1c5c1fc4036cd270953f30dada8993bfc16abdc29bca0373c60f74",
+  "reason": "#59 slice 3 by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: InstallationSettings (the administrator's settings read) gains a required updateFailurePolicy, go_back or ask, and the settings update gains it as optional; installationStatus gains a required release; the update history adds three installation administrator reads and one dismiss. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
-    {
-      "id": "v1-unreleased-principal-organization-contracts",
-      "fromBaseRefs": [
-        "8cad16fd684a429cb8026ca22c26945ab8eb8511"
-      ],
-      "status": "displaced",
-      "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:e967ae85343c94db8fded4aab9c07e929e4f89b5b7a0eee2fb416e0aed6c8d96",
-      "reason": "#42 and #74 rev 3 by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: Skill carries its description, skills.list takes a name search, skillVersions.list is implemented and skills.setActiveVersion is new. Main's own approval it displaces is kept unchanged first below."
-    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

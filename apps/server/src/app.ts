@@ -98,7 +98,7 @@ import {
   type RuntimeConfig,
 } from "@bakery/config";
 import { contractSchemas } from "@bakery/contracts/contracts";
-import { createHealthApp } from "@bakery/contracts/health-app";
+import { createHealthApp, readiness } from "@bakery/contracts/health-app";
 import {
   createApiRouter,
   problemResponse,
@@ -425,30 +425,28 @@ export function createApp(options: {
     "*",
     createDesktopCors({ origins: options.config.auth.desktopOrigins }),
   );
-  app.route(
-    "/",
-    createHealthApp({
-      service: "bakery-server",
-      version: options.config.version,
-      config: options.config,
-      dependencies: [
-        {
-          name: "database",
-          check: async () => {
-            await options.database`select 1`;
-            return true;
-          },
+  const healthOptions = {
+    service: "bakery-server",
+    version: options.config.version,
+    config: options.config,
+    dependencies: [
+      {
+        name: "database",
+        check: async () => {
+          await options.database`select 1`;
+          return true;
         },
-        {
-          name: "postgres",
-          check: async () => {
-            await options.pgDatabase.query("select 1");
-            return true;
-          },
+      },
+      {
+        name: "postgres",
+        check: async () => {
+          await options.pgDatabase.query("select 1");
+          return true;
         },
-      ],
-    }),
-  );
+      },
+    ],
+  };
+  app.route("/", createHealthApp(healthOptions));
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
   // One approvals registry for the routes and for the session tools, so an
@@ -552,6 +550,7 @@ export function createApp(options: {
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
     passwordHasher: providerPasswordHasher(auth),
+    release: options.config.version,
   });
   app.route(
     "/",
@@ -1182,6 +1181,11 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
+      // The Updates page: which release this process is and its own health check.
+      running: () => ({
+        release: options.config.version,
+        healthy: async () => (await readiness(healthOptions)).state === "ok",
+      }),
       settings: {
         secretsKey: options.config.secretsKey,
         allowLoopbackEndpoint: options.config.environment === "test",

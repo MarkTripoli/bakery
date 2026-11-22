@@ -2874,28 +2874,6 @@
     },
     {
       "group": "Skills",
-      "method": "GET",
-      "path": "/v1/skill-imports/{id}",
-      "action": "skillImports.get",
-      "access": "Developer",
-      "permission": "skill:read",
-      "input": "IdPath",
-      "output": "SkillImportResult",
-      "event": "",
-      "mcp": "bakery_skillImports_get",
-      "idempotency": "read",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "SCOPE_REQUIRED",
-        "RESOURCE_NOT_FOUND",
-        "MALFORMED_REQUEST"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Skills",
       "method": "POST",
       "path": "/v1/skills",
       "action": "skills.create",
@@ -3074,33 +3052,6 @@
     {
       "group": "Skills",
       "method": "POST",
-      "path": "/v1/skills/{id}/active-version",
-      "action": "skills.setActiveVersion",
-      "access": "Owner for personal; Admin for organization",
-      "permission": "skill:author",
-      "input": "SkillActiveVersionSet",
-      "output": "Skill",
-      "event": "skills.updated",
-      "mcp": "bakery_skills_setActiveVersion",
-      "idempotency": "Idempotency-Key + If-Match required",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND",
-        "STATE_CONFLICT",
-        "PRECONDITION_FAILED",
-        "PRECONDITION_REQUIRED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT",
-        "MALFORMED_REQUEST",
-        "SCOPE_REQUIRED"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Skills",
-      "method": "POST",
       "path": "/v1/skills/{id}/draft",
       "action": "skillDrafts.open",
       "access": "Owner for personal; Admin for organization",
@@ -3227,34 +3178,6 @@
     {
       "group": "Skills",
       "method": "POST",
-      "path": "/v1/skills/{id}/source-update/take",
-      "action": "skills.takeSourceUpdate",
-      "access": "Owner for personal; Admin for organization",
-      "permission": "skill:author",
-      "input": "SkillSourceUpdateTake",
-      "output": "Run",
-      "event": "skill.import.requested",
-      "mcp": "bakery_skills_takeSourceUpdate",
-      "idempotency": "Idempotency-Key + If-Match required",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "SCOPE_REQUIRED",
-        "RESOURCE_NOT_FOUND",
-        "MALFORMED_REQUEST",
-        "STATE_CONFLICT",
-        "PRECONDITION_FAILED",
-        "PRECONDITION_REQUIRED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT",
-        "DEPENDENCY_UNAVAILABLE"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Skills",
-      "method": "POST",
       "path": "/v1/skills/{id}/draft/check",
       "action": "skillDrafts.check",
       "access": "Owner for personal; Admin for organization",
@@ -3332,34 +3255,6 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "BODY_TOO_LARGE"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Skills",
-      "method": "POST",
-      "path": "/v1/skills/{id}/draft/files/rename",
-      "action": "skillDraftFiles.rename",
-      "access": "Owner for personal; Admin for organization",
-      "permission": "skill:author",
-      "input": "SkillDraftFileRename",
-      "output": "SkillDraft",
-      "event": "",
-      "mcp": "bakery_skillDraftFiles_rename",
-      "idempotency": "Idempotency-Key + If-Match required",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "SCOPE_REQUIRED",
-        "RESOURCE_NOT_FOUND",
-        "MALFORMED_REQUEST",
-        "STATE_CONFLICT",
-        "UNPROCESSABLE",
-        "PRECONDITION_FAILED",
-        "PRECONDITION_REQUIRED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -3480,11 +3375,10 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST",
-        "SCOPE_REQUIRED"
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
+      "organizationContext": "none",
+      "implemented": false
     },
     {
       "group": "Skills",
@@ -10068,6 +9962,83 @@
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates/status",
+      "action": "installationUpdates.status",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUpdateStatus",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates",
+      "action": "installationUpdates.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<InstallationUpdateEvent>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/updates/{id}/dismiss",
+      "action": "installationUpdates.dismiss",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "IdPath",
+      "output": "InstallationUpdateEvent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; dismissing again returns the same event",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",
@@ -14934,11 +14905,6 @@
     "skillVersions.create",
     "skills.useGrants.list",
     "skills.useGrants.delete",
-    "skills.setActiveVersion",
-    "skillImports.get",
-    "skills.takeSourceUpdate",
-    "skillDraftFiles.rename",
-    "skillVersions.list",
     "library.search",
     "pluginPackages.list",
     "pluginPackages.create",
@@ -14965,6 +14931,9 @@
     "installationRestore.get",
     "installationRestore.step",
     "installationUncertainActions.get",
+    "installationUpdates.status",
+    "installationUpdates.list",
+    "installationUpdates.dismiss",
     "backupRunnerCredential.issue",
     "backupSchedule.get",
     "backupSchedule.put",
@@ -22458,60 +22427,6 @@
           }
         }
       },
-      "/v1/skill-imports/{id}": {
-        "get": {
-          "operationId": "skillImports.get",
-          "parameters": [
-            {
-              "name": "id",
-              "in": "path",
-              "required": true,
-              "schema": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
-              }
-            },
-            {
-              "name": "Bakery-Organization-Id",
-              "in": "header",
-              "required": true,
-              "schema": {
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "Successful response",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/SkillImportResult"
-                  }
-                }
-              }
-            },
-            "400": {
-              "description": "Malformed request."
-            },
-            "401": {
-              "description": "Authentication required."
-            },
-            "403": {
-              "description": "Forbidden."
-            },
-            "500": {
-              "description": "Internal server error."
-            }
-          }
-        }
-      },
       "/v1/skills": {
         "post": {
           "operationId": "skills.create",
@@ -22582,22 +22497,11 @@
               }
             },
             {
-              "name": "q",
-              "in": "query",
-              "required": false,
-              "schema": {
-                "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 200
-              }
-            },
-            {
               "name": "cursor",
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 512
@@ -22999,70 +22903,6 @@
           }
         }
       },
-      "/v1/skills/{id}/active-version": {
-        "post": {
-          "operationId": "skills.setActiveVersion",
-          "parameters": [
-            {
-              "name": "id",
-              "in": "path",
-              "required": true,
-              "schema": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
-              }
-            },
-            {
-              "name": "Bakery-Organization-Id",
-              "in": "header",
-              "required": true,
-              "schema": {
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "Successful response",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/Skill"
-                  }
-                }
-              }
-            },
-            "400": {
-              "description": "Malformed request."
-            },
-            "401": {
-              "description": "Authentication required."
-            },
-            "403": {
-              "description": "Forbidden."
-            },
-            "500": {
-              "description": "Internal server error."
-            }
-          },
-          "requestBody": {
-            "required": true,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SkillActiveVersionSet"
-                }
-              }
-            }
-          }
-        }
-      },
       "/v1/skills/{id}/draft": {
         "post": {
           "operationId": "skillDrafts.open",
@@ -23357,70 +23197,6 @@
           }
         }
       },
-      "/v1/skills/{id}/source-update/take": {
-        "post": {
-          "operationId": "skills.takeSourceUpdate",
-          "parameters": [
-            {
-              "name": "id",
-              "in": "path",
-              "required": true,
-              "schema": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
-              }
-            },
-            {
-              "name": "Bakery-Organization-Id",
-              "in": "header",
-              "required": true,
-              "schema": {
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "Successful response",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/Run"
-                  }
-                }
-              }
-            },
-            "400": {
-              "description": "Malformed request."
-            },
-            "401": {
-              "description": "Authentication required."
-            },
-            "403": {
-              "description": "Forbidden."
-            },
-            "500": {
-              "description": "Internal server error."
-            }
-          },
-          "requestBody": {
-            "required": true,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SkillSourceUpdateTake"
-                }
-              }
-            }
-          }
-        }
-      },
       "/v1/skills/{id}/draft/check": {
         "post": {
           "operationId": "skillDrafts.check",
@@ -23607,70 +23383,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SkillDraftFileSave"
-                }
-              }
-            }
-          }
-        }
-      },
-      "/v1/skills/{id}/draft/files/rename": {
-        "post": {
-          "operationId": "skillDraftFiles.rename",
-          "parameters": [
-            {
-              "name": "id",
-              "in": "path",
-              "required": true,
-              "schema": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
-              }
-            },
-            {
-              "name": "Bakery-Organization-Id",
-              "in": "header",
-              "required": true,
-              "schema": {
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "Successful response",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/SkillDraft"
-                  }
-                }
-              }
-            },
-            "400": {
-              "description": "Malformed request."
-            },
-            "401": {
-              "description": "Authentication required."
-            },
-            "403": {
-              "description": "Forbidden."
-            },
-            "500": {
-              "description": "Internal server error."
-            }
-          },
-          "requestBody": {
-            "required": true,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SkillDraftFileRename"
                 }
               }
             }
@@ -23981,18 +23693,6 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
-              }
-            },
-            {
-              "name": "Bakery-Organization-Id",
-              "in": "header",
-              "required": true,
-              "schema": {
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -40450,6 +40150,141 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/installation/updates/status": {
+        "get": {
+          "operationId": "installationUpdates.status",
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InstallationUpdateStatus"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/installation/updates": {
+        "get": {
+          "operationId": "installationUpdates.list",
+          "parameters": [
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<InstallationUpdateEvent>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/installation/updates/{id}/dismiss": {
+        "post": {
+          "operationId": "installationUpdates.dismiss",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InstallationUpdateEvent"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
             }
           }
         }
@@ -58493,7 +58328,6 @@
                 "skillSources.create",
                 "skillSources.update",
                 "skills.import",
-                "skillImports.get",
                 "skills.create",
                 "skills.copy",
                 "skills.list",
@@ -58501,17 +58335,14 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
-                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skills.sourceUpdate",
-                "skills.takeSourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
-                "skillDraftFiles.rename",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
@@ -58784,6 +58615,9 @@
                 "backups.drills.list",
                 "installationRestore.get",
                 "installationUncertainActions.get",
+                "installationUpdates.status",
+                "installationUpdates.list",
+                "installationUpdates.dismiss",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -60500,14 +60334,8 @@
                 "personal"
               ]
             },
-            "q": {
-              "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            },
             "cursor": {
-              "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
               "type": "string",
               "maxLength": 65536,
               "x-utf8-max-bytes": 512
@@ -60520,7 +60348,7 @@
             }
           },
           "additionalProperties": false,
-          "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
+          "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
         },
         "RepositoryCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -71224,6 +71052,14 @@
                 "any_user"
               ],
               "description": "Installation administrators only, or any authenticated human, may create organizations."
+            },
+            "updateFailurePolicy": {
+              "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
+              "type": "string",
+              "enum": [
+                "go_back",
+                "ask"
+              ]
             }
           },
           "required": [
@@ -83807,84 +83643,6 @@
           "properties": {},
           "additionalProperties": false,
           "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
-        },
-        "SkillActiveVersionSet": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
-            },
-            "versionId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
-            }
-          },
-          "required": [
-            "id",
-            "versionId"
-          ],
-          "additionalProperties": false,
-          "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
-        },
-        "SkillSourceUpdateTake": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
-            },
-            "revision": {
-              "type": "string",
-              "maxLength": 200,
-              "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed. SkillSourceUpdateTake.revision must contain at most 200 characters."
-            }
-          },
-          "required": [
-            "id",
-            "revision"
-          ],
-          "additionalProperties": false,
-          "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
-        },
-        "SkillDraftFileRename": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
-            },
-            "path": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 500,
-              "description": "Current relative path of the file in the draft. SkillDraftFileRename.path must contain at most 500 characters."
-            },
-            "newPath": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 500,
-              "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals. SkillDraftFileRename.newPath must contain at most 500 characters."
-            }
-          },
-          "required": [
-            "id",
-            "path",
-            "newPath"
-          ],
-          "additionalProperties": false,
-          "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -100671,20 +100429,6 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Stable UUID identifying the skill source record."
             },
-            "name": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "SkillSource.name may be null in this transport value."
-            },
             "sourceType": {
               "type": "string",
               "enum": [
@@ -100767,7 +100511,6 @@
           },
           "required": [
             "id",
-            "name",
             "sourceType",
             "locator",
             "publisher",
@@ -101106,20 +100849,6 @@
               "maxLength": 65536,
               "description": "Human-readable name displayed for the record."
             },
-            "description": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "Skill.description may be null in this transport value."
-            },
             "activeVersionId": {
               "anyOf": [
                 {
@@ -101217,7 +100946,6 @@
             "sourceId",
             "slug",
             "name",
-            "description",
             "activeVersionId",
             "enabled",
             "scope",
@@ -109692,7 +109420,6 @@
                 "skillSources.create",
                 "skillSources.update",
                 "skills.import",
-                "skillImports.get",
                 "skills.create",
                 "skills.copy",
                 "skills.list",
@@ -109700,17 +109427,14 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
-                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skills.sourceUpdate",
-                "skills.takeSourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
-                "skillDraftFiles.rename",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
@@ -109983,6 +109707,9 @@
                 "backups.drills.list",
                 "installationRestore.get",
                 "installationUncertainActions.get",
+                "installationUpdates.status",
+                "installationUpdates.list",
+                "installationUpdates.dismiss",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -110379,7 +110106,6 @@
                 "skillSources.create",
                 "skillSources.update",
                 "skills.import",
-                "skillImports.get",
                 "skills.create",
                 "skills.copy",
                 "skills.list",
@@ -110387,17 +110113,14 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
-                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skills.sourceUpdate",
-                "skills.takeSourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
-                "skillDraftFiles.rename",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
@@ -110670,6 +110393,9 @@
                 "backups.drills.list",
                 "installationRestore.get",
                 "installationUncertainActions.get",
+                "installationUpdates.status",
+                "installationUpdates.list",
+                "installationUpdates.dismiss",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -111066,7 +110792,6 @@
                 "skillSources.create",
                 "skillSources.update",
                 "skills.import",
-                "skillImports.get",
                 "skills.create",
                 "skills.copy",
                 "skills.list",
@@ -111074,17 +110799,14 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
-                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skills.sourceUpdate",
-                "skills.takeSourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
-                "skillDraftFiles.rename",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
@@ -111357,6 +111079,9 @@
                 "backups.drills.list",
                 "installationRestore.get",
                 "installationUncertainActions.get",
+                "installationUpdates.status",
+                "installationUpdates.list",
+                "installationUpdates.dismiss",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -153295,20 +153020,6 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Stable UUID identifying the skill source record."
                   },
-                  "name": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "SkillSource.name may be null in this transport value."
-                  },
                   "sourceType": {
                     "type": "string",
                     "enum": [
@@ -153391,7 +153102,6 @@
                 },
                 "required": [
                   "id",
-                  "name",
                   "sourceType",
                   "locator",
                   "publisher",
@@ -153500,20 +153210,6 @@
                     "maxLength": 65536,
                     "description": "Human-readable name displayed for the record."
                   },
-                  "description": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "Skill.description may be null in this transport value."
-                  },
                   "activeVersionId": {
                     "anyOf": [
                       {
@@ -153611,7 +153307,6 @@
                   "sourceId",
                   "slug",
                   "name",
-                  "description",
                   "activeVersionId",
                   "enabled",
                   "scope",
@@ -156956,7 +156651,6 @@
                       "skillSources.create",
                       "skillSources.update",
                       "skills.import",
-                      "skillImports.get",
                       "skills.create",
                       "skills.copy",
                       "skills.list",
@@ -156964,17 +156658,14 @@
                       "skills.get",
                       "skills.update",
                       "skills.usedBy",
-                      "skills.setActiveVersion",
                       "skillDrafts.open",
                       "skillDrafts.get",
                       "skillDrafts.update",
                       "skillDrafts.discard",
                       "skills.sourceUpdate",
-                      "skills.takeSourceUpdate",
                       "skillDrafts.check",
                       "skillDrafts.publish",
                       "skillDraftFiles.save",
-                      "skillDraftFiles.rename",
                       "skillDraftFiles.get",
                       "skillDraftFiles.delete",
                       "skills.useGrants.list",
@@ -157247,6 +156938,9 @@
                       "backups.drills.list",
                       "installationRestore.get",
                       "installationUncertainActions.get",
+                      "installationUpdates.status",
+                      "installationUpdates.list",
+                      "installationUpdates.dismiss",
                       "installationRestore.step",
                       "backups.status",
                       "backups.start",
@@ -217350,15 +217044,21 @@
             "updatePaused": {
               "type": "boolean",
               "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
+            },
+            "release": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
             }
           },
           "required": [
             "bootstrapped",
             "restoreHeld",
-            "updatePaused"
+            "updatePaused",
+            "release"
           ],
           "additionalProperties": false,
-          "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
+          "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity."
         },
         "BrowserSession": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -228194,8 +227894,8 @@
                   "skillSource:read",
                   "skillSource:manage",
                   "skill:manage",
-                  "skill:read",
                   "skill:author",
+                  "skill:read",
                   "library:read",
                   "skillVersion:read",
                   "skillVersion:readPinned",
@@ -235521,6 +235221,14 @@
               ],
               "description": "Installation administrators only, or any authenticated human, may create organizations."
             },
+            "updateFailurePolicy": {
+              "type": "string",
+              "enum": [
+                "go_back",
+                "ask"
+              ],
+              "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
+            },
             "version": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -235552,6 +235260,7 @@
           "required": [
             "registrationMode",
             "organizationCreationPolicy",
+            "updateFailurePolicy",
             "version",
             "updatedByPrincipalId",
             "updatedAt"
@@ -273777,6 +273486,329 @@
           "additionalProperties": false,
           "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
         },
+        "InstallationUpdateEvent": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The event's id, made by the launcher so a resent event is recorded once."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "installed",
+                "updated",
+                "rolled_back",
+                "went_back",
+                "refused",
+                "decided_go_back",
+                "decided_stay",
+                "interrupted"
+              ],
+              "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+            },
+            "at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it happened, on the server's clock."
+            },
+            "by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateEvent.by may be null in this transport value."
+            },
+            "fromRelease": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+            },
+            "toRelease": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The release id the event moved to or kept, or null when it does not apply."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateEvent.detail may be null in this transport value."
+            },
+            "dismissedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "at",
+            "by",
+            "fromRelease",
+            "toRelease",
+            "detail",
+            "dismissedAt"
+          ],
+          "additionalProperties": false,
+          "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+        },
+        "InstallationUpdateStatus": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "runningRelease": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id this server is running now."
+            },
+            "runningSince": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the launcher made this release the running one, or null when the history does not say."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateStatus.runningSince may be null in this transport value."
+            },
+            "healthy": {
+              "type": "boolean",
+              "description": "Whether this server's own health check passes: its database and configuration answer."
+            },
+            "previousRelease": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The release the launcher keeps so it can go back, or null when none is kept."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateStatus.previousRelease may be null in this transport value."
+            },
+            "previousRanFrom": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the kept release became the running one, or null when the history does not say."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateStatus.previousRanFrom may be null in this transport value."
+            },
+            "previousRanUntil": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the kept release stopped running, which is when the current one took over, or null when none is kept."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateStatus.previousRanUntil may be null in this transport value."
+            },
+            "lastFailure": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The event's id, made by the launcher so a resent event is recorded once."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "installed",
+                        "updated",
+                        "rolled_back",
+                        "went_back",
+                        "refused",
+                        "decided_go_back",
+                        "decided_stay",
+                        "interrupted"
+                      ],
+                      "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+                    },
+                    "at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "When it happened, on the server's clock."
+                    },
+                    "by": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "InstallationUpdateEvent.by may be null in this transport value."
+                    },
+                    "fromRelease": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+                    },
+                    "toRelease": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The release id the event moved to or kept, or null when it does not apply."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "InstallationUpdateEvent.detail may be null in this transport value."
+                    },
+                    "dismissedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "at",
+                    "by",
+                    "fromRelease",
+                    "toRelease",
+                    "detail",
+                    "dismissedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationUpdateStatus.lastFailure may be null in this transport value."
+            }
+          },
+          "required": [
+            "runningRelease",
+            "runningSince",
+            "healthy",
+            "previousRelease",
+            "previousRanFrom",
+            "previousRanUntil",
+            "lastFailure"
+          ],
+          "additionalProperties": false,
+          "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only."
+        },
         "BackupDrill": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -274122,6 +274154,181 @@
           ],
           "additionalProperties": false,
           "description": "Cursor page of BackupDrill."
+        },
+        "Page<InstallationUpdateEvent>": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The event's id, made by the launcher so a resent event is recorded once."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "installed",
+                      "updated",
+                      "rolled_back",
+                      "went_back",
+                      "refused",
+                      "decided_go_back",
+                      "decided_stay",
+                      "interrupted"
+                    ],
+                    "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it happened, on the server's clock."
+                  },
+                  "by": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "InstallationUpdateEvent.by may be null in this transport value."
+                  },
+                  "fromRelease": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+                  },
+                  "toRelease": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The release id the event moved to or kept, or null when it does not apply."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+                  },
+                  "detail": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "InstallationUpdateEvent.detail may be null in this transport value."
+                  },
+                  "dismissedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "at",
+                  "by",
+                  "fromRelease",
+                  "toRelease",
+                  "detail",
+                  "dismissedAt"
+                ],
+                "additionalProperties": false,
+                "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+              },
+              "description": "InstallationUpdateEvent items in this cursor page. Page<InstallationUpdateEvent>.items must contain at most 100 items."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Opaque continuation cursor value."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that no continuation page remains."
+                }
+              ],
+              "description": "Opaque continuation cursor, or null at the end."
+            },
+            "prevCursor": {
+              "description": "Page<InstallationUpdateEvent>.prevCursor may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<InstallationUpdateEvent>.prevCursor must contain at most 512 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 512
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "highwater": {
+              "description": "Page<InstallationUpdateEvent>.highwater may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Page<InstallationUpdateEvent>.highwater is a bounded decimal string.",
+                  "x-bigint-minimum": "0"
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "nextCursor"
+          ],
+          "additionalProperties": false,
+          "description": "Cursor page of InstallationUpdateEvent."
         },
         "WorkerHostCleanup": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -274737,83 +274944,6 @@
           "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
           "type": "string",
           "format": "binary"
-        },
-        "SkillImportResult": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "runId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID of the import run, as skills.import returned it."
-            },
-            "state": {
-              "type": "string",
-              "enum": [
-                "queued",
-                "resolved",
-                "reserved",
-                "stored",
-                "completed",
-                "failed"
-              ],
-              "description": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed."
-            },
-            "skillId": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "SkillImportResult.skillId may be null in this transport value."
-            },
-            "versionId": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "SkillImportResult.versionId may be null in this transport value."
-            },
-            "failureCode": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "SkillImportResult.failureCode may be null in this transport value."
-            }
-          },
-          "required": [
-            "runId",
-            "state",
-            "skillId",
-            "versionId",
-            "failureCode"
-          ],
-          "additionalProperties": false,
-          "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
         },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -276665,7 +276795,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8e4bec84e86456c1e88d4fdd7eca394b478988e0077f3837797bffd5f8894916",
+  "compatibilityDigest": "sha256:a8721cd04c1c5c1fc4036cd270953f30dada8993bfc16abdc29bca0373c60f74",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -284062,7 +284192,6 @@
             "skillSources.create",
             "skillSources.update",
             "skills.import",
-            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -284070,17 +284199,14 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
-            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
-            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
-            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -284353,6 +284479,9 @@
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -286071,14 +286200,8 @@
             "personal"
           ]
         },
-        "q": {
-          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
         "cursor": {
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
@@ -286091,7 +286214,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -296829,6 +296952,14 @@
             "any_user"
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
+        },
+        "updateFailurePolicy": {
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ]
         }
       },
       "required": [
@@ -309458,84 +309589,6 @@
       "properties": {},
       "additionalProperties": false,
       "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
-    },
-    "SkillActiveVersionSet": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
-        },
-        "versionId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
-        }
-      },
-      "required": [
-        "id",
-        "versionId"
-      ],
-      "additionalProperties": false,
-      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
-    },
-    "SkillSourceUpdateTake": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
-        },
-        "revision": {
-          "type": "string",
-          "maxLength": 200,
-          "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed. SkillSourceUpdateTake.revision must contain at most 200 characters."
-        }
-      },
-      "required": [
-        "id",
-        "revision"
-      ],
-      "additionalProperties": false,
-      "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
-    },
-    "SkillDraftFileRename": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
-        },
-        "path": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500,
-          "description": "Current relative path of the file in the draft. SkillDraftFileRename.path must contain at most 500 characters."
-        },
-        "newPath": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500,
-          "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals. SkillDraftFileRename.newPath must contain at most 500 characters."
-        }
-      },
-      "required": [
-        "id",
-        "path",
-        "newPath"
-      ],
-      "additionalProperties": false,
-      "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -326374,20 +326427,6 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID identifying the skill source record."
         },
-        "name": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "SkillSource.name may be null in this transport value."
-        },
         "sourceType": {
           "type": "string",
           "enum": [
@@ -326470,7 +326509,6 @@
       },
       "required": [
         "id",
-        "name",
         "sourceType",
         "locator",
         "publisher",
@@ -326809,20 +326847,6 @@
           "maxLength": 65536,
           "description": "Human-readable name displayed for the record."
         },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "Skill.description may be null in this transport value."
-        },
         "activeVersionId": {
           "anyOf": [
             {
@@ -326920,7 +326944,6 @@
         "sourceId",
         "slug",
         "name",
-        "description",
         "activeVersionId",
         "enabled",
         "scope",
@@ -335437,7 +335460,6 @@
             "skillSources.create",
             "skillSources.update",
             "skills.import",
-            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -335445,17 +335467,14 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
-            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
-            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
-            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -335728,6 +335747,9 @@
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -336124,7 +336146,6 @@
             "skillSources.create",
             "skillSources.update",
             "skills.import",
-            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -336132,17 +336153,14 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
-            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
-            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
-            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -336415,6 +336433,9 @@
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -336811,7 +336832,6 @@
             "skillSources.create",
             "skillSources.update",
             "skills.import",
-            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -336819,17 +336839,14 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
-            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
-            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
-            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -337102,6 +337119,9 @@
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -379178,20 +379198,6 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID identifying the skill source record."
               },
-              "name": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SkillSource.name may be null in this transport value."
-              },
               "sourceType": {
                 "type": "string",
                 "enum": [
@@ -379274,7 +379280,6 @@
             },
             "required": [
               "id",
-              "name",
               "sourceType",
               "locator",
               "publisher",
@@ -379383,20 +379388,6 @@
                 "maxLength": 65536,
                 "description": "Human-readable name displayed for the record."
               },
-              "description": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "Skill.description may be null in this transport value."
-              },
               "activeVersionId": {
                 "anyOf": [
                   {
@@ -379494,7 +379485,6 @@
               "sourceId",
               "slug",
               "name",
-              "description",
               "activeVersionId",
               "enabled",
               "scope",
@@ -382851,7 +382841,6 @@
                   "skillSources.create",
                   "skillSources.update",
                   "skills.import",
-                  "skillImports.get",
                   "skills.create",
                   "skills.copy",
                   "skills.list",
@@ -382859,17 +382848,14 @@
                   "skills.get",
                   "skills.update",
                   "skills.usedBy",
-                  "skills.setActiveVersion",
                   "skillDrafts.open",
                   "skillDrafts.get",
                   "skillDrafts.update",
                   "skillDrafts.discard",
                   "skills.sourceUpdate",
-                  "skills.takeSourceUpdate",
                   "skillDrafts.check",
                   "skillDrafts.publish",
                   "skillDraftFiles.save",
-                  "skillDraftFiles.rename",
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
@@ -383142,6 +383128,9 @@
                   "backups.drills.list",
                   "installationRestore.get",
                   "installationUncertainActions.get",
+                  "installationUpdates.status",
+                  "installationUpdates.list",
+                  "installationUpdates.dismiss",
                   "installationRestore.step",
                   "backups.status",
                   "backups.start",
@@ -443309,15 +443298,21 @@
         "updatePaused": {
           "type": "boolean",
           "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
+        },
+        "release": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
         }
       },
       "required": [
         "bootstrapped",
         "restoreHeld",
-        "updatePaused"
+        "updatePaused",
+        "release"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity."
     },
     "BrowserSession": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -454173,8 +454168,8 @@
               "skillSource:read",
               "skillSource:manage",
               "skill:manage",
-              "skill:read",
               "skill:author",
+              "skill:read",
               "library:read",
               "skillVersion:read",
               "skillVersion:readPinned",
@@ -461520,6 +461515,14 @@
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
         },
+        "updateFailurePolicy": {
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ],
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
+        },
         "version": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -461551,6 +461554,7 @@
       "required": [
         "registrationMode",
         "organizationCreationPolicy",
+        "updateFailurePolicy",
         "version",
         "updatedByPrincipalId",
         "updatedAt"
@@ -499832,6 +499836,329 @@
       "additionalProperties": false,
       "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
     },
+    "InstallationUpdateEvent": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The event's id, made by the launcher so a resent event is recorded once."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "installed",
+            "updated",
+            "rolled_back",
+            "went_back",
+            "refused",
+            "decided_go_back",
+            "decided_stay",
+            "interrupted"
+          ],
+          "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it happened, on the server's clock."
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.by may be null in this transport value."
+        },
+        "fromRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+        },
+        "toRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id the event moved to or kept, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The launcher's first line for a refusal, in words; null for every other kind."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.detail may be null in this transport value."
+        },
+        "dismissedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "at",
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+    },
+    "InstallationUpdateStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runningRelease": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running now."
+        },
+        "runningSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the launcher made this release the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.runningSince may be null in this transport value."
+        },
+        "healthy": {
+          "type": "boolean",
+          "description": "Whether this server's own health check passes: its database and configuration answer."
+        },
+        "previousRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release the launcher keeps so it can go back, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRelease may be null in this transport value."
+        },
+        "previousRanFrom": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release became the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanFrom may be null in this transport value."
+        },
+        "previousRanUntil": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release stopped running, which is when the current one took over, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanUntil may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The event's id, made by the launcher so a resent event is recorded once."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "installed",
+                    "updated",
+                    "rolled_back",
+                    "went_back",
+                    "refused",
+                    "decided_go_back",
+                    "decided_stay",
+                    "interrupted"
+                  ],
+                  "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When it happened, on the server's clock."
+                },
+                "by": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.by may be null in this transport value."
+                },
+                "fromRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+                },
+                "toRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id the event moved to or kept, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.detail may be null in this transport value."
+                },
+                "dismissedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "at",
+                "by",
+                "fromRelease",
+                "toRelease",
+                "detail",
+                "dismissedAt"
+              ],
+              "additionalProperties": false,
+              "description": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.lastFailure may be null in this transport value."
+        }
+      },
+      "required": [
+        "runningRelease",
+        "runningSince",
+        "healthy",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "additionalProperties": false,
+      "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only."
+    },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -500177,6 +500504,181 @@
       ],
       "additionalProperties": false,
       "description": "Cursor page of BackupDrill."
+    },
+    "Page<InstallationUpdateEvent>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The event's id, made by the launcher so a resent event is recorded once."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "installed",
+                  "updated",
+                  "rolled_back",
+                  "went_back",
+                  "refused",
+                  "decided_go_back",
+                  "decided_stay",
+                  "interrupted"
+                ],
+                "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it happened, on the server's clock."
+              },
+              "by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.by may be null in this transport value."
+              },
+              "fromRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+              },
+              "toRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id the event moved to or kept, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.detail may be null in this transport value."
+              },
+              "dismissedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "at",
+              "by",
+              "fromRelease",
+              "toRelease",
+              "detail",
+              "dismissedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+          },
+          "description": "InstallationUpdateEvent items in this cursor page. Page<InstallationUpdateEvent>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<InstallationUpdateEvent>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<InstallationUpdateEvent>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<InstallationUpdateEvent>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<InstallationUpdateEvent>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of InstallationUpdateEvent."
     },
     "WorkerHostCleanup": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -500794,83 +501296,6 @@
       "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
       "type": "string",
       "format": "binary"
-    },
-    "SkillImportResult": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "runId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of the import run, as skills.import returned it."
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "queued",
-            "resolved",
-            "reserved",
-            "stored",
-            "completed",
-            "failed"
-          ],
-          "description": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed."
-        },
-        "skillId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "SkillImportResult.skillId may be null in this transport value."
-        },
-        "versionId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "SkillImportResult.versionId may be null in this transport value."
-        },
-        "failureCode": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "SkillImportResult.failureCode may be null in this transport value."
-        }
-      },
-      "required": [
-        "runId",
-        "state",
-        "skillId",
-        "versionId",
-        "failureCode"
-      ],
-      "additionalProperties": false,
-      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
