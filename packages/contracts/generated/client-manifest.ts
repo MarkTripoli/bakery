@@ -5325,7 +5325,7 @@ export const clientManifest = {
       "action": "workers.list",
       "access": "Developer",
       "permission": "worker:read",
-      "input": "CursorQuery",
+      "input": "WorkerListQuery",
       "output": "Page<WorkerHost>",
       "event": "",
       "mcp": "bakery_workers_list",
@@ -5658,6 +5658,99 @@ export const clientManifest = {
     {
       "group": "Workers",
       "method": "POST",
+      "path": "/v1/workers/{id}/maintenance",
+      "action": "workerMaintenance.create",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerMaintenanceCreate",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/maintenance",
+      "action": "workerMaintenance.list",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkerMaintenanceOperation>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/maintenance/{operationId}",
+      "action": "workerMaintenance.get",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "IdPath",
+      "output": "WorkerMaintenanceOperation",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/workers/{id}/maintenance/{operationId}/cancellations",
+      "action": "workerMaintenance.cancel",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "Empty",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; canceling a canceled operation returns it unchanged",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
       "path": "/v1/workers/{id}/enrollments",
       "action": "workers.repairEnrollment",
       "access": "Admin",
@@ -5768,6 +5861,29 @@ export const clientManifest = {
       "event": "worker.updated",
       "mcp": "",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/workers/{id}/archives",
+      "action": "workers.archive",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "IdPath",
+      "output": "WorkerHost",
+      "event": "worker.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; archiving an archived host returns its archived state",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -6170,6 +6286,30 @@ export const clientManifest = {
       "event": "worker.provider_binding_changed",
       "mcp": "",
       "idempotency": "Idempotency-Key required; report_id replays exactly",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/maintenance/{operationId}/reports",
+      "action": "worker.reportMaintenance",
+      "access": "Worker",
+      "permission": null,
+      "input": "WorkerMaintenanceReport",
+      "output": "WorkerMaintenanceOperation",
+      "event": "worker.maintenance_updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; the per-operation sequence replays exactly",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -7451,7 +7591,7 @@ export const clientManifest = {
       "action": "evaluationBatches.list",
       "access": "Developer",
       "permission": "evaluationRun:read",
-      "input": "CursorQuery",
+      "input": "EvaluationBatchListQuery",
       "output": "Page<EvaluationBatch>",
       "event": "",
       "mcp": "",
@@ -7508,6 +7648,30 @@ export const clientManifest = {
         "RESOURCE_NOT_FOUND",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/run",
+      "action": "evaluationBatches.run",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchRun",
+      "output": "EvaluationBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
         "UNPROCESSABLE"
       ],
       "organizationContext": "required_authenticated_context",
@@ -19063,11 +19227,16 @@ export const clientManifest = {
             "worker.pollLinkRequest",
             "worker.reportInventory",
             "workerComponents.list",
+            "workerMaintenance.create",
+            "workerMaintenance.list",
+            "workerMaintenance.get",
+            "workerMaintenance.cancel",
             "workers.repairEnrollment",
             "workerLinkRequests.find",
             "workerLinkRequests.approve",
             "workerLinkRequests.decline",
             "workers.revoke",
+            "workers.archive",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
             "providerRoutes.list",
@@ -19085,6 +19254,7 @@ export const clientManifest = {
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -19164,6 +19334,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",
@@ -22502,6 +22673,105 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Admin creation of one provider binding: an explicit authorized account placement naming provider, billing route, harness component and credential location for one machine."
+    },
+    "WorkerMaintenanceCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "verb": {
+          "type": "string",
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb. refresh_inventory and verify only read the host; every other verb changes it and closes the machine's claim gate until the operation ends."
+        },
+        "componentKey": {
+          "description": "Inventory component key the verb acts on. Required for install, update, rollback and remove; optional for verify; not allowed for refresh_inventory. An existing component must be Bakery-managed, never an external install. WorkerMaintenanceCreate.componentKey must contain at most 255 characters.",
+          "type": "string",
+          "maxLength": 255
+        },
+        "targetVersion": {
+          "description": "Exact version to install, update or roll back to. Required for install_component and update_component; not allowed for refresh_inventory, verify or remove_component. WorkerMaintenanceCreate.targetVersion must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "targetDigest": {
+          "description": "Lowercase hex SHA-256 of the release manifest the target version must match; only allowed together with targetVersion.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedInventoryRevision": {
+          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "verb"
+      ],
+      "additionalProperties": false,
+      "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
+    "WorkerMaintenanceReport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "fence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        "installedDigest": {
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "installedVersion": {
+          "description": "Version string actually installed now, as the host adapter reports it. WorkerMaintenanceReport.installedVersion must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "reason": {
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone. WorkerMaintenanceReport.reason must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "diagnostic": {
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it. WorkerMaintenanceReport.diagnostic must contain at most 8192 characters.",
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "fence",
+        "sequence",
+        "phase"
+      ],
+      "additionalProperties": false,
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
     },
     "WorkerProviderBindingUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31911,7 +32181,7 @@ export const clientManifest = {
           "description": "The immutable dataset the batch measures."
         },
         "candidate": {
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. EvaluationBatchCreate.candidate must contain at most 4000 UTF-8 bytes.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused. EvaluationBatchCreate.candidate must contain at most 4000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -31951,7 +32221,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 4000
         },
         "baseline": {
-          "description": "Optional pin of what the candidate is compared with, in the same shape. EvaluationBatchCreate.baseline must contain at most 4000 UTF-8 bytes.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape. EvaluationBatchCreate.baseline must contain at most 4000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -32001,6 +32271,17 @@ export const clientManifest = {
             "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. Each array item follows this format."
           },
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. EvaluationBatchCreate.scorerIds must contain at least 1 items. EvaluationBatchCreate.scorerIds must contain at most 50 items."
+        },
+        "optionalScorerIds": {
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away. EvaluationBatchCreate.optionalScorerIds must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away. Each array item follows this format."
+          }
         },
         "requireAllPassed": {
           "description": "Gate rule: every required result must pass. Defaults to true.",
@@ -32256,6 +32537,39 @@ export const clientManifest = {
         }
       }
     },
+    "EvaluationBatchListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pinDigest": {
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it. EvaluationBatchListQuery.pinDigest must contain at most 64 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 64
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationBatchListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationBatchListQuery.limit must be at least 1. EvaluationBatchListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
+    },
+    "EvaluationBatchRun": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -32297,6 +32611,10 @@ export const clientManifest = {
             "missing"
           ]
         },
+        "required": {
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both.",
+          "type": "boolean"
+        },
         "cursor": {
           "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationResultQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
@@ -32311,7 +32629,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -33144,6 +33462,30 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "WorkerListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "Opaque continuation token from a previous page of the machine list, bound to the caller, organization and includeArchived choice; pass it back verbatim. WorkerListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Most machines returned in one page; defaults to 25 and cannot exceed 100. WorkerListQuery.limit must be at least 1. WorkerListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeArchived": {
+          "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
     },
     "WorkerLinkCodeInspect": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -47082,11 +47424,16 @@ export const clientManifest = {
                   "worker.pollLinkRequest",
                   "worker.reportInventory",
                   "workerComponents.list",
+                  "workerMaintenance.create",
+                  "workerMaintenance.list",
+                  "workerMaintenance.get",
+                  "workerMaintenance.cancel",
                   "workers.repairEnrollment",
                   "workerLinkRequests.find",
                   "workerLinkRequests.approve",
                   "workerLinkRequests.decline",
                   "workers.revoke",
+                  "workers.archive",
                   "modelProviderAccounts.list",
                   "workerProviderBindings.list",
                   "providerRoutes.list",
@@ -47104,6 +47451,7 @@ export const clientManifest = {
                   "workerProviderAuth.get",
                   "workerProviderAuth.cancel",
                   "worker.reportProviderAuth",
+                  "worker.reportMaintenance",
                   "workers.update",
                   "jobs.list",
                   "jobAttempts.list",
@@ -47183,6 +47531,7 @@ export const clientManifest = {
                   "evaluationBatches.list",
                   "evaluationBatches.get",
                   "evaluationBatches.cancel",
+                  "evaluationBatches.run",
                   "evaluationBatches.compare",
                   "evaluationBatchResults.list",
                   "evaluationAttempts.list",
@@ -48914,6 +49263,72 @@ export const clientManifest = {
                 "maximum": 9007199254740991,
                 "description": "Credential generation loaded by the worker host."
               },
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerHost.archivedAt may be null in this transport value."
+              },
+              "cleanup": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "not_requested",
+                      "unconfirmed",
+                      "confirmed"
+                    ],
+                    "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+                  },
+                  "requestedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+                  },
+                  "confirmedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "state",
+                  "requestedAt",
+                  "confirmedAt"
+                ],
+                "additionalProperties": false,
+                "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -48945,12 +49360,14 @@ export const clientManifest = {
               "status",
               "lastHeartbeatAt",
               "credentialGeneration",
+              "archivedAt",
+              "cleanup",
               "createdAt",
               "updatedAt",
               "version"
             ],
             "additionalProperties": false,
-            "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response."
+            "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list."
           },
           "description": "WorkerHost items in this cursor page. Page<WorkerHost>.items must contain at most 100 items."
         },
@@ -49950,6 +50367,722 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of WorkerComponent.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "WorkerMaintenanceOperation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the maintenance operation."
+        },
+        "workerHostId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Machine the operation runs on."
+        },
+        "verb": {
+          "type": "string",
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine."
+        },
+        "componentKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.componentKey may be null in the safe projection."
+        },
+        "targetVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Exact version the operation installs, updates or rolls back to, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.targetVersion may be null in the safe projection."
+        },
+        "targetDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the release manifest the target version must match, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.targetDigest may be null in the safe projection."
+        },
+        "requestedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal ID of the Admin who requested the operation."
+        },
+        "expectedInventoryRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory."
+        },
+        "expectedCredentialGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Machine credential generation at request time; a re-paired machine cannot pick up the operation."
+        },
+        "capturedDesiredMode": {
+          "type": "string",
+          "enum": [
+            "accepting",
+            "paused",
+            "draining",
+            "revoked"
+          ],
+          "description": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it."
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "waiting_for_idle",
+            "assigned",
+            "applying",
+            "reconciling",
+            "succeeded",
+            "failed",
+            "canceled",
+            "expired",
+            "needs_attention"
+          ],
+          "description": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown."
+        },
+        "deadlineAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request)."
+        },
+        "result": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Bounded, redacted outcome reported for a finished operation, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerMaintenanceOperation.result may be null in the safe projection."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the operation was requested."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last phase change."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Row version, incremented on every phase change."
+        }
+      },
+      "required": [
+        "id",
+        "workerHostId",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "requestedBy",
+        "expectedInventoryRevision",
+        "expectedCredentialGeneration",
+        "capturedDesiredMode",
+        "phase",
+        "deadlineAt",
+        "expiresAt",
+        "result",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "Page<WorkerMaintenanceOperation>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the maintenance operation."
+              },
+              "workerHostId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Machine the operation runs on."
+              },
+              "verb": {
+                "type": "string",
+                "enum": [
+                  "refresh_inventory",
+                  "verify",
+                  "install_component",
+                  "update_component",
+                  "rollback_component",
+                  "remove_component"
+                ],
+                "description": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine."
+              },
+              "componentKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Inventory component the verb acts on, or null for whole-machine verbs."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.componentKey may be null in the safe projection."
+              },
+              "targetVersion": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Exact version the operation installs, updates or rolls back to, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.targetVersion may be null in the safe projection."
+              },
+              "targetDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "SHA-256 of the release manifest the target version must match, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.targetDigest may be null in the safe projection."
+              },
+              "requestedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal ID of the Admin who requested the operation."
+              },
+              "expectedInventoryRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory."
+              },
+              "expectedCredentialGeneration": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Machine credential generation at request time; a re-paired machine cannot pick up the operation."
+              },
+              "capturedDesiredMode": {
+                "type": "string",
+                "enum": [
+                  "accepting",
+                  "paused",
+                  "draining",
+                  "revoked"
+                ],
+                "description": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it."
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "waiting_for_idle",
+                  "assigned",
+                  "applying",
+                  "reconciling",
+                  "succeeded",
+                  "failed",
+                  "canceled",
+                  "expired",
+                  "needs_attention"
+                ],
+                "description": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown."
+              },
+              "deadlineAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request)."
+              },
+              "result": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Bounded, redacted outcome reported for a finished operation, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerMaintenanceOperation.result may be null in the safe projection."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the operation was requested."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the last phase change."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Row version, incremented on every phase change."
+              }
+            },
+            "required": [
+              "id",
+              "workerHostId",
+              "verb",
+              "componentKey",
+              "targetVersion",
+              "targetDigest",
+              "requestedBy",
+              "expectedInventoryRevision",
+              "expectedCredentialGeneration",
+              "capturedDesiredMode",
+              "phase",
+              "deadlineAt",
+              "expiresAt",
+              "result",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets."
+          },
+          "description": "WorkerMaintenanceOperation items in this cursor page. Page<WorkerMaintenanceOperation>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<WorkerMaintenanceOperation>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkerMaintenanceOperation>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<WorkerMaintenanceOperation>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<WorkerMaintenanceOperation>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of WorkerMaintenanceOperation.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -67611,11 +68744,16 @@ export const clientManifest = {
             "worker.pollLinkRequest",
             "worker.reportInventory",
             "workerComponents.list",
+            "workerMaintenance.create",
+            "workerMaintenance.list",
+            "workerMaintenance.get",
+            "workerMaintenance.cancel",
             "workers.repairEnrollment",
             "workerLinkRequests.find",
             "workerLinkRequests.approve",
             "workerLinkRequests.decline",
             "workers.revoke",
+            "workers.archive",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
             "providerRoutes.list",
@@ -67633,6 +68771,7 @@ export const clientManifest = {
             "workerProviderAuth.get",
             "workerProviderAuth.cancel",
             "worker.reportProviderAuth",
+            "worker.reportMaintenance",
             "workers.update",
             "jobs.list",
             "jobAttempts.list",
@@ -67712,6 +68851,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",
@@ -69143,6 +70283,72 @@ export const clientManifest = {
           "maximum": 9007199254740991,
           "description": "Credential generation loaded by the worker host."
         },
+        "archivedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkerHost.archivedAt may be null in this transport value."
+        },
+        "cleanup": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "not_requested",
+                "unconfirmed",
+                "confirmed"
+              ],
+              "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+            },
+            "requestedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+            },
+            "confirmedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "state",
+            "requestedAt",
+            "confirmedAt"
+          ],
+          "additionalProperties": false,
+          "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -69174,12 +70380,14 @@ export const clientManifest = {
         "status",
         "lastHeartbeatAt",
         "credentialGeneration",
+        "archivedAt",
+        "cleanup",
         "createdAt",
         "updatedAt",
         "version"
       ],
       "additionalProperties": false,
-      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
+      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -73753,6 +74961,72 @@ export const clientManifest = {
                   "maximum": 9007199254740991,
                   "description": "Credential generation loaded by the worker host."
                 },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "WorkerHost.archivedAt may be null in this transport value."
+                },
+                "cleanup": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "not_requested",
+                        "unconfirmed",
+                        "confirmed"
+                      ],
+                      "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+                    },
+                    "requestedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+                    },
+                    "confirmedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "requestedAt",
+                    "confirmedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -73784,6 +75058,8 @@ export const clientManifest = {
                 "status",
                 "lastHeartbeatAt",
                 "credentialGeneration",
+                "archivedAt",
+                "cleanup",
                 "createdAt",
                 "updatedAt",
                 "version"
@@ -110736,18 +112012,28 @@ export const clientManifest = {
                   "model"
                 ],
                 "description": "Deterministic check or model rubric."
+              },
+              "required": {
+                "type": "boolean",
+                "description": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
               }
             },
             "required": [
               "scorerId",
               "slug",
               "scorerRevision",
-              "evaluatorType"
+              "evaluatorType",
+              "required"
             ],
             "additionalProperties": false,
-            "description": "The scorer revisions pinned. Each array item follows this format."
+            "description": "The scorer revisions pinned, each with whether the gate requires it. Each array item follows this format."
           },
-          "description": "The scorer revisions pinned."
+          "description": "The scorer revisions pinned, each with whether the gate requires it."
+        },
+        "pinDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it."
         },
         "state": {
           "type": "string",
@@ -110830,6 +112116,304 @@ export const clientManifest = {
           ],
           "additionalProperties": false,
           "description": "Required candidate results per state."
+        },
+        "report": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results in the set."
+            },
+            "attempted": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results with at least one attempt."
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, and the latest attempt measured a pass."
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, and the latest attempt measured a fail."
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+            },
+            "unrun": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Never attempted: neither a pass nor a failure."
+            },
+            "interrupted": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results with at least one attempt that was interrupted before it measured anything."
+            },
+            "recovered": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Of those, results whose latest attempt measured a pass or a fail."
+            },
+            "passedOfAttempted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "passed divided by attempted; null when nothing was attempted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+            },
+            "failedOfAttempted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "failed divided by attempted; null when nothing was attempted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+            },
+            "recoveredOfInterrupted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "recovered divided by interrupted; null when nothing was interrupted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+            }
+          },
+          "required": [
+            "total",
+            "attempted",
+            "passed",
+            "failed",
+            "unknown",
+            "unrun",
+            "interrupted",
+            "recovered",
+            "passedOfAttempted",
+            "failedOfAttempted",
+            "recoveredOfInterrupted"
+          ],
+          "additionalProperties": false,
+          "description": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those."
+        },
+        "optionalReport": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results in the set."
+                },
+                "attempted": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results with at least one attempt."
+                },
+                "passed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, and the latest attempt measured a pass."
+                },
+                "failed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, and the latest attempt measured a fail."
+                },
+                "unknown": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                },
+                "unrun": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Never attempted: neither a pass nor a failure."
+                },
+                "interrupted": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results with at least one attempt that was interrupted before it measured anything."
+                },
+                "recovered": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Of those, results whose latest attempt measured a pass or a fail."
+                },
+                "passedOfAttempted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "passed divided by attempted; null when nothing was attempted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                },
+                "failedOfAttempted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "failed divided by attempted; null when nothing was attempted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                },
+                "recoveredOfInterrupted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "recovered divided by interrupted; null when nothing was interrupted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                }
+              },
+              "required": [
+                "total",
+                "attempted",
+                "passed",
+                "failed",
+                "unknown",
+                "unrun",
+                "interrupted",
+                "recovered",
+                "passedOfAttempted",
+                "failedOfAttempted",
+                "recoveredOfInterrupted"
+              ],
+              "additionalProperties": false,
+              "description": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.optionalReport may be null in this transport value."
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "limitUsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                  "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.limitUsd may be null in this transport value."
+            },
+            "settledUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+            },
+            "estimatedUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+            },
+            "unknownCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "none",
+                "within",
+                "exhausted",
+                "unsettled"
+              ],
+              "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+            },
+            "blocksNewAttempts": {
+              "type": "boolean",
+              "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+            },
+            "oldestUnknownAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "limitUsd",
+            "settledUsd",
+            "estimatedUsd",
+            "unknownCount",
+            "status",
+            "blocksNewAttempts",
+            "oldestUnknownAt"
+          ],
+          "additionalProperties": false,
+          "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
         },
         "gate": {
           "type": "object",
@@ -110978,10 +112562,14 @@ export const clientManifest = {
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -111446,18 +113034,28 @@ export const clientManifest = {
                         "model"
                       ],
                       "description": "Deterministic check or model rubric."
+                    },
+                    "required": {
+                      "type": "boolean",
+                      "description": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
                     }
                   },
                   "required": [
                     "scorerId",
                     "slug",
                     "scorerRevision",
-                    "evaluatorType"
+                    "evaluatorType",
+                    "required"
                   ],
                   "additionalProperties": false,
-                  "description": "The scorer revisions pinned. Each array item follows this format."
+                  "description": "The scorer revisions pinned, each with whether the gate requires it. Each array item follows this format."
                 },
-                "description": "The scorer revisions pinned."
+                "description": "The scorer revisions pinned, each with whether the gate requires it."
+              },
+              "pinDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it."
               },
               "state": {
                 "type": "string",
@@ -111540,6 +113138,304 @@ export const clientManifest = {
                 ],
                 "additionalProperties": false,
                 "description": "Required candidate results per state."
+              },
+              "report": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results in the set."
+                  },
+                  "attempted": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results with at least one attempt."
+                  },
+                  "passed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, and the latest attempt measured a pass."
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, and the latest attempt measured a fail."
+                  },
+                  "unknown": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                  },
+                  "unrun": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Never attempted: neither a pass nor a failure."
+                  },
+                  "interrupted": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results with at least one attempt that was interrupted before it measured anything."
+                  },
+                  "recovered": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Of those, results whose latest attempt measured a pass or a fail."
+                  },
+                  "passedOfAttempted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "passed divided by attempted; null when nothing was attempted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                  },
+                  "failedOfAttempted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "failed divided by attempted; null when nothing was attempted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                  },
+                  "recoveredOfInterrupted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "recovered divided by interrupted; null when nothing was interrupted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "total",
+                  "attempted",
+                  "passed",
+                  "failed",
+                  "unknown",
+                  "unrun",
+                  "interrupted",
+                  "recovered",
+                  "passedOfAttempted",
+                  "failedOfAttempted",
+                  "recoveredOfInterrupted"
+                ],
+                "additionalProperties": false,
+                "description": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those."
+              },
+              "optionalReport": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "total": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results in the set."
+                      },
+                      "attempted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results with at least one attempt."
+                      },
+                      "passed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, and the latest attempt measured a pass."
+                      },
+                      "failed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, and the latest attempt measured a fail."
+                      },
+                      "unknown": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                      },
+                      "unrun": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Never attempted: neither a pass nor a failure."
+                      },
+                      "interrupted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results with at least one attempt that was interrupted before it measured anything."
+                      },
+                      "recovered": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Of those, results whose latest attempt measured a pass or a fail."
+                      },
+                      "passedOfAttempted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "passed divided by attempted; null when nothing was attempted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                      },
+                      "failedOfAttempted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "failed divided by attempted; null when nothing was attempted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                      },
+                      "recoveredOfInterrupted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "recovered divided by interrupted; null when nothing was interrupted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "total",
+                      "attempted",
+                      "passed",
+                      "failed",
+                      "unknown",
+                      "unrun",
+                      "interrupted",
+                      "recovered",
+                      "passedOfAttempted",
+                      "failedOfAttempted",
+                      "recoveredOfInterrupted"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.optionalReport may be null in this transport value."
+              },
+              "budget": {
+                "type": "object",
+                "properties": {
+                  "limitUsd": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                        "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.limitUsd may be null in this transport value."
+                  },
+                  "settledUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+                  },
+                  "estimatedUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+                  },
+                  "unknownCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "within",
+                      "exhausted",
+                      "unsettled"
+                    ],
+                    "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                  },
+                  "blocksNewAttempts": {
+                    "type": "boolean",
+                    "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+                  },
+                  "oldestUnknownAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "limitUsd",
+                  "settledUsd",
+                  "estimatedUsd",
+                  "unknownCount",
+                  "status",
+                  "blocksNewAttempts",
+                  "oldestUnknownAt"
+                ],
+                "additionalProperties": false,
+                "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
               },
               "gate": {
                 "type": "object",
@@ -111688,10 +113584,14 @@ export const clientManifest = {
               "baseline",
               "baselineDefinition",
               "scorers",
+              "pinDigest",
               "state",
               "requiredCount",
               "measuredCount",
               "counts",
+              "report",
+              "optionalReport",
+              "budget",
               "gate",
               "hiddenCount",
               "canceledAt",
@@ -112049,7 +113949,7 @@ export const clientManifest = {
               },
               "required": {
                 "type": "boolean",
-                "description": "Whether the gate needs it."
+                "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
               },
               "state": {
                 "type": "string",
@@ -112231,9 +114131,10 @@ export const clientManifest = {
                   "unscored",
                   "canceled",
                   "skipped",
-                  "missing"
+                  "missing",
+                  "interrupted"
                 ],
-                "description": "The attempt's outcome state."
+                "description": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered."
               },
               "reason": {
                 "anyOf": [
@@ -112306,6 +114207,49 @@ export const clientManifest = {
                 ],
                 "description": "EvaluationAttempt.traceRef may be null in this transport value."
               },
+              "usage": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "measurement": {
+                        "type": "string",
+                        "enum": [
+                          "reported",
+                          "estimated",
+                          "unknown"
+                        ],
+                        "description": "reported by the provider, estimated by Bakery, or unknown."
+                      },
+                      "costUsd": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                            "description": "Cost in USD; null when unknown. Never zero for an unknown cost."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationAttemptUsage.costUsd may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "measurement",
+                      "costUsd"
+                    ],
+                    "additionalProperties": false,
+                    "description": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.usage may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -112323,6 +114267,7 @@ export const clientManifest = {
               "startedAt",
               "endedAt",
               "traceRef",
+              "usage",
               "createdAt"
             ],
             "additionalProperties": false,

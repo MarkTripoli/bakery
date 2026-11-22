@@ -12,6 +12,7 @@ import { ensureRegistration, RegistrationStore } from "./registration.ts";
 import { EventSpool } from "./spool.ts";
 import {
   createSupervisorState,
+  type SupervisorMaintenance,
   type SupervisorState,
 } from "./supervisor-state.ts";
 import { withControlPlane as serializeControlPlane } from "./supervisor-control-plane.ts";
@@ -80,6 +81,7 @@ export class WorkerSupervisor {
     executor?: WorkerExecutor;
     preparedSecretInvoker?: PreparedSecretInvoker;
     skillMaterializer?: Pick<SkillMaterializer, "prepare" | "recover">;
+    maintenance?: SupervisorMaintenance;
     sleep?: Sleep;
     monotonicNow?: () => number;
     monitoring?: RuntimeMonitoring;

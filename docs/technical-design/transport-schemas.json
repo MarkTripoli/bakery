@@ -5519,6 +5519,135 @@
       ],
       "description": "Admin creation of one provider binding: an explicit authorized account placement naming provider, billing route, harness component and credential location for one machine."
     },
+    "WorkerMaintenanceCreate": {
+      "fields": [
+        {
+          "name": "verb",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb. refresh_inventory and verify only read the host; every other verb changes it and closes the machine's claim gate until the operation ends."
+        },
+        {
+          "name": "componentKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 255
+          },
+          "description": "Inventory component key the verb acts on. Required for install, update, rollback and remove; optional for verify; not allowed for refresh_inventory. An existing component must be Bakery-managed, never an external install."
+        },
+        {
+          "name": "targetVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Exact version to install, update or roll back to. Required for install_component and update_component; not allowed for refresh_inventory, verify or remove_component."
+        },
+        {
+          "name": "targetDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest the target version must match; only allowed together with targetVersion."
+        },
+        {
+          "name": "expectedInventoryRevision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; the same key with the same body replays the original operation, with a different body it is IDEMPOTENCY_PAYLOAD_MISMATCH.",
+        "At most one unfinished mutating operation per machine: a second is STATE_CONFLICT with reason maintenance_in_progress.",
+        "A revoked machine is STATE_CONFLICT. An externally managed component is UNPROCESSABLE with reason externally_managed.",
+        "Never cancels or changes running task attempts: a busy machine starts in waiting_for_idle."
+      ],
+      "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
+    "WorkerMaintenanceReport": {
+      "fields": [
+        {
+          "name": "fence",
+          "type": "decimalString",
+          "required": true,
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        {
+          "name": "phase",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        {
+          "name": "installedDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest."
+        },
+        {
+          "name": "installedVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Version string actually installed now, as the host adapter reports it."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone."
+        },
+        {
+          "name": "diagnostic",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 8192
+          },
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it."
+        }
+      ],
+      "rules": [
+        "The operation must belong to the calling machine at its current credential generation.",
+        "Reports are accepted only while the operation is assigned, applying or reconciling; a finished operation refuses new reports with STATE_CONFLICT except exact replays.",
+        "A reconciling operation reaches succeeded or failed only from a report that carries installedDigest, or for remove_component a report without it whose reason is removed."
+      ],
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
+    },
     "WorkerProviderBindingUpdate": {
       "fields": [
         {
@@ -13964,7 +14093,7 @@
           "name": "candidate",
           "type": "json",
           "required": true,
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -13973,7 +14102,7 @@
           "name": "baseline",
           "type": "json",
           "required": false,
-          "description": "Optional pin of what the candidate is compared with, in the same shape.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -13985,6 +14114,15 @@
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers.",
           "bounds": {
             "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        {
+          "name": "optionalScorerIds",
+          "type": "uuid[]",
+          "required": false,
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away.",
+          "bounds": {
             "maxItems": 50
           }
         },
@@ -14027,6 +14165,48 @@
       ],
       "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent."
     },
+    "EvaluationBatchListQuery": {
+      "fields": [
+        {
+          "name": "pinDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 64
+          },
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
+    },
+    "EvaluationBatchRun": {
+      "fields": [],
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "fields": [],
       "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."
@@ -14060,6 +14240,12 @@
           ]
         },
         {
+          "name": "required",
+          "type": "boolean",
+          "required": false,
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -14084,7 +14270,7 @@
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "fields": [
@@ -14480,6 +14666,41 @@
         "Only the host runner credential; never a session or access token. Ignored while Restore to any minute is off. The newest bound never moves backwards, so a late report cannot shrink the window."
       ],
       "description": "The host runner's report of the restorable window it holds off-site."
+    },
+    "WorkerListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of the machine list, bound to the caller, organization and includeArchived choice; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most machines returned in one page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "includeArchived",
+          "type": "boolean",
+          "required": false,
+          "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip. Order is createdAt then id ascending; a cursor is good only with the same includeArchived value."
+      ],
+      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
     },
     "WorkerLinkCodeInspect": {
       "fields": [
@@ -20575,6 +20796,77 @@
       "pageOf": "WorkerComponent",
       "description": "Cursor page of one machine's typed installed/available component inventory, projected from the latest accepted worker inventory report; Developer-readable and free of host-local paths or secret material."
     },
+    "WorkerMaintenanceOperation": {
+      "projection": "worker_maintenance_operations",
+      "fields": [
+        "id",
+        "workerHostId",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "requestedBy",
+        "expectedInventoryRevision",
+        "expectedCredentialGeneration",
+        "capturedDesiredMode",
+        "phase",
+        "deadlineAt",
+        "expiresAt",
+        "result",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "result"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workerHostId": "uuid",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "requestedBy": "uuid",
+        "expectedInventoryRevision": "integer",
+        "expectedCredentialGeneration": "integer",
+        "capturedDesiredMode": "enum(accepting|paused|draining|revoked)",
+        "phase": "enum(queued|waiting_for_idle|assigned|applying|reconciling|succeeded|failed|canceled|expired|needs_attention)",
+        "deadlineAt": "timestamp",
+        "expiresAt": "timestamp",
+        "result": "json",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the maintenance operation.",
+        "workerHostId": "Machine the operation runs on.",
+        "verb": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version the operation installs, updates or rolls back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the target version must match, or null.",
+        "requestedBy": "Principal ID of the Admin who requested the operation.",
+        "expectedInventoryRevision": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory.",
+        "expectedCredentialGeneration": "Machine credential generation at request time; a re-paired machine cannot pick up the operation.",
+        "capturedDesiredMode": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it.",
+        "phase": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown.",
+        "deadlineAt": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled.",
+        "expiresAt": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request).",
+        "result": "Bounded, redacted outcome reported for a finished operation, or null.",
+        "createdAt": "UTC timestamp when the operation was requested.",
+        "updatedAt": "UTC timestamp of the last phase change.",
+        "version": "Row version, incremented on every phase change."
+      }
+    },
+    "Page<WorkerMaintenanceOperation>": {
+      "pageOf": "WorkerMaintenanceOperation",
+      "description": "Cursor page of one machine's maintenance operations, newest first; Developer-readable and free of shell input, host paths or secret material."
+    },
     "Page<ModelProviderAccount>": {
       "pageOf": "ModelProviderAccount",
       "description": "Cursor page of the organization's provider accounts with safe display identities and known/unknown account-level quota observations; Admin-only and never carrying billing identity values."
@@ -24194,6 +24486,8 @@
         "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
+        "archivedAt",
+        "cleanup",
         "createdAt",
         "updatedAt",
         "version"
@@ -24216,15 +24510,18 @@
         "unsettledAttemptCount": "integer",
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
+        "archivedAt": "timestamp|null",
+        "cleanup": "WorkerHostCleanup",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
       },
       "nullableFields": [
         "lastHeartbeatAt",
-        "readinessReason"
+        "readinessReason",
+        "archivedAt"
       ],
-      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
+      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the worker host record.",
         "principalId": "Stable UUID linking this record to the related principal entity.",
@@ -24243,6 +24540,8 @@
         "unsettledAttemptCount": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
+        "archivedAt": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID.",
+        "cleanup": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
@@ -25507,13 +25806,15 @@
         "workerSessionId",
         "workerSessionGeneration",
         "serverTime",
-        "inventoryRevision"
+        "inventoryRevision",
+        "maintenanceAssignments"
       ],
       "optionalFields": [
         "reconciledAttemptIds",
         "workerSessionId",
         "workerSessionGeneration",
-        "serverTime"
+        "serverTime",
+        "maintenanceAssignments"
       ],
       "fieldTypes": {
         "workerHostId": "uuid",
@@ -25525,9 +25826,11 @@
         "workerSessionId": "uuid",
         "workerSessionGeneration": "decimalString",
         "serverTime": "timestamp",
-        "inventoryRevision": "integer"
+        "inventoryRevision": "integer",
+        "maintenanceAssignments": "WorkerMaintenanceAssignment[]"
       },
       "bounds": {
+        "maintenanceAssignmentsMaxItems": 20,
         "pendingCommandsMaxItems": 100,
         "commandAcksMaxItems": 100,
         "reconciledAttemptIdsMaxItems": 100
@@ -25543,7 +25846,8 @@
         "workerSessionId": "Server-issued session identifier for the worker process.",
         "workerSessionGeneration": "Monotonic server fence for the worker process session.",
         "serverTime": "PostgreSQL-authoritative receipt time for deriving monotonic client deadlines.",
-        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response."
+        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response.",
+        "maintenanceAssignments": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list."
       }
     },
     "WorkerCommand": {
@@ -25595,6 +25899,50 @@
         "commandId": "Stable UUID linking this record to the related command entity.",
         "status": "Current lifecycle status of the record.",
         "acknowledgedAt": "Timestamp recorded by PostgreSQL when the terminal outcome was committed."
+      }
+    },
+    "WorkerMaintenanceAssignment": {
+      "fields": [
+        "operationId",
+        "workerHostId",
+        "credentialGeneration",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "expectedInventoryRevision",
+        "fence",
+        "deadlineAt"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest"
+      ],
+      "fieldTypes": {
+        "operationId": "uuid",
+        "workerHostId": "uuid",
+        "credentialGeneration": "integer",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "expectedInventoryRevision": "integer",
+        "fence": "decimalString",
+        "deadlineAt": "timestamp"
+      },
+      "description": "One maintenance operation handed to the machine in a heartbeat response. It binds the operation to this host, its credential generation and a fence; a duplicate delivery repeats the same assignment and never asks the host to run it twice.",
+      "fieldDescriptions": {
+        "operationId": "Maintenance operation the machine must run and report on.",
+        "workerHostId": "Machine the assignment is bound to.",
+        "credentialGeneration": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it.",
+        "verb": "Typed maintenance verb the host adapter maps to fixed executables.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version to install, update or roll back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the installed result must match, or null.",
+        "expectedInventoryRevision": "Inventory revision the operation was requested against; the host must not apply it to different inventory.",
+        "fence": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it.",
+        "deadlineAt": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
       }
     },
     "WorkerRegistrationResult": {
@@ -35745,20 +36093,122 @@
         "scorerId",
         "slug",
         "scorerRevision",
-        "evaluatorType"
+        "evaluatorType",
+        "required"
       ],
       "fieldTypes": {
         "scorerId": "uuid",
         "slug": "string",
         "scorerRevision": "integer",
-        "evaluatorType": "enum(deterministic|model)"
+        "evaluatorType": "enum(deterministic|model)",
+        "required": "boolean"
       },
       "description": "One scorer revision a batch pinned.",
       "fieldDescriptions": {
         "scorerId": "The scorer definition, for linking to it.",
         "slug": "Its name.",
         "scorerRevision": "Its revision.",
-        "evaluatorType": "Deterministic check or model rubric."
+        "evaluatorType": "Deterministic check or model rubric.",
+        "required": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
+      }
+    },
+    "EvaluationBudget": {
+      "fields": [
+        "limitUsd",
+        "settledUsd",
+        "estimatedUsd",
+        "unknownCount",
+        "status",
+        "blocksNewAttempts",
+        "oldestUnknownAt"
+      ],
+      "fieldTypes": {
+        "limitUsd": "decimal|null",
+        "settledUsd": "decimal",
+        "estimatedUsd": "decimal",
+        "unknownCount": "integer",
+        "status": "enum(none|within|exhausted|unsettled)",
+        "blocksNewAttempts": "boolean",
+        "oldestUnknownAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "limitUsd",
+        "oldestUnknownAt"
+      ],
+      "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount.",
+      "fieldDescriptions": {
+        "limitUsd": "The most the batch may spend, in USD; null when it was admitted without a limit.",
+        "settledUsd": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero.",
+        "estimatedUsd": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill.",
+        "unknownCount": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt.",
+        "status": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within.",
+        "blocksNewAttempts": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet.",
+        "oldestUnknownAt": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+      }
+    },
+    "EvaluationAttemptUsage": {
+      "fields": [
+        "measurement",
+        "costUsd"
+      ],
+      "fieldTypes": {
+        "measurement": "enum(reported|estimated|unknown)",
+        "costUsd": "decimal|null"
+      },
+      "nullableFields": [
+        "costUsd"
+      ],
+      "description": "What one model attempt cost, as the usage ledger records it.",
+      "fieldDescriptions": {
+        "measurement": "reported by the provider, estimated by Bakery, or unknown.",
+        "costUsd": "Cost in USD; null when unknown. Never zero for an unknown cost."
+      }
+    },
+    "EvaluationCorpusReport": {
+      "fields": [
+        "total",
+        "attempted",
+        "passed",
+        "failed",
+        "unknown",
+        "unrun",
+        "interrupted",
+        "recovered",
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "fieldTypes": {
+        "total": "integer",
+        "attempted": "integer",
+        "passed": "integer",
+        "failed": "integer",
+        "unknown": "integer",
+        "unrun": "integer",
+        "interrupted": "integer",
+        "recovered": "integer",
+        "passedOfAttempted": "number|null",
+        "failedOfAttempted": "number|null",
+        "recoveredOfInterrupted": "number|null"
+      },
+      "nullableFields": [
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero. passed + failed + unknown + unrun is total, which for the report is the batch's requiredCount. Against the six state counts: passed and failed are the same; unknown is error plus unscored (each comes from an attempt); unrun is missing plus canceled plus skipped (none of them has an attempt).",
+      "fieldDescriptions": {
+        "total": "Results in the set.",
+        "attempted": "Results with at least one attempt.",
+        "passed": "Attempted, and the latest attempt measured a pass.",
+        "failed": "Attempted, and the latest attempt measured a fail.",
+        "unknown": "Attempted, but the latest attempt measured nothing, so the outcome is not known.",
+        "unrun": "Never attempted: neither a pass nor a failure.",
+        "interrupted": "Results with at least one attempt that was interrupted before it measured anything.",
+        "recovered": "Of those, results whose latest attempt measured a pass or a fail.",
+        "passedOfAttempted": "passed divided by attempted; null when nothing was attempted.",
+        "failedOfAttempted": "failed divided by attempted; null when nothing was attempted.",
+        "recoveredOfInterrupted": "recovered divided by interrupted; null when nothing was interrupted."
       }
     },
     "EvaluationStateCounts": {
@@ -35856,10 +36306,14 @@
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -35879,10 +36333,14 @@
         "baseline": "json|null",
         "baselineDefinition": "EvaluationPinDefinition|null",
         "scorers": "EvaluationScorerPin[]",
+        "pinDigest": "string",
         "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
         "requiredCount": "integer",
         "measuredCount": "integer",
         "counts": "EvaluationStateCounts",
+        "report": "EvaluationCorpusReport",
+        "optionalReport": "EvaluationCorpusReport|null",
+        "budget": "EvaluationBudget",
         "gate": "EvaluationGate",
         "hiddenCount": "integer",
         "canceledAt": "timestamp|null",
@@ -35896,6 +36354,7 @@
         "candidateDefinition",
         "baseline",
         "baselineDefinition",
+        "optionalReport",
         "canceledAt",
         "canceledBy",
         "completedAt"
@@ -35910,11 +36369,15 @@
         "candidateDefinition": "The definition the candidate pin names and its current name, for display; null when the pin names no definition.",
         "baseline": "What it is compared with, as pinned; null without a baseline.",
         "baselineDefinition": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition.",
-        "scorers": "The scorer revisions pinned.",
+        "scorers": "The scorer revisions pinned, each with whether the gate requires it.",
+        "pinDigest": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it.",
         "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
         "requiredCount": "Required candidate results.",
         "measuredCount": "Of those, how many were measured (passed or failed).",
         "counts": "Required candidate results per state.",
+        "report": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those.",
+        "optionalReport": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer.",
+        "budget": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it.",
         "gate": "The gate's answer.",
         "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
         "canceledAt": "When it was canceled.",
@@ -35982,7 +36445,7 @@
         "scorerId": "The scorer, for linking to it.",
         "scorerRevision": "The scorer revision used.",
         "repetition": "Which repetition, from 1.",
-        "required": "Whether the gate needs it.",
+        "required": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate.",
         "state": "passed, failed, error, unscored, canceled, skipped or missing.",
         "reason": "A short sentence: which stage failed, the policy that skipped it, who stopped it; null when passed.",
         "score": "The measurement, 0 to 1; null unless passed or failed.",
@@ -36006,18 +36469,20 @@
         "startedAt",
         "endedAt",
         "traceRef",
+        "usage",
         "createdAt"
       ],
       "fieldTypes": {
         "id": "uuid",
         "resultId": "uuid",
         "attemptNo": "integer",
-        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing|interrupted)",
         "reason": "string|null",
         "score": "number|null",
         "startedAt": "timestamp|null",
         "endedAt": "timestamp|null",
         "traceRef": "string|null",
+        "usage": "EvaluationAttemptUsage|null",
         "createdAt": "timestamp"
       },
       "nullableFields": [
@@ -36025,19 +36490,21 @@
         "score",
         "startedAt",
         "endedAt",
-        "traceRef"
+        "traceRef",
+        "usage"
       ],
       "description": "One append-only attempt at a result.",
       "fieldDescriptions": {
         "id": "Attempt id.",
         "resultId": "Its result.",
         "attemptNo": "Order, from 1.",
-        "state": "The attempt's outcome state.",
+        "state": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered.",
         "reason": "Why, as a sentence; null when passed.",
         "score": "Its measurement; null unless passed or failed.",
         "startedAt": "When it started.",
         "endedAt": "When it ended.",
         "traceRef": "Link to the trace; null when none.",
+        "usage": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free.",
         "createdAt": "When it was recorded."
       }
     },
@@ -36718,6 +37185,29 @@
     "Page<BackupDrill>": {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "WorkerHostCleanup": {
+      "projection": "worker_hosts",
+      "fields": [
+        "state",
+        "requestedAt",
+        "confirmedAt"
+      ],
+      "fieldTypes": {
+        "state": "enum(not_requested|unconfirmed|confirmed)",
+        "requestedAt": "timestamp|null",
+        "confirmedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "requestedAt",
+        "confirmedAt"
+      ],
+      "description": "Read-only outcome of local cleanup on a retired machine. not_requested while the host has never been revoked; unconfirmed from the moment of revocation, because a revoked credential can no longer report; confirmed only when the same host later re-pairs and reports the Bakery-owned binaries and service files it removed. Lost connectivity never reads as removal.",
+      "fieldDescriptions": {
+        "state": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself.",
+        "requestedAt": "UTC timestamp when revocation requested local cleanup; null when it was never requested.",
+        "confirmedAt": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+      }
     },
     "WorkerLinkCodeInspection": {
       "fields": [
@@ -37662,6 +38152,15 @@
       },
       "inngestTrigger": null,
       "description": "Provider binding or auth attempt state changed (binding created/updated, auth attempt issued, won, failed or canceled); fetch the safe binding projection. Public payloads contain references/versions, never provider responses or credentials."
+    },
+    "worker.maintenance_updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A machine maintenance operation was requested or changed phase (resourceId is the operation, resourceVersion its row version); fetch the safe operation projection. Trigger consumers always re-read durable state."
     },
     "worker.updated": {
       "schemaVersion": 1,

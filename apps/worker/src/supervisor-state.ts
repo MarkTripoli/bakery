@@ -21,7 +21,20 @@ import {
   createReadinessState,
   type ReadinessState,
 } from "./supervisor-readiness.ts";
-import type { RegistrationState, WorkerCommandOutcomeStatus } from "./types.ts";
+import type {
+  RegistrationState,
+  WorkerCommandOutcomeStatus,
+  WorkerInventoryComponent,
+  WorkerMaintenanceAssignment,
+} from "./types.ts";
+
+/** The part of the maintenance executor the supervisor drives. */
+export type SupervisorMaintenance = {
+  accept(assignments: readonly WorkerMaintenanceAssignment[]): Promise<void>;
+  claimsClosed(): boolean;
+  /** Managed components for the regular inventory report. */
+  inventoryComponents?(observedAt: string): Promise<WorkerInventoryComponent[]>;
+};
 export type SupervisorState = {
   config: WorkerConfig;
   client: WorkerApiClient;
@@ -31,6 +44,7 @@ export type SupervisorState = {
   preparedSecretInvoker: PreparedSecretInvoker | null;
   skillMaterializer: Pick<SkillMaterializer, "prepare" | "recover"> | null;
   skillRecoveryComplete: boolean;
+  maintenance: SupervisorMaintenance | null;
   sleep: Sleep;
   processSessionId: string;
   processSessionGeneration: string;
@@ -92,6 +106,7 @@ export function createSupervisorState(options: {
   executor?: WorkerExecutor;
   preparedSecretInvoker?: PreparedSecretInvoker;
   skillMaterializer?: Pick<SkillMaterializer, "prepare" | "recover">;
+  maintenance?: SupervisorMaintenance;
   sleep: Sleep;
   monotonicNow?: () => number;
 }): SupervisorState {
@@ -105,6 +120,7 @@ export function createSupervisorState(options: {
     preparedSecretInvoker: options.preparedSecretInvoker ?? null,
     skillMaterializer: options.skillMaterializer ?? null,
     skillRecoveryComplete: false,
+    maintenance: options.maintenance ?? null,
     sleep: options.sleep,
     processSessionId: crypto.randomUUID(),
     processSessionGeneration: "0",
