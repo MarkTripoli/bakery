@@ -308,6 +308,28 @@
         "contains": "revokeOutput"
       }
     },
+    "worker.plugin.broker": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/plugin-broker"
+      },
+      "test": {
+        "file": "tests/security/plugin-broker-relay_test.ts",
+        "contains": "/plugin-broker"
+      }
+    },
+    "worker.plugin.files": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/plugin-job-files"
+      },
+      "test": {
+        "file": "tests/security/plugin-job-files_test.ts",
+        "contains": "plugin-job-files"
+      }
+    },
     "worker.previews": {
       "state": "served-outside-registry",
       "route": {

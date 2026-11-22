@@ -19788,6 +19788,8 @@ export const clientManifest = {
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -31462,9 +31464,10 @@ export const clientManifest = {
             "steer_reviewer",
             "comment",
             "edit_work",
-            "draft_connection"
+            "draft_connection",
+            "ask"
           ],
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) draft_connection (draft a personal connection with no secret that a person completes) or ask (ask, on the agent's own run, the one role or group the grant names, through run requests)."
         },
         "workflowId": {
           "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -31489,6 +31492,51 @@ export const clientManifest = {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "expiresAt": {
+          "description": "AgentPowerGrantCreate.expiresAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the grant stops working. Null or absent means it never expires; once past, every use is refused with AUTH_FORBIDDEN agent_power_grant_expired, checked live on each call. Must be in the future."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "roleKey": {
+          "description": "AgentPowerGrantCreate.roleKey may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "For an ask grant only: the role the agent may ask (admin, developer or a custom role's key). An ask grant names exactly one of roleKey and groupId. AgentPowerGrantCreate.roleKey must contain at least 1 characters. AgentPowerGrantCreate.roleKey must contain at most 80 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "groupId": {
+          "description": "AgentPowerGrantCreate.groupId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "For an ask grant only: the organization group the agent may ask. An ask grant names exactly one of roleKey and groupId."
             },
             {
               "type": "null",
@@ -32455,10 +32503,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "recipientId": {
+          "description": "The one person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it. Name exactly one of recipientId, recipientRoleKey and recipientGroupId.",
           "type": "string",
           "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "intent": {
           "type": "string",
@@ -32493,14 +32541,25 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRoleKey": {
+          "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names. RunRequestCreate.recipientRoleKey must contain at least 1 characters. RunRequestCreate.recipientRoleKey must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "recipientGroupId": {
+          "description": "A group to ask instead of one person. Every active member of the group, other than the asker, is asked, each with their own request, resolved and frozen when the request is made. An agent may ask only a group its live ask grant names.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
       "required": [
-        "recipientId",
         "intent"
       ],
       "additionalProperties": false,
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
     },
     "StorageFileContentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -48971,6 +49030,8 @@ export const clientManifest = {
                   "worker.repositorySource",
                   "worker.tools.secrets",
                   "worker.context",
+                  "worker.plugin.broker",
+                  "worker.plugin.files",
                   "worker.events",
                   "worker.renew",
                   "worker.result",
@@ -71682,6 +71743,8 @@ export const clientManifest = {
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -105672,9 +105735,10 @@ export const clientManifest = {
             "steer_reviewer",
             "comment",
             "edit_work",
-            "draft_connection"
+            "draft_connection",
+            "ask"
           ],
-          "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection."
+          "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work, draft_connection or ask."
         },
         "workflowId": {
           "anyOf": [
@@ -105723,6 +105787,50 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        },
+        "expiresAt": {
+          "description": "AgentPowerGrant.expiresAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the grant stops working, or null when it never expires."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "roleKey": {
+          "description": "AgentPowerGrant.roleKey may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The role an ask grant lets the agent ask, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "groupId": {
+          "description": "AgentPowerGrant.groupId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The group an ask grant lets the agent ask, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -111570,6 +111678,61 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "audience": {
+          "description": "RunRequest.audience may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "roleKey": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The role asked (admin, developer or a custom role's key), or null when a group was asked."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestAudience.roleKey may be null in this transport value."
+                },
+                "groupId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The group asked, or null when a role was asked or the group has since been deleted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestAudience.groupId may be null in this transport value."
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The role's or group's name when the request was made."
+                }
+              },
+              "required": [
+                "roleKey",
+                "groupId",
+                "name"
+              ],
+              "additionalProperties": false,
+              "description": "The role or group this request was asked of, or null when one person was asked."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -111791,6 +111954,61 @@ export const clientManifest = {
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "The approval or question the request asks about, or null when it asks for none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "audience": {
+                "description": "RunRequest.audience may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "roleKey": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The role asked (admin, developer or a custom role's key), or null when a group was asked."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestAudience.roleKey may be null in this transport value."
+                      },
+                      "groupId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "The group asked, or null when a role was asked or the group has since been deleted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestAudience.groupId may be null in this transport value."
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The role's or group's name when the request was made."
+                      }
+                    },
+                    "required": [
+                      "roleKey",
+                      "groupId",
+                      "name"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The role or group this request was asked of, or null when one person was asked."
                   },
                   {
                     "type": "null",
