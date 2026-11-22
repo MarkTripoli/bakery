@@ -6,8 +6,13 @@ import {
   createDeployment,
   type DeploymentCreateInput,
   listDeployments,
+  readDeployment,
   rollbackDeployment,
 } from "../../apps/server/src/modules/delivery/deployments.ts";
+import { createDeploymentDriver } from "../../apps/server/src/modules/delivery/deployment-driver.ts";
+import { createLocalReleaseTarget } from "../../apps/server/src/modules/delivery/local-release-target.ts";
+import { createPostgresDeploymentLedger } from "../../apps/server/src/modules/delivery/postgres-deployment-ledger.ts";
+import type { ReleaseAdapter } from "../../apps/server/src/modules/delivery/release-adapter.ts";
 import { withReviewedRun } from "../helpers/review-repair/loop-world.ts";
 
 /**
@@ -334,3 +339,186 @@ Deno.test("a deployment is queued only for a merged revision, once per environme
 function assertNotEqualId(left: string, right: string) {
   assert(left !== right, "another environment gets its own deployment");
 }
+
+Deno.test("the driver moves real deployment rows by what a local target reports, restores the previous release, and reads an unknown outcome back (#43)", async () => {
+  await withReviewedRun(async (world) => {
+    const database = world.fixture.pgDatabase;
+    const organizationId = world.repository.organizationId;
+    const repositoryId = world.repository.repositoryId;
+    const root = await Deno.makeTempDir({ prefix: "bakery-release-it-" });
+    try {
+      const principal = (await database.query<{ id: string }>(
+        `select principal_id as id from bakery.organization_memberships
+          where organization_id = $1 and status = 'active'
+          order by created_at limit 1`,
+        [organizationId],
+      )).rows[0].id;
+      const encoder = new TextEncoder();
+      const buildBytes = (sha: string) => encoder.encode(`build of ${sha}`);
+      const digestOf = async (bytes: Uint8Array) =>
+        `sha256:${
+          Array.from(
+            new Uint8Array(
+              await crypto.subtle.digest("SHA-256", bytes as BufferSource),
+            ),
+            (byte) => byte.toString(16).padStart(2, "0"),
+          ).join("")
+        }`;
+      let number = 300;
+      const merge = async (commit: number) => {
+        await database.query(
+          `insert into bakery.pull_requests (
+             id,organization_id,task_id,repository_id,provider_number,url,head_sha,
+             base_sha,status,merged_sha,run_id,version
+           ) values (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,'merged',$8,$9,1)`,
+          [
+            organizationId,
+            world.taskId,
+            repositoryId,
+            ++number,
+            `https://github.com/acme/widgets/pull/${number}`,
+            SHA(commit + 1000),
+            SHA(1),
+            SHA(commit),
+            world.runId,
+          ],
+        );
+        return SHA(commit);
+      };
+      const queue = async (commitSha: string) =>
+        await withPgTransaction(
+          database,
+          async (transaction) =>
+            createDeployment(transaction, organizationId, principal, {
+              requestId: `request-${crypto.randomUUID()}`,
+              traceId: TRACE,
+              create: {
+                repositoryId,
+                runId: world.runId,
+                environment: "staging",
+                commitSha,
+                artifactDigest: await digestOf(buildBytes(commitSha)),
+              },
+            }),
+        );
+
+      // The running app reports the release the pointer names, unless a case
+      // says the new release never took over.
+      let stale: string | null = null;
+      const served = async (): Promise<string> =>
+        JSON.parse(await Deno.readTextFile(`${root}/current.json`)).commitSha;
+      // Health evidence is a real artifact version: the column is a foreign key.
+      const saveEvidence = async (evidence: unknown): Promise<string> => {
+        const artifactId = crypto.randomUUID();
+        const versionId = crypto.randomUUID();
+        const bytes = encoder.encode(JSON.stringify(evidence));
+        await database.query(
+          `insert into bakery.artifacts (id,organization_id,task_id,artifact_type,name)
+           values ($1,$2,$3,'document',$4)`,
+          [
+            artifactId,
+            organizationId,
+            world.taskId,
+            `deploy-health-${artifactId}`,
+          ],
+        );
+        await database.query(
+          `insert into bakery.artifact_versions (
+             id,organization_id,artifact_id,task_id,author_id,revision,content,
+             sha256,size_bytes,media_type,retention_class
+           ) values ($1,$2,$3,$4,$5,1,$6,$7,$8,'application/json','evidence')`,
+          [
+            versionId,
+            organizationId,
+            artifactId,
+            world.taskId,
+            principal,
+            bytes,
+            (await digestOf(bytes)).slice(7),
+            bytes.length,
+          ],
+        );
+        return versionId;
+      };
+      const target = createLocalReleaseTarget({
+        root,
+        environment: "staging",
+        artifacts: async (input) => {
+          const bytes = buildBytes(input.headSha);
+          return { bytes, digest: await digestOf(bytes) };
+        },
+        probe: async () => ({ version: stale ?? await served(), state: "ok" }),
+        saveEvidence,
+      });
+      const ledger = createPostgresDeploymentLedger({
+        database,
+        organizationId,
+        principalId: principal,
+        requestId: `request-${crypto.randomUUID()}`,
+        traceId: TRACE,
+      });
+      const read = (id: string) =>
+        withPgTransaction(
+          database,
+          (transaction) => readDeployment(transaction, organizationId, id),
+        );
+      const driver = createDeploymentDriver({ ledger, adapter: target });
+
+      // 1. A healthy release: the row closes healthy with real evidence.
+      const first = await queue(await merge(1));
+      const healthy = await driver.deploy(first.id, { profileRevision: 1 });
+      assertEquals(healthy.deployment.status, "healthy");
+      assert(healthy.deployment.healthEvidenceId !== null);
+      assertEquals((await read(first.id)).status, "healthy");
+      assertEquals(await served(), SHA(1));
+
+      // 2. The next release never takes over: it ends failed, the previous
+      // release is restored, and the environment is free for the next.
+      stale = SHA(1);
+      const second = await queue(await merge(2));
+      assertEquals(second.previousDeploymentId, first.id);
+      const restored = await driver.deploy(second.id, { profileRevision: 1 });
+      assertEquals(restored.deployment.status, "rolled_back");
+      assertEquals((await read(second.id)).status, "rolled_back");
+      assertEquals(await served(), SHA(1));
+      stale = null;
+
+      // 3. A lost answer to deploy: unknown in the table, which blocks the next
+      // deployment, and the same effect key settles it without a second deploy.
+      let deployCalls = 0;
+      const lossy: ReleaseAdapter = {
+        ...target,
+        deploy: async (input) => {
+          deployCalls += 1;
+          await target.deploy(input);
+          throw new Error("connection reset");
+        },
+      };
+      const third = await queue(await merge(3));
+      const lost = await createDeploymentDriver({ ledger, adapter: lossy })
+        .deploy(third.id, { profileRevision: 1 });
+      assertEquals(lost.deployment.status, "unknown");
+      assertEquals(
+        await reason(queue(await merge(4))),
+        "outcome_unknown",
+        "an unknown outcome blocks the next deployment",
+      );
+      const settled = await driver.settle(third.id, lost.effectKey!);
+      assertEquals(settled.deployment.status, "healthy");
+      assertEquals(deployCalls, 1);
+      assertEquals(await served(), SHA(3));
+    } finally {
+      await Deno.remove(root, { recursive: true });
+      // The fixture deletes runs and artifact versions; rows that point at them go first.
+      await database.query(
+        `delete from bakery.deployments where organization_id = $1`,
+        [organizationId],
+      );
+      await database.query(
+        `delete from bakery.pull_requests
+          where organization_id = $1 and run_id = $2`,
+        [organizationId, world.runId],
+      );
+    }
+  });
+});
