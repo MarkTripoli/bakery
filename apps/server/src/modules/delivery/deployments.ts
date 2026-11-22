@@ -379,6 +379,21 @@ export async function rollbackDeployment(
   return deployment(after);
 }
 
+/** One deployment of the organization, as the lifecycle driver reads it. */
+export async function readDeployment(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  deploymentId: string,
+): Promise<DeploymentRead> {
+  const row = (await transaction.query<DeploymentRow>(
+    `select ${COLUMNS} from bakery.deployments d
+      where d.organization_id = $1 and d.id = $2`,
+    [organizationId, deploymentId],
+  )).rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  return deployment(row);
+}
+
 /**
  * Moves a deployment along its lifecycle, for the adapter that drives it. The
  * move must be allowed and the version still current; otherwise it is a state

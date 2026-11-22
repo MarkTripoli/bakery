@@ -88,6 +88,14 @@ export const artifactVersionReferences = [
     protection: "retained-evidence",
   },
   {
+    // A deployment cites the health check that closed it as evidence (#43). The
+    // bytes stay for as long as the deployment record exists.
+    kind: "retained-evidence",
+    table: "deployments",
+    constraint: "deployments_health_evidence_fk",
+    protection: "retained-evidence",
+  },
+  {
     // A run pins the exact version each declared input resolved to at
     // admission (#402). The bytes stay readable for as long as the run is
     // live, then the pin ends with it; a person's separate hold is untouched.
@@ -207,6 +215,9 @@ export const additionalArtifactReferenceChecks: readonly ReferenceCheck[] = [
       const result = await transaction.query(
         `select 1 from bakery.check_runs
          where organization_id=$1 and evidence_version_id=$2
+         union all
+         select 1 from bakery.deployments
+         where organization_id=$1 and health_evidence_id=$2
          limit 1`,
         [organizationId, versionId],
       );
