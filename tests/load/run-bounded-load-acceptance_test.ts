@@ -13,6 +13,21 @@ import { openSocketFixture } from "../helpers/events-socket.ts";
 import type { WsClient } from "../helpers/ws-client.ts";
 import { cleanupAuthFixture, signSessionCookie } from "../helpers/auth.ts";
 
+/**
+ * Heap in use after a forced full collection. heapUsed alone depends on when
+ * V8 last collected, which made the growth budget flaky (214 to 269 MiB on one
+ * head). The load lane runs with --expose-gc; without it this fails closed.
+ */
+function settledHeap(): number {
+  const gc = (globalThis as { gc?: () => void }).gc;
+  if (gc === undefined) {
+    throw new Error("the load lane must run with --v8-flags=--expose-gc");
+  }
+  gc();
+  gc();
+  return Deno.memoryUsage().heapUsed;
+}
+
 // Issue #48 AC2-AC3: the reference workload and its budgets live in
 // docs/backend-delivery/load-acceptance-budgets.json, committed before this
 // file measured anything. A missed budget fails the lane; nothing here may
@@ -293,7 +308,7 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
       ],
     );
     await database.query("analyze bakery.domain_events");
-    const heapBefore = Deno.memoryUsage().heapUsed;
+    const heapBefore = settledHeap();
     const before = await sequentialScans(database);
 
     const frame = async (client: WsClient, timeoutMs = 10_000) => {
@@ -418,7 +433,9 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
     clients.push(...own);
     assertEquals(refused, 429, "one person's sockets were not capped");
     const after = await sequentialScans(database);
-    const heapGrowthMiB = (Deno.memoryUsage().heapUsed - heapBefore) /
+    // Measured with every socket still open, so the growth is what the server
+    // retains for them, not garbage V8 has not collected yet.
+    const heapGrowthMiB = (settledHeap() - heapBefore) /
       (1024 * 1024);
 
     withinBudget(

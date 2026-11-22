@@ -288,6 +288,9 @@ const command = new Deno.Command(Deno.execPath(), {
     "--preload",
     "tests/helpers/temp-cleanup-preload.ts",
     ...permissions,
+    // The load lane measures retained heap after a forced collection, so it
+    // exposes V8's gc(); no other lane gets it.
+    ...(requestedLane === "load" ? ["--v8-flags=--expose-gc"] : []),
     ...parallel,
     ...paths,
   ],

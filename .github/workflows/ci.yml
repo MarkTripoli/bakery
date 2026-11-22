@@ -2581,7 +2581,10 @@ jobs:
     # docs/backend-delivery/load-acceptance-budgets.json. It is heavy, so it
     # runs only nightly or on a maintainer dispatch, never on a pull request,
     # and it is not a required check. A missed budget fails this job.
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    # It needs the route job only so that no job but the roots runs without
+    # `needs`; a fork pull request never reaches it.
+    needs: [changes]
+    if: ${{ needs.changes.result == 'success' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
     # `bakery-heavy` is the heavy-lane pool label, not a CPU or architecture
     # guarantee: the pool mixes AMD and Intel x64 hosts with ARM64 runners, so
     # heavy lanes budget for the slowest host and stay arch-neutral
@@ -2956,7 +2959,9 @@ jobs:
     # but only with the explicit input: a pull request cannot set inputs, so
     # the write scope stays unreachable from candidate code.
     if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}
-    needs: [aggregate]
+    # load is not in aggregate, so it is named here: the signal must read the
+    # run only after the nightly load job has finished.
+    needs: [aggregate, load]
     runs-on: ubuntu-24.04
     permissions:
       # The signal reads the run it is signalling about before it writes
