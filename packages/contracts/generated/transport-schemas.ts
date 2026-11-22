@@ -39603,6 +39603,14 @@ const transportSchemas = {
         "paper"
       ]
     },
+    "rpi.plan": {
+      "inputSchema": "PlanInput",
+      "outputSchema": "ArtifactOutput",
+      "schemaSource": "06-workflows-delivery-and-acceptance.md action schema registry",
+      "capabilities": [
+        "model"
+      ]
+    },
     "harness.implement": {
       "inputSchema": "ImplementInput",
       "outputSchema": "HarnessOutput",
