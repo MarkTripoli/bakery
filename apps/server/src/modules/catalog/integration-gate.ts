@@ -871,6 +871,11 @@ export type BoundInvocation = Readonly<{
   manifestDigest: string;
   actionRef: Readonly<{ id: string; version: number }>;
   effectId: string;
+  /**
+   * Where the run behind the effect may reach. `offline` denies every provider
+   * request and every brokered credential; absent means no run (live).
+   */
+  runEnvironment?: "live" | "offline";
 }>;
 
 export type Evaluation = Readonly<{
@@ -1116,6 +1121,18 @@ export const denyAllProviderRequests: ProviderRequestPort = Object.freeze({
       markProviderFailure(forbidden(), { kind: "not_sent", retryable: false }),
     ),
 });
+
+/**
+ * The provider port a run may use: an offline run gets
+ * {@link denyAllProviderRequests}, so nothing it does reaches a provider; a live
+ * run, or work with no run, keeps the port it was given.
+ */
+export function providerRequestsForEnvironment(
+  environment: "live" | "offline" | undefined,
+  port: ProviderRequestPort,
+): ProviderRequestPort {
+  return environment === "offline" ? denyAllProviderRequests : port;
+}
 
 export type ContextDeps = Readonly<{
   registry: ActiveIntegrationRegistry;

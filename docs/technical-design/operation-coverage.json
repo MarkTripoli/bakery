@@ -193,28 +193,6 @@
       "owner": "#37",
       "reason": "Retrying a run belongs with bounded repair; only task-level retry exists today."
     },
-    "skillFiles.get": {
-      "state": "served-outside-registry",
-      "route": {
-        "file": "apps/server/src/modules/execution/routes.ts",
-        "literal": "/v1/skill-versions/:id/files/:path{.+}"
-      },
-      "test": {
-        "file": "tests/integration/materialize-authorized-skills-worker_test.ts",
-        "contains": "/files/"
-      }
-    },
-    "skillVersions.get": {
-      "state": "served-outside-registry",
-      "route": {
-        "file": "apps/server/src/modules/execution/routes.ts",
-        "literal": "/v1/skill-versions/:id"
-      },
-      "test": {
-        "file": "tests/integration/materialize-authorized-skills-worker_test.ts",
-        "contains": "skill-versions/"
-      }
-    },
     "worker.artifacts": {
       "state": "served-outside-registry",
       "route": {
@@ -328,6 +306,28 @@
       "test": {
         "file": "tests/helpers/output-transcript.ts",
         "contains": "revokeOutput"
+      }
+    },
+    "worker.plugin.broker": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/plugin-broker"
+      },
+      "test": {
+        "file": "tests/security/plugin-broker-relay_test.ts",
+        "contains": "/plugin-broker"
+      }
+    },
+    "worker.plugin.files": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/plugin-job-files"
+      },
+      "test": {
+        "file": "tests/security/plugin-job-files_test.ts",
+        "contains": "plugin-job-files"
       }
     },
     "worker.previews": {

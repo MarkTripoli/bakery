@@ -34,7 +34,10 @@ import {
   saveSkillDraftFile,
   updateSkillDraft,
 } from "./skill-drafts.ts";
-import type { SkillFileStoreOperations } from "./storage.ts";
+import {
+  SkillFileStoreError,
+  type SkillFileStoreOperations,
+} from "./storage.ts";
 import { listSkillUsage } from "./skill-usage.ts";
 import {
   type ArchiveRevisionContext,
@@ -73,8 +76,8 @@ const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
   run.repository_profile_revision, run.repository_profile_digest,
   run.observation_id, run.observation_digest, run.base_sha, run.requested_by,
-  run.inngest_run_id, run.status, run.budget_limit_usd, run.started_at,
-  run.finished_at, run.created_at, run.updated_at, run.version,
+  run.inngest_run_id, run.status, run.budget_limit_usd, run.environment,
+  run.started_at, run.finished_at, run.created_at, run.updated_at, run.version,
   ${runWorkspaceBaseShaColumn("run")}`;
 
 type CursorInput = { cursor?: string; limit?: number };
@@ -582,7 +585,7 @@ export async function admitSkillImport(
            repository_profile_id, repository_profile_revision,
            repository_profile_digest, observation_id, observation_digest,
            base_sha, null::text as workspace_base_sha, requested_by,
-           inngest_run_id, status, budget_limit_usd,
+           inngest_run_id, status, budget_limit_usd, environment,
            started_at, finished_at, created_at, updated_at, version`,
     [
       runId,
@@ -708,6 +711,87 @@ export async function admitReviewedSkillUpdate(
     },
   });
   return run;
+}
+
+/** How long a store may take to answer one file before the read is a timeout. */
+const READ_TIMEOUT_MILLISECONDS = 10_000;
+
+/**
+ * The store's answer, bounded and named.
+ *
+ * Bytes that do not match the published digest are an integrity failure, not a
+ * quiet difference; a store that cannot answer is unavailable; a read that
+ * outlives the request is a timeout. The worker's pinned read maps these the
+ * same way, so a person and a worker see the same verdict for the same fault.
+ */
+async function readStoredFile(
+  store: SkillFileStoreOperations,
+  file: { object_key: string; sha256: string; size_bytes: number },
+  signal: AbortSignal,
+): Promise<Uint8Array> {
+  if (signal.aborted) {
+    throw new StandardError({ code: "DEPENDENCY_TIMEOUT" });
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort!: () => void;
+  const deadline = new Promise<never>((_, reject) => {
+    abort = () => reject(new StandardError({ code: "DEPENDENCY_TIMEOUT" }));
+    signal.addEventListener("abort", abort, { once: true });
+    timer = setTimeout(
+      () => reject(new StandardError({ code: "DEPENDENCY_TIMEOUT" })),
+      READ_TIMEOUT_MILLISECONDS,
+    );
+  });
+  try {
+    return await Promise.race([
+      store.read(file.object_key, file.sha256, file.size_bytes),
+      deadline,
+    ]);
+  } catch (error) {
+    if (error instanceof StandardError) throw error;
+    if (
+      error instanceof SkillFileStoreError &&
+      error.code === "SKILL_CONTENT_INTEGRITY_FAILED"
+    ) {
+      throw new StandardError({ code: "SKILL_CONTENT_INTEGRITY_FAILED" });
+    }
+    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    signal.removeEventListener("abort", abort);
+  }
+}
+
+/**
+ * One published version of a skill this principal may see, or nothing.
+ *
+ * Both reads of a version go through here, because they must give the same
+ * answer: a caller who may see the record may read its bytes, and a caller who
+ * may not gets `RESOURCE_NOT_FOUND` from either. Two copies of the same clause
+ * would be two answers waiting to disagree, and visibility is exactly the kind
+ * of rule that gets fixed in one place and not the other.
+ *
+ * The rule is the skill's, expressed through `SKILL_VISIBLE_TO` so there is one
+ * statement of what visible means. A draft is not a version yet: the listing
+ * does not show one, so a direct read does not confirm one exists.
+ */
+async function visibleSkillVersion(
+  transaction: Pick<PgTransactionClient, "query">,
+  organizationId: string,
+  versionId: string,
+  principalId: string,
+): Promise<SkillVersionRow | undefined> {
+  const result = await transaction.query<SkillVersionRow>(
+    `select ${VERSION_COLUMNS}
+       from bakery.skill_versions
+      where organization_id = $1 and id = $2 and status <> 'draft'
+        and skill_id in (
+          select id from bakery.skills
+           where organization_id = $1 and ${SKILL_VISIBLE_TO("$3")}
+        )`,
+    [organizationId, versionId, principalId],
+  );
+  return result.rows[0];
 }
 
 export function createCatalogHandlers(
@@ -1272,6 +1356,85 @@ export function createCatalogHandlers(
             id: last.id,
           })
           : null,
+      };
+    },
+
+    /**
+     * One version by id, for a page that already knows which version it shows.
+     *
+     * Visibility is the skill's: a version of another person's personal skill is
+     * not found, so the answer never confirms that one exists. A reserved draft
+     * is not a version yet, and the listing does not show one either.
+     */
+    async getSkillVersion(context: ActionContext) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const row = await visibleSkillVersion(
+        transaction,
+        organizationId,
+        idFromPath(context),
+        principalId,
+      );
+      if (row === undefined) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      return toSkillVersion(row);
+    },
+
+    /**
+     * One file's bytes from a published version, read back from the store.
+     *
+     * The row is the manifest's own record of the file, so the digest checked
+     * here is the digest the version was published with; a store that answers
+     * other bytes fails as an integrity error rather than serving them. The
+     * handler returns the bytes and their facts; the route turns that into the
+     * raw response the schema describes.
+     */
+    async readSkillFile(context: ActionContext, input: { path: string }) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const versionId = idFromPath(context);
+      if (options.skillFileStore === undefined) {
+        throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+      }
+      // The same fence the version read uses, by calling the same lookup: a
+      // caller who may see the record may read its bytes, and one who may not
+      // gets the same answer from both.
+      const version = await visibleSkillVersion(
+        transaction,
+        organizationId,
+        versionId,
+        principalId,
+      );
+      if (version === undefined) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      const file = (await transaction.query<{
+        path: string;
+        media_type: string;
+        object_key: string;
+        size_bytes: number;
+        sha256: string;
+      }>(
+        `select path, media_type, object_key, size_bytes, sha256
+           from bakery.skill_files
+          where organization_id = $1 and skill_version_id = $2 and path = $3`,
+        [organizationId, versionId, input.path],
+      )).rows[0];
+      if (file === undefined) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      const content = await readStoredFile(
+        options.skillFileStore,
+        file,
+        context.signal,
+      );
+      return {
+        path: file.path,
+        contentType: file.media_type,
+        contentLength: file.size_bytes,
+        contentDigest: file.sha256,
+        content,
       };
     },
 

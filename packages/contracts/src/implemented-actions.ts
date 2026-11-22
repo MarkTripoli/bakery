@@ -880,6 +880,8 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsTakeSourceUpdate: "skills.takeSourceUpdate",
     SkillDraftFilesRename: "skillDraftFiles.rename",
     SkillVersionsList: "skillVersions.list",
+    SkillVersionsGet: "skillVersions.get",
+    SkillFilesGet: "skillFiles.get",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -1067,6 +1069,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Noop: "workflow.noop",
     Stop: "workflow.stop",
     HumanApproval: "human.approval",
+    Research: "rpi.research",
     Plan: "rpi.plan",
     Design: "rpi.design",
     Implement: "harness.implement",

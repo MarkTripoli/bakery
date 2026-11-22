@@ -42,14 +42,23 @@ function requireJsonContent(context: Context): void {
   }
 }
 
-async function readJsonBody(context: Context): Promise<unknown> {
-  requireJsonContent(context);
+/**
+ * Reads a request body as bytes, never holding more than `limit` of it. A
+ * declared length is checked first, but it can lie or be absent (a chunked body
+ * has none), so the stream itself is counted and cancelled the moment it passes
+ * the cap. Reading the whole body first and measuring it after would let one
+ * caller make the server buffer as much as it cares to send.
+ */
+async function readBoundedBytes(
+  context: Context,
+  limit: number,
+): Promise<Uint8Array> {
   const contentLength = context.req.header("content-length");
   if (contentLength !== undefined) {
     if (
       !/^[0-9]+$/.test(contentLength) ||
       !Number.isSafeInteger(Number(contentLength)) ||
-      Number(contentLength) > MAX_BODY_BYTES
+      Number(contentLength) > limit
     ) {
       throw new StandardError({ code: "BODY_TOO_LARGE" });
     }
@@ -64,7 +73,7 @@ async function readJsonBody(context: Context): Promise<unknown> {
         const next = await reader.read();
         if (next.done) break;
         total += next.value.byteLength;
-        if (total > MAX_BODY_BYTES) {
+        if (total > limit) {
           await reader.cancel();
           throw new StandardError({ code: "BODY_TOO_LARGE" });
         }
@@ -80,6 +89,25 @@ async function readJsonBody(context: Context): Promise<unknown> {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return bytes;
+}
+
+/** A body read within `limit` bytes and decoded as UTF-8 text. */
+async function readBoundedText(
+  context: Context,
+  limit: number,
+): Promise<string> {
+  const bytes = await readBoundedBytes(context, limit);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (cause) {
+    throw new StandardError({ code: "MALFORMED_REQUEST", cause });
+  }
+}
+
+async function readJsonBody(context: Context): Promise<unknown> {
+  requireJsonContent(context);
+  const bytes = await readBoundedBytes(context, MAX_BODY_BYTES);
   try {
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
   } catch (cause) {
@@ -142,4 +170,10 @@ async function parseContract<T extends z.ZodType>(
   return parsed.data as z.output<T>;
 }
 
-export { jsonBodyResponse, jsonResponse, noContentResponse, parseContract };
+export {
+  jsonBodyResponse,
+  jsonResponse,
+  noContentResponse,
+  parseContract,
+  readBoundedText,
+};

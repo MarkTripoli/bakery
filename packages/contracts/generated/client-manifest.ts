@@ -3441,6 +3441,57 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-versions/{id}",
+      "action": "skillVersions.get",
+      "access": "Developer or Worker (pinned version + current lease)",
+      "permission": "skillVersion:readPinned",
+      "input": "SkillVersionPath",
+      "output": "SkillVersion",
+      "event": "",
+      "mcp": "bakery_skillVersions_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-versions/{id}/files/{path}",
+      "action": "skillFiles.get",
+      "access": "Developer or Worker (pinned version + current lease)",
+      "permission": "skillFile:read",
+      "input": "SkillFilePath",
+      "output": "BinarySkillFile",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "POST",
       "path": "/v1/skills/{id}/versions",
       "action": "skillVersions.create",
@@ -19737,6 +19788,8 @@ export const clientManifest = {
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -21210,6 +21263,14 @@ export const clientManifest = {
           ],
           "description": "Execution environment for this run: `repository` requires repositoryProfileId and runs inside a cloned repository worktree; `cloud_only` must omit repositoryProfileId and runs without a repository checkout."
         },
+        "environment": {
+          "description": "Where this run may reach, pinned at creation: `live` (the default) admits external effects and brokered integration credentials; `offline` refuses every external effect and brokered credential while metered model calls stay allowed. A run an agent spawns inherits the spawning run's environment when omitted, and an offline run may not spawn a live one (409 `environment_offline_parent`).",
+          "type": "string",
+          "enum": [
+            "live",
+            "offline"
+          ]
+        },
         "budgetLimitUsd": {
           "description": "Maximum execution budget for this run, in US dollars; inclusive cap 200.000000 with up to six decimal places. New spend stops once the cap is reached and admission is refused with `BUDGET_CAP_EXCEEDED` if it cannot be reserved.",
           "type": "string",
@@ -21690,6 +21751,47 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Adds a new encrypted version to an existing secret and makes it the active version; prior versions remain retained as history but stop being the one resolved for use."
+    },
+    "SkillFilePath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Skill version whose file is being read; supplied via the request's {id} path segment."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Relative path of the file within this skill version's manifest to read, such as SKILL.md or a script under scripts/; must match an exact entry in the version's file manifest rather than an arbitrary filesystem path. SkillFilePath.path must contain at most 500 characters."
+        },
+        "attemptId": {
+          "description": "Worker attempt ID carried in the X-Bakery-Attempt-Id header when a worker rather than a human is fetching this file; required with leaseToken and fence to prove the attempt holds a live lease with this exact skill version pinned in its job.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "leaseToken": {
+          "description": "Bearer lease token carried in the X-Bakery-Lease-Token header, proving the requesting worker attempt currently holds its job's lease; required for a worker read and never logged.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "fence": {
+          "description": "Current fence value carried in the X-Bakery-Fence header for the requesting worker's attempt; a stale or mismatched fence rejects the read as belonging to a superseded attempt.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Path and worker-lease parameters for reading one exact file from a skill version's manifest; a human caller needs catalog/repository read authority, while a worker caller must additionally prove its live lease, attempt and fence for the exact skill version pinned to its job."
     },
     "SkillCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -24605,6 +24707,40 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A person decides one waiting definition proposal under its If-Match version. An agent is refused with AUTH_FORBIDDEN; a decided proposal is STATE_CONFLICT; a draft changed since the proposal is PRECONDITION_FAILED and the proposal stays waiting."
+    },
+    "SkillVersionPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Skill version to read the manifest and metadata for; supplied via the request's {id} path segment."
+        },
+        "attemptId": {
+          "description": "Worker attempt ID carried in the X-Bakery-Attempt-Id header when a worker rather than a human is reading this version; required with leaseToken and fence to prove the attempt holds a live lease with this exact version pinned in its job.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "leaseToken": {
+          "description": "Bearer lease token carried in the X-Bakery-Lease-Token header, proving the requesting worker attempt currently holds its job's lease; required for a worker read and never logged.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "fence": {
+          "description": "Current fence value carried in the X-Bakery-Fence header for the requesting worker's attempt; a stale or mismatched fence rejects the read as belonging to a superseded attempt.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Path and worker-lease parameters for reading one skill version's manifest and metadata; a human caller needs catalog/repository read authority, while a worker caller must additionally prove its live lease, attempt and fence for the exact version pinned to its job."
     },
     "CommentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31336,9 +31472,10 @@ export const clientManifest = {
             "steer_reviewer",
             "comment",
             "edit_work",
-            "draft_connection"
+            "draft_connection",
+            "ask"
           ],
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) draft_connection (draft a personal connection with no secret that a person completes) or ask (ask, on the agent's own run, the one role or group the grant names, through run requests)."
         },
         "workflowId": {
           "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -31363,6 +31500,51 @@ export const clientManifest = {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "expiresAt": {
+          "description": "AgentPowerGrantCreate.expiresAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the grant stops working. Null or absent means it never expires; once past, every use is refused with AUTH_FORBIDDEN agent_power_grant_expired, checked live on each call. Must be in the future."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "roleKey": {
+          "description": "AgentPowerGrantCreate.roleKey may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "For an ask grant only: the role the agent may ask (admin, developer or a custom role's key). An ask grant names exactly one of roleKey and groupId. AgentPowerGrantCreate.roleKey must contain at least 1 characters. AgentPowerGrantCreate.roleKey must contain at most 80 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "groupId": {
+          "description": "AgentPowerGrantCreate.groupId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "For an ask grant only: the organization group the agent may ask. An ask grant names exactly one of roleKey and groupId."
             },
             {
               "type": "null",
@@ -32329,10 +32511,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "recipientId": {
+          "description": "The one person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it. Name exactly one of recipientId, recipientRoleKey and recipientGroupId.",
           "type": "string",
           "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "intent": {
           "type": "string",
@@ -32367,14 +32549,25 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRoleKey": {
+          "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names. RunRequestCreate.recipientRoleKey must contain at least 1 characters. RunRequestCreate.recipientRoleKey must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "recipientGroupId": {
+          "description": "A group to ask instead of one person. Every active member of the group, other than the asker, is asked, each with their own request, resolved and frozen when the request is made. An agent may ask only a group its live ask grant names.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
       "required": [
-        "recipientId",
         "intent"
       ],
       "additionalProperties": false,
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
     },
     "StorageFileContentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40177,6 +40370,14 @@ export const clientManifest = {
                 "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
                 "description": "Maximum execution budget measured in US dollars."
               },
+              "environment": {
+                "type": "string",
+                "enum": [
+                  "live",
+                  "offline"
+                ],
+                "description": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline."
+              },
               "startedAt": {
                 "anyOf": [
                   {
@@ -40515,6 +40716,7 @@ export const clientManifest = {
               "inngestRunId",
               "status",
               "budgetLimitUsd",
+              "environment",
               "startedAt",
               "finishedAt",
               "createdAt",
@@ -48845,6 +49047,8 @@ export const clientManifest = {
                   "worker.repositorySource",
                   "worker.tools.secrets",
                   "worker.context",
+                  "worker.plugin.broker",
+                  "worker.plugin.files",
                   "worker.events",
                   "worker.renew",
                   "worker.result",
@@ -60536,6 +60740,14 @@ export const clientManifest = {
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
           "description": "Maximum execution budget measured in US dollars."
         },
+        "environment": {
+          "type": "string",
+          "enum": [
+            "live",
+            "offline"
+          ],
+          "description": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline."
+        },
         "startedAt": {
           "anyOf": [
             {
@@ -60874,6 +61086,7 @@ export const clientManifest = {
         "inngestRunId",
         "status",
         "budgetLimitUsd",
+        "environment",
         "startedAt",
         "finishedAt",
         "createdAt",
@@ -71556,6 +71769,8 @@ export const clientManifest = {
             "worker.repositorySource",
             "worker.tools.secrets",
             "worker.context",
+            "worker.plugin.broker",
+            "worker.plugin.files",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -77148,6 +77363,13 @@ export const clientManifest = {
       "format": "base64",
       "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
       "description": "MCP-normalized base64 representation of artifact response bytes up to 1 MiB; REST responses use BinaryArtifactBytes for the raw body."
+    },
+    "BinarySkillFile": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "string",
+      "format": "base64",
+      "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+      "description": "An authenticated raw-byte HTTP response, not a JSON envelope, for one file from a published, immutable skill version, verified against that version's manifest digest for this exact path; access is rechecked on every read, including conditional requests. Returned by GET /v1/skill-versions/{id}/files/{path} to a Developer or a worker holding the pinned version and a current lease."
     },
     "WebhookReceipt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -105539,9 +105761,10 @@ export const clientManifest = {
             "steer_reviewer",
             "comment",
             "edit_work",
-            "draft_connection"
+            "draft_connection",
+            "ask"
           ],
-          "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection."
+          "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work, draft_connection or ask."
         },
         "workflowId": {
           "anyOf": [
@@ -105590,6 +105813,50 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        },
+        "expiresAt": {
+          "description": "AgentPowerGrant.expiresAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the grant stops working, or null when it never expires."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "roleKey": {
+          "description": "AgentPowerGrant.roleKey may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The role an ask grant lets the agent ask, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "groupId": {
+          "description": "AgentPowerGrant.groupId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The group an ask grant lets the agent ask, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -111128,6 +111395,12 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
               },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -111167,6 +111440,7 @@ export const clientManifest = {
               "id",
               "skillId",
               "skillVersionId",
+              "revision",
               "workflowId",
               "workflowName",
               "stepPath",
@@ -111430,6 +111704,61 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "audience": {
+          "description": "RunRequest.audience may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "roleKey": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The role asked (admin, developer or a custom role's key), or null when a group was asked."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestAudience.roleKey may be null in this transport value."
+                },
+                "groupId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The group asked, or null when a role was asked or the group has since been deleted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestAudience.groupId may be null in this transport value."
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The role's or group's name when the request was made."
+                }
+              },
+              "required": [
+                "roleKey",
+                "groupId",
+                "name"
+              ],
+              "additionalProperties": false,
+              "description": "The role or group this request was asked of, or null when one person was asked."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -111651,6 +111980,61 @@ export const clientManifest = {
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "The approval or question the request asks about, or null when it asks for none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "audience": {
+                "description": "RunRequest.audience may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "roleKey": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The role asked (admin, developer or a custom role's key), or null when a group was asked."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestAudience.roleKey may be null in this transport value."
+                      },
+                      "groupId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "The group asked, or null when a role was asked or the group has since been deleted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestAudience.groupId may be null in this transport value."
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The role's or group's name when the request was made."
+                      }
+                    },
+                    "required": [
+                      "roleKey",
+                      "groupId",
+                      "name"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The role or group this request was asked of, or null when one person was asked."
                   },
                   {
                     "type": "null",

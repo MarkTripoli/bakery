@@ -478,6 +478,7 @@ Deno.test("run projection marks admission budget accounting as unknown", () => {
     inngest_run_id: null,
     status: "queued",
     budget_limit_usd: "0.005000",
+    environment: "live",
     started_at: null,
     finished_at: null,
     created_at: "2026-09-19T00:00:00.000Z",
