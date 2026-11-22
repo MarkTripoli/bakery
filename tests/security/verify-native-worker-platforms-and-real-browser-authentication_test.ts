@@ -25,7 +25,16 @@ import {
   claimAssignment,
   withWorkerFixture,
 } from "../helpers/worker-execution/scenarios.ts";
-import { rawClaim } from "../helpers/coordinator-turn-jobs-worker.ts";
+import {
+  rawClaim,
+  withCoordinatorWorker,
+} from "../helpers/coordinator-turn-jobs-worker.ts";
+import {
+  billing as coordinatorBilling,
+  fund,
+  seedAgentAndTurn,
+  seedConversation,
+} from "../helpers/coordinator-turn-jobs.ts";
 import { withPgTransaction } from "@bakery/persistence/postgres";
 import {
   type HostRow,
@@ -308,3 +317,61 @@ Deno.test("rebinding a macOS-only attempt is refused once the host's enrolled OS
     assertEquals(refused.code, "AUTH_FORBIDDEN");
   });
 });
+
+// #52 (B15.06) AC2, inside the claim: the claim query matches only the job's
+// stored requirements, while the claim's admission recheck matches the
+// admitted ones. A coordinator turn is admitted as needing "model" whatever
+// its stored requirements say, so a turn job whose stored requirements were
+// emptied passes the SQL for a host without "model"; the recheck in claims.ts
+// is the only guard that keeps it queued. A host that has "model" gets it.
+Deno.test("a claim is refused when the host lacks a capability the admitted job needs but its stored requirements omit", () =>
+  withCoordinatorWorker(async (fixture) => {
+    const seed = await seedConversation(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+      "b1506-claim-recheck",
+    );
+    const scope = await seedAgentAndTurn(fixture.pgDatabase, seed, {
+      ...coordinatorBilling,
+      maxUsdReservation: 0.02,
+      pricingMetadataSnapshot: "b1506-claim-recheck-price",
+    });
+    const { job } = await fund(fixture.runtimePgDatabase, scope);
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set requirements = '{"capabilities":[]}'::jsonb
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, job.jobId],
+    );
+    const jobState = async () =>
+      (await fixture.pgDatabase.query<{ status: string; attempts: number }>(
+        `select job.status,
+                (select count(*)::int from bakery.job_attempts attempt
+                  where attempt.job_id = job.id) as attempts
+           from bakery.jobs job where job.id = $1`,
+        [job.jobId],
+      )).rows[0];
+
+    const noModel = await registeredWorker(fixture, {
+      capabilities: ["git", "shell"],
+      slots: 4,
+    });
+    const refused = await rawClaim(fixture, noModel, {
+      capabilities: ["git", "shell"],
+      supportedActions: ["coordinator.turn"],
+    });
+    assertEquals(refused.status, 204);
+    await refused.body?.cancel();
+    assertEquals(await jobState(), { status: "queued", attempts: 0 });
+
+    // Control: a host enrolled with "model" claims the same job.
+    const withModel = await registeredWorker(fixture, {
+      capabilities: ["model"],
+    });
+    const assignment = await claimAssignment(fixture, withModel, {
+      capabilities: ["model"],
+      supportedActions: ["coordinator.turn"],
+    });
+    assertEquals(assignment.jobId, job.jobId);
+    assertEquals(assignment.workerHostId, withModel.registration.workerHostId);
+  }));
