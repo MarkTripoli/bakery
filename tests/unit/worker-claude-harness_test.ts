@@ -888,3 +888,227 @@ printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_i
     assert(prompt.includes(contextDir!), "the prompt says where it is");
   },
 });
+
+// #528: agent.freeform on the Claude harness.
+
+const FREEFORM_INPUT = {
+  prompt: "Summarise the files you were given.",
+  maxTurns: 3,
+  timeout: "30s",
+  maxCostUsd: 1,
+  allowedTools: ["Read"],
+};
+
+function freeformAssignment(
+  input: Record<string, unknown> = {},
+): JobAssignment {
+  return {
+    ...localAssignment(),
+    action: "agent.freeform",
+    agentSessionId: crypto.randomUUID(),
+    input: { ...FREEFORM_INPUT, ...input },
+  } as JobAssignment;
+}
+
+function freeformExecutor(
+  dir: string,
+  executable: string,
+  published: Uint8Array[],
+  timeLimitMs = 5_000,
+) {
+  return createClaudeHarnessExecutor({
+    publishFor: () => async (request) => {
+      published.push(request.bytes);
+      return {
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: await sha256Hex(request.bytes),
+      };
+    },
+    repositoryFor: () => dir,
+    claudeExecutable: executable,
+    stateDir: `${dir}/worker-state`,
+    authSourceDir: `${dir}/auth-source`,
+    timeLimitMs,
+  });
+}
+
+const INIT =
+  `printf '%s\\n' '{"type":"system","subtype":"init","session_id":"${SESSION_ID}","claude_code_version":"2.1.0","model":"m","capabilities":[]}'`;
+const assistant = (text: string) =>
+  `printf '%s\\n' '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"${text}"}]}}'`;
+const resultLine = (
+  extra = "",
+  result = "the final answer",
+  subtype = "success",
+) =>
+  `printf '%s\\n' '{"type":"result","subtype":"${subtype}","is_error":${
+    subtype === "success" ? "false" : "true"
+  },"session_id":"${SESSION_ID}","result":"${result}","total_cost_usd":0.25${extra}}'`;
+
+async function freeformRun(
+  body: string,
+  input: Record<string, unknown> = {},
+  timeLimitMs = 5_000,
+) {
+  const scratch = await prepareScratchRepository("bakery-claude-freeform-");
+  const argsPath = `${scratch.dir}/args.txt`;
+  const promptPath = `${scratch.dir}/prompt.txt`;
+  const fake = await fakeClaude(
+    scratch.dir,
+    `cat > '${promptPath}'
+printf '%s\\n' "$@" > '${argsPath}'
+${body}`,
+  );
+  const published: Uint8Array[] = [];
+  const value = freeformAssignment(input);
+  const outcome = await freeformExecutor(
+    scratch.dir,
+    fake,
+    published,
+    timeLimitMs,
+  ).execute(value, new AbortController().signal);
+  const read = async (path: string) =>
+    await Deno.readTextFile(path).catch(() => "");
+  return {
+    outcome,
+    value,
+    published: published.map((bytes) => new TextDecoder().decode(bytes)),
+    args: await read(argsPath),
+    prompt: await read(promptPath),
+  };
+}
+
+function freeformResult(
+  outcome: Awaited<ReturnType<typeof freeformRun>>["outcome"],
+) {
+  assertEquals(outcome.status, "completed");
+  if (outcome.status !== "completed") throw new Error("unreachable");
+  return outcome.result as {
+    sessionId: string;
+    status: string;
+    artifacts: unknown[];
+  };
+}
+
+Deno.test({
+  name:
+    "Claude freeform answers the prompt with read tools only and publishes the answer",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [INIT, assistant("thinking"), assistant("the final answer"), resultLine()]
+        .join("\n"),
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "completed");
+    assertEquals(result.sessionId, run.value.agentSessionId);
+    assertEquals(result.artifacts.length, 1);
+    assertEquals(run.published, ["the final answer"]);
+    assert(run.prompt.includes(FREEFORM_INPUT.prompt));
+    assert(run.args.includes("--tools\nRead\n"));
+    assert(run.args.includes("--allowedTools\nRead\n"));
+    assert(run.args.includes("--permission-mode\ndontAsk\n"));
+    assert(run.args.includes("--max-budget-usd\n1\n"));
+    assertFalse(run.args.includes("Edit"));
+    assertFalse(run.args.includes("Bash"));
+  },
+});
+
+Deno.test({
+  name: "Claude freeform stops a session that starts one turn too many",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistant("first"),
+        assistant("second"),
+        assistant("third"),
+        assistant("fourth"),
+        "sleep 60",
+      ].join("\n"),
+      { maxTurns: 3 },
+      20_000,
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "failed");
+    assertEquals(run.published.length, 1);
+    assert(run.published[0].includes("limit of 3 turns"));
+    assert(run.published[0].includes("first"), "the partial answer is kept");
+  },
+});
+
+Deno.test({
+  name: "Claude freeform reports a session over its cost limit",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistant("costly"),
+        resultLine("", "costly", "error_max_budget_usd"),
+      ]
+        .join("\n"),
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "failed");
+    assert(run.published[0].includes("limit of 1 USD"));
+  },
+});
+
+Deno.test({
+  name: "Claude freeform reports a session that runs out of time as timed out",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [INIT, assistant("slow start"), "sleep 60"].join("\n"),
+      { timeout: "1s" },
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "timed_out");
+    assert(run.published[0].includes("slow start"));
+  },
+});
+
+Deno.test({
+  name:
+    "Claude freeform refuses a tool the harness does not offer, before any process starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(INIT, { allowedTools: ["Read", "Bash"] });
+    assertEquals(run.outcome.status, "failed");
+    if (run.outcome.status !== "failed") throw new Error("unreachable");
+    const fault = outcomeResult(run.outcome).fault as Record<string, unknown>;
+    assertEquals(fault.code, "CLAUDE_HARNESS_FREEFORM_TOOL_REFUSED");
+    assertEquals(run.args, "", "no process was started");
+  },
+});
+
+Deno.test({
+  name: "Claude freeform refuses an input without a bounded timeout",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    for (const timeout of ["0s", "forever", "PT0S"]) {
+      const run = await freeformRun(INIT, { timeout });
+      assertEquals(run.outcome.status, "failed");
+      if (run.outcome.status !== "failed") throw new Error("unreachable");
+      assertEquals(
+        (outcomeResult(run.outcome).fault as Record<string, unknown>).code,
+        "CLAUDE_HARNESS_INPUT_INVALID",
+        timeout,
+      );
+      assertEquals(run.args, "");
+    }
+  },
+});
+
+Deno.test({
+  name: "Claude freeform does not trust a stream that never produced a result",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun([INIT, assistant("half")].join("\n"));
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(run.published.length, 0);
+  },
+});
