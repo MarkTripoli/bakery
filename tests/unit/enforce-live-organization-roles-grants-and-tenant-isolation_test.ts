@@ -238,6 +238,7 @@ Deno.test("restricted installation policy stops a non-administrator before organ
         Promise.resolve({
           registrationMode: "invitation",
           organizationCreationPolicy: "installation_admins",
+          updateFailurePolicy: "go_back",
           version: 1,
           updatedByPrincipalId: null,
           updatedAt: new Date().toISOString(),

@@ -569,6 +569,8 @@ export async function transition(
     });
     return done;
   } catch (error) {
+    // finish() already undid it, asked and recorded: once is the rule.
+    if (settled.has(error)) throw error;
     const attempt = askable ? { from: desired.sha, to: old.active.sha } : null;
     throw await undoUpdate(store, operations, error, {
       progress,
@@ -609,7 +611,17 @@ async function setMarker(operations, on) {
  * asked leaves the release in place and says how to go back. The answer is
  * recorded for Bakery's history, never needed to go back.
  */
-async function undoUpdate(
+// Errors an undoUpdate has already dealt with. finish() undoes a failure and
+// rethrows it into transition(), whose own catch must not ask or record again.
+const settled = new WeakSet();
+
+async function undoUpdate(store, operations, error, context) {
+  const result = await undoUpdateOnce(store, operations, error, context);
+  if (typeof result === "object" && result !== null) settled.add(result);
+  return result;
+}
+
+async function undoUpdateOnce(
   store,
   operations,
   error,
@@ -720,13 +732,15 @@ async function finish(
     if (after.resumed !== undefined) progress({ resumed: after.resumed });
     return after.state;
   } catch (error) {
+    const attempt = askable && state.active
+      ? { from: state.desired.sha, to: state.active.sha }
+      : null;
+    // Everything in finish() runs after the switch, so there is always a
+    // release to go back from and a person to ask.
     throw await undoUpdate(store, operations, error, {
       progress,
-      askAbout: askable && state.active
-        ? { from: state.desired.sha, to: state.active.sha }
-        : null,
-      // transition's own catch records the going back; this one only undoes.
-      wentBack: null,
+      askAbout: attempt,
+      wentBack: attempt,
     });
   }
 }

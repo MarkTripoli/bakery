@@ -244,6 +244,7 @@ function harness(
     recordResult,
     events,
     marker,
+    failBackground,
   } = {},
 ) {
   let state = structuredClone(initial);
@@ -290,7 +291,10 @@ function harness(
         : Promise.resolve(),
     switchProxy: noop,
     background: noop,
-    backgroundSmoke: noop,
+    backgroundSmoke: (active) =>
+      failBackground && active?.sha === green
+        ? Promise.reject(new Error("BACKGROUND_NOT_HEALTHY"))
+        : Promise.resolve(),
     stopApi: noop,
     manifest: (sha) => Promise.resolve(manifests[sha]),
     publicSmoke: (active) =>
@@ -815,4 +819,47 @@ test("only a refused update is a refusal: a wrong user or command is not an upda
   assert.equal(isRefusal("ROOT_REQUIRED"), false);
   assert.equal(isRefusal("EXPECTED_DEPLOY_ROLLBACK_RECOVER_RENDER"), false);
   assert.equal(isRefusal("SMOKE_RELEASE_NOT_READY"), false);
+});
+
+test("an unhealthy release found after the switch, inside finish, is asked about once and recorded once", async () => {
+  for (
+    const [answer, kind] of [["go_back", "decided_go_back"], [
+      "stay",
+      "decided_stay",
+    ]]
+  ) {
+    const h = harness(committed, { ...ask, failBackground: true, answer });
+    const events = [];
+    await assert.rejects(
+      run(h, (e) => events.push(e)),
+      answer === "go_back" ? /BACKGROUND_NOT_HEALTHY/ : /UPDATE_LEFT_UNHEALTHY/,
+    );
+    assert.equal(
+      h.calls.filter((c) => c.startsWith("ask")).length,
+      1,
+      `${answer}: the person is asked once`,
+    );
+    assert.deepEqual(
+      h.calls.filter((c) => c.startsWith("record")),
+      [`record ${kind}`],
+      `${answer}: one decision is recorded`,
+    );
+    assert.equal(events.filter((e) => "recorded" in e).length, 1);
+  }
+});
+
+test("a release that fails its background check under policy go_back goes back once and is recorded once", async () => {
+  const h = harness(committed, {
+    failBackground: true,
+    policy: "go_back",
+    pause: null,
+  });
+  await assert.rejects(run(h, () => {}), /BACKGROUND_NOT_HEALTHY/);
+  assert.equal(h.state().phase, "committed");
+  assert.equal(h.state().active.sha, blue);
+  assert.deepEqual(
+    h.calls.filter((c) => c.startsWith("record")),
+    ["record went_back"],
+  );
+  assert.equal(h.calls.filter((c) => c === "resume green").length, 1);
 });
