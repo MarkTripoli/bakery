@@ -545,6 +545,18 @@ for (
       await expect(cost).toContainText(
         "The cost of every model call is known.",
       );
+      // The help tip on Spent adds no height: the three values sit the same
+      // distance below their labels, so they share a line when side by side.
+      const gaps = await cost.locator(".ui-stat-tile").evaluateAll((tiles) =>
+        tiles.map((tile) =>
+          Math.round(
+            tile.querySelector(".ui-stat-tile__value")!.getBoundingClientRect()
+              .top - tile.getBoundingClientRect().top,
+          )
+        )
+      );
+      expect(gaps).toHaveLength(3);
+      expect(new Set(gaps).size).toBe(1);
       await expect(cost.getByRole("meter", { name: "Cost against the limit" }))
         .toHaveAttribute("aria-valuetext", "$12.40 of $20.00 · $7.60 left");
       await expect(cost.getByTestId("evaluation-cost-notice")).toHaveCount(0);
