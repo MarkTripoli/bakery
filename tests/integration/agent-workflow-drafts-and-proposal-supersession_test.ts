@@ -444,8 +444,8 @@ Deno.test("publishing a version stores its starts canonically, and an invalid st
       id: "on-ready",
       on: {
         kind: "event",
-        eventKind: "work_item.ready",
-        filter: { state: "open" },
+        eventKind: "change_request.opened",
+        filter: { repositoryId: 7 },
       },
     }];
     await fixture.pgDatabase.query(
@@ -474,8 +474,8 @@ Deno.test("publishing a version stores its starts canonically, and an invalid st
       [{
         id: "on-ready",
         on: {
-          eventKind: "work_item.ready",
-          filter: { state: "open" },
+          eventKind: "change_request.opened",
+          filter: { repositoryId: 7 },
           kind: "event",
         },
       }],
@@ -640,8 +640,8 @@ Deno.test("a draft save carries its starts, keeps them when omitted, and refuses
         id: "on-ready",
         on: {
           kind: "event",
-          eventKind: "work_item.ready",
-          filter: { state: "open" },
+          eventKind: "change_request.opened",
+          filter: { repositoryId: 7 },
         },
       },
       {

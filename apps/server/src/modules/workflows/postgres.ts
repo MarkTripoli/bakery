@@ -44,7 +44,7 @@ import {
   type WorkflowValidationIssue,
 } from "./validation.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
-import { readStartSchedules } from "./start-schedules.ts";
+import { readStarts } from "./start-read.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
   assertMayPublishDefinition,
@@ -891,7 +891,7 @@ function readDraftStarts(starts: unknown): string | null {
       "start_invalid",
     );
   }
-  return canonicalJson(readStartSchedules(parsed.data));
+  return canonicalJson(readStarts(parsed.data));
 }
 
 const DRAFT_RETURNING =
@@ -1329,7 +1329,7 @@ export async function publishWorkflowVersion(
     // can say nothing about its shape: a version that published a start the
     // contract refuses would be one no matcher could ever read back.
     starts: canonicalJson(
-      readStartSchedules(WorkflowStartsSchema.parse(draft.starts)),
+      readStarts(WorkflowStartsSchema.parse(draft.starts)),
     ),
   });
   await transaction.query(
