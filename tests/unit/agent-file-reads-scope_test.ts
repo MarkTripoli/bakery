@@ -292,15 +292,20 @@ Deno.test("compiler: a files section is canonical in the node and carried into t
   assertEquals(result.plan.steps[0]?.files, node.files);
 });
 
-Deno.test("compiler: an axis left out takes its default; no section keeps the digest", async () => {
+Deno.test("compiler: an omitted read takes its default, an omitted write only outputs and workspace; no section keeps the digest", async () => {
   const narrowed = await compile([step({ files: { read: ["inputs"] } })]);
   assert(narrowed.ok);
   const node = narrowed.document.steps[0];
   assert(node && node.kind === "action");
   assertEquals(node.files, {
     read: ["inputs"],
-    write: [...DEFAULT_STEP_FILES.write],
+    write: ["outputs", "workspace"],
   });
+  const writeOnly = await compile([step({ files: { write: ["outputs"] } })]);
+  assert(writeOnly.ok);
+  const writeOnlyNode = writeOnly.document.steps[0];
+  assert(writeOnlyNode && writeOnlyNode.kind === "action");
+  assertEquals(writeOnlyNode.files?.read, [...DEFAULT_STEP_FILES.read]);
   const plain = await compile([step()]);
   const again = await compile([step()]);
   assert(plain.ok && again.ok);
@@ -425,6 +430,37 @@ Deno.test("claim: no declared section and no grant mints no write tool and no co
   );
   assert(declaredScopes.includes(FILES_WRITE_SCOPE));
   assert(declaredScopes.includes("files.write:run_folder"));
+});
+
+Deno.test("claim: a section that names only read mints no write tool and no tree write area", async () => {
+  const result = await compile([step({ files: { read: ["project"] } })]);
+  assert(result.ok);
+  const files = stepFilesFromSnapshot(
+    { runtime: { pin: {}, document: result.document } },
+    "aa",
+  );
+  assertEquals([...files.write], ["outputs", "workspace"]);
+  const scopes = [
+    ...grantedScopesForStep(files, []),
+    ...stepFileScopes(files),
+  ];
+  assert(!scopes.includes(FILES_WRITE_SCOPE), JSON.stringify(scopes));
+  assert(!scopes.some((scope) => scope.startsWith("files.write:")));
+});
+
+Deno.test("claim: a declared section that reads connections gets no connections read", async () => {
+  const result = await compile([
+    step({ files: { read: ["project", "connections"], write: ["outputs"] } }),
+  ]);
+  assert(result.ok);
+  const files = stepFilesFromSnapshot(
+    { runtime: { pin: {}, document: result.document } },
+    "aa",
+  );
+  assertEquals([...files.read], ["project"]);
+  const scopes = stepFileScopes(files);
+  assert(!scopes.includes("files.read:connections"), JSON.stringify(scopes));
+  assert(scopes.includes("files.read:project"));
 });
 
 Deno.test("scopes: the defaults mint the read and write tools and one scope per tree area", () => {

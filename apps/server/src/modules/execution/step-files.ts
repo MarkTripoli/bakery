@@ -8,6 +8,7 @@
 import {
   buildWorkflowPlan,
   DEFAULT_STEP_FILES,
+  OMITTED_STEP_FILES_WRITE,
   parseStepKey,
   resolveStepFiles,
   type WorkflowFileReadArea,
@@ -43,7 +44,7 @@ export const UNDECLARED_STEP_FILES: ResolvedStepFiles = Object.freeze({
   read: Object.freeze(
     DEFAULT_STEP_FILES.read.filter((area) => area !== "connections"),
   ),
-  write: Object.freeze(["outputs", "workspace"] as const),
+  write: OMITTED_STEP_FILES_WRITE,
 });
 
 export const INPUTS_ONLY_STEP_FILES: ResolvedStepFiles = Object.freeze({
