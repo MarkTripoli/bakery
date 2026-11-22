@@ -1110,6 +1110,35 @@ Deno.test({
 
 Deno.test({
   name:
+    "Codex rpi.research fails when the session commits, leaving a clean tree on a moved HEAD",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const run = await freeformRun(
+      [
+        item("agent_message"),
+        // A commit leaves the working tree clean, so only the revision check can
+        // tell the research read an older commit than the one it would report.
+        "git -c user.name=session -c user.email=session@example.test commit --allow-empty -m moved",
+        answer("a finding"),
+        turnDone(),
+      ].join("\n"),
+      {},
+      5_000,
+      brief,
+      { assignment: research() },
+    );
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(
+      faultOf(run.outcome as never).code,
+      "RPI_RESEARCH_CHANGED_REPOSITORY",
+    );
+    assert(!JSON.stringify(run.outcome).includes("repositoryRevision"));
+  },
+});
+
+Deno.test({
+  name:
     "Codex rpi.research stopped at its turn limit fails the step and reports no revision",
   ...RUN_PERMISSIONS,
   fn: async () => {
