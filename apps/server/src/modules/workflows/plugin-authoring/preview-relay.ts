@@ -4,6 +4,7 @@ import {
   PluginManifestError,
 } from "@bakery/contracts/plugin-sdk";
 import type { PgTransactionClient } from "../../../platform/database.ts";
+import { issueStateCasVersion } from "../../catalog/plugin-install-upgrade.ts";
 
 /**
  * The host side of a preview job's two operations (#45, B14.04).
@@ -108,12 +109,20 @@ export function createPreviewRelay(
       return deny("request_too_large");
     }
     if ((found?.cas_version ?? 0) !== expected) return deny("cas_conflict");
+    // The new number comes from the install's high-water mark (#34), as a
+    // state PUT's does, so it is above every number the install has issued
+    // for any key, including keys a restore deleted.
+    const casVersion = await issueStateCasVersion(
+      transaction,
+      input.organizationId,
+      input.installId,
+    );
     if (found === undefined) {
       await transaction.query(
         `insert into bakery.plugin_state
            (organization_id, plugin_install_id, owner_principal_id, namespace,
             key, schema_version, cas_version, value)
-         values ($1, $2, $3, $4, $5, $6, 1, $7::jsonb)`,
+         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
         [
           input.organizationId,
           input.installId,
@@ -121,15 +130,16 @@ export function createPreviewRelay(
           namespace,
           key,
           row.state_schema_version,
+          casVersion,
           value,
         ],
       );
-      return { ok: true, result: { casVersion: 1 } };
+      return { ok: true, result: { casVersion } };
     }
     await transaction.query(
       `update bakery.plugin_state
           set value = $6::jsonb, schema_version = $7,
-              cas_version = cas_version + 1, updated_at = now(),
+              cas_version = $8, updated_at = now(),
               version = version + 1
         where organization_id = $1 and plugin_install_id = $2
           and owner_principal_id is not distinct from $3
@@ -142,8 +152,9 @@ export function createPreviewRelay(
         key,
         value,
         row.state_schema_version,
+        casVersion,
       ],
     );
-    return { ok: true, result: { casVersion: expected + 1 } };
+    return { ok: true, result: { casVersion } };
   };
 }
