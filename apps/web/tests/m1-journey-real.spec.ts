@@ -647,23 +647,49 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
   await page.goto("/machines/new");
   await expect(page.getByTestId("machine-wizard")).toBeVisible();
   await axeClean(page, "/machines/new");
-  // Name and system match what the worker registers with (worker.env); the
-  // server compares them at registration (it treats x86_64 and x64 as one).
-  await page.getByLabel("Name").fill("m1-claude-worker");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("radio", { name: /Claude Code/ }).check({
-    force: true,
-  });
-  const created = page.waitForResponse((response) =>
-    new URL(response.url()).pathname === "/v1/worker-enrollments" &&
-    response.request().method() === "POST"
-  );
-  await page.getByRole("button", { name: "Continue" }).click();
-  const response = await created;
-  expect(response.request().headers()["idempotency-key"]).toBeTruthy();
-  expect(response.status()).toBe(201);
-  const enrollmentId =
-    ((await response.json()) as { enrollmentId: string }).enrollmentId;
+  // The enrollment's system and processor must be the ones the worker
+  // registers with: the server refuses a mismatch (it treats x86_64 and x64 as
+  // one). The wizard offers only a supported system, Linux arm64 today. On an
+  // arm64 host the journey uses the wizard; on any other host (x64) it makes the
+  // setup through the API with the host's processor and finishes it on the
+  // wizard's own page, so the same steps are proved. BAKERY_M1_ENROLL_VIA_API=1
+  // takes that path on an arm64 host too.
+  const hostProcessor = process.arch === "arm64" ? "arm64" : "x64";
+  const viaWizard = hostProcessor === "arm64" &&
+    process.env.BAKERY_M1_ENROLL_VIA_API !== "1";
+  let enrollmentId: string;
+  if (viaWizard) {
+    await page.getByLabel("Name").fill("m1-claude-worker");
+    // The chosen row is the host's own.
+    await expect(page.getByRole("radio", { name: /Linux.*arm64/ }))
+      .toBeChecked();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("radio", { name: /Claude Code/ }).check({
+      force: true,
+    });
+    const created = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/v1/worker-enrollments" &&
+      response.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "Continue" }).click();
+    const response = await created;
+    expect(response.request().headers()["idempotency-key"]).toBeTruthy();
+    expect(response.status()).toBe(201);
+    enrollmentId =
+      ((await response.json()) as { enrollmentId: string }).enrollmentId;
+  } else {
+    const made = await api.create("/v1/worker-enrollments", {
+      name: "m1-claude-worker",
+      os: "linux",
+      architecture: hostProcessor,
+      capabilities: ["git", "shell", "web", "model", "claude"],
+      slots: 1,
+    });
+    enrollmentId = String(made.enrollmentId);
+    // The setup code is shown once and was not shown here: new settings make one.
+    await page.goto(`/machines/new?finish=${enrollmentId}`);
+    await page.getByRole("button", { name: "Get new settings" }).click();
+  }
   remember("enrollmentId", enrollmentId);
 
   // The one-time reveal: the code is on screen once; it goes to a 0600 file the
