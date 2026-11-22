@@ -64,9 +64,11 @@ const SOURCE_COLUMNS =
   `id, display_name, source_type, locator, publisher, license,
   last_checked_at, enabled, created_at, updated_at, version`;
 export const SKILL_COLUMNS =
-  `id, source_id, slug, name, description, active_version_id, enabled,
-  scope, owner_principal_id, copied_from_skill_id, copied_from_version_id,
-  created_at, updated_at, version`;
+  `id, source_id, slug, name, description, active_version_id,
+  (select revision from bakery.skill_versions as active_version
+    where active_version.id = active_version_id) as active_revision,
+  enabled, scope, owner_principal_id, copied_from_skill_id,
+  copied_from_version_id, created_at, updated_at, version`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
   run.repository_profile_revision, run.repository_profile_digest,
@@ -172,6 +174,7 @@ export type SkillRow = {
   name: string;
   description: string | null;
   active_version_id: string | null;
+  active_revision: number | null;
   enabled: boolean;
   scope: "global" | "organization" | "personal";
   owner_principal_id: string | null;
@@ -221,6 +224,7 @@ export function toSkill(row: SkillRow) {
     name: row.name,
     description: row.description,
     activeVersionId: row.active_version_id,
+    activeRevision: row.active_revision,
     enabled: row.enabled,
     scope: row.scope,
     ownerPrincipalId: row.owner_principal_id,
@@ -1188,10 +1192,14 @@ export function createCatalogHandlers(
            left join bakery.skills as skill
              on skill.organization_id = import.organization_id
             and skill.id = import.skill_id
-          where import.organization_id = $1 and import.run_id = $2`,
+          where import.organization_id = $1 and import.run_id = $2
+            and (import.scope <> 'personal'
+              or import.owner_principal_id = $3::uuid)`,
         [organizationId, runId, principalId],
       );
       const row = result.rows[0];
+      // Another person's personal import is not found, at every state, the
+      // same as skills.get answers for their personal skill.
       if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       // What it made is reported once it is complete, and only to someone who
       // may see that skill.

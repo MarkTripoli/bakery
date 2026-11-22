@@ -4242,7 +4242,7 @@ const transportSchemas = {
           "bounds": {
             "maxLength": 200
           },
-          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest."
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. A repeat of an earlier import (same source, revision, folder, scope and owner) returns that earlier run and keeps its first label; a different label here does not rename it."
         },
         {
           "name": "scope",
@@ -23938,6 +23938,7 @@ const transportSchemas = {
         "name",
         "description",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
@@ -23953,6 +23954,7 @@ const transportSchemas = {
         "slug": "string",
         "name": "string",
         "activeVersionId": "uuid|null",
+        "activeRevision": "integer|null",
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -23966,6 +23968,7 @@ const transportSchemas = {
       "nullableFields": [
         "sourceId",
         "activeVersionId",
+        "activeRevision",
         "ownerPrincipalId",
         "copiedFromSkillId",
         "copiedFromVersionId",
@@ -23978,6 +23981,7 @@ const transportSchemas = {
         "slug": "URL-safe stable name used to address the record.",
         "name": "Human-readable name displayed for the record.",
         "activeVersionId": "Stable UUID linking this record to the related active version entity.",
+        "activeRevision": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version.",
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",

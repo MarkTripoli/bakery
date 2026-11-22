@@ -442,6 +442,18 @@ Deno.test("an import may be Private: its importer owns the skill, and nobody els
     );
     assert(organization.id !== mine.id && organization.id !== admins.id);
 
+    // Nobody else reads a Private import's progress, even before it has made
+    // a skill.
+    assertEquals(
+      (await f.read(f.adminCookie, `/v1/skill-imports/${mine.id}`)).status,
+      404,
+    );
+    assertEquals(
+      (await f.read(developer.cookie, `/v1/skill-imports/${admins.id}`))
+        .status,
+      404,
+    );
+
     // Run, it makes a Private skill its importer alone sees.
     const result = await executeSkillImport(mine.id, {
       database: f.fixture.runtimePgDatabase,
@@ -464,6 +476,10 @@ Deno.test("an import may be Private: its importer owns the skill, and nobody els
     });
     assertEquals(
       (await f.read(f.adminCookie, `/v1/skills/${made.skillId}`)).status,
+      404,
+    );
+    assertEquals(
+      (await f.read(f.adminCookie, `/v1/skill-imports/${mine.id}`)).status,
       404,
     );
   } finally {

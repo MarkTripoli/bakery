@@ -269,14 +269,6 @@ export function normalizeSkillSourceRevision(
     : requireUrlRevision(value);
 }
 
-/**
- * The revision a web-address archive fetched with no revision is pinned by: the
- * sha256 of its bytes, as `sha256:<hex>`.
- */
-export function archiveDigestRevision(proof: SkillSourceProof): string {
-  return `sha256:${proof.sourceProofDigest.replace(/^sha256:/, "")}`;
-}
-
 async function sha256(bytes: Uint8Array | string): Promise<string> {
   const input = typeof bytes === "string"
     ? new TextEncoder().encode(bytes)

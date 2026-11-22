@@ -580,11 +580,6 @@ export function createSkillDraftPublishActionRegistry(
 }
 
 /**
- * skills.sourceUpdate looks at a source over the network, so it runs in stages
- * (see routes.ts) and has a registry of its own, like a skill copy: the shared
- * catalog registry does not carry it.
- */
-/**
  * Taking a reviewed update reads the source over the network, like the check,
  * so it runs behind the same staged runners in routes.ts.
  */
@@ -606,6 +601,11 @@ function skillSourceUpdateTakeDefinition(
   } as const;
 }
 
+/**
+ * skills.sourceUpdate looks at a source over the network, so it runs in stages
+ * (see routes.ts) and has a registry of its own, like a skill copy: the shared
+ * catalog registry does not carry it.
+ */
 export function createSkillSourceUpdateActionRegistry(
   handlers: Pick<
     CatalogActionHandlers,

@@ -21663,7 +21663,7 @@ export const clientManifest = {
           "maxLength": 500
         },
         "label": {
-          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. SkillImport.label must contain at most 200 characters.",
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. A repeat of an earlier import (same source, revision, folder, scope and owner) returns that earlier run and keeps its first label; a different label here does not rename it. SkillImport.label must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -45634,6 +45634,21 @@ export const clientManifest = {
                 ],
                 "description": "Skill.activeVersionId may be null in this transport value."
               },
+              "activeRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.activeRevision may be null in this transport value."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether the record is enabled."
@@ -45718,6 +45733,7 @@ export const clientManifest = {
               "name",
               "description",
               "activeVersionId",
+              "activeRevision",
               "enabled",
               "scope",
               "ownerPrincipalId",
@@ -67210,6 +67226,21 @@ export const clientManifest = {
           ],
           "description": "Skill.activeVersionId may be null in this transport value."
         },
+        "activeRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.activeRevision may be null in this transport value."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether the record is enabled."
@@ -67294,6 +67325,7 @@ export const clientManifest = {
         "name",
         "description",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
