@@ -117,7 +117,8 @@ export function planActionAgentBindings(
  * node. A duration wait is run (issue #30, E4a). A parallel group is run by
  * interpreter revision 2 (E4c), but a run executes against one repository and
  * a lane's alias has no other binding, so every lane of every group must name
- * the same alias: the run's repository.
+ * the same alias: the run's repository. A forEach is run by interpreter
+ * revision 3; what it holds is checked like any other nesting.
  */
 export function planHoldsUnsupportedNodes(
   document: WorkflowSemanticDocument,
@@ -139,6 +140,8 @@ export function planHoldsUnsupportedNodes(
         case "repeat":
           return unsupported(node.steps) ||
             (node.seed.form === "sequence" && unsupported(node.seed.steps));
+        case "forEach":
+          return unsupported(node.steps);
         default:
           return false;
       }

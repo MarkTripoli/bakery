@@ -17,6 +17,7 @@ import { issueNumberFromRef } from "../../../apps/server/src/modules/integration
  * (`watchTransactions`): a begin counts up, a commit or rollback counts down,
  * and a reader call made while the count is above zero is recorded.
  */
+import { onboardObserved } from "../review-repair/preset-integration-cases.ts";
 import {
   type PgDatabase,
   type PgTransactionClient,
@@ -745,7 +746,13 @@ export function createMemoryTicketCreator(): MemoryTicketCreator {
 }
 
 export async function openTicketFixture(
-  options: { label?: string; budget?: boolean; liveFactIndex?: boolean } = {},
+  options: {
+    label?: string;
+    budget?: boolean;
+    liveFactIndex?: boolean;
+    /** Also bind review and repair agents, so the reviewed preset is ready. */
+    reviewed?: boolean;
+  } = {},
 ) {
   const reader = createMemoryTicketReader();
   const facts = createMemoryFactIndex();
@@ -771,9 +778,29 @@ export async function openTicketFixture(
       scope,
       options.label ?? "issue82",
     );
-    const repository = await seedPresetRepository(f.pgDatabase, scope, {
-      agentVersionId,
-    });
+    const label = options.label ?? "issue82";
+    // The reviewed workflow runs only on an observed (v2) profile, so that
+    // repository goes through a real inspection instead of a seeded profile.
+    const repository = options.reviewed === true
+      ? await onboardObserved({
+        pgDatabase: f.pgDatabase,
+        runtimePgDatabase: f.runtimePgDatabase!,
+        organizationId: f.organizationId,
+        principalId: f.adminId,
+      }, {
+        "harness.implement": agentVersionId,
+        "harness.repair": await seedFundedCodingAgent(
+          f,
+          scope,
+          `${label}-repair`,
+        ),
+        "review.independent": await seedFundedCodingAgent(
+          f,
+          scope,
+          `${label}-review`,
+        ),
+      })
+      : await seedPresetRepository(f.pgDatabase, scope, { agentVersionId });
     // `ticketSources.create` accepts the repository its resource maps to: the
     // same connection and the provider's repository id.
     await f.pgDatabase.query(

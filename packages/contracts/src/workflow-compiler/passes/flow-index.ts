@@ -11,7 +11,9 @@ export type ScopeKind =
   | "else"
   | "seed"
   | "body"
-  | "lane";
+  | "lane"
+  /** The steps of a forEach, run once per item. */
+  | "each";
 
 /** One ordered list of sibling nodes sharing an identifier namespace. */
 export type Scope = {
@@ -44,6 +46,8 @@ export type FlowNode = {
   guardsBusy: boolean;
   /** Repeat candidate type; undefined when unknown. */
   candidate: ValueType | undefined;
+  /** Item type of a forEach's list (what `$each.<as>` reads); undefined when unknown. */
+  eachItem: ValueType | undefined;
   /** Branch output name to type; a missing entry or undefined means unknown. */
   branchExports: Map<string, ValueType | undefined>;
   /** Lane identifier to export name to type. */
@@ -118,6 +122,7 @@ export function buildFlowIndex(
         guards: undefined,
         guardsBusy: false,
         candidate: undefined,
+        eachItem: undefined,
         branchExports: new Map(),
         laneExports: new Map(),
       };
@@ -159,6 +164,12 @@ export function buildFlowIndex(
         fill(flow.bodyScope, node.steps);
         return;
       }
+      case "forEach": {
+        flow.bodyScope = makeScope("each", flow);
+        flow.scopes.push(flow.bodyScope);
+        fill(flow.bodyScope, node.steps);
+        return;
+      }
       case "parallel": {
         for (const lane of node.lanes) {
           const scope = makeScope("lane", flow, lane.id);
@@ -185,6 +196,29 @@ export function repeatContext(scope: Scope): FlowNode | undefined {
   while (current) {
     if (current.kind === "body") return current.owner;
     current = current.owner?.scope;
+  }
+  return undefined;
+}
+
+/**
+ * The innermost forEach whose steps contain the scope and whose item name is
+ * `name`; undefined when no enclosing loop has that name. A forEach's own
+ * `items` sit outside its steps, so a loop cannot read its own item there.
+ */
+export function eachContext(
+  scope: Scope,
+  name: string,
+): FlowNode | undefined {
+  let current: Scope | undefined = scope;
+  while (current) {
+    const owner: FlowNode | undefined = current.owner;
+    if (
+      current.kind === "each" && owner?.node.kind === "forEach" &&
+      owner.node.as === name
+    ) {
+      return owner;
+    }
+    current = owner?.scope;
   }
   return undefined;
 }

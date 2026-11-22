@@ -37,8 +37,9 @@ function registry() {
   });
 }
 
-Deno.test("issue 82 ops contract: all twenty operations are implemented, registered and described", async () => {
-  assertEquals(ticketImplementedActions.length, 20);
+Deno.test("issue 82 ops contract: all twenty-one operations are implemented, registered and described", async () => {
+  // Twenty from #82 on, and ticketRequests.cancel (#61).
+  assertEquals(ticketImplementedActions.length, 21);
   assertEquals(
     [...ticketImplementedActions].sort(),
     Object.values(TicketImplementedAction).sort(),
@@ -126,12 +127,13 @@ Deno.test("issue 82 ops contract: reading operations declare the errors a client
   }
 });
 
-Deno.test("issue 82 ops contract: only ticketRequests.create and externalTickets.create carry a guard", () => {
+Deno.test("issue 82 ops contract: only ticketRequests.create, ticketRequests.cancel and externalTickets.create carry a guard", () => {
   const guarded = registry().list().filter((action) =>
     action.policy.authorize !== undefined
   );
   assertEquals(guarded.map(({ name }) => name).sort(), [
     "externalTickets.create",
+    "ticketRequests.cancel",
     "ticketRequests.create",
   ]);
   const access = Object.fromEntries(
@@ -139,6 +141,11 @@ Deno.test("issue 82 ops contract: only ticketRequests.create and externalTickets
   );
   assertEquals(
     access["ticketRequests.create"],
+    "Developer+admission authority",
+  );
+  // Stopping work is held to the same authority as starting it (#61).
+  assertEquals(
+    access["ticketRequests.cancel"],
     "Developer+admission authority",
   );
   assertEquals(

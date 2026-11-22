@@ -179,6 +179,9 @@ function visitNode(walk: Walk, node: WorkflowNode): void {
         lane.steps.forEach((child) => visitNode(walk, child));
       }
       return;
+    case "forEach":
+      node.steps.forEach((child) => visitNode(walk, child));
+      return;
   }
 }
 
