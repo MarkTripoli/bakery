@@ -172,7 +172,7 @@ const reviewRow = (
     blocking: number;
     minute: number;
     /** A person accepted the review anyway. */
-    accepted?: { at: string; reason: string };
+    accepted?: { at: string; reason: string; by?: string };
   },
 ) => ({
   id: reviewId,
@@ -195,6 +195,7 @@ const reviewRow = (
   updatedAt: at(over.minute),
   version: 1,
   acceptedBy: over.accepted ? uuid(77) : null,
+  acceptedByName: over.accepted?.by ?? null,
   acceptedAt: over.accepted?.at ?? null,
   acceptReason: over.accepted?.reason ?? null,
 });
@@ -2730,6 +2731,7 @@ const ACCEPTED: Scenario = {
     accepted: {
       at: "2026-01-01T12:00:00.000Z",
       reason: "The finding is about generated code.",
+      by: "Ana Ruiz",
     },
   },
 };
@@ -2816,7 +2818,9 @@ test("what Bakery tried lists every try, newest first, with what it was asked to
 test("a review accepted anyway says when and why, and a review nobody accepted shows no notice", async ({ page }) => {
   const section = await openDelivery(page, ACCEPTED);
   const notice = section.getByTestId("delivery-review-accepted");
-  await expect(notice).toContainText("Accepted anyway · Jan 1, 2026");
+  await expect(notice).toContainText(
+    "Accepted anyway by Ana Ruiz · Jan 1, 2026",
+  );
   await expect(notice).toContainText("“The finding is about generated code.”");
   await page.goto("about:blank");
   const clean = await openDelivery(page, CLEAN);

@@ -79,6 +79,8 @@ export type DeliveryReview = Readonly<{
   createdAt: string;
   /** Set once a person accepted the review anyway; the server's record. */
   acceptedBy?: string | null;
+  /** The accepter's display name, resolved by the server; null when none. */
+  acceptedByName?: string | null;
   acceptedAt?: string | null;
   acceptReason?: string | null;
 }>;
@@ -533,7 +535,9 @@ export type DeliveryModel = Readonly<{
       others: number;
       findings: readonly FindingRow[];
       /** A person accepted this review anyway, else null. */
-      accepted: Readonly<{ at: string; reason: string }> | null;
+      accepted:
+        | Readonly<{ at: string; reason: string; by: string | null }>
+        | null;
     } | null
   >;
   fixing: Readonly<
@@ -926,7 +930,11 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     findings: open,
     accepted:
       newestReview.acceptedAt != null && newestReview.acceptReason != null
-        ? { at: newestReview.acceptedAt, reason: newestReview.acceptReason }
+        ? {
+          at: newestReview.acceptedAt,
+          reason: newestReview.acceptReason,
+          by: newestReview.acceptedByName ?? null,
+        }
         : null,
   } as const;
 

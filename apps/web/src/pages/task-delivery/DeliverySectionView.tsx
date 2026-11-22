@@ -1465,12 +1465,20 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               tone="neutral"
             >
               <UI.Text>
-                {t("tasks.delivery.review.accepted.title", {
-                  date: formatDate(new Date(review.accepted.at), locale, {
-                    dateStyle: "medium",
-                    timeZone,
-                  }),
-                })}
+                {review.accepted.by === null
+                  ? t("tasks.delivery.review.accepted.title", {
+                    date: formatDate(new Date(review.accepted.at), locale, {
+                      dateStyle: "medium",
+                      timeZone,
+                    }),
+                  })
+                  : t("tasks.delivery.review.accepted.titleBy", {
+                    name: review.accepted.by,
+                    date: formatDate(new Date(review.accepted.at), locale, {
+                      dateStyle: "medium",
+                      timeZone,
+                    }),
+                  })}
               </UI.Text>
               <UI.Text>
                 {t("tasks.delivery.review.accepted.reason", {

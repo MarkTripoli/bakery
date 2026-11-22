@@ -1315,7 +1315,7 @@ Deno.test("a try whose check is not in the list is named by its id, and a missin
   assertEquals(model.fixing!.limits.durationMs, null);
 });
 
-Deno.test("a review accepted anyway shows who-less acceptance: when and why, from the server's record", () => {
+Deno.test("a review accepted anyway shows who, when and why, from the server's record", () => {
   const accepted = deliveryModel(input({
     revisionHeadSha: NEW,
     reviews: [review({
@@ -1323,6 +1323,7 @@ Deno.test("a review accepted anyway shows who-less acceptance: when and why, fro
       blockingCount: 1,
       findingCount: 1,
       acceptedBy: "p1",
+      acceptedByName: "Ana Ruiz",
       acceptedAt: "2026-11-14T09:00:00.000Z",
       acceptReason: "The finding is about generated code.",
     })],
@@ -1330,6 +1331,7 @@ Deno.test("a review accepted anyway shows who-less acceptance: when and why, fro
   assertEquals(accepted.review!.accepted, {
     at: "2026-11-14T09:00:00.000Z",
     reason: "The finding is about generated code.",
+    by: "Ana Ruiz",
   });
   assertEquals(
     deliveryModel(input({

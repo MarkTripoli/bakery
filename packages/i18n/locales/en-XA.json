@@ -6114,5 +6114,6 @@
   "tasks.delivery.fixing.tried.limit": "⟦Ɓàķëŕÿ šŧôþš àƒŧëŕ {max, plural, one {# try} other {# tries}} ôŕ {minutes, plural, one {# minute} other {# minutes}}, ŵĥïçĥëṽëŕ çôɱëš ƒïŕšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.delivery.fixing.tried.limitTries": "⟦Ɓàķëŕÿ šŧôþš àƒŧëŕ {max, plural, one {# try} other {# tries}}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "tasks.delivery.review.accepted.title": "⟦Àççëþŧëð àñÿŵàÿ · {date} ŧëšŧ ç⟧",
-  "tasks.delivery.review.accepted.reason": "⟦“{reason}” ŧ⟧"
+  "tasks.delivery.review.accepted.reason": "⟦“{reason}” ŧ⟧",
+  "tasks.delivery.review.accepted.titleBy": "⟦Àççëþŧëð àñÿŵàÿ ƀÿ {name} · {date} ŧëšŧ çôþÿ⟧"
 }

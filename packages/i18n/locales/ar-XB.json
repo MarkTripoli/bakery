@@ -6114,5 +6114,6 @@
   "tasks.delivery.fixing.tried.limit": "⟪Bakery stops after {max, plural, one {# try} other {# tries}} or {minutes, plural, one {# minute} other {# minutes}}, whichever comes first.⟫",
   "tasks.delivery.fixing.tried.limitTries": "⟪Bakery stops after {max, plural, one {# try} other {# tries}}.⟫",
   "tasks.delivery.review.accepted.title": "⟪Accepted anyway · {date}⟫",
-  "tasks.delivery.review.accepted.reason": "⟪“{reason}”⟫"
+  "tasks.delivery.review.accepted.reason": "⟪“{reason}”⟫",
+  "tasks.delivery.review.accepted.titleBy": "⟪Accepted anyway by {name} · {date}⟫"
 }
