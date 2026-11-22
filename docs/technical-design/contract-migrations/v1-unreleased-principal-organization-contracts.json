@@ -1,14 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "c1a828aec0c6d9e361f541cb676907d1e10c0222",
-    "dc1728c0f3e887d52aec240ec602e9da14aa7e35"
+    "8cad16fd684a429cb8026ca22c26945ab8eb8511"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:5835d700baff5d3a6db269f82bf2d2b6daca1ca25e16f1d6cf287e8a41315345",
-  "reason": "#41 versioned evaluations by dev-bugfix on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main dc1728c0f3e887d52aec240ec602e9da14aa7e35: evaluation batches pin exact versions (kind, id, version only), model scorers can be optional so a scorer's required flag is now stated on every result, attempts can end interrupted, batches carry a pin digest, a model budget and a corpus report, and evaluationBatches.run is new. Main's own approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:a8721cd04c1c5c1fc4036cd270953f30dada8993bfc16abdc29bca0373c60f74",
+  "reason": "#59 slice 3 by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: InstallationSettings (the administrator's settings read) gains a required updateFailurePolicy, go_back or ask, and the settings update gains it as optional; installationStatus gains a required release; the update history adds three installation administrator reads and one dismiss. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "c1a828aec0c6d9e361f541cb676907d1e10c0222",
+        "dc1728c0f3e887d52aec240ec602e9da14aa7e35"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5835d700baff5d3a6db269f82bf2d2b6daca1ca25e16f1d6cf287e8a41315345",
+      "reason": "#41 versioned evaluations by dev-bugfix on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main dc1728c0f3e887d52aec240ec602e9da14aa7e35: evaluation batches pin exact versions (kind, id, version only), model scorers can be optional so a scorer's required flag is now stated on every result, attempts can end interrupted, batches carry a pin digest, a model budget and a corpus report, and evaluationBatches.run is new. Main's own approval it displaces is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
