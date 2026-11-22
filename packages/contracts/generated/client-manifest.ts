@@ -53346,6 +53346,20 @@ export const clientManifest = {
                   }
                 ]
               },
+              "acceptedByName": {
+                "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
               "acceptedAt": {
                 "description": "ReviewCycle.acceptedAt may be null in this transport value.",
                 "anyOf": [
@@ -58190,6 +58204,20 @@ export const clientManifest = {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "acceptedByName": {
+          "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
             },
             {
               "type": "null",

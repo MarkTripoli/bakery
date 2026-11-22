@@ -11,13 +11,18 @@ import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { JobAttemptRead } from "../api/client.ts";
-import { runQueryOptions, runStepsListQueryOptions } from "../api/query.ts";
+import {
+  runControlCapabilitiesQueryOptions,
+  runQueryOptions,
+  runStepsListQueryOptions,
+} from "../api/query.ts";
 import { SessionRunNow, SessionStepThread } from "./SessionStepThread.tsx";
 import { useSessionThread } from "./useSessionThread.ts";
 import { usePublishNowLine } from "./now-line-slot.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { useConnectivity } from "../app/connectivity.ts";
 import { formatDate } from "@bakery/i18n";
 import { RouterLink } from "../app/router-link.tsx";
 import { TaskRunRevision } from "./TaskRunRevision.tsx";
@@ -29,7 +34,7 @@ import {
   RunRulesDetails,
   useRunRules,
 } from "./RunRules.tsx";
-import { runTimelineEvents } from "./task-timeline.ts";
+import { stepTimelineEvents, stepTitle } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
@@ -171,7 +176,8 @@ export function TaskRunSection(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
-  const { locale, timeZone, translate: t } = useI18n();
+  const { translate: t, locale, timeZone } = useI18n();
+  const online = useConnectivity() === "online";
   const [outputStepId, setOutputStepId] = useState<string | null>(null);
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const authority =
@@ -186,6 +192,15 @@ export function TaskRunSection(
   });
   const validRun = !run.isError && run.data?.taskId === taskId;
   const activeRun = enabled && validRun;
+  // The same read the Run actions menu makes (one cached request): a machine
+  // that cannot steer is told once, since the menu simply leaves those actions out.
+  const capabilities = useQuery({
+    ...runControlCapabilitiesQueryOptions(api, scope, runId),
+    enabled: activeRun && scope.organizationId !== null,
+  });
+  const steeringUnsupported =
+    capabilities.data?.actions.some((item) => item.reason === "unsupported") ===
+      true;
   const steps = useQuery({
     ...runStepsListQueryOptions(api, scope, runId, {
       cursor: cursors.at(-1),
@@ -339,6 +354,125 @@ export function TaskRunSection(
   };
   const forbidden = failure?.kind === "problem" &&
     failure.problem.status === 403;
+  const timeOf = (iso: string) =>
+    formatDate(new Date(iso), locale, { timeZone, timeStyle: "short" });
+  // The run's state is written once, on one line, beside its badge (#57).
+  const runLine = (() => {
+    if (!validRun || !run.data) return null;
+    const current = run.data;
+    if (!online) {
+      return (
+        <UI.Text data-placement="line">{t("tasks.controls.offline")}</UI.Text>
+      );
+    }
+    switch (current.status) {
+      case "queued":
+        return (
+          <UI.Text data-placement="line">{t("tasks.run.line.queued")}</UI.Text>
+        );
+      case "running":
+      case "waiting_input":
+      case "waiting_capacity":
+        return (
+          <UI.Text data-placement="line">
+            {t("tasks.run.line.started", {
+              time: timeOf(current.startedAt ?? current.createdAt),
+            })}
+          </UI.Text>
+        );
+      case "paused":
+        return (
+          <UI.Text data-placement="line">{t("tasks.run.line.paused")}</UI.Text>
+        );
+      case "blocked":
+        return <BlockedNotice run={current} />;
+      case "failed":
+        return (
+          <UI.Text data-placement="line">{t("tasks.run.line.failed")}</UI.Text>
+        );
+      case "canceled":
+        return (
+          <UI.Text data-placement="line">
+            {t("tasks.run.line.canceled", {
+              time: timeOf(current.finishedAt ?? current.updatedAt),
+            })}
+          </UI.Text>
+        );
+      case "completed": {
+        const stepsKnown = steps.data !== undefined && !steps.isError &&
+          !invalidSteps && cursors.length === 1 && !steps.data.nextCursor;
+        const lasted = current.startedAt !== null && current.finishedAt !== null
+          ? Math.max(
+            0,
+            Date.parse(current.finishedAt) - Date.parse(current.startedAt),
+          )
+          : null;
+        if (!stepsKnown || lasted === null) {
+          return (
+            <UI.Text data-placement="line">
+              {t("tasks.run.line.finishedAt", {
+                time: timeOf(current.finishedAt ?? current.updatedAt),
+              })}
+            </UI.Text>
+          );
+        }
+        const whole = Math.round(lasted / 1000);
+        return (
+          <UI.Text data-placement="line">
+            {t("tasks.run.line.finished", {
+              steps: steps.data.items.length,
+              duration: lasted < 1000
+                ? t("tasks.run.duration.instant")
+                : whole < 60
+                ? t("tasks.run.duration.seconds", { seconds: whole })
+                : t("tasks.run.duration.minutes", {
+                  minutes: Math.floor(whole / 60),
+                  seconds: whole % 60,
+                }),
+            })}
+          </UI.Text>
+        );
+      }
+      case "canceling":
+        return null;
+    }
+  })();
+  // A step list is drawn newest first. A finished, failed or paused run folds
+  // everything past the newest three under one link; a running one shows all.
+  const stepEvents =
+    validRun && run.data && !steps.isPending && !steps.isError &&
+      !invalidSteps && steps.data && steps.data.items.length > 0
+      ? [
+        ...stepTimelineEvents(
+          steps.data.items,
+          t,
+          new Map(
+            waitingOffers.map((offer) =>
+              [offer.runStepId, stepRowCopy(offer, t)] as const
+            ),
+          ),
+          (iso) =>
+            formatDate(new Date(iso), locale, {
+              timeZone,
+              dateStyle: "medium",
+              timeStyle: "short",
+            }),
+        ),
+        ...(receipts.authority === authority ? receipts.events : []),
+      ].reverse()
+      : null;
+  const folds = stepEvents !== null && run.data !== undefined &&
+    ["completed", "failed", "canceled", "paused"].includes(run.data.status) &&
+    stepEvents.length > 3;
+  const timelineProps = {
+    label: t("tasks.run.timeline"),
+    connectivity: connectivity === "online" ? undefined : connectivity,
+    connectivityLabel: t(
+      `tasks.timeline.connectivity.${
+        connectivity === "online" ? "unknown" : connectivity
+      }`,
+    ),
+  };
   return (
     <TaskRunSectionView
       title={t("tasks.run.heading")}
@@ -363,10 +497,37 @@ export function TaskRunSection(
                 </UI.Badge>
               )
               : null}
+            {runLine}
+            {validRun && run.data && run.data.status !== "blocked"
+              ? (
+                <TaskRunControls
+                  key={`${scope.sessionGeneration}:${scope.organizationId}:${taskId}:${runId}`}
+                  taskId={taskId}
+                  runId={runId}
+                  enabled={activeRun}
+                  paused={run.data.status === "paused"}
+                  onReceipt={(event) =>
+                    setReceipts((current) => ({
+                      authority,
+                      events: [
+                        ...(current.authority === authority
+                          ? current.events
+                          : []),
+                        event,
+                      ],
+                    }))}
+                />
+              )
+              : null}
           </UI.Inline>
-          {validRun && run.data?.status === "blocked"
-            ? <BlockedNotice run={run.data} />
-            : null}
+          {steeringUnsupported && (
+            <UI.InlineNotice
+              tone="information"
+              data-ui-region="steering-unsupported"
+            >
+              {t("tasks.conversation.steering.unsupported")}
+            </UI.InlineNotice>
+          )}
           {validRun && run.data
             ? (
               <RouteWaiting
@@ -406,133 +567,102 @@ export function TaskRunSection(
           </UI.VisuallyHidden>
           {validRun && run.data
             ? (
-              <>
-                <RunRulesChangedNotice
-                  model={rules}
-                  onShowDetails={showRulesDetails}
-                />
-                <UI.Disclosure
-                  id="run-details"
-                  summary={t("tasks.run.details")}
-                >
-                  <FingerprintRow
-                    copyFailedText={t("tasks.run.idCopyFailed")}
-                    display={run.data.id.slice(0, 8)}
-                    fingerprint={run.data.id}
-                    label={t("tasks.run.id")}
-                    noHelp
-                    testId="run-id-row"
-                  />
-                  <RunRulesDetails
-                    finished={run.data.finishedAt !== null}
-                    model={rules}
-                    settingsVersion={run.data.repositoryProfileRevision}
-                    stepNames={stepNames}
-                  />
-                </UI.Disclosure>
-              </>
+              <RunRulesChangedNotice
+                model={rules}
+                onShowDetails={showRulesDetails}
+              />
             )
             : null}
         </>
       }
-      details={
-        <>
-          <UI.Text>
-            {usage
-              ? t("tasks.run.output.usage", {
-                input: usage.inputTokens ?? t("tasks.run.unknown"),
-                output: usage.outputTokens ?? t("tasks.run.unknown"),
-                cost: usage.costUsd ?? t("tasks.run.unknown"),
-              })
-              : t("tasks.run.output.usageUnknown")}
-          </UI.Text>
-          {validRun && run.data && !steps.isPending && !steps.isError &&
-              !invalidSteps && steps.data
-            ? (
+      timeline={stepEvents === null ? null : (
+        // One compact group: the always-mounted (usually empty) status region
+        // and the list share a tight gap instead of each taking a full one.
+        <UI.Stack gap="compact">
+          <UI.RunTimeline
+            {...timelineProps}
+            events={folds ? stepEvents.slice(0, 3) : stepEvents}
+          />
+          {folds && (
+            <UI.Disclosure
+              data-testid="run-earlier-steps"
+              summary={t("tasks.run.earlierSteps", {
+                count: stepEvents.length - 3,
+              })}
+            >
               <UI.RunTimeline
-                label={t("tasks.run.timeline")}
-                connectivity={connectivity === "online"
-                  ? undefined
-                  : connectivity}
-                connectivityLabel={t(
-                  `tasks.timeline.connectivity.${
-                    connectivity === "online" ? "unknown" : connectivity
-                  }`,
-                )}
-                events={[
-                  ...runTimelineEvents(
-                    run.data,
-                    steps.data.items,
-                    t,
-                    {
-                      first: cursors.length === 1,
-                      last: !steps.data.nextCursor,
-                    },
-                    new Map(
-                      waitingOffers.map((offer) =>
-                        [offer.runStepId, stepRowCopy(offer, t)] as const
-                      ),
-                    ),
-                    (iso) =>
-                      formatDate(new Date(iso), locale, {
-                        timeZone,
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }),
-                  ),
-                  ...(receipts.authority === authority ? receipts.events : []),
-                ]}
+                events={stepEvents.slice(3)}
+                label={t("tasks.run.earlierStepsLabel")}
               />
-            )
-            : null}
-          {validRun && run.data
-            ? (
-              <UI.CursorControls
-                variant="previousNext"
-                state={steps.isFetching ? "loading" : "ready"}
-                hasPrevious={cursors.length > 1}
-                hasNext={!steps.isError && !invalidSteps &&
-                  !!steps.data?.nextCursor}
-                onPrevious={() => setCursors(cursors.slice(0, -1))}
-                onNext={() => {
-                  if (steps.data?.nextCursor) {
-                    setCursors([
-                      ...cursors,
-                      steps.data.nextCursor,
-                    ]);
-                  }
-                }}
-                labels={{
-                  controls: t("tasks.run.timeline"),
-                  end: t("projects.onboarding.pagination.endOfResults"),
-                  loadMore: t("projects.onboarding.pagination.loadMore"),
-                  loading: t("projects.onboarding.pagination.loading"),
-                  next: t("projects.onboarding.pagination.next"),
-                  previous: t("projects.onboarding.pagination.previous"),
-                  retry: t("tasks.live.retry"),
-                }}
-              />
-            )
-            : null}
-          {/* A blocked run waits on a dependency and takes no controls. */}
-          {run.data?.status === "blocked" && validRun ? null : (
-            <TaskRunControls
-              key={`${scope.sessionGeneration}:${scope.organizationId}:${taskId}:${runId}`}
-              taskId={taskId}
-              runId={runId}
-              enabled={activeRun}
-              onReceipt={(event) =>
-                setReceipts((current) => ({
-                  authority,
-                  events: [
-                    ...(current.authority === authority ? current.events : []),
-                    event,
-                  ],
-                }))}
+            </UI.Disclosure>
+          )}
+          {(cursors.length > 1 || !!steps.data?.nextCursor) && (
+            <UI.CursorControls
+              variant="previousNext"
+              state={steps.isFetching ? "loading" : "ready"}
+              hasPrevious={cursors.length > 1}
+              hasNext={!steps.isError && !invalidSteps &&
+                !!steps.data?.nextCursor}
+              onPrevious={() => setCursors(cursors.slice(0, -1))}
+              onNext={() => {
+                if (steps.data?.nextCursor) {
+                  setCursors([...cursors, steps.data.nextCursor]);
+                }
+              }}
+              labels={{
+                controls: t("tasks.run.timeline"),
+                end: t("projects.onboarding.pagination.endOfResults"),
+                loadMore: t("projects.onboarding.pagination.loadMore"),
+                loading: t("projects.onboarding.pagination.loading"),
+                next: t("projects.onboarding.pagination.next"),
+                previous: t("projects.onboarding.pagination.previous"),
+                retry: t("tasks.live.retry"),
+              }}
             />
           )}
-        </>
-      }
+        </UI.Stack>
+      )}
+      details={validRun && run.data
+        ? (
+          <UI.Disclosure id="run-details" summary={t("tasks.run.details")}>
+            <FingerprintRow
+              copyFailedText={t("tasks.run.idCopyFailed")}
+              display={run.data.id.slice(0, 8)}
+              fingerprint={run.data.id}
+              label={t("tasks.run.id")}
+              noHelp
+              testId="run-id-row"
+            />
+            {(run.data.workspaceBaseSha ?? run.data.baseSha) === null ? null : (
+              // The commit the run started from: it used to show only inside
+              // the Changes box, which is not drawn when nothing is recorded.
+              <UI.Text>
+                {t("tasks.run.startedFrom", {
+                  sha: (run.data.workspaceBaseSha ?? run.data.baseSha)!
+                    .slice(0, 7),
+                })}
+              </UI.Text>
+            )}
+            <RunRulesDetails
+              finished={run.data.finishedAt !== null}
+              model={rules}
+              settingsVersion={run.data.repositoryProfileRevision}
+              stepNames={stepNames}
+            />
+            {usage
+              ? (
+                <UI.Text>
+                  {t("tasks.run.output.usage", {
+                    input: usage.inputTokens ?? t("tasks.run.unknown"),
+                    output: usage.outputTokens ?? t("tasks.run.unknown"),
+                    cost: usage.costUsd ?? t("tasks.run.unknown"),
+                  })}
+                </UI.Text>
+              )
+              : null}
+          </UI.Disclosure>
+        )
+        : null}
       revision={!run.isPending && !run.isError && !mismatch && validRun &&
           run.data &&
           !steps.isPending && !steps.isError && !invalidSteps
@@ -611,10 +741,6 @@ export function TaskRunSection(
               )
               : (
                 <>
-                  {steps.data.items.length === 0 &&
-                    run.data.status !== "blocked" && (
-                    <UI.Text>{t("tasks.run.noSteps")}</UI.Text>
-                  )}
                   {steps.data.items.length > 0 && (
                     <>
                       {steps.data.items.length > 1 && (
@@ -634,6 +760,10 @@ export function TaskRunSection(
                           key={selectedStepId}
                           taskId={taskId}
                           source={selectedThread}
+                          // With one step there is no Step select to say which step this is.
+                          stepName={steps.data.items.length === 1
+                            ? stepTitle(t, steps.data.items[0]!.stepKey)
+                            : undefined}
                           highlightedItemId={itemParam ?? undefined}
                           rawOutput={
                             <TaskRunOutput

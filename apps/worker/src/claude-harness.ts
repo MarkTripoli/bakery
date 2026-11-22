@@ -5,6 +5,16 @@ import {
   type ReadAttemptContext,
 } from "./harness-context.ts";
 import { enforceWorkerFixedPolicy, type WorkerExecutor } from "./executor.ts";
+import {
+  FREEFORM_ACTION,
+  FREEFORM_MAX_TIMEOUT_MS,
+  freeformOutcome,
+  type FreeformStop,
+  freeformTools,
+  isFreeformFault,
+  readFreeformRequest,
+  renderFreeformAnswer,
+} from "./harness-freeform.ts";
 import type { ExecutionOutcome } from "./executor.ts";
 import type { NativeOutputSink } from "./native-output.ts";
 import {
@@ -231,6 +241,15 @@ export type ClaudeStreamState = {
   truncated: boolean;
   /** The terminal `result` record, kept for structured-output readers. */
   resultRecord?: JsonObject;
+  /**
+   * Model turns seen so far: one per distinct assistant `message.id`. Claude
+   * Code writes one assistant record per content block, and the blocks of one
+   * reply share the id, so a reply with text and two tool calls is one turn. A
+   * record that names no id counts as a turn of its own.
+   */
+  assistantTurns: number;
+  /** Text blocks of the assistant messages, in order, for a freeform answer. */
+  answerText: string[];
 };
 
 function utf8ByteLength(value: string): number {
@@ -471,7 +490,12 @@ export class ClaudeStreamParser {
     contradictory: false,
     malformed: false,
     truncated: false,
+    assistantTurns: 0,
+    answerText: [],
   };
+
+  /** Ids of the assistant messages already counted as a turn. */
+  private readonly assistantMessageIds = new Set<string>();
 
   constructor(private readonly eventRecorder?: ClaudeHarnessEventRecorder) {}
 
@@ -579,7 +603,11 @@ export class ClaudeStreamParser {
     else if (type === "api_retry") this.parseApiRetry(value);
     else if (type === "result") this.parseResult(value);
     else if (type === "rate_limit_event") this.parseRateLimit(value);
-    else if (type === "assistant") this.parseAssistantError(value);
+    else if (type === "assistant") {
+      this.parseAssistantError(value);
+      this.countAssistantTurn(value);
+      this.collectAnswerText(value);
+    }
   }
 
   private recordQuota(evidence: Partial<ClaudeQuotaEvidence>): void {
@@ -605,6 +633,38 @@ export class ClaudeStreamParser {
         ? resetsAt
         : null,
     });
+  }
+
+  // A reply is one turn however many records carry it, so only the first record
+  // of each message id counts; a record with no id cannot be matched and counts.
+  private countAssistantTurn(value: JsonObject): void {
+    const message = value.message;
+    const id = message !== null && typeof message === "object"
+      ? (message as JsonObject).id
+      : undefined;
+    if (typeof id !== "string" || id === "") {
+      this.state.assistantTurns++;
+    } else if (!this.assistantMessageIds.has(id)) {
+      this.assistantMessageIds.add(id);
+      this.state.assistantTurns++;
+    }
+  }
+
+  // The text blocks of an assistant record are kept, in order, as the answer a
+  // freeform step falls back to when the session never reports a result.
+  private collectAnswerText(value: JsonObject): void {
+    const message = value.message;
+    if (message === null || typeof message !== "object") return;
+    const content = (message as JsonObject).content;
+    if (!Array.isArray(content)) return;
+    for (const block of content) {
+      if (
+        block !== null && typeof block === "object" &&
+        (block as JsonObject).type === "text" &&
+        typeof (block as JsonObject).text === "string" &&
+        this.state.answerText.length < 200
+      ) this.state.answerText.push((block as JsonObject).text as string);
+    }
   }
 
   // A usage-limit refusal arrives as an assistant record with a top-level
@@ -1646,6 +1706,269 @@ async function executeClaudeHarness(
   }
 }
 
+/** Read-only file tools a freeform session may be given; nothing that edits or runs. */
+export const CLAUDE_FREEFORM_TOOLS = ["Read", "Glob", "Grep"] as const;
+const CLAUDE_FREEFORM_NAMING = Object.freeze({
+  prefix: "CLAUDE_HARNESS",
+  title: "The Claude Code harness could not complete the bounded task",
+});
+
+/**
+ * Runs one `agent.freeform` session: no repository, read tools only, the
+ * step's pinned inputs beside it, and a bound on turns, time and cost. A
+ * session that hits a bound is stopped and its partial answer is published with
+ * the stop named; a session whose stream cannot be trusted is a fault.
+ */
+async function executeClaudeFreeform(
+  assignment: JobAssignment,
+  signal: AbortSignal,
+  output: NativeOutputSink | undefined,
+  options: ClaudeHarnessOptions,
+): Promise<ExecutionOutcome> {
+  await enforceWorkerFixedPolicy(assignment);
+  const request = readFreeformRequest(assignment, CLAUDE_FREEFORM_NAMING);
+  if (isFreeformFault(request)) return request;
+  const tools = freeformTools(
+    request,
+    CLAUDE_FREEFORM_TOOLS,
+    CLAUDE_FREEFORM_NAMING,
+  );
+  if (!Array.isArray(tools)) return tools as ExecutionOutcome;
+  if (options.stateDir && !safeStateSegment(assignment.attemptId)) {
+    return claudeHarnessFault(
+      "CLAUDE_HARNESS_INPUT_INVALID",
+      "The Claude Code harness needs a safe attempt identifier.",
+      500,
+      false,
+    );
+  }
+  if (assignment.agentSessionId === undefined) {
+    return claudeHarnessFault(
+      "CLAUDE_HARNESS_INPUT_INVALID",
+      "A freeform step needs the server-created agent session.",
+      500,
+      false,
+    );
+  }
+  if (signal.aborted) return provenCanceledOutcome();
+
+  const config = await claudeConfigDirectory(options, assignment);
+  try {
+    const workDir = join(config.root, "work");
+    await Deno.mkdir(workDir, { recursive: true, mode: 0o700 });
+    const context = await prepareHarnessContext({
+      assignment,
+      attemptRoot: config.root,
+      goal:
+        "Answer the prompt below; the step's inputs are the files listed here.",
+      workDir,
+      readAttemptContext: options.readAttemptContext,
+    });
+    if (!context.ok) {
+      return claudeHarnessFault(
+        `CLAUDE_HARNESS_${context.code}`,
+        context.detail,
+        context.status,
+        context.retryable,
+      );
+    }
+    try {
+      await prepareClaudeAuth(options.authSourceDir, config.path);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "CLAUDE_HARNESS_AUTH_UNAVAILABLE"
+      ) {
+        return harnessCredentialUnavailable(
+          "CLAUDE",
+          "Claude Code",
+          "The Claude Code harness could not complete the bounded task",
+        );
+      }
+      return claudeHarnessFault(
+        "CLAUDE_HARNESS_INPUT_INVALID",
+        "Claude native authentication preparation was unavailable.",
+        500,
+        false,
+      );
+    }
+    let credentialSecrets: readonly string[];
+    try {
+      credentialSecrets = await harnessCredentialSecrets(
+        join(options.authSourceDir, CLAUDE_AUTH_ALLOWLIST[0]),
+      );
+    } catch {
+      return harnessCredentialUnavailable(
+        "CLAUDE",
+        "Claude Code",
+        "The Claude Code harness could not complete the bounded task",
+      );
+    }
+    const childEnvironment = claudeChildEnvironment(config, assignment);
+    const claudeExecutable = options.claudeExecutable ?? "claude";
+    const versionProbe = await probeHarnessVersion(
+      claudeExecutable,
+      workDir,
+      childEnvironment,
+      signal,
+    );
+    if (signal.aborted) return harnessCanceledOutcome(versionProbe.teardown);
+    if (
+      versionProbe.teardown !== "not-needed" &&
+      versionProbe.teardown.status === "unconfirmed"
+    ) {
+      return harnessTeardownFault("CLAUDE", versionProbe.teardown);
+    }
+    if (versionProbe.timedOut || !versionProbe.version) {
+      return claudeHarnessFault(
+        "CLAUDE_HARNESS_EXIT_NONZERO",
+        "The pinned Claude Code CLI version probe did not complete successfully.",
+        502,
+        false,
+      );
+    }
+
+    const parser = new ClaudeStreamParser(options.eventRecorder);
+    // A bound the CLI does not enforce is enforced here: the turns are counted
+    // from the stream and the child is stopped the moment one too many starts.
+    const stopper = new AbortController();
+    const relay = () => stopper.abort();
+    signal.addEventListener("abort", relay, { once: true });
+    let stop: FreeformStop | undefined;
+    const args = [
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--restricted",
+      "--tools",
+      tools.join(","),
+      "--permission-mode",
+      "dontAsk",
+      "--permission-prompts",
+      "none",
+      ...(tools.length === 0 ? [] : ["--allowedTools", tools.join(",")]),
+      "--disallowedTools",
+      `Read(/${resolve(config.path)}/**)`,
+      "--max-budget-usd",
+      String(request.maxCostUsd),
+      ...(options.model === undefined ? [] : ["--model", options.model]),
+      ...(options.effort === undefined ? [] : ["--effort", options.effort]),
+      ...(context.contextDir === undefined
+        ? []
+        : ["--add-dir", context.contextDir]),
+    ];
+    let run;
+    try {
+      run = await runBoundedHarness({
+        executable: claudeExecutable,
+        cwd: workDir,
+        prompt: `${request.prompt}${context.promptSection}`,
+        timeLimitMs: Math.min(
+          request.timeoutMs,
+          options.timeLimitMs ?? FREEFORM_MAX_TIMEOUT_MS,
+        ),
+        signal: stopper.signal,
+        output,
+        groupKillExecutable: options.groupKillExecutable,
+        environment: childEnvironment,
+        onOutput: (channel, chunk) => {
+          if (channel !== "stdout") return;
+          parser.feed(chunk);
+          if (
+            stop === undefined && parser.state.assistantTurns > request.maxTurns
+          ) {
+            stop = "max_turns";
+            stopper.abort();
+          }
+        },
+        args,
+      });
+    } finally {
+      signal.removeEventListener("abort", relay);
+    }
+    parser.finish();
+    if (
+      run.teardown !== "not-needed" && run.teardown.status === "unconfirmed"
+    ) return harnessTeardownFault("CLAUDE", run.teardown);
+    // The caller's own abort wins over every bound: nothing is published for
+    // work somebody asked to stop.
+    if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    if (stop === undefined && run.timedOut) stop = "timeout";
+    const record = parser.state.resultRecord;
+    if (
+      stop === undefined && (
+        record?.subtype === "error_max_budget_usd" ||
+        (parser.state.totalCostUsd ?? 0) > request.maxCostUsd
+      )
+    ) stop = "max_cost";
+    const quota = parser.state.quota;
+    if (
+      stop === undefined && quota !== undefined &&
+      parser.state.terminal !== "success"
+    ) {
+      return claudeHarnessFault(
+        "quota_exceeded",
+        "The Claude Code provider reported exhausted quota or rate limit.",
+        429,
+        false,
+        parser.state.apiRetryEvents,
+      );
+    }
+    if (
+      stop === undefined && (
+        run.code !== 0 || parser.state.malformed || parser.state.truncated ||
+        parser.state.contradictory || !parser.state.initialized ||
+        parser.state.terminalRecords !== 1 ||
+        parser.state.terminal !== "success"
+      )
+    ) {
+      return claudeHarnessFault(
+        "CLAUDE_HARNESS_EXIT_NONZERO",
+        "The Claude Code stream did not contain a valid, consistent successful terminal result.",
+        502,
+        false,
+        parser.state.apiRetryEvents,
+      );
+    }
+    const finalText = typeof record?.result === "string"
+      ? record.result
+      : parser.state.answerText.join("\n\n");
+    let answer = finalText;
+    for (
+      const secret of [
+        assignment.leaseToken,
+        ...credentialSecrets,
+        ...(
+          options.redactionSecrets ?? []
+        ),
+      ]
+    ) {
+      if (secret.length >= 8) answer = answer.replaceAll(secret, "[redacted]");
+    }
+    return await freeformOutcome({
+      assignment,
+      publish: options.publishFor(assignment),
+      signal,
+      bytes: renderFreeformAnswer({
+        answer,
+        stop,
+        turns: parser.state.assistantTurns,
+        limits: request,
+      }),
+      stop,
+      source: "claude-harness",
+      extra: {
+        claudeCodeVersion: parser.state.claudeCodeVersion ?? null,
+        model: parser.state.model ?? null,
+        telemetry: { total_cost_usd: parser.state.totalCostUsd },
+      },
+    });
+  } finally {
+    await Deno.remove(config.root, { recursive: true }).catch(() => undefined);
+  }
+}
+
 async function claudeModelCheck(
   authSourceDir: string,
 ): Promise<WorkerInventoryCheck> {
@@ -1692,6 +2015,7 @@ export function createClaudeHarnessExecutor(
       ...new Set([
         ...(inner?.supportedActions ?? CLAUDE_HARNESS_SUPPORTED_ACTIONS),
         HARNESS_REPAIR_ACTION,
+        FREEFORM_ACTION,
         COORDINATOR_TURN_ACTION,
       ]),
     ],
@@ -1701,7 +2025,10 @@ export function createClaudeHarnessExecutor(
       await initializeHarnessWorktree(guard, harnessBusy);
     },
     async credentialRedactionSecrets(assignment) {
-      if (!isHarnessEditAction(assignment.action)) {
+      if (
+        !isHarnessEditAction(assignment.action) &&
+        assignment.action !== FREEFORM_ACTION
+      ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
       return await harnessCredentialSecrets(
@@ -1731,6 +2058,10 @@ export function createClaudeHarnessExecutor(
         }
         return executeClaudeCoordinatorTurn(assignment, signal, options, output)
           .finally(harnessBusy.release);
+      }
+      if (assignment.action === FREEFORM_ACTION) {
+        // No repository is touched, so the shared worktree latch is not taken.
+        return executeClaudeFreeform(assignment, signal, output, options);
       }
       if (!isHarnessEditAction(assignment.action)) {
         if (!inner) {

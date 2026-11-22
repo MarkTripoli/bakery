@@ -3,10 +3,13 @@ import {
   availablePlugins,
   capabilitiesOf,
   installedPlugins,
+  isApprovalRefusal,
   latestVersion,
   type PluginInstall,
   type PluginPackage,
   type PluginVersion,
+  stateCopyOf,
+  updateFailureOf,
 } from "../../apps/web/src/app/plugins.ts";
 
 const org = "00000000-0000-4000-8000-000000000001";
@@ -240,7 +243,9 @@ Deno.test("the recorded failure is read off an install, and a malformed one is i
     ...install(61, notes.id, v1.id, "enabled"),
     lastUpdateFailure: failure,
   } as PluginInstall;
-  assertEquals(updateFailureOf(withFailure), failure);
+  // A failure that carries neither field reads as: no data restore, nothing added.
+  const read = { ...failure, restoreState: false, addedCapabilities: [] };
+  assertEquals(updateFailureOf(withFailure), read);
   assertEquals(updateFailureOf(undefined), null);
   assertEquals(
     updateFailureOf({ lastUpdateFailure: null } as PluginInstall),
@@ -253,7 +258,74 @@ Deno.test("the recorded failure is read off an install, and a malformed one is i
     null,
   );
   const rows = installedPlugins([withFailure], [notes], versions);
-  assertEquals(rows[0].updateFailure, failure);
+  assertEquals(rows[0].updateFailure, read);
+});
+
+Deno.test("a failure carries what the version added and whether data was restored, and a stray capability is dropped", () => {
+  const withApproval = {
+    ...install(62, notes.id, v1.id, "enabled"),
+    lastUpdateFailure: {
+      versionId: v2.id,
+      versionName: "1.1.0",
+      reason: "plugin_capabilities_not_approved",
+      at: "2026-11-19T21:00:00.000Z",
+      restoreState: true,
+      addedCapabilities: ["jobs.schedule", "not.a.capability", 7],
+    },
+  } as unknown as PluginInstall;
+  const failure = updateFailureOf(withApproval);
+  assertEquals(failure?.restoreState, true);
+  assertEquals(failure?.addedCapabilities, ["jobs.schedule"]);
+});
+
+Deno.test("the kept copy of saved data is read off an install, and a malformed one is ignored", () => {
+  const copy = {
+    versionId: v2.id,
+    versionName: "1.1.0",
+    takenAt: "2026-11-19T05:30:00.000Z",
+    itemCount: 3,
+  };
+  const held = {
+    ...install(63, notes.id, v1.id, "enabled"),
+    stateCopy: copy,
+  } as unknown as PluginInstall;
+  assertEquals(stateCopyOf(held), copy);
+  assertEquals(stateCopyOf(undefined), null);
+  assertEquals(stateCopyOf({ stateCopy: null } as PluginInstall), null);
+  assertEquals(
+    stateCopyOf(
+      { stateCopy: { ...copy, itemCount: "3" } } as unknown as PluginInstall,
+    ),
+    null,
+  );
+  const rows = installedPlugins([held], [notes], versions);
+  assertEquals(rows[0].stateCopy, copy);
+});
+
+Deno.test("an install lists the versions that cannot read its saved data and drops anything that is not an id", () => {
+  const unreadable = {
+    ...install(64, notes.id, v2.id, "enabled"),
+    cannotReadVersionIds: [v1.id, 5, null],
+  } as unknown as PluginInstall;
+  assertEquals(
+    installedPlugins([unreadable], [notes], versions)[0].cannotReadVersionIds,
+    [v1.id],
+  );
+  assertEquals(
+    installedPlugins(
+      [install(65, notes.id, v2.id, "enabled")],
+      [notes],
+      versions,
+    )[0].cannotReadVersionIds,
+    [],
+  );
+});
+
+Deno.test("only the two permission refusals are treated as an approval refusal", () => {
+  assert(isApprovalRefusal("plugin_capabilities_not_approved"));
+  assert(isApprovalRefusal("plugin_capability_approval_mismatch"));
+  assert(!isApprovalRefusal("plugin_state_incompatible"));
+  assert(!isApprovalRefusal(""));
 });
 
 Deno.test("a fingerprint shows its first 8 and last 4 characters", async () => {

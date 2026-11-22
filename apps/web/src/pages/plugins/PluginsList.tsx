@@ -91,24 +91,37 @@ function installedLine(
   row: InstalledRow,
   translate: ReturnType<typeof useI18n>["translate"],
 ): string {
+  // The installed version is not in the loaded list: no sentence names it.
+  const unknown = row.versionName === "";
   if (row.failedUpdate !== null) {
-    return translate("settings.plugins.line.updateFailed", {
-      version: row.versionName,
-      next: row.failedUpdate,
-    });
+    return unknown
+      ? translate("settings.plugins.line.updateFailedUnknown", {
+        next: row.failedUpdate,
+      })
+      : translate("settings.plugins.line.updateFailed", {
+        version: row.versionName,
+        next: row.failedUpdate,
+      });
   }
   if (row.state === "notWorking") {
-    return translate("settings.plugins.line.notWorking", {
-      version: row.versionName,
-    });
+    return unknown
+      ? translate("settings.plugins.line.notWorkingUnknown")
+      : translate("settings.plugins.line.notWorking", {
+        version: row.versionName,
+      });
   }
   if (row.update !== null && row.state === "on") {
-    return translate("settings.plugins.line.updateAvailable", {
-      version: row.versionName,
-      next: row.update.versionName,
-    });
+    return unknown
+      ? translate("settings.plugins.line.updateAvailableUnknown", {
+        next: row.update.versionName,
+      })
+      : translate("settings.plugins.line.updateAvailable", {
+        version: row.versionName,
+        next: row.update.versionName,
+      });
   }
-  return translate("settings.plugins.line.version", {
+  // Nothing to say about a version that has no name: the line is left out.
+  return unknown ? "" : translate("settings.plugins.line.version", {
     version: row.versionName,
   });
 }
@@ -165,9 +178,13 @@ export function InstalledList(
             data-plugin-install={row.installId}
           >
             <UI.StackedRow title={row.name} status={badge(row)}>
-              <UI.Text variant="caption">
-                {installedLine(row, translate)}
-              </UI.Text>
+              {installedLine(row, translate) === ""
+                ? null
+                : (
+                  <UI.Text variant="caption">
+                    {installedLine(row, translate)}
+                  </UI.Text>
+                )}
               <UI.Text variant="caption">{scopeLabel(row, translate)}</UI.Text>
               {action(row)}
             </UI.StackedRow>
@@ -195,9 +212,13 @@ export function InstalledList(
           cell: (row) => (
             <UI.Stack gap="none">
               <UI.Text>{row.name}</UI.Text>
-              <UI.Text variant="caption">
-                {installedLine(row, translate)}
-              </UI.Text>
+              {installedLine(row, translate) === ""
+                ? null
+                : (
+                  <UI.Text variant="caption">
+                    {installedLine(row, translate)}
+                  </UI.Text>
+                )}
             </UI.Stack>
           ),
         },

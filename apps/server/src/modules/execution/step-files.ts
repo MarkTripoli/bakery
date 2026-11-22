@@ -8,6 +8,7 @@
 import {
   buildWorkflowPlan,
   DEFAULT_STEP_FILES,
+  OMITTED_STEP_FILES_WRITE,
   parseStepKey,
   resolveStepFiles,
   type WorkflowFileReadArea,
@@ -26,6 +27,22 @@ export type ResolvedStepFiles = Readonly<{
 }>;
 
 /**
+ * What a claim mints for a step that declared no files section. O44 and O45
+ * describe the defaults a definition may narrow; minting them as session
+ * scopes would hand every agent storage writes nobody granted. So a step with
+ * no section reads the tree areas O44 names, writes only its own outputs and
+ * workspace, and reaches the storage write tools only through a declared
+ * section or a person's grant (#448). /connections is left out: O44 opens
+ * only the connections a definition binds, and no binding is recorded yet.
+ */
+export const UNDECLARED_STEP_FILES: ResolvedStepFiles = Object.freeze({
+  read: Object.freeze(
+    DEFAULT_STEP_FILES.read.filter((area) => area !== "connections"),
+  ),
+  write: OMITTED_STEP_FILES_WRITE,
+});
+
+/**
  * The narrowest section: pinned inputs and declared outputs only. Used where
  * the step cannot be found in a plan that should name it, because a guess
  * would hand the session areas nobody declared.
@@ -37,8 +54,8 @@ export const INPUTS_ONLY_STEP_FILES: ResolvedStepFiles = Object.freeze({
 
 /**
  * The resolved files section of the step a run snapshot's plan declares
- * under this key. A run admitted before plans existed has no section to read
- * and takes the defaults every definition gets (O44, O45); a plan run whose
+ * under this key. A run admitted before plans existed, or a step with no
+ * section, gets {@link UNDECLARED_STEP_FILES}; a plan run whose
  * document or step cannot be read gets the inputs-only section, never the
  * defaults.
  */
@@ -46,7 +63,7 @@ export function stepFilesFromSnapshot(
   snapshot: unknown,
   stepKey: string,
 ): ResolvedStepFiles {
-  if (!carriesPlanRuntime(snapshot)) return DEFAULT_STEP_FILES;
+  if (!carriesPlanRuntime(snapshot)) return UNDECLARED_STEP_FILES;
   const runtime = (snapshot as { runtime?: { document?: unknown } }).runtime;
   const document = WorkflowSemanticDocumentSchema.safeParse(runtime?.document);
   if (!document.success) return INPUTS_ONLY_STEP_FILES;
@@ -61,7 +78,22 @@ export function stepFilesFromSnapshot(
     candidate.qualifiedId === qualifiedId
   );
   if (!step) return INPUTS_ONLY_STEP_FILES;
-  return resolveStepFiles(step.files);
+  if (step.files === undefined) return UNDECLARED_STEP_FILES;
+  return withoutUnboundConnections(resolveStepFiles(step.files));
+}
+
+/**
+ * A declared section keeps its areas, except /connections: a read there opens
+ * only for connections the definition binds (O44), and none is recorded yet.
+ */
+function withoutUnboundConnections(
+  files: ResolvedStepFiles,
+): ResolvedStepFiles {
+  if (!files.read.includes("connections")) return files;
+  return {
+    read: files.read.filter((area) => area !== "connections"),
+    write: files.write,
+  };
 }
 
 /**

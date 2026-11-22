@@ -63,6 +63,8 @@ type Fixture = {
   answer: ReturnType<typeof access> | number;
   status: "enabled" | "disabled";
   documents: string[];
+  /** False: the installed version is not in the list the page loaded. */
+  versionsLoaded: boolean;
 };
 
 async function pluginPagesFixture(
@@ -74,6 +76,7 @@ async function pluginPagesFixture(
     answer: access(null),
     status: "enabled",
     documents: [],
+    versionsLoaded: true,
   };
   await mockAuthenticatedSession(page);
   await page.route(
@@ -125,7 +128,7 @@ async function pluginPagesFixture(
     "**/v1/plugin-packages/*/versions**",
     (route) =>
       route.fulfill(json({
-        items: [{
+        items: !state.versionsLoaded ? [] : [{
           id: NOTES_V1,
           organizationId: MOCK_ORGANIZATION_ID,
           pluginPackageId: NOTES,
@@ -422,6 +425,23 @@ test("on the compact rail the pages keep their names as tooltips", async ({ page
   await open(page);
   const link = page.getByRole("group", { name: "Plugins" }).getByRole("link");
   await expect(link).toHaveAttribute("title", "Release checklist");
+});
+
+test("a page whose installed version is unknown names no version", async ({ page }) => {
+  const state = await pluginPagesFixture(page);
+  state.versionsLoaded = false;
+  await open(page);
+  await expect(page.getByText("Provided by the plugin Notes", { exact: true }))
+    .toBeVisible();
+  await expect(page.getByText(/version\s*$|version \./)).toHaveCount(0);
+  state.answer = 500;
+  await open(page);
+  await expect(
+    page.getByText(
+      "If it keeps happening, give your administrator the page release-checklist.",
+      { exact: true },
+    ),
+  ).toBeVisible();
 });
 
 test("a page that failed to load says so and tries again", async ({ page }) => {
