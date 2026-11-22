@@ -698,6 +698,9 @@ test("results for an older commit are said once, in the headline, and the card s
   );
   const details = await openLink(section, "delivery-details");
   await expect(details).toContainText("Earlier results, for commit 4be19c2");
+  // A check still running has no time yet; it is not a repository rule.
+  await expect(details.getByTestId("delivery-checks-rows").first()).not
+    .toContainText("Repository rule");
   const tried = await openLink(section, "delivery-tried");
   await expect(tried).toContainText("Try 1");
 });

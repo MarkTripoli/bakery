@@ -396,7 +396,8 @@ function Tried({ fixing }: Readonly<{ fixing: DeliveryModel["fixing"] }>) {
           ]}
           phone={(entry: Try) => ({
             title: t("tasks.delivery.fixing.tried.try", { n: entry.n }),
-            status: <UI.DataText variant="code">{entry.sha}</UI.DataText>,
+            // Content width, so the commit id never squeezes the title.
+            status: <UI.DataText fit variant="code">{entry.sha}</UI.DataText>,
             lines: [<UI.Text key="asked">{asked(entry)}</UI.Text>],
           })}
           rowKey={(entry: Try) => String(entry.n)}
@@ -429,8 +430,10 @@ function ChecksTable(
   );
   const took = (row: CheckRow) => {
     const cell = tookCell(row);
+    // Only a repository rule has no time by nature; a check still running has
+    // none yet, and says nothing rather than calling itself a rule.
     return cell === null
-      ? t("tasks.delivery.details.rule")
+      ? (row.rule ? t("tasks.delivery.details.rule") : "")
       : t(cell.key, "values" in cell ? cell.values : undefined);
   };
   const exit = (row: CheckRow) =>
