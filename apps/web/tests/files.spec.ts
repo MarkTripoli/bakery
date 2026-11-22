@@ -757,8 +757,9 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "files-preview-image");
       await open(42);
-      await expect(page.getByText(/too large to preview \(4\.8 MB\)/))
-        .toBeVisible();
+      await expect(
+        page.getByText(/too large to preview \(4\.8 MB; the limit is 1 MB\)/),
+      ).toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "files-preview-too-large");
       await page.goto(`/files/projects/web-app?file=${uuid(41)}`);

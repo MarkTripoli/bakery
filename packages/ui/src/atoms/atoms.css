@@ -379,15 +379,24 @@
 .ui-provider-mark[data-clear-space="true"] {
   overflow: visible;
   pointer-events: none;
+  position: relative;
 }
+/* Out of flow, so the overflow never widens the line it sits in; the insets
+   centre the file on the slot on both axes (logical, so right to left too). */
 .ui-provider-mark[data-clear-space="true"] .ui-provider-mark__art {
   block-size: calc(var(--space-5) * 2);
-  flex: none;
   inline-size: calc(var(--space-5) * 2);
+  inset-block-start: calc((100% - var(--space-5) * 2) / 2);
+  inset-inline-start: calc((100% - var(--space-5) * 2) / 2);
+  position: absolute;
 }
 .ui-provider-mark--header[data-clear-space="true"] .ui-provider-mark__art {
   block-size: calc((var(--space-6) + var(--space-0-5)) * 2);
   inline-size: calc((var(--space-6) + var(--space-0-5)) * 2);
+  inset-block-start: calc((100% - (var(--space-6) + var(--space-0-5)) * 2) / 2);
+  inset-inline-start: calc(
+    (100% - (var(--space-6) + var(--space-0-5)) * 2) / 2
+  );
 }
 .ui-provider-mark__tile {
   align-items: center;

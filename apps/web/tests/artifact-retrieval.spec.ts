@@ -446,7 +446,8 @@ test.describe("artifact retrieval states", () => {
     const descriptor = page.locator('[data-ui-component="artifactDescriptor"]');
     await expect(descriptor).toBeVisible();
     await expect(descriptor).toContainText(CONTENT_SHA256);
-    await expect(descriptor).toContainText(`${VERSION.sizeBytes} bytes`);
+    // The size reads in the files browser's units ("13 B"), not "13 bytes".
+    await expect(descriptor).toContainText(`${VERSION.sizeBytes} B`);
     await expect(descriptor).toContainText(VERSION.mediaType);
     // The revision the provenance, download and extraction sections describe
     // is identified to sighted users, not only through `aria-pressed`.
