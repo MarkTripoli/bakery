@@ -1,4 +1,5 @@
 import type { CodePort, TicketsPort } from "./family-ports.ts";
+import type { StoragePort } from "./storage-port.ts";
 import {
   manifestDefects,
   ProviderManifestSchema,
@@ -66,6 +67,10 @@ export type TicketsFor<M extends ProviderManifest> = "tickets" extends
 /** The code port when the family is claimed, and `never` when it is not. */
 export type CodeFor<M extends ProviderManifest> = "code" extends
   M["families"][number] ? CodePort : never;
+
+/** The storage port when the family is claimed, and `never` when it is not. */
+export type StorageFor<M extends ProviderManifest> = "storage" extends
+  M["families"][number] ? StoragePort : never;
 
 /**
  * A port member that a family either requires or forbids.
@@ -140,6 +145,14 @@ export type ServerImpl<M extends ProviderManifest> =
     : {
       /** Serves the code family; required because the manifest may claim it. */ code:
         CodePort;
+    })
+  & (ExcludesFamilies<M, "storage"> extends true ? {
+      /** Forbidden: the manifest excludes the storage family. */ storage?:
+        never;
+    }
+    : {
+      /** Serves the storage family; required because the manifest may claim it. */ storage:
+        StoragePort;
     });
 
 /**
@@ -251,6 +264,7 @@ export function serverProviderDefects<M extends ProviderManifest>(
     const [family, port] of [
       ["tickets", impl.tickets],
       ["code", impl.code],
+      ["storage", impl.storage],
     ] as const
   ) {
     const supplied = port !== undefined && port !== null;

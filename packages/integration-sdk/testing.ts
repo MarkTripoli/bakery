@@ -10,6 +10,14 @@ import type { ProviderManifest } from "./src/provider-manifest.ts";
 import type { DriverContext, InstallationOrigin } from "./src/ports.ts";
 import type { ProviderRequestPort } from "./src/ports.ts";
 import type { ServerImpl } from "./src/server-provider.ts";
+import {
+  isStoragePath,
+  MAX_STORAGE_READ_BYTES,
+  type StorageChangeEvent,
+  type StorageObject,
+  type StoragePort,
+  type StorageWriteResult,
+} from "./src/storage-port.ts";
 
 /** Deterministic uuid-shaped effect id for tests; no crypto, never production. */
 export function deterministicEffectId(n: number): string {
@@ -300,4 +308,206 @@ export function testServerImpl(
     hostProfile: `profile-${manifest.slug}`,
   };
   return { ...base, ...overrides } as ServerImpl<ProviderManifest>;
+}
+
+/** A file the in-memory storage port holds. */
+type MemoryStorageFile = {
+  bytes: Uint8Array;
+  mediaType: string;
+  revision: string;
+  modifiedAt: string;
+};
+
+/** The in-memory storage port and the counters a test asserts on. */
+export type MemoryStorage = {
+  port: StoragePort;
+  /** Puts a file as if someone changed it outside Bakery; returns its new revision. */
+  put(path: string, content: string | Uint8Array, mediaType?: string): string;
+  /** Removes a file as if someone deleted it outside Bakery. */
+  remove(path: string): void;
+  /** How many times each member was called, so a test can prove reads are lazy. */
+  readonly calls: Readonly<Record<keyof StoragePort, number>>;
+  /** The bytes a path holds now, or undefined. */
+  bytesOf(path: string): Uint8Array | undefined;
+};
+
+/**
+ * An in-process storage provider for tests: a flat map of paths to bytes with
+ * folders implied by the paths, revisions that change on every write, a change
+ * feed, and writes that land once per idempotency key. Never production.
+ */
+export function createMemoryStorage(): MemoryStorage {
+  const files = new Map<string, MemoryStorageFile>();
+  const events: StorageChangeEvent[] = [];
+  const writes = new Map<string, StorageWriteResult>();
+  const calls = { list: 0, stat: 0, read: 0, write: 0, changes: 0 };
+  let counter = 0;
+  const position = (n: number) => n.toString().padStart(12, "0");
+  const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+  const store = (path: string, bytes: Uint8Array, mediaType: string) => {
+    if (!isStoragePath(path) || path === "/") {
+      throw new RangeError("not a file path: " + path);
+    }
+    counter++;
+    const existed = files.has(path);
+    const revision = "rev-" + counter;
+    files.set(path, {
+      bytes: bytes.slice(),
+      mediaType,
+      revision,
+      modifiedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, counter)).toISOString(),
+    });
+    events.push({
+      kind: existed ? "updated" : "created",
+      path,
+      revision,
+      position: position(events.length + 1),
+    });
+    return revision;
+  };
+  const fileObject = (
+    path: string,
+    file: MemoryStorageFile,
+  ): StorageObject => ({
+    path,
+    name: nameOf(path),
+    kind: "file",
+    sizeBytes: file.bytes.byteLength,
+    mediaType: file.mediaType,
+    revision: file.revision,
+    modifiedAt: file.modifiedAt,
+  });
+  const folderObject = (path: string): StorageObject => ({
+    path,
+    name: path === "/" ? "/" : nameOf(path),
+    kind: "folder",
+    sizeBytes: null,
+    mediaType: null,
+    revision: null,
+    modifiedAt: null,
+  });
+  const isFolder = (path: string) => {
+    if (path === "/") return true;
+    for (const key of files.keys()) {
+      if (key.startsWith(path + "/")) return true;
+    }
+    return false;
+  };
+  const children = (path: string): StorageObject[] => {
+    const prefix = path === "/" ? "/" : path + "/";
+    const seen = new Map<string, StorageObject>();
+    for (const [key, file] of files) {
+      if (!key.startsWith(prefix)) continue;
+      const rest = key.slice(prefix.length);
+      const slash = rest.indexOf("/");
+      if (slash === -1) seen.set(key, fileObject(key, file));
+      else {
+        const folder = prefix + rest.slice(0, slash);
+        if (!seen.has(folder)) seen.set(folder, folderObject(folder));
+      }
+    }
+    return [...seen.values()].sort((a, b) =>
+      a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+    );
+  };
+  const port: StoragePort = {
+    list(input) {
+      calls.list++;
+      const all = children(input.path);
+      const start = input.cursor === null
+        ? 0
+        : all.findIndex((item) => item.path > input.cursor!);
+      const from = start === -1 ? all.length : start;
+      const items = all.slice(from, from + input.limit);
+      const more = from + input.limit < all.length;
+      return Promise.resolve({
+        items,
+        nextCursor: more ? items[items.length - 1].path : null,
+      });
+    },
+    stat(input) {
+      calls.stat++;
+      const file = files.get(input.path);
+      if (file) return Promise.resolve(fileObject(input.path, file));
+      return Promise.resolve(
+        isFolder(input.path) ? folderObject(input.path) : null,
+      );
+    },
+    read(input) {
+      calls.read++;
+      const file = files.get(input.path);
+      if (!file) return Promise.resolve({ kind: "missing" as const });
+      const object = fileObject(input.path, file);
+      if (input.revision !== null && input.revision !== file.revision) {
+        return Promise.resolve({ kind: "stale" as const, current: object });
+      }
+      const offset = input.range?.offset ?? 0;
+      const length = input.range?.length ?? MAX_STORAGE_READ_BYTES;
+      return Promise.resolve({
+        kind: "bytes" as const,
+        object,
+        bytes: file.bytes.slice(offset, offset + length),
+      });
+    },
+    write(input) {
+      calls.write++;
+      const earlier = writes.get(input.idempotencyKey);
+      if (earlier) return Promise.resolve(earlier);
+      const current = files.get(input.path);
+      const matches = input.ifMatch === null
+        ? current === undefined
+        : current?.revision === input.ifMatch;
+      let result: StorageWriteResult;
+      if (!matches) {
+        result = {
+          kind: "conflict",
+          current: current ? fileObject(input.path, current) : null,
+        };
+      } else {
+        store(input.path, input.bytes, input.mediaType);
+        result = {
+          kind: "written",
+          object: fileObject(input.path, files.get(input.path)!),
+        };
+        writes.set(input.idempotencyKey, result);
+      }
+      return Promise.resolve(result);
+    },
+    changes(input) {
+      calls.changes++;
+      const after = input.since === null
+        ? events
+        : events.filter((event) => event.position > input.since!);
+      const page = after.slice(0, input.limit);
+      return Promise.resolve({
+        events: page,
+        position: page.length > 0
+          ? page[page.length - 1].position
+          : input.since ??
+            (events.length > 0 ? events[events.length - 1].position : null),
+      });
+    },
+  };
+  return {
+    port,
+    put: (path, content, mediaType = "text/plain") =>
+      store(
+        path,
+        typeof content === "string"
+          ? new TextEncoder().encode(content)
+          : content,
+        mediaType,
+      ),
+    remove(path) {
+      if (!files.delete(path)) return;
+      events.push({
+        kind: "deleted",
+        path,
+        revision: null,
+        position: position(events.length + 1),
+      });
+    },
+    calls,
+    bytesOf: (path) => files.get(path)?.bytes.slice(),
+  };
 }
