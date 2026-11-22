@@ -213,6 +213,8 @@ export type PlanStateInput = Readonly<{
   task: JsonValue;
   /** `$delivery`, resolved by the engine; absent until it is. */
   delivery?: JsonValue;
+  /** Tries the host allowed beyond a repeat's `max`, by the repeat's step key. */
+  repeatExtra?: Readonly<Record<string, number>>;
   rows: readonly PlanStepRow[];
   cancelRequested?: boolean;
 }>;
@@ -226,6 +228,9 @@ export function nextPlanStep(
     inputs: input.inputs,
     task: input.task,
     ...(input.delivery === undefined ? {} : { delivery: input.delivery }),
+    ...(input.repeatExtra === undefined
+      ? {}
+      : { repeatExtra: input.repeatExtra }),
     steps: recordsFromRows(input.rows),
     inFlight: inFlightKeys(input.rows),
     ...(input.cancelRequested === true ? { cancelRequested: true } : {}),
