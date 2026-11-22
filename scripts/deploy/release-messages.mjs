@@ -319,7 +319,8 @@ const clock = (iso) => iso.slice(11, 16);
  * have it.
  */
 export function decisionLines(decision) {
-  if (!decision) return [];
+  // No one was asked (nobody could be): there is no answer to report.
+  if (!decision || decision.by === null) return [];
   const who = `by ${decision.by} at ${
     clock(decision.at)
   } UTC, from the server.`;

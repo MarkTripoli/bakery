@@ -14,11 +14,14 @@ import {
   unsureLines,
 } from "./release-messages.mjs";
 import { PassThrough } from "node:stream";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   askAtTerminal,
+  forgetEvent,
+  keepEvent,
+  MAX_KEPT_EVENTS,
   recover,
   resendEvents,
   transition,
@@ -560,18 +563,42 @@ test("policy ask: a no leaves the release in place, work paused, and records the
   await assert.rejects(run(h, (e) => events.push(e)), /UPDATE_LEFT_UNHEALTHY/);
   assert.notEqual(h.state().phase, "committed", "recover can still go back");
   assert.ok(!h.calls.includes("resume green"), "work is not resumed on it");
-  assert.ok(h.calls.includes("record decided_stay"));
-  assert.equal(
-    events.find((e) => "recorded" in e).recorded.kind,
-    "decided_stay",
+  assert.deepEqual(
+    h.calls.filter((c) => c.startsWith("record")),
+    ["record updated", "record decided_stay"],
+    "the move is recorded first, so the history knows what was replaced",
   );
+  const [moved, decided] = events.filter((e) => "recorded" in e).map((e) =>
+    e.recorded
+  );
+  assert.equal(moved.kind, "updated");
+  assert.equal(moved.fromRelease, blue);
+  assert.equal(moved.toRelease, green);
+  assert.equal(decided.kind, "decided_stay");
+  assert.equal(decided.by, "mark");
 });
 
-test("policy ask with nobody to ask changes nothing and records nothing", async () => {
+test("policy ask with nobody to ask leaves it running, records the move and a stay with no one named", async () => {
   const h = harness(committed, { ...ask, fail: true, answer: null });
-  await assert.rejects(run(h, () => {}), /UPDATE_LEFT_UNHEALTHY/);
+  const events = [];
+  await assert.rejects(
+    run(h, (e) => events.push(e)),
+    /UPDATE_LEFT_UNHEALTHY/,
+  );
   assert.notEqual(h.state().phase, "committed");
-  assert.ok(!h.calls.some((c) => c.startsWith("record")));
+  assert.ok(!h.calls.includes("resume green"));
+  assert.deepEqual(
+    h.calls.filter((c) => c.startsWith("record")),
+    ["record updated", "record decided_stay"],
+  );
+  const recorded = events.filter((e) => "recorded" in e).map((e) => e.recorded);
+  assert.equal(recorded[0].by, "mark", "the move is the operator's update");
+  assert.equal(recorded[1].by, null, "no one answered");
+  assert.deepEqual(
+    decisionLines(recorded[1]),
+    [],
+    "there is no answer to report at the terminal",
+  );
 });
 
 test("an unreadable policy goes back, because the database may be what is down", async () => {
@@ -698,27 +725,61 @@ test("with no terminal nobody is asked, and only --yes answers for a script", as
   );
 });
 
-test("kept events are sent again, only the latest few, and a failure leaves the rest", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "decisions-"));
-  const path = join(dir, "decisions.jsonl");
-  const rows = [1, 2, 3, 4].map((n) => ({ id: `id-${n}` }));
-  await writeFile(path, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
-  const seen = [];
-  const sent = await resendEvents(
-    (row) => {
-      seen.push(row.id);
-      if (row.id === "id-3") throw new Error("DB_DOWN");
-      return Promise.resolve(true);
-    },
-    3,
+test("every kept event is sent, the ones Bakery took are dropped, and the rest stay", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "history-"));
+  const path = join(dir, "history.jsonl");
+  const rows = Array.from({ length: 30 }, (_, n) => ({ id: `id-${n + 1}` }));
+  await writeFile(
     path,
+    rows.map((r) => JSON.stringify(r)).join("\n") + "\nnot json\n",
   );
-  assert.deepEqual(seen, ["id-2", "id-3", "id-4"]);
-  assert.equal(sent, 2);
-  assert.equal(
-    await resendEvents(() => Promise.resolve(true), 3, join(dir, "none")),
-    0,
+  const seen = [];
+  const result = await resendEvents((row) => {
+    seen.push(row.id);
+    if (row.id === "id-3" || row.id === "id-28") throw new Error("DB_DOWN");
+    return Promise.resolve(true);
+  }, path);
+  assert.equal(seen.length, 30, "more than a window's worth are all tried");
+  assert.deepEqual(result, { sent: 28, unsent: 2 });
+  assert.deepEqual(
+    await keptIds(path),
+    ["id-3", "id-28"],
+    "unparseable lines are dropped",
   );
+  // The next run sends only what is left, and an empty file is fine.
+  assert.deepEqual(await resendEvents(() => Promise.resolve(true), path), {
+    sent: 2,
+    unsent: 0,
+  });
+  assert.deepEqual(await keptIds(path), []);
+  assert.deepEqual(
+    await resendEvents(() => Promise.resolve(true), join(dir, "none")),
+    { sent: 0, unsent: 0 },
+  );
+});
+
+async function keptIds(path) {
+  return (await readFile(path, "utf8")).split("\n").filter(Boolean).map((l) =>
+    JSON.parse(l).id
+  );
+}
+
+test("the host file keeps only events Bakery has not taken, and never grows past its cap", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "history-kept-"));
+  const path = join(dir, "history.jsonl");
+  await keepEvent({ id: "a" }, path);
+  await keepEvent({ id: "b" }, path);
+  assert.deepEqual(await keptIds(path), ["a", "b"]);
+  await forgetEvent("a", path);
+  assert.deepEqual(await keptIds(path), ["b"]);
+  await forgetEvent("missing", path);
+  assert.deepEqual(await keptIds(path), ["b"]);
+  for (let n = 0; n < MAX_KEPT_EVENTS + 5; n++) {
+    await keepEvent({ id: `e${n}` }, path);
+  }
+  const ids = await keptIds(path);
+  assert.equal(ids.length, MAX_KEPT_EVENTS);
+  assert.equal(ids.at(-1), `e${MAX_KEPT_EVENTS + 4}`, "the newest are kept");
 });
 
 test("an update marks itself for the proxy, records what happened and clears the mark", async () => {
@@ -841,10 +902,15 @@ test("an unhealthy release found after the switch, inside finish, is asked about
     );
     assert.deepEqual(
       h.calls.filter((c) => c.startsWith("record")),
-      [`record ${kind}`],
-      `${answer}: one decision is recorded`,
+      answer === "go_back"
+        ? [`record ${kind}`]
+        : ["record updated", `record ${kind}`],
+      `${answer}: one decision is recorded, and a kept release is a move`,
     );
-    assert.equal(events.filter((e) => "recorded" in e).length, 1);
+    assert.equal(
+      events.filter((e) => "recorded" in e).length,
+      answer === "go_back" ? 1 : 2,
+    );
   }
 });
 

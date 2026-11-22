@@ -641,15 +641,34 @@ async function undoUpdateOnce(
   }
   const choice = await operations.ask(askAbout);
   if (choice !== "go_back" && choice !== "stay") {
+    // Nobody could be asked. The new release stays running, so the history says
+    // it was installed and that it was kept by default, with no one named.
+    await keepRunning(operations, progress, askAbout);
+    await note(operations, progress, {
+      kind: "decided_stay",
+      by: null,
+      from: askAbout.from,
+      to: askAbout.to,
+    });
     return new Error("UPDATE_LEFT_UNHEALTHY");
   }
   if (choice === "stay") {
+    await keepRunning(operations, progress, askAbout);
     await remember(operations, progress, choice, askAbout);
     return new Error("UPDATE_LEFT_UNHEALTHY");
   }
   await recover(store, operations);
   await remember(operations, progress, choice, askAbout);
   return error;
+}
+
+/**
+ * The new release is serving and stays that way: record the move, so the
+ * history (and the Updates page's "can go back to") knows what was replaced
+ * even though the update did not finish well.
+ */
+async function keepRunning(operations, progress, { from, to }) {
+  await note(operations, progress, { kind: "updated", from: to, to: from });
 }
 
 async function asksFirst(operations, sha) {
@@ -899,16 +918,53 @@ export function loginName() {
   return userInfo().username;
 }
 
-/** Appended and synced, so the event survives a database that is down. */
-async function keepEvent(event) {
-  await mkdir(dirname(HISTORY), { recursive: true, mode: 0o700 });
-  const file = await open(HISTORY, "a", 0o600);
+// The most events kept on the host while Bakery's database does not take them.
+// More than this means the database has been unreachable through a very long
+// run of updates; the oldest go first, and the file says so in the lines kept.
+export const MAX_KEPT_EVENTS = 1000;
+
+async function keptLines(path) {
+  try {
+    return (await readFile(path, "utf8")).split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function writeKept(path, lines) {
+  await writeAtomic(path, lines.length ? `${lines.join("\n")}\n` : "");
+}
+
+/**
+ * Appended and synced, so the event survives a database that is down. The file
+ * holds only events Bakery has not taken: `forgetEvent` removes one once it has.
+ */
+export async function keepEvent(event, path = HISTORY) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const file = await open(path, "a", 0o600);
   try {
     await file.appendFile(`${JSON.stringify(event)}\n`);
     await file.sync();
   } finally {
     await file.close();
   }
+  const lines = await keptLines(path);
+  if (lines.length > MAX_KEPT_EVENTS) {
+    await writeKept(path, lines.slice(-MAX_KEPT_EVENTS));
+  }
+}
+
+/** Drops one event from the host file once Bakery has it. */
+export async function forgetEvent(id, path = HISTORY) {
+  const lines = await keptLines(path);
+  const left = lines.filter((line) => {
+    try {
+      return JSON.parse(line).id !== id;
+    } catch {
+      return false;
+    }
+  });
+  if (left.length !== lines.length) await writeKept(path, left);
 }
 
 const dash = (value) => value ?? "-";
@@ -936,29 +992,40 @@ async function sendEvent(event, via) {
 }
 
 /**
- * Sends the events kept on this host again. Bakery ignores the ones it
- * already has, so this is safe to repeat. Returns how many Bakery took.
+ * Sends every event still kept on this host. Bakery ignores one it already
+ * has, so this is safe to repeat. The file is then rewritten with only the
+ * events Bakery did not take, so nothing is ever left behind a window and the
+ * file does not grow. Returns how many were sent and how many are still kept.
  */
-export async function resendEvents(
-  send = sendEvent,
-  limit = 20,
-  path = HISTORY,
-) {
-  let text;
-  try {
-    text = await readFile(path, "utf8");
-  } catch {
-    return 0;
-  }
+export async function resendEvents(send = sendEvent, path = HISTORY) {
+  const lines = await keptLines(path);
+  const unsent = [];
   let sent = 0;
-  for (const line of text.trim().split("\n").slice(-limit)) {
+  for (const line of lines) {
+    let event;
     try {
-      if (await send(JSON.parse(line))) sent++;
+      event = JSON.parse(line);
     } catch {
-      // Not reachable or not valid: it stays on this host for the next time.
+      continue; // Not an event: it cannot be sent, so it is not kept.
+    }
+    try {
+      if (await send(event)) {
+        sent++;
+        continue;
+      }
+    } catch {
+      // Not reachable: it stays on this host for the next time.
+    }
+    unsent.push(line);
+  }
+  if (unsent.length !== lines.length) {
+    try {
+      await writeKept(path, unsent);
+    } catch {
+      // The file is left as it was; the next run sends the same events again.
     }
   }
-  return sent;
+  return { sent, unsent: unsent.length };
 }
 
 /**
@@ -1009,6 +1076,8 @@ export function hostOperations(config, { yes = false } = {}) {
       }
       try {
         await sendEvent(event, via);
+        // Bakery has it: the host copy has done its job.
+        await forgetEvent(event.id).catch(() => {});
       } catch {
         inBakery = false;
       }

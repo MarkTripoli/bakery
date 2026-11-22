@@ -46,10 +46,15 @@ export const MOVE_KINDS: readonly UpdateEventKind[] = [
   UpdateEventKind.RolledBack,
 ];
 
-/** Events a person is told about until they dismiss it. */
+/**
+ * Events a person is told about until they dismiss it. Leaving an unhealthy
+ * release running (decided_stay, by a person or because no one could be asked)
+ * is one: the installation is not healthy and an administrator has to act.
+ */
 export const FAILURE_KINDS: readonly UpdateEventKind[] = [
   UpdateEventKind.WentBack,
   UpdateEventKind.DecidedGoBack,
+  UpdateEventKind.DecidedStay,
   UpdateEventKind.Interrupted,
 ];
 

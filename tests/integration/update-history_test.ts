@@ -433,3 +433,47 @@ Deno.test("the history is a keyset page, newest first, that does not skip or rep
     assert(bad.status >= 400 && bad.status < 500, String(bad.status));
     await bad.body?.cancel();
   }));
+
+Deno.test("an update left running unhealthy, by a person's stay or because no one could be asked, still names what it replaced and shows a notice", () =>
+  withFixture(async (o) => {
+    const running = await runningRelease(o);
+    // What the launcher records: the move first, then the stay.
+    for (const by of ["mark", null] as const) {
+      await o.f.pgDatabase.query(
+        "delete from bakery.installation_update_history",
+      );
+      await record(o, {
+        kind: UpdateEventKind.Updated,
+        occurredAt: at(5),
+        fromRelease: A,
+        toRelease: running,
+      });
+      await record(o, {
+        kind: UpdateEventKind.DecidedStay,
+        occurredAt: at(6),
+        byName: by,
+        fromRelease: running,
+        toRelease: A,
+      });
+      const body = await status(o);
+      assertEquals(body.runningRelease, running);
+      assertEquals(body.runningSince, at(5).toISOString(), String(by));
+      assertEquals(
+        body.previousRelease,
+        A,
+        "what an administrator can go back to",
+      );
+      assertEquals(body.previousRanUntil, at(5).toISOString());
+      assertEquals(body.lastFailure?.kind, "decided_stay");
+      assertEquals(body.lastFailure?.by, by);
+      const dismissed = await o.admin(
+        "POST",
+        `${LIST}/${body.lastFailure!.id}/dismiss`,
+        undefined,
+        { keyed: true },
+      );
+      assertEquals(dismissed.status, 200, await dismissed.clone().text());
+      await dismissed.body?.cancel();
+      assertEquals((await status(o)).lastFailure, null);
+    }
+  }));
