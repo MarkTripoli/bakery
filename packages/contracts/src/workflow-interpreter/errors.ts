@@ -14,6 +14,8 @@ export const WORKFLOW_INTERPRETER_ERRORS = {
     "A reference reads delivery state that the host has not resolved yet.",
   parallel_unsupported:
     "This workflow contains a parallel group, which this interpreter revision does not run.",
+  for_each_unsupported:
+    "This workflow contains a forEach loop, which this interpreter revision does not run.",
   document_invalid:
     "The workflow document does not have the shape this interpreter runs.",
   state_not_json:

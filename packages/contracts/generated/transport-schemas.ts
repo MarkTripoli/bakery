@@ -3813,6 +3813,16 @@ const transportSchemas = {
           "description": "Execution environment for this run: `repository` requires repositoryProfileId and runs inside a cloned repository worktree; `cloud_only` must omit repositoryProfileId and runs without a repository checkout."
         },
         {
+          "name": "environment",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "live",
+            "offline"
+          ],
+          "description": "Where this run may reach, pinned at creation: `live` (the default) admits external effects and brokered integration credentials; `offline` refuses every external effect and brokered credential while metered model calls stay allowed. A run an agent spawns inherits the spawning run's environment when omitted, and an offline run may not spawn a live one (409 `environment_offline_parent`)."
+        },
+        {
           "name": "budgetLimitUsd",
           "type": "decimal",
           "required": false,
@@ -7975,6 +7985,13 @@ const transportSchemas = {
       "pagination": "pagination",
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the request version required; refused with STATE_CONFLICT ticket_request_has_run (with the run id) while the request or its task has a live run, and ticket_request_finished once the request ended."
+      ],
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
@@ -8052,6 +8069,16 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria."
+        },
+        {
+          "name": "preset",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
         }
       ],
       "rules": [
@@ -22940,6 +22967,7 @@ const transportSchemas = {
         "inngestRunId",
         "status",
         "budgetLimitUsd",
+        "environment",
         "startedAt",
         "finishedAt",
         "createdAt",
@@ -22967,6 +22995,7 @@ const transportSchemas = {
         "inngestRunId": "string|null",
         "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
         "budgetLimitUsd": "decimal",
+        "environment": "enum(live|offline)",
         "startedAt": "timestamp|null",
         "finishedAt": "timestamp|null",
         "createdAt": "timestamp",
@@ -23024,6 +23053,7 @@ const transportSchemas = {
         "inngestRunId": "Stable UUID linking this record to the related inngest run entity.",
         "status": "Current lifecycle status of the record.",
         "budgetLimitUsd": "Maximum execution budget measured in US dollars.",
+        "environment": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline.",
         "startedAt": "UTC timestamp when processing started.",
         "finishedAt": "UTC timestamp when processing finished.",
         "createdAt": "UTC timestamp when the record was created.",
@@ -29071,6 +29101,7 @@ const transportSchemas = {
         "activeRequest",
         "linkedTaskIds",
         "linkedTaskCount",
+        "openQuestionCount",
         "createdAt",
         "updatedAt",
         "version"
@@ -29095,7 +29126,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "linkedTaskIds": "uuid[]",
-        "linkedTaskCount": "integer"
+        "linkedTaskCount": "integer",
+        "openQuestionCount": "integer"
       },
       "nullableFields": [
         "number",
@@ -29123,19 +29155,24 @@ const transportSchemas = {
         "updatedAt": "Timestamp recording the last update to this external ticket record.",
         "version": "Monotonic revision used to order or conditionally update this external ticket record.",
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
-        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it."
+        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
+        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
         "activeRequest",
         "linkedTaskIds",
-        "linkedTaskCount"
+        "linkedTaskCount",
+        "openQuestionCount"
       ],
       "fieldBounds": {
         "linkedTaskIds": {
           "maxItems": 25
         },
         "linkedTaskCount": {
+          "min": 0
+        },
+        "openQuestionCount": {
           "min": 0
         }
       }
@@ -29309,6 +29346,10 @@ const transportSchemas = {
         "pausedReason",
         "progress",
         "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName",
+        "presetId",
+        "presetRevision",
         "createdAt",
         "updatedAt",
         "version",
@@ -29323,11 +29364,15 @@ const transportSchemas = {
         "requestedByPrincipalId": "uuid|null",
         "triggerLabelName": "string|null",
         "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled|request_canceled)|null",
         "pausedAt": "timestamp|null",
         "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
         "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
         "workflowRunId": "uuid|null",
+        "stoppedByPrincipalId": "uuid|null",
+        "stoppedByName": "string|null",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
+        "presetRevision": "integer",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
@@ -29339,7 +29384,9 @@ const transportSchemas = {
         "dispositionReasonCode",
         "pausedAt",
         "pausedReason",
-        "workflowRunId"
+        "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName"
       ],
       "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
       "fieldDescriptions": {
@@ -29351,15 +29398,30 @@ const transportSchemas = {
         "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
         "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
         "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded.",
         "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
         "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
         "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
         "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "stoppedByPrincipalId": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it.",
+        "stoppedByName": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it.",
         "createdAt": "When the request was admitted.",
         "updatedAt": "When the request last changed.",
         "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository.",
+        "presetId": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+        "presetRevision": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "presetId",
+        "presetRevision",
+        "stoppedByPrincipalId",
+        "stoppedByName"
+      ],
+      "fieldBounds": {
+        "presetRevision": {
+          "min": 1
+        }
       }
     },
     "Page<TicketRequestView>": {
@@ -30014,21 +30076,27 @@ const transportSchemas = {
         "wouldStart",
         "planOnly",
         "held",
-        "blocked"
+        "blocked",
+        "labeledBeforeWindow"
       ],
       "fieldTypes": {
         "wouldStart": "integer",
         "planOnly": "integer",
         "held": "integer",
-        "blocked": "integer"
+        "blocked": "integer",
+        "labeledBeforeWindow": "integer"
       },
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one of wouldStart, planOnly, held and blocked. labeledBeforeWindow is a part of blocked, not a bucket of its own.",
       "fieldDescriptions": {
         "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
         "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
         "held": "Issues carrying the hold label; the hold wins over every other label.",
-        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which.",
+        "labeledBeforeWindow": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it."
       },
+      "optionalFields": [
+        "labeledBeforeWindow"
+      ],
       "fieldBounds": {
         "wouldStart": {
           "min": 0
@@ -30040,6 +30108,9 @@ const transportSchemas = {
           "min": 0
         },
         "blocked": {
+          "min": 0
+        },
+        "labeledBeforeWindow": {
           "min": 0
         }
       }
@@ -35205,6 +35276,7 @@ const transportSchemas = {
         "id",
         "skillId",
         "skillVersionId",
+        "revision",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35216,6 +35288,7 @@ const transportSchemas = {
         "id": "uuid",
         "skillId": "uuid",
         "skillVersionId": "uuid",
+        "revision": "integer",
         "workflowId": "uuid",
         "workflowName": "string",
         "stepPath": "string",
@@ -35229,6 +35302,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying the grant.",
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",

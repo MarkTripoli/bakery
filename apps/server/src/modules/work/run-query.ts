@@ -27,7 +27,8 @@ const RUN_COLUMNS =
   "id, kind, task_id, workflow_version_id, skill_source_id, repository_profile_id, " +
   "repository_profile_revision, repository_profile_digest, observation_id, " +
   "observation_digest, base_sha, requested_by, " +
-  "inngest_run_id, status, budget_limit_usd, started_at, finished_at, " +
+  "inngest_run_id, status, budget_limit_usd, environment, started_at, " +
+  "finished_at, " +
   "created_at, updated_at, version, " +
   runWorkspaceBaseShaColumn("workflow_runs");
 

@@ -92,7 +92,7 @@ const jobCount = async (fixture: WorkerFixture, seeded: Seeded) =>
     )).rows[0].count,
   );
 
-Deno.test("a new plan run is pinned to revision 2, and a group answers with one step per running lane, idempotently", () =>
+Deno.test("a new plan run is pinned to revision 3, which runs groups as revision 2 did, and a group answers with one step per running lane, idempotently", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await seedRun(fixture, await plan());
     const pin = (await fixture.pgDatabase.query<
@@ -102,7 +102,7 @@ Deno.test("a new plan run is pinned to revision 2, and a group answers with one 
          from bakery.workflow_runs where id = $1`,
       [seeded.job.runId],
     )).rows[0].revision;
-    assertEquals(pin, "2");
+    assertEquals(pin, "3");
 
     const set = await seeded.repository.findNextSet(
       seeded.job.runId,
