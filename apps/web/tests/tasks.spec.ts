@@ -2008,10 +2008,8 @@ test("still: the run line while it works, with the Run actions menu open", async
 test("still: the run line when it is paused, with Resume run as the one button", async ({ page }) => {
   await mockSession(page, {
     runStatus: "paused",
-    steps: [
-      stepOf("brief", "completed"),
-      stepOf("implement", "running", { finishedAt: null }),
-    ],
+    // A run paused at a safe point has finished its steps so far and has none running.
+    steps: [stepOf("brief", "completed")],
     capabilities: allowing("resume", "cancel"),
   });
   await quietTaskReads(page);
@@ -2020,6 +2018,15 @@ test("still: the run line when it is paused, with Resume run as the one button",
     .toBeVisible();
   await expect(page.getByRole("button", { name: "Resume run", exact: true }))
     .toBeVisible();
+  // No step still reads Running, and the composer does not say a run is in progress.
+  await expect(timeline(page).getByText("Running", { exact: true }))
+    .toHaveCount(0);
+  await expect(
+    page.getByText(
+      "This run is paused. Your message is saved and the agent reads it when the run is resumed.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("A run is in progress.")).toHaveCount(0);
   await still(page, "run-line-paused");
 });
 
@@ -2052,6 +2059,40 @@ test("still: the run line after a failure, with the reason on the failed step", 
   await expect(runActionsTrigger(page)).toHaveCount(0);
   await still(page, "run-line-failed");
 });
+
+for (
+  const [status, steps] of [
+    ["completed", [
+      stepOf("brief", "completed"),
+      stepOf("implement", "completed"),
+    ]],
+    ["failed", [
+      stepOf("brief", "completed"),
+      stepOf("implement", "failed", { error: harnessFault }),
+    ]],
+    ["running", [
+      stepOf("brief", "completed"),
+      stepOf("implement", "running", { finishedAt: null }),
+    ]],
+  ] as const
+) {
+  test(`the step list sits close under the run line: ${status}`, async ({ page }) => {
+    await mockSession(page, {
+      runStatus: status,
+      finishedAt: status === "running" ? null : "2026-01-01T00:01:00.000Z",
+      steps: [...steps],
+    });
+    await quietTaskReads(page);
+    await page.goto(`/tasks/${id}`);
+    const line = page.locator("#task-run-heading").locator("..");
+    await expect(line).toBeVisible();
+    await expect(timeline(page)).toBeVisible();
+    const above = (await line.boundingBox())!;
+    const list = (await timeline(page).boundingBox())!;
+    // Other gaps in the section are 24 to 40px: an empty part must not add its own.
+    expect(list.y - (above.y + above.height)).toBeLessThanOrEqual(40);
+  });
+}
 
 test("cancel losing to completion with ALREADY_TERMINAL renders the server winner", async ({ page }) => {
   let winner = "running";

@@ -6170,5 +6170,6 @@
   "tasks.delivery.fixing.tried.limitTries": "⟪Bakery stops after {max, plural, one {# try} other {# tries}}.⟫",
   "tasks.delivery.now.checksFailed.title": "⟪{count, plural, one {# check did not pass} other {# checks did not pass}}⟫",
   "tasks.delivery.now.checksFailed.body": "⟪The change stays blocked.⟫",
-  "tasks.delivery.now.stopped.cycles.body": "⟪It stopped after {max, plural, one {# try} other {# tries}}.⟫"
+  "tasks.delivery.now.stopped.cycles.body": "⟪It stopped after {max, plural, one {# try} other {# tries}}.⟫",
+  "tasks.conversation.steering.paused": "⟪This run is paused. Your message is saved and the agent reads it when the run is resumed.⟫"
 }

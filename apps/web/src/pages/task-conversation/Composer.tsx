@@ -15,6 +15,8 @@ export type ComposerProps = Readonly<{
   offline: boolean;
   /** A run is in progress: messages are saved and routed by run capabilities. */
   runActive: boolean;
+  /** The run is paused: nothing runs until it is resumed, so the note says when the message is read. */
+  runPaused?: boolean;
   /** The run waits for another task: the notice says so instead. */
   runBlocked?: boolean;
   /** Prompt to discuss results after a finished run. */
@@ -38,6 +40,7 @@ export function Composer(
     phase,
     offline,
     runActive,
+    runPaused = false,
     runBlocked = false,
     resultsHint,
     mentionField,
@@ -91,7 +94,11 @@ export function Composer(
           )}
           {runActive && (
             <UI.InlineNotice layout="bar" tone="information">
-              {t("tasks.conversation.steering.saved")}
+              {t(
+                runPaused
+                  ? "tasks.conversation.steering.paused"
+                  : "tasks.conversation.steering.saved",
+              )}
             </UI.InlineNotice>
           )}
           {runBlocked && (

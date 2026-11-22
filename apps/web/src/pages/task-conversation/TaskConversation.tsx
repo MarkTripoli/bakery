@@ -456,6 +456,7 @@ export function TaskConversation(
   const runEnded = runStatus === "completed" || runStatus === "failed" ||
     runStatus === "canceled";
   const runBlocked = runStatus === "blocked";
+  const runPaused = runStatus === "paused";
   const runActive = task.currentRunId !== null && !runBlocked &&
     (runStatus === undefined
       ? task.status !== "completed" && task.status !== "failed" &&
@@ -830,6 +831,7 @@ export function TaskConversation(
               phase={sendPhase}
               offline={!online}
               runActive={runActive}
+              runPaused={runPaused}
               runBlocked={runBlocked}
               resultsHint={task.status === "completed" &&
                 task.currentRunId !== null}

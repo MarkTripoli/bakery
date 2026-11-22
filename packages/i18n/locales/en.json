@@ -3276,6 +3276,7 @@
   "tasks.composer.planFirstHint": "Create the task and ask the agent for a plan. Nothing runs until you approve the plan.",
   "tasks.composer.submitPlan": "Create task and plan",
   "tasks.conversation.steering.saved": "A run is in progress. Your message is saved and the agent reads it at its next step.",
+  "tasks.conversation.steering.paused": "This run is paused. Your message is saved and the agent reads it when the run is resumed.",
   "tasks.conversation.steering.blocked": "This run is blocked. Your message is saved and the agent reads it when the run continues.",
   "tasks.startRun.needsApproval": "This task waits for an approved plan. The run starts from the plan you approve.",
   "tasks.conversation.participants.heading": "Participants ({count})",

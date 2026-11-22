@@ -2448,6 +2448,10 @@ for (
       "A run is in progress. Your message is saved and the agent reads it at its next step.",
     ],
     [
+      "paused",
+      "This run is paused. Your message is saved and the agent reads it when the run is resumed.",
+    ],
+    [
       "blocked",
       "This run is blocked. Your message is saved and the agent reads it when the run continues.",
     ],
@@ -2462,8 +2466,15 @@ for (
     if (notice === null) {
       await expect(composer.getByText("A run is in progress.")).toHaveCount(0);
       await expect(composer.getByText(/^This run is blocked\./)).toHaveCount(0);
+      await expect(composer.getByText(/^This run is paused\./)).toHaveCount(0);
     } else {
       await expect(composer.getByText(notice, { exact: true })).toBeVisible();
+      // A paused run does not say a run is in progress: nothing runs until it resumes.
+      if (status === "paused") {
+        await expect(composer.getByText("A run is in progress.")).toHaveCount(
+          0,
+        );
+      }
     }
   });
 }
