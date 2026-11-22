@@ -2,7 +2,7 @@
  * The provider-neutral event vocabulary a workflow start matches (one engine O8).
  *
  * A start names a neutral kind such as `change_request.opened`, never a
- * provider's own event name. Each provider declares here, beside its adapter,
+ * provider's own event name. Each provider declares, in the providers folder,
  * how its verified deliveries translate into that vocabulary, so the start
  * matcher reads one closed list and names no provider. The same list answers
  * the question an author asks at save time: could anything ever fire this
@@ -14,7 +14,7 @@
  * `locked` is not carried) produces no neutral event, so the vocabulary does
  * not grow by accident when a provider adds an action.
  */
-import { GITHUB_PROVIDER } from "./registry.ts";
+import { PROVIDER_TRANSLATIONS } from "./providers/neutral-translations.ts";
 
 /** The type a filter value must have for a declared field. */
 export type NeutralFieldType = "number" | "string";
@@ -69,41 +69,18 @@ const RESERVED_KINDS: Readonly<
   Record<string, Readonly<Record<string, NeutralFieldType>>>
 > = Object.freeze({ "work_item.ready": Object.freeze({}) });
 
-/** Provider event name, then action, to the neutral kind it produces. */
-const TRANSLATIONS: Readonly<
-  Record<string, Readonly<Record<string, Readonly<Record<string, string>>>>>
-> = Object.freeze({
-  [GITHUB_PROVIDER]: Object.freeze({
-    issues: Object.freeze({
-      opened: "work_item.opened",
-      edited: "work_item.edited",
-      closed: "work_item.closed",
-      reopened: "work_item.reopened",
-      labeled: "work_item.labeled",
-      unlabeled: "work_item.unlabeled",
-    }),
-    pull_request: Object.freeze({
-      opened: "change_request.opened",
-      synchronize: "change_request.updated",
-      closed: "change_request.closed",
-      reopened: "change_request.reopened",
-      ready_for_review: "change_request.ready",
-    }),
-    check_run: Object.freeze({ completed: "check.completed" }),
-    check_suite: Object.freeze({ completed: "check.completed" }),
-  }),
-});
-
 /**
- * The neutral kinds one provider event name can produce, whatever its action.
- * The receipt gate asks it before the action is read: does any start listen
- * for a kind this delivery could be.
+ * The neutral kinds a delivery with this provider event name can be, whatever
+ * its action or provider. The receipt gate asks it before the action is read:
+ * does any start listen for a kind this delivery could be.
  */
-export function neutralKindsOf(provider: string, eventName: string): string[] {
-  if (!Object.hasOwn(TRANSLATIONS, provider)) return [];
-  const byAction = TRANSLATIONS[provider];
-  if (!Object.hasOwn(byAction, eventName)) return [];
-  return [...new Set(Object.values(byAction[eventName]))];
+export function neutralKindsOfEvent(eventName: string): string[] {
+  const kinds = new Set<string>();
+  for (const byAction of Object.values(PROVIDER_TRANSLATIONS)) {
+    if (!Object.hasOwn(byAction, eventName)) continue;
+    for (const kind of Object.values(byAction[eventName])) kinds.add(kind);
+  }
+  return [...kinds];
 }
 
 /**
@@ -128,8 +105,8 @@ export function neutralEventOf(
   provider: string,
   facts: NeutralEventFacts,
 ): NeutralEvent | null {
-  if (!Object.hasOwn(TRANSLATIONS, provider)) return null;
-  const byAction = TRANSLATIONS[provider];
+  if (!Object.hasOwn(PROVIDER_TRANSLATIONS, provider)) return null;
+  const byAction = PROVIDER_TRANSLATIONS[provider];
   if (!Object.hasOwn(byAction, facts.kind) || facts.action === null) {
     return null;
   }

@@ -20,7 +20,7 @@ import {
 } from "../secrets/crypto.ts";
 import { automationListens } from "../workflows/automations/event-gate.ts";
 import { automationEventsOf } from "./automation-events.ts";
-import { neutralKindsOf } from "./neutral-events.ts";
+import { neutralKindsOfEvent } from "./neutral-events.ts";
 import { startListens } from "../workflows/start-match.ts";
 import { InstallationStatus, liveConnections } from "./installation-fan-out.ts";
 import {
@@ -429,7 +429,7 @@ async function listensForAutomation(
       await startListens(
         transaction,
         resource.organizationId,
-        neutralKindsOf(GITHUB_PROVIDER, eventName),
+        neutralKindsOfEvent(eventName),
       ));
 }
 
