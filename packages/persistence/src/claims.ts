@@ -2,6 +2,7 @@ import type { PgTransactionClient } from "./postgres.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { jobAssignmentPayloadSchema } from "@bakery/contracts/contracts";
 import { admitRepositoryExecutionJob } from "./repository-admission.ts";
+import { hostMeetsJobRequirements } from "./job-platform.ts";
 import {
   admitCoordinatorTurnJob,
   hasHeldCoordinatorTurnReservation,
@@ -561,12 +562,10 @@ export function createClaimsRepository(
                 row.id,
               );
             if (
-              requirements.capabilities.some((capability) =>
-                !authenticatedCapabilities.includes(capability)
-              ) ||
-              ("platform" in requirements &&
-                requirements.platform !== undefined &&
-                requirements.platform !== identity.host.os)
+              !hostMeetsJobRequirements(requirements, {
+                os: identity.host.os,
+                capabilities: authenticatedCapabilities,
+              })
             ) {
               await transaction.query("rollback to savepoint claim_candidate");
               await transaction.query("release savepoint claim_candidate");
