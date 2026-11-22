@@ -195,21 +195,32 @@ async function updatesFixture(page: Page, options: Options = {}) {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(
-          (options.held ?? 0) === 0 ? { kinds: [], total: 0 } : {
-            kinds: [
-              {
+          (options.held ?? 0) === 0
+            ? { kinds: [], total: 0 }
+            : options.held === 1
+            ? {
+              kinds: [{
                 operation: "github.issue.create",
-                count: (options.held ?? 0) - 1,
-                since: "2026-11-21T02:10:00.000Z",
-              },
-              {
-                operation: "slack.message.post",
                 count: 1,
-                since: "2026-11-21T02:12:00.000Z",
-              },
-            ],
-            total: options.held,
-          },
+                since: "2026-11-21T02:10:00.000Z",
+              }],
+              total: 1,
+            }
+            : {
+              kinds: [
+                {
+                  operation: "github.issue.create",
+                  count: (options.held ?? 0) - 1,
+                  since: "2026-11-21T02:10:00.000Z",
+                },
+                {
+                  operation: "slack.message.post",
+                  count: 1,
+                  since: "2026-11-21T02:12:00.000Z",
+                },
+              ],
+              total: options.held,
+            },
         ),
       }),
   );
@@ -320,10 +331,45 @@ for (
       );
       await expect.poll(() => said(rows.nth(7))).toContain("Interrupted");
       await expect.poll(() => said(rows.nth(8))).toContain("Went back by hand");
+      // A full stop after a release stays on the release's line.
+      const joined = rows.first().locator("[data-trailing='.']").last();
+      await expect.poll(() => said(joined)).toBe("4f2a9c1e.");
+      expect(
+        await joined.evaluate((element) =>
+          getComputedStyle(element).whiteSpace
+        ),
+      ).toBe("nowrap");
+      const action = notice.getByRole("button", { name: "Dismiss" });
+      const text = notice.getByText("Paused work carried on.", {
+        exact: false,
+      });
+      const actionBox = (await action.boundingBox())!;
+      const textBox = (await text.boundingBox())!;
+      const noticeBox = (await notice.boundingBox())!;
       if (viewport.name === "phone") {
-        await expect(page.getByRole("table")).toHaveCount(1);
+        // The notice's buttons sit on their own row under the text, sharing the width.
+        expect(actionBox.y).toBeGreaterThanOrEqual(textBox.y + textBox.height);
+        const see = (await notice.getByRole("button", { name: "See them" })
+          .boundingBox())!;
+        expect(Math.abs(see.width - actionBox.width)).toBeLessThan(2);
+        expect(see.width + actionBox.width).toBeGreaterThan(
+          noticeBox.width * 0.6,
+        );
+        // Held actions are stacked rows, not a three-column table.
+        await expect(page.getByRole("table")).toHaveCount(0);
+        const held = page.locator("[data-held]");
+        await expect(held).toHaveCount(2);
+        await expect.poll(() => said(held.first())).toContain(
+          "github.issue.create",
+        );
+        await expect.poll(() => said(held.first())).toMatch(
+          /2 held since Nov 2[01], 2026/,
+        );
       } else {
+        // Desktop is unchanged: the buttons sit beside the text.
+        expect(actionBox.x).toBeGreaterThan(textBox.x + textBox.width - 1);
         await expect(page.getByRole("table")).toHaveCount(2);
+        await expect(page.locator("[data-held]")).toHaveCount(0);
       }
       await page.mouse.move(5, 5);
       await still(page, "updates-went-back");
@@ -383,8 +429,16 @@ for (
       await page.getByRole("radio", { name: "Stop and ask" }).check();
       await expect(save).toBeEnabled();
       await save.click();
-      await expect(page.getByText("Saved. It applies from the next update."))
-        .toBeVisible();
+      const policy = page.locator("[data-section='policy']");
+      const savedToast = policy.locator("[data-result='saved']");
+      await expect(savedToast).toHaveText(
+        /Saved\. It applies from the next update\./,
+      );
+      // The answer to Save sits right under the button, inside the section.
+      const saveBox = (await save.boundingBox())!;
+      const savedBox = (await savedToast.boundingBox())!;
+      expect(savedBox.y).toBeGreaterThanOrEqual(saveBox.y + saveBox.height);
+      expect(savedBox.y - (saveBox.y + saveBox.height)).toBeLessThan(40);
       expect(fixture.writes).toEqual([{
         body: {
           registrationMode: "invitation",
@@ -405,8 +459,33 @@ for (
         ),
       ).toBeVisible();
       expect(fixture.writes[1]?.ifMatch).toBe('"v4"');
+      const conflict = policy.locator("[data-result='conflict']");
+      await expect(conflict).toBeVisible();
+      const conflictBox = (await conflict.boundingBox())!;
+      expect(conflictBox.y).toBeGreaterThanOrEqual(saveBox.y + saveBox.height);
+      // Changing the choice clears the saved message.
+      await expect(savedToast).toHaveCount(0);
       await page.mouse.move(5, 5);
       await still(page, "updates-policy-conflict");
+    });
+
+    test("one held action is named in the singular", async ({ page }) => {
+      await updatesFixture(page, { held: 1 });
+      await page.goto("/installation/updates");
+      const notice = page.locator("[data-failure='went_back']");
+      await expect.poll(() => said(notice)).toContain(
+        "1 outside action is held until someone checks it.",
+      );
+      await expect(notice.getByRole("button", { name: "See it" }))
+        .toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "1 outside action is held" }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          "It may or may not have happened. Bakery never sends it again; it is checked first.",
+        ),
+      ).toBeVisible();
     });
 
     test("held after a restore: the policy cannot change, with the way out", async ({ page }) => {
@@ -450,6 +529,10 @@ for (
         page.getByRole("heading", { name: "This page was not found" }),
       )
         .toBeVisible();
+      // The no-access title reads as a title, as on Usage.
+      await expect(
+        page.locator("[data-ui-component='emptyState']"),
+      ).toHaveAttribute("data-title-style", "heading");
       await expect(page.getByRole("link", { name: "Updates" })).toHaveCount(0);
       await page.mouse.move(5, 5);
       await still(page, "updates-forbidden");
