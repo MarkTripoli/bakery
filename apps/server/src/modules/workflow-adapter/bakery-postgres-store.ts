@@ -1,4 +1,7 @@
-import { RepositoryExecutionContextSchema } from "@bakery/contracts/repository-inspection";
+import {
+  RepositoryExecutionContextSchema,
+  RunPlacementSchema,
+} from "@bakery/contracts/repository-inspection";
 import {
   actionAndInputFromSnapshot,
   admitRepositoryExecutionJob,
@@ -8,6 +11,7 @@ import {
   loadExecutableRepositoryProfile,
   planDispatchFromRow,
   repositoryExecutionRequirements,
+  withRunPlacement,
 } from "@bakery/persistence/repository-admission";
 import {
   HUMAN_APPROVAL_EVENT,
@@ -156,6 +160,7 @@ type LogicalRow = {
   runObservationId: string | null;
   runObservationDigest: string | null;
   runBaseSha: string | null;
+  runPlacement: unknown;
   taskId: string;
   applicationId: string;
   repositoryId: string | null;
@@ -206,6 +211,7 @@ type AdmissionStepRow = Pick<
   | "runObservationId"
   | "runObservationDigest"
   | "runBaseSha"
+  | "runPlacement"
   | "taskId"
   | "taskType"
   | "applicationId"
@@ -517,6 +523,7 @@ async function loadLogical(
             run.observation_id as "runObservationId",
             run.observation_digest as "runObservationDigest",
             run.base_sha as "runBaseSha",
+            run.placement as "runPlacement",
             task.id as "taskId", task.application_id as "applicationId",
             task.repository_id as "repositoryId",
             task.task_type as "taskType",
@@ -2382,10 +2389,13 @@ export function createBakeryPostgresWorkflowRepository(options: {
           );
           return { key, terminal: true };
         }
-        const requirements = repositoryExecutionRequirements(
-          profile,
-          action,
-          requiredCapabilities,
+        const requirements = withRunPlacement(
+          repositoryExecutionRequirements(
+            profile,
+            action,
+            requiredCapabilities,
+          ),
+          RunPlacementSchema.parse(row.runPlacement ?? {}),
         );
         const contentDigest = await budgetContentDigest({
           action,
