@@ -185,7 +185,7 @@ export function BatchPage({ batchId }: { batchId: string }) {
           )
           : (
             <UI.ErrorState
-              variant="page"
+              headingLevel={1}
               title={translate("batches.page.error" as never)}
               action={
                 <UI.Button

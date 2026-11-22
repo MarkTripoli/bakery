@@ -7,6 +7,8 @@ export type ErrorStateProps =
   & {
     action?: ReactNode;
     description?: ReactNode;
+    /** The title's heading level. Defaults to 1 for a `page` and 2 for a `region`; a boxed error that is the page's only content passes 1. */
+    headingLevel?: 1 | 2;
     state?: "default" | "retrying";
     title: ReactNode;
     variant?: "region" | "page";
@@ -17,13 +19,16 @@ export function ErrorState(
   {
     action,
     description,
+    headingLevel,
     state = "default",
     title,
     variant = "region",
     ...props
   }: ErrorStateProps,
 ) {
-  const Title = variant === "page" ? "h1" : "h2";
+  const Title = (headingLevel ?? (variant === "page" ? 1 : 2)) === 1
+    ? "h1"
+    : "h2";
   return (
     <section
       aria-busy={state === "retrying" || undefined}

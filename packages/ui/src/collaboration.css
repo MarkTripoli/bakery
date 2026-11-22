@@ -2699,8 +2699,10 @@ button.ui-activity-line__row:hover {
   gap: var(--space-2);
 }
 /* A mentioned person's badge wraps instead of escaping a narrow column
-   (reflow at 200% zoom), as in the access card and a step. */
-.ui-message-composer__mentions .ui-badge {
+   (reflow at 200% zoom), as in the access card and a step; so does the one
+   on a mention picker row. */
+.ui-message-composer__mentions .ui-badge,
+.ui-mention-picker__option > .ui-badge {
   max-inline-size: 100%;
   overflow-wrap: anywhere;
   white-space: normal;

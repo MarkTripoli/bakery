@@ -120,9 +120,13 @@ export function MonitoringDestinationScreen(
     return (
       <UI.SettingsContent data-page="installation-monitoring-destination">
         <UI.ErrorState
-          variant="page"
+          headingLevel={1}
           action={
-            <UI.Button onClick={props.onRetry} type="button">
+            <UI.Button
+              onClick={props.onRetry}
+              type="button"
+              variant="secondary"
+            >
               {translate("installation.monitoring.retry")}
             </UI.Button>
           }
