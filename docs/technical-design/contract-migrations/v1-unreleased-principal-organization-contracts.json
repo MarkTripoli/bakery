@@ -1,14 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8cad16fd684a429cb8026ca22c26945ab8eb8511",
-    "3b0330664f195cf0ec6e938a1291771a8f16a7ff"
+    "db286b23bef74fb5e122814f49ddc43079619d2b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1245128658f76cd121bef0575888bbc3b36f840cf2c8a98cf89ce26c5c8a5b80",
-  "reason": "#72 handoff read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: RunStep gains a required, nullable handoffManifest {id, status, savedAt} so the UI can tell a step has a saved handoff manifest. Main's own #41 approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
+  "reason": "#72 handoff read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main db286b23bef74fb5e122814f49ddc43079619d2b: RunStep gains a required, nullable handoffManifest {id, status, savedAt} so the UI can tell a step has a saved handoff manifest. Main's own #59 slice 3 approval it displaces is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8cad16fd684a429cb8026ca22c26945ab8eb8511"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a8721cd04c1c5c1fc4036cd270953f30dada8993bfc16abdc29bca0373c60f74",
+      "reason": "#59 slice 3 by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: InstallationSettings (the administrator's settings read) gains a required updateFailurePolicy, go_back or ask, and the settings update gains it as optional; installationStatus gains a required release; the update history adds three installation administrator reads and one dismiss. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

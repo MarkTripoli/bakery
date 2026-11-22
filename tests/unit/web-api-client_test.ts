@@ -845,6 +845,7 @@ Deno.test("installation settings save sends the read version and explicit stable
   const record = {
     registrationMode: "closed",
     organizationCreationPolicy: "installation_admins",
+    updateFailurePolicy: "go_back",
     version: 3,
     updatedByPrincipalId: null,
     updatedAt: "2026-10-12T00:00:00.000Z",
