@@ -90,11 +90,8 @@ export function SkillsTab() {
     return list.length === 0 ? null : (
       <UI.Inline gap="compact">
         {list.map((badge) => (
-          <UI.Badge
-            key={badge}
-            tone={badge === "turnedOff" ? "warning" : "neutral"}
-          >
-            {translate(`library.skills.badge.${badge}` as const)}
+          <UI.Badge key={badge} tone="warning">
+            {translate("library.skills.badge.turnedOff")}
           </UI.Badge>
         ))}
       </UI.Inline>

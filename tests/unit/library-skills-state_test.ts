@@ -6,6 +6,7 @@ import {
   emptyWords,
   fileSize,
   fingerprint,
+  licenseShownInFiles,
   manifestFiles,
   scopeWords,
   serverScope,
@@ -53,23 +54,26 @@ Deno.test("who a skill belongs to has one set of words", () => {
   assertEquals(scopeWords("personal").key, "library.skills.scope.personal");
 });
 
-Deno.test("badges: Private, Turned off, Draft only, in that order", () => {
-  assertEquals(
-    skillBadges({ scope: "personal", enabled: false, activeVersionId: null }),
-    ["private", "turnedOff", "draftOnly"],
-  );
-  assertEquals(
-    skillBadges({ scope: "global", enabled: true, activeVersionId: ID }),
-    [],
-  );
-  assertEquals(
-    skillBadges({
-      scope: "organization",
-      enabled: true,
-      activeVersionId: null,
-    }),
-    ["draftOnly"],
-  );
+Deno.test("the list badges only Turned off: Private and Draft are said in words beside it", () => {
+  assertEquals(skillBadges({ enabled: false }), ["turnedOff"]);
+  assertEquals(skillBadges({ enabled: true }), []);
+});
+
+Deno.test("Files says the licence only when Where it came from does not say the same", () => {
+  // No licence of its own: nothing to say.
+  assertEquals(licenseShownInFiles(null, "none"), false);
+  assertEquals(licenseShownInFiles(null, { license: "MIT" }), false);
+  // No source (written here, or a copy): no other card says it.
+  assertEquals(licenseShownInFiles("MIT", "none"), true);
+  // The source cannot be read: do not lose the fact.
+  assertEquals(licenseShownInFiles("MIT", "failed"), true);
+  // The source is still loading: wait, so it does not flash and go.
+  assertEquals(licenseShownInFiles("MIT", "loading"), false);
+  // The source says the same: said once, there.
+  assertEquals(licenseShownInFiles("MIT", { license: "MIT" }), false);
+  // The source says something else, or nothing: the skill's own is new.
+  assertEquals(licenseShownInFiles("MIT", { license: "Apache-2.0" }), true);
+  assertEquals(licenseShownInFiles("MIT", { license: null }), true);
 });
 
 Deno.test("the version in use, or No version yet in muted text", () => {

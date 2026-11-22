@@ -91,7 +91,11 @@ const skill = (
   ...extra,
 });
 
-function versionsOf(entry: Skill, count: number) {
+function versionsOf(
+  entry: Skill,
+  count: number,
+  licenses: Readonly<Record<string, string>>,
+) {
   return Array.from({ length: count }, (_, index) => {
     const revision = index + 1;
     return {
@@ -104,7 +108,9 @@ function versionsOf(entry: Skill, count: number) {
       manifest: {
         schemaVersion: 1,
         entryPath: "SKILL.md",
-        ...(entry.id === IDS.writingGuide ? { license: "MIT" } : {}),
+        ...(licenses[entry.id] === undefined
+          ? {}
+          : { license: licenses[entry.id] }),
         files: [
           {
             path: "SKILL.md",
@@ -168,6 +174,10 @@ export type SkillsOptions = {
   readonly grantsStatus?: number;
   /** What-uses-it answers with this status. */
   readonly usedByStatus?: number;
+  /** The licence each skill's own version declares, by skill id; Writing guide is MIT. */
+  readonly ownLicenses?: Readonly<Record<string, string>>;
+  /** The licence the source of Writing guide declares; MIT unless this says otherwise. */
+  readonly sourceLicense?: string | null;
 };
 
 export type Seen = {
@@ -193,6 +203,10 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         }),
       }),
   );
+  const licenses: Readonly<Record<string, string>> = {
+    [IDS.writingGuide]: "MIT",
+    ...options.ownLicenses,
+  };
   const all: Skill[] = options.empty ? [] : [
     skill(IDS.writingGuide, "Writing guide", "global", 3, 30 * 24, {
       sourceId: IDS.source,
@@ -299,7 +313,9 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
             sourceType: "git",
             locator: "https://github.com/example/bakery-skills.git",
             publisher: "Bakery",
-            license: "MIT",
+            license: options.sourceLicense === undefined
+              ? "MIT"
+              : options.sourceLicense,
             lastCheckedAt: "2026-11-21T08:30:00.000Z",
             enabled: true,
             createdAt: "2026-10-01T09:00:00.000Z",
@@ -336,7 +352,7 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         case "versions":
           return json(
             route,
-            pageOf(versionsOf(entry, versionCount(entry)), url),
+            pageOf(versionsOf(entry, versionCount(entry), licenses), url),
           );
         case "used-by": {
           if (options.usedByStatus !== undefined) {

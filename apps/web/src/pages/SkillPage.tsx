@@ -29,6 +29,7 @@ import {
   copiedWords,
   fileSize,
   fingerprint,
+  licenseShownInFiles,
   manifestFiles,
   scopeWords,
   skillOrigin,
@@ -105,8 +106,21 @@ function FilesCard(
   },
 ) {
   const { translate, locale } = useI18n();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
   const { versions, active } = state;
   const title = translate("library.skill.files.title");
+  // Where it came from says the source's licence, so this card says the skill's
+  // own only when it has something that card does not (see licenseShownInFiles).
+  const origin = skillOrigin(skill);
+  const source = useQuery({
+    ...skillSourceQueryOptions(
+      api,
+      scope,
+      origin.kind === "source" ? origin.sourceId : "",
+    ),
+    enabled: origin.kind === "source",
+  });
   if (skill.activeVersionId === null) {
     return (
       <Card id="skill-files" title={title}>
@@ -187,12 +201,23 @@ function FilesCard(
             }
           />
         )}
-        {files.license === null ? null : (
-          <UI.DescriptionItem
-            title={translate("library.skill.files.license")}
-            description={files.license}
-          />
-        )}
+        {!licenseShownInFiles(
+            files.license,
+            origin.kind !== "source"
+              ? "none"
+              : source.isError
+              ? "failed"
+              : source.data === undefined
+              ? "loading"
+              : { license: source.data.license },
+          )
+          ? null
+          : (
+            <UI.DescriptionItem
+              title={translate("library.skill.files.license")}
+              description={files.license}
+            />
+          )}
       </UI.DescriptionList>
     </Card>
   );

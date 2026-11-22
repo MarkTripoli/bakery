@@ -55,10 +55,15 @@ for (
       ]);
       await expect(rows(page)).toHaveCount(7);
       const house = rows(page).filter({ hasText: "House style" });
-      await expect(house.getByText("Private", { exact: true })).toBeVisible();
+      // Private and draft are said once, in plain words, not again as a badge.
+      await expect(house.getByText(/Yours/)).toBeVisible();
+      await expect(house.getByText("Private", { exact: true })).toHaveCount(0);
       const scratch = rows(page).filter({ hasText: "Scratch idea" });
-      await expect(scratch.getByText("Draft only")).toBeVisible();
       await expect(scratch.getByText(/No version yet/)).toBeVisible();
+      await expect(scratch.getByText("Draft only")).toHaveCount(0);
+      await expect(
+        rows(page).filter({ hasText: "Old checklist" }).getByText("Turned off"),
+      ).toBeVisible();
       await expect(
         rows(page).filter({ hasText: "Old checklist" }).getByText("Turned off"),
       ).toBeVisible();
@@ -318,8 +323,10 @@ for (
       ).toBeVisible();
       await expect(origin.getByText("Publisher")).toBeVisible();
       await expect(origin.getByText("Last checked")).toBeVisible();
+      // The licence is said once, in Where it came from, as the source says it.
+      await expect(origin.getByText("MIT", { exact: true })).toBeVisible();
       await expect(page.getByTestId("skill-files").getByText("MIT"))
-        .toBeVisible();
+        .toHaveCount(0);
       await expect(
         page.getByTestId("skill-versions").getByText(
           "Version 2: Spring release",
@@ -328,6 +335,32 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "skill-shared-by-bakery");
       expectReadsOnly(seen);
+    });
+
+    test("a skill with no source says its own licence in Files, since no other card does", async ({ page }) => {
+      await skillsFixture(page, {
+        ownLicenses: { [IDS.releaseNotes]: "Apache-2.0" },
+      });
+      await page.goto(skillPage(IDS.releaseNotes));
+      const files = page.getByTestId("skill-files");
+      await expect(files.getByText("Licence", { exact: true })).toBeVisible();
+      await expect(files.getByText("Apache-2.0", { exact: true }))
+        .toBeVisible();
+    });
+
+    test("a licence that differs from its source's is said in Files too, and each says its own", async ({ page }) => {
+      await skillsFixture(page, {
+        ownLicenses: { [IDS.writingGuide]: "Apache-2.0" },
+      });
+      await page.goto(skillPage(IDS.writingGuide));
+      await expect(
+        page.getByTestId("skill-files").getByText("Apache-2.0", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByTestId("skill-origin").getByText("MIT", { exact: true }),
+      ).toBeVisible();
     });
 
     test("a copy of a skill the reader cannot open says another skill", async ({ page }) => {

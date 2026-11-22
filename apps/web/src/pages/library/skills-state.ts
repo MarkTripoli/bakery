@@ -63,22 +63,41 @@ export function scopeWords(scope: SkillScope): Words {
   return { key: `library.skills.scope.${scope}` as const };
 }
 
-/** The badges beside a skill's name, in order. */
-export type SkillBadge = "private" | "turnedOff" | "draftOnly";
+/** The one badge beside a skill's name in the list. */
+export type SkillBadge = "turnedOff";
 
 /**
- * Private for a personal skill, Turned off when it is, Draft only when no
- * version is in use. A skill shared by Bakery or the organization's carries
- * no scope badge: the Belongs to column says it.
+ * Turned off, when it is. Nothing else is badged in the list: the Belongs to
+ * column says Private ("Yours"), and No version yet says a draft, so a badge
+ * would say either twice. A skill's own page says its scope in its header.
  */
 export function skillBadges(
-  skill: Pick<SkillResponse, "scope" | "enabled" | "activeVersionId">,
+  skill: Pick<SkillResponse, "enabled">,
 ): SkillBadge[] {
-  const badges: SkillBadge[] = [];
-  if (skill.scope === "personal") badges.push("private");
-  if (!skill.enabled) badges.push("turnedOff");
-  if (skill.activeVersionId === null) badges.push("draftOnly");
-  return badges;
+  return skill.enabled ? [] : ["turnedOff"];
+}
+
+/** What the page knows of the source the skill came from, for the licence. */
+export type SourceLicense =
+  | "none"
+  | "loading"
+  | "failed"
+  | Readonly<{ license: string | null }>;
+
+/**
+ * Whether the Files card says the skill's own licence. Where it came from says
+ * the source's licence, so Files says one only when it has something that card
+ * does not: the skill has no source, the source cannot be read, or the two
+ * licences differ. While the source loads it waits, so nothing flashes and goes.
+ */
+export function licenseShownInFiles(
+  own: string | null,
+  source: SourceLicense,
+): boolean {
+  if (own === null) return false;
+  if (source === "none" || source === "failed") return true;
+  if (source === "loading") return false;
+  return source.license !== own;
 }
 
 /** "Version {n}" for the version in use, else "No version yet". */
