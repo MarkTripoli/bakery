@@ -475,23 +475,19 @@ export async function removeSlackAppSettings(
     // No row deleted: either it is gone already or someone else moved it.
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
-  // The secrets go with the row: nothing outside a saved app can address them,
-  // so leaving them behind would be ciphertext with no reader and one more copy
-  // of a credential to have to explain. `0303` grants the delete that needs.
-  const secretIds = [row.signingSecretId, row.clientSecretId];
-  // The active version is named by the secret row, so it is cleared first.
+  // The two secrets are revoked, not deleted: Bakery never destroys a stored
+  // credential, and revocation is the whole of what this role may do to one. The
+  // ciphertext stays with a reader that refuses it, which is the same end the
+  // secret screen's Revoke reaches by a shorter route.
   await transaction.query(
-    `update bakery.secrets set active_version_id = null
-      where id = any($1::uuid[])`,
-    [secretIds],
-  );
-  await transaction.query(
-    `delete from bakery.secret_versions where secret_id = any($1::uuid[])`,
-    [secretIds],
-  );
-  await transaction.query(
-    `delete from bakery.secrets where id = any($1::uuid[])`,
-    [secretIds],
+    `update bakery.secrets
+        set revoked_at = now(),
+            active_version_id = null,
+            invalidation_generation = invalidation_generation + 1,
+            version = version + 1,
+            updated_at = now()
+      where id = any($1::uuid[]) and revoked_at is null`,
+    [[row.signingSecretId, row.clientSecretId]],
   );
   await appendAudit(transaction, {
     organizationId: null,

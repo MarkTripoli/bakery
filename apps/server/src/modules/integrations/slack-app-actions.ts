@@ -15,6 +15,7 @@ import {
 } from "@bakery/contracts/contracts";
 import {
   assertImplementedActionRegistry,
+  IntegrationsImplementedAction,
   IntegrationSlackAppImplementedAction as Action,
   integrationSlackAppImplementedActions,
 } from "@bakery/contracts/implemented-actions";
@@ -330,7 +331,7 @@ export async function storeSlackCheck(
     prepared.expectedVersion,
     {
       principalId: actor.subject.principalId,
-      operation: Action.IntegrationSlackAppCheck,
+      operation: IntegrationsImplementedAction.IntegrationSlackAppCheck,
       requestId: context.requestId,
       traceId: context.traceId,
     },
@@ -385,14 +386,12 @@ export function createSlackAppActionRegistry(
     handler: (context, input) => deleteSlackApp(context, input, dependencies),
   });
   // The check lives on the integrations router, whose authority runner asks
-  // Slack between two transactions (`runSlackCheck` in `actions.ts`). This
-  // registry declares no route for it, so its own mount answers for three of
-  // the four actions and the fourth is proved by the integrations registry.
+  // Slack between two transactions (`runSlackCheck` in `actions.ts`), and it is
+  // named with the integrations actions. This registry declares no route for
+  // it, so its own mount answers for the three actions that are listed here.
   assertImplementedActionRegistry(
     registry,
-    integrationSlackAppImplementedActions.filter((name) =>
-      name !== Action.IntegrationSlackAppCheck
-    ),
+    integrationSlackAppImplementedActions,
   );
   assertRegisteredActions(registry);
   return registry;
@@ -413,7 +412,7 @@ export function registerSlackAppCheck(
       OrganizationContextPolicy.InstallationAdministratorScope,
   } as const;
   registry.register({
-    name: Action.IntegrationSlackAppCheck,
+    name: IntegrationsImplementedAction.IntegrationSlackAppCheck,
     method: HttpMethod.Post,
     path: "/v1/integrations/slack/app/check",
     input: contractSchemas.Empty,

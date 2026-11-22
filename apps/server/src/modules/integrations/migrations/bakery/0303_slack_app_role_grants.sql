@@ -7,12 +7,11 @@
 -- carried none, so a thread reply could not resolve its run and a delivery
 -- could not record its message.
 --
--- Removing an app deletes its two secrets, so the role may delete a secret row
--- and its versions as well as insert and read them. It still cannot update a
--- secret's ciphertext.
+-- Removing an app revokes its two secrets rather than deleting them, so the role
+-- needs update on the secret row and never delete on it or on its versions.
 
 grant select, insert, update, delete on bakery.slack_app_settings to bakery_app;
 
-grant delete on bakery.secrets, bakery.secret_versions to bakery_app;
+grant update on bakery.secrets to bakery_app;
 
 grant select, insert, update on bakery.slack_milestone_posts to bakery_app;

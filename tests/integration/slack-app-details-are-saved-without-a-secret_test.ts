@@ -17,6 +17,7 @@ import { deleteSlackApp } from "../../apps/server/src/modules/integrations/slack
 import {
   readSlackAppCredentials,
   readSlackAppSettings,
+  recordSlackCheck,
   removeSlackAppSettings,
   saveSlackAppSettings,
 } from "../../apps/server/src/modules/integrations/slack-app-credentials.ts";
@@ -349,6 +350,85 @@ Deno.test("a removal names the version it removes", async () => {
   });
 });
 
+Deno.test("a check belongs to the pair it was asked about", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const secretsKey = await key();
+    const saved = await save(fixture, secretsKey, {
+      appId: appId(),
+      clientId: "1234567890.0987654321",
+      clientSecret: "client-secret-one",
+      signingSecret: "signing-secret-one",
+    });
+    try {
+      // Slack answered about the pair that was current when the check started. A
+      // save that moved the row while Slack was answering must not carry that
+      // answer onto the new pair, so the record names the version it was about.
+      let stale = "";
+      try {
+        await withPgTransaction(
+          fixture.pgDatabase,
+          (transaction) =>
+            recordSlackCheck(transaction, "accepted", saved.version + 5, {
+              principalId: fixture.principalId,
+              operation: "integration.slack.credentials.check",
+              requestId: crypto.randomUUID(),
+              traceId: crypto.randomUUID(),
+            }),
+        );
+      } catch (error) {
+        stale = (error as { code?: string }).code ?? "";
+      }
+      assertEquals(stale, "PRECONDITION_FAILED");
+
+      // The refused record wrote neither the result nor an audit row of its own.
+      let settings = await readSlackAppSettings(fixture.pgDatabase as never);
+      assertEquals(settings?.detailsCheckedAt, null);
+      // Other cases in this file share the database, so the check's own audit
+      // rows are counted by the id a check writes under.
+      const countChecks = async () => {
+        const rows = await fixture.pgDatabase.query<{ n: string }>(
+          `select count(*)::text as n from bakery.audit_events
+            where resource_type = 'slack_app_settings'
+              and resource_id = 'slack-app'
+              and operation = 'integration.slack.credentials.check'`,
+        );
+        return rows.rows[0]!.n;
+      };
+      // The refused check wrote no audit row of its own; earlier cases in this
+      // file share the database, so the count is read as a delta.
+      const before = Number(await countChecks());
+
+      // The version the row carries is accepted, and that one is recorded.
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          recordSlackCheck(transaction, "accepted", saved.version, {
+            principalId: fixture.principalId,
+            operation: "integration.slack.credentials.check",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+      );
+      settings = await readSlackAppSettings(fixture.pgDatabase as never);
+      assertEquals(settings?.detailsCheckResult, "accepted");
+      assert(settings?.detailsCheckedAt !== null);
+      // The accepted check wrote exactly the one row the refusal did not.
+      assertEquals(Number(await countChecks()) - before, 1);
+    } finally {
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          removeSlackApp(transaction, {
+            principalId: fixture.principalId,
+            operation: "integration.slack.credentials.remove",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+      );
+    }
+  });
+});
+
 Deno.test("removing the details keeps the links people made", async () => {
   await withWorkerFixture(async (fixture) => {
     const secretsKey = await key();
@@ -391,18 +471,17 @@ Deno.test("removing the details keeps the links people made", async () => {
       [fixture.organizationId],
     );
     assertEquals(links.rows[0]!.n, "1");
-    // The secrets went with it: the app they belonged to no longer exists here,
-    // and nothing outside a saved app can address them, so the rows are deleted
-    // rather than left as ciphertext with no reader.
-    const secrets = await fixture.pgDatabase.query<{ n: string }>(
-      "select count(*)::text as n from bakery.secrets where provider = 'slack'",
+    // The secrets are revoked, not destroyed: Bakery never deletes a stored
+    // credential, and a revoked row is one no reader will accept again.
+    const secrets = await fixture.pgDatabase.query<
+      { n: string; live: string }
+    >(
+      `select count(*)::text as n,
+              count(*) filter (where revoked_at is null)::text as live
+         from bakery.secrets where provider = 'slack'`,
     );
-    assertEquals(secrets.rows[0]!.n, "0");
-    const versions = await fixture.pgDatabase.query<{ n: string }>(
-      `select count(*)::text as n from bakery.secret_versions
-        where secret_id not in (select id from bakery.secrets)`,
-    );
-    assertEquals(versions.rows[0]!.n, "0");
+    assertEquals(secrets.rows[0]!.n, "2");
+    assertEquals(secrets.rows[0]!.live, "0");
     // Save/remove both left an audit row, and neither names a secret value.
     const audit = await fixture.pgDatabase.query<{ details: unknown }>(
       `select details from bakery.audit_events

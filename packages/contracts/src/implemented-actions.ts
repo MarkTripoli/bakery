@@ -367,6 +367,9 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationDiscoveriesCreate: "integrationDiscoveries.create",
     IntegrationInstallationsList: "integrationInstallations.list",
     IntegrationInstallationsGet: "integrationInstallations.get",
+    // Served by the integrations registry rather than the Slack app's own one:
+    // the check asks Slack between the two transactions the version spans.
+    IntegrationSlackAppCheck: "integrationSlackApp.check",
     IntakeWebhook: "intake.webhook",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -710,15 +713,15 @@ export const integrationClientCredentialsImplementedActions = Object.freeze(
 /**
  * The installation's own Slack app (#415): what it is, the two secrets it needs,
  * and the one question Slack can answer about them. Read and replace are the
- * screen's job; check is a command because it spends a request and records an
- * answer, and delete removes the app without touching the people linked to it.
+ * screen's job; delete removes the app without touching the people linked to
+ * it. The check is a command and is named with the integrations actions, since
+ * only that registry can ask Slack between the two transactions it spans.
  */
 export const IntegrationSlackAppImplementedAction = Object.freeze(
   {
     IntegrationSlackAppGet: "integrationSlackApp.get",
     IntegrationSlackAppPut: "integrationSlackApp.put",
     IntegrationSlackAppDelete: "integrationSlackApp.delete",
-    IntegrationSlackAppCheck: "integrationSlackApp.check",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const integrationSlackAppImplementedActions = Object.freeze(

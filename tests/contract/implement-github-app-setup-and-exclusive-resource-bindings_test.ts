@@ -55,7 +55,15 @@ const implementedIntegrationActions = [
   "integrationInstallations.list",
   "integrationInstallations.get",
   "intake.webhook",
+  // Served by this registry rather than the Slack app's own one, so the check is
+  // listed here alongside the integrations actions.
+  "integrationSlackApp.check",
 ].sort();
+
+// The check is served by the integrations registry, so the registry's list and
+// the enum that names its actions must both carry it, even though the runtime
+// value sits with the Slack app's own actions.
+const servedHere = [...new Set(implementedIntegrationActions)].sort();
 
 Deno.test("integrations registry implements exactly its listed catalog actions with catalog parity", () => {
   // Registration runs assertRegisteredActions: method, path, schemas, access
@@ -66,18 +74,9 @@ Deno.test("integrations registry implements exactly its listed catalog actions w
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
     integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
-  assertEquals(
-    registry.list().map(({ name }) => name).sort(),
-    implementedIntegrationActions,
-  );
-  assertEquals(
-    [...integrationsImplementedActions].sort(),
-    implementedIntegrationActions,
-  );
-  assertEquals(
-    Object.values(IntegrationsImplementedAction).sort(),
-    implementedIntegrationActions,
-  );
+  assertEquals(registry.list().map(({ name }) => name).sort(), servedHere);
+  assertEquals([...integrationsImplementedActions].sort(), servedHere);
+  assertEquals(Object.values(IntegrationsImplementedAction).sort(), servedHere);
   const begin = registry.get("integrationAppRegistrations.begin");
   const callback = registry.get("integrationAuth.manifestCallback");
   assertEquals(begin.policy.sessionOnly, true);

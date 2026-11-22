@@ -159,10 +159,12 @@ export function SlackAppSection(
     values.clientSecret.trim() === "";
   const signingSecretMissing = attempted && !secretKept &&
     values.signingSecret.trim() === "";
-  const tooLong = values.appId.length > SLACK_FIELD_MAX ||
-    values.clientId.length > SLACK_FIELD_MAX ||
-    values.clientSecret.length > SLACK_SECRET_MAX ||
-    values.signingSecret.length > SLACK_SECRET_MAX;
+  // Each field reports its own length: a client secret pasted into the wrong box
+  // must complain where a person can see and fix it, not under App ID.
+  const appIdTooLong = values.appId.length > SLACK_FIELD_MAX;
+  const clientIdTooLong = values.clientId.length > SLACK_FIELD_MAX;
+  const clientSecretTooLong = values.clientSecret.length > SLACK_SECRET_MAX;
+  const signingSecretTooLong = values.signingSecret.length > SLACK_SECRET_MAX;
   const date = (value: string | null) => {
     if (value === null) return "";
     return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone })
@@ -425,7 +427,7 @@ export function SlackAppSection(
                           ? translate(key("appIdRequired"))
                           : appIdMalformed
                           ? translate(key("appIdMalformed"))
-                          : tooLong
+                          : appIdTooLong
                           ? translate(
                             "settings.integrations.credentials.tooLong",
                             { limit: SLACK_FIELD_MAX },
@@ -435,7 +437,7 @@ export function SlackAppSection(
                         htmlFor={ids.appId}
                         label={translate("integrations.slack.fields.app_id")}
                         required
-                        state={appIdMissing || appIdMalformed
+                        state={appIdMissing || appIdMalformed || appIdTooLong
                           ? "invalid"
                           : "default"}
                       >
@@ -454,6 +456,11 @@ export function SlackAppSection(
                       <UI.Field
                         error={clientIdMissing
                           ? translate(key("clientIdRequired"))
+                          : clientIdTooLong
+                          ? translate(
+                            "settings.integrations.credentials.tooLong",
+                            { limit: SLACK_FIELD_MAX },
+                          )
                           : undefined}
                         hint={translate(key("clientIdHint"))}
                         htmlFor={ids.clientId}
@@ -461,13 +468,15 @@ export function SlackAppSection(
                           "integrations.slack.fields.client_id",
                         )}
                         required
-                        state={clientIdMissing ? "invalid" : "default"}
+                        state={clientIdMissing || clientIdTooLong
+                          ? "invalid"
+                          : "default"}
                       >
                         <UI.TextInput
                           autoComplete="off"
                           disabled={busy}
                           id={ids.clientId}
-                          invalid={clientIdMissing}
+                          invalid={clientIdMissing || clientIdTooLong}
                           name="clientId"
                           onChange={(value) =>
                             onChange("clientId", value)}
@@ -479,6 +488,11 @@ export function SlackAppSection(
                       <UI.Field
                         error={clientSecretMissing
                           ? translate(key("clientSecretRequired"))
+                          : clientSecretTooLong
+                          ? translate(
+                            "settings.integrations.credentials.tooLong",
+                            { limit: SLACK_SECRET_MAX },
+                          )
                           : undefined}
                         hint={secretHint(saved?.clientSecretSavedAt) ??
                           translate(key("clientSecretHint"))}
@@ -487,13 +501,15 @@ export function SlackAppSection(
                           "integrations.slack.fields.client_secret",
                         )}
                         required={!secretKept}
-                        state={clientSecretMissing ? "invalid" : "default"}
+                        state={clientSecretMissing || clientSecretTooLong
+                          ? "invalid"
+                          : "default"}
                       >
                         <UI.PasswordInput
                           autoComplete="new-password"
                           disabled={busy}
                           id={ids.clientSecret}
-                          invalid={clientSecretMissing}
+                          invalid={clientSecretMissing || clientSecretTooLong}
                           name="clientSecret"
                           onChange={(value) =>
                             onChange("clientSecret", value)}
@@ -505,6 +521,11 @@ export function SlackAppSection(
                       <UI.Field
                         error={signingSecretMissing
                           ? translate(key("signingSecretRequired"))
+                          : signingSecretTooLong
+                          ? translate(
+                            "settings.integrations.credentials.tooLong",
+                            { limit: SLACK_SECRET_MAX },
+                          )
                           : undefined}
                         hint={secretHint(saved?.signingSecretSavedAt) ??
                           translate(key("signingSecretHint"))}
@@ -513,13 +534,15 @@ export function SlackAppSection(
                           "integrations.slack.fields.signing_secret",
                         )}
                         required={!secretKept}
-                        state={signingSecretMissing ? "invalid" : "default"}
+                        state={signingSecretMissing || signingSecretTooLong
+                          ? "invalid"
+                          : "default"}
                       >
                         <UI.PasswordInput
                           autoComplete="new-password"
                           disabled={busy}
                           id={ids.signingSecret}
-                          invalid={signingSecretMissing}
+                          invalid={signingSecretMissing || signingSecretTooLong}
                           name="signingSecret"
                           onChange={(value) => onChange("signingSecret", value)}
                           required={!secretKept}

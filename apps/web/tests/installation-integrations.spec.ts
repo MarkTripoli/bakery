@@ -914,7 +914,9 @@ test("a removal that fails says so outside the dialog and closes it", async ({ p
   // and it names the removal rather than a save.
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(
-    slack.getByText("The details could not be removed. Nothing changed."),
+    slack.getByText(
+      "The Slack app details could not be removed. Nothing changed.",
+    ),
   ).toBeVisible();
   await expect(slack.getByText(/could not be saved/)).toHaveCount(0);
   expect(f.slack.deletes).toHaveLength(1);
@@ -930,7 +932,7 @@ test("a removal of details that changed answers as unchanged, not as a save", as
   await page.getByRole("alertdialog").getByRole("button", { name: "Remove" })
     .click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(slack.getByText(/so nothing was removed/)).toBeVisible();
+  await expect(slack.getByText(/Nothing was removed/)).toBeVisible();
 });
 
 test("the Remove trigger is an outline, so it does not read as the page's action", async ({ page }) => {

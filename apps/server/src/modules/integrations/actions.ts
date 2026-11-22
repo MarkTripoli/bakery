@@ -14,7 +14,6 @@ import {
   assertImplementedActionRegistry,
   IntegrationsImplementedAction,
   integrationsImplementedActions,
-  IntegrationSlackAppImplementedAction,
 } from "@bakery/contracts/implemented-actions";
 import {
   ActionAccess,
@@ -548,7 +547,7 @@ export function createIntegrationsAuthorityRunner(
       // request to re-normalize, so it keeps the single-transaction path.
       if (
         action.name ===
-          IntegrationSlackAppImplementedAction.IntegrationSlackAppCheck &&
+          IntegrationsImplementedAction.IntegrationSlackAppCheck &&
         context.request !== undefined
       ) {
         return await runSlackCheck(
@@ -1094,12 +1093,12 @@ export function createIntegrationsActionRegistry(
   });
 
   assertRegisteredActions(registry);
-  assertImplementedActionRegistry(
-    registry,
-    [
-      ...integrationsImplementedActions,
-      IntegrationSlackAppImplementedAction.IntegrationSlackAppCheck,
-    ] as Parameters<typeof assertImplementedActionRegistry>[1],
-  );
+  // The check is declared with the Slack app's own actions but served here,
+  // because only this runner asks Slack between the two transactions the
+  // If-Match version spans. The get, put and delete stay on the other registry.
+  // `integrationsImplementedActions` names the check, because only this runner
+  // asks Slack between the two transactions the If-Match version spans. The
+  // Slack app's get, put and delete stay on the Slack app's own registry.
+  assertImplementedActionRegistry(registry, integrationsImplementedActions);
   return registry;
 }
