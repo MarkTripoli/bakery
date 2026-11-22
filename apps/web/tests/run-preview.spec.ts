@@ -586,6 +586,9 @@ test("a stop that fails says so, keeps the preview running and can be tried agai
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeEnabled();
   expect(world.stopped).toBe(1);
+  // The face is back as it was: the preview still runs and can be opened.
+  await expect(card(page).getByRole("button", { name: "Prepare preview" }))
+    .toBeVisible();
   await cardStill(page, "run-preview-stop-failed");
   world.stopStatus = 201;
   await card(page).getByRole("button", { name: "Stop preview" }).click();
@@ -593,7 +596,7 @@ test("a stop that fails says so, keeps the preview running and can be tried agai
   await expect(card(page).getByRole("alert")).toHaveCount(0);
 });
 
-test("opening while a stop is still answering does not leave the card stopping", async ({ page }) => {
+test("while a stop is out the face says so and offers nothing, and Details keeps the loading Stop", async ({ page }) => {
   let answer!: () => void;
   const world = await prepare(page, {
     stopHold: new Promise<void>((resolve) => {
@@ -605,17 +608,20 @@ test("opening while a stop is still answering does not leave the card stopping",
   await card(page).getByRole("button", { name: "Stop preview" }).click();
   await expect(card(page).getByRole("button", { name: "Stopping preview" }))
     .toBeVisible();
-  // The face still offers Prepare while the stop is out; using it must not
-  // cancel the stop's own bookkeeping.
-  await card(page).getByRole("button", { name: "Prepare preview" }).click();
-  await expect.poll(() => world.accessCalls).toBe(1);
+  await expect(card(page).getByTestId("run-preview-body")).toHaveText(
+    "Stopping this preview…",
+  );
+  // Nothing to open, and no grant countdown, while the preview is going away.
+  await expect(
+    card(page).getByRole("button", { name: /Prepare preview|Open/ }),
+  ).toHaveCount(0);
+  await cardStill(page, "run-preview-stopping-details");
   answer();
   await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible();
   await expect(card(page).getByRole("button", { name: "Stopping preview" }))
     .toHaveCount(0);
-  await expect(card(page).getByRole("button", { name: "Open preview" }))
-    .toHaveCount(0);
   expect(world.stopped).toBe(1);
+  expect(world.accessCalls).toBe(0);
 });
 
 test("a grant that is not used in its 30 seconds is dropped and the card says to prepare again", async ({ page }) => {

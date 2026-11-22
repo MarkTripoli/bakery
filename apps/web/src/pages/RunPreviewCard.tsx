@@ -130,6 +130,8 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
       case "starting":
         return translate("tasks.preview.body.starting");
       case "running":
+        // A stop is out: the face says so and offers nothing until it answers.
+        if (props.stopping) return translate("tasks.preview.caption.stopping");
         if (checking) return translate("tasks.preview.caption.checking");
         if (open.kind === "opened") {
           const length = sessionLength(open.sessionSeconds);
@@ -173,7 +175,7 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
     : null;
   // Only a running preview that has been checked can be opened; every other
   // state shows no button at all, and its sentence says why.
-  const canOpen = state.kind === "running" && !checking;
+  const canOpen = state.kind === "running" && !checking && !props.stopping;
   const running = state.kind === "running";
   const hasDetails = state.kind !== "starting" && state.kind !== "unavailable";
 

@@ -6156,4 +6156,5 @@
   "library.editor.group.fixUntilPasses": "⟪Fix until it passes⟫",
   "library.editor.group.fixLimit": "⟪At most {max, plural, one {# try} other {# tries}}⟫",
   "library.editor.group.fixHelp": "⟪Fixes what the checks and the review found, then checks and reviews again. If the first review is already clean, this block is skipped.⟫",
+  "tasks.preview.caption.stopping": "⟪Stopping this preview…⟫"
 }

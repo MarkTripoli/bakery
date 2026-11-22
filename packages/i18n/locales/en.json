@@ -5863,6 +5863,7 @@
   "tasks.preview.body.starting": "The agent is starting the app. This usually takes under a minute.",
   "tasks.preview.body.running": "The app the agent is working on, as it runs now.",
   "tasks.preview.caption.checking": "Checking whether this is still running…",
+  "tasks.preview.caption.stopping": "Stopping this preview…",
   "tasks.preview.opened": "Opened in a new tab. You stay signed in to it for {duration}, on this browser only.",
   "tasks.preview.duration.hours": "{count, plural, one {# hour} other {# hours}}",
   "tasks.preview.duration.minutes": "{count, plural, one {# minute} other {# minutes}}",
