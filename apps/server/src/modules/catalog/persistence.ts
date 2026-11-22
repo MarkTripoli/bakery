@@ -30,6 +30,7 @@ import {
   getSkillDraft,
   getSkillDraftFile,
   openSkillDraft,
+  renameSkillDraftFile,
   saveSkillDraftFile,
   updateSkillDraft,
 } from "./skill-drafts.ts";
@@ -54,7 +55,8 @@ import {
 } from "./source-adapters.ts";
 
 const PAGE_ORDERING = "createdAt:desc,id:desc";
-const SOURCE_COLUMNS = `id, source_type, locator, publisher, license,
+const SOURCE_COLUMNS =
+  `id, display_name, source_type, locator, publisher, license,
   last_checked_at, enabled, created_at, updated_at, version`;
 export const SKILL_COLUMNS =
   `id, source_id, slug, name, description, active_version_id, enabled,
@@ -141,6 +143,7 @@ function invalidSourceInput(error?: unknown): never {
 
 type SkillSourceRow = {
   id: string;
+  display_name: string | null;
   source_type: "git" | "url" | "local_bundle";
   locator: string;
   publisher: string | null;
@@ -184,6 +187,7 @@ function toIso(value: Date | string): string {
 export function toSkillSource(row: SkillSourceRow) {
   return {
     id: row.id,
+    name: row.display_name,
     sourceType: row.source_type,
     locator: row.locator,
     publisher: row.publisher,
@@ -464,6 +468,211 @@ async function searchLibraryPage(options: {
   };
 }
 
+/**
+ * Admits one pinned import of a source folder at a revision: the same request
+ * again is the same run. A reviewed update (skills.takeSourceUpdate) pins the
+ * exact revision it showed and records the branch it follows, so the next
+ * update check still follows that branch.
+ */
+export async function admitSkillImport(
+  transaction: PgTransactionClient,
+  context: ActionContext,
+  facts: {
+    organizationId: string;
+    principalId: string;
+    source: SkillSourceRow;
+    requestedRevision: string;
+    sourcePath: string;
+    followedRevision?: string;
+  },
+): Promise<ReturnType<typeof toRun>> {
+  const {
+    organizationId,
+    principalId,
+    source,
+    requestedRevision,
+    sourcePath,
+    followedRevision,
+  } = facts;
+  const existing = await transaction.query<ExistingSkillImportRow>(
+    `select ${IMPORT_RUN_COLUMNS}, import.registered_source_type,
+                import.registered_locator, import.registered_license
+           from bakery.skill_imports as import
+           join bakery.workflow_runs as run
+             on run.organization_id = import.organization_id
+            and run.id = import.run_id
+          where import.organization_id = $1 and import.source_id = $2
+            and import.requested_revision = $3 and import.source_path = $4`,
+    [organizationId, source.id, requestedRevision, sourcePath],
+  );
+  const replay = existing.rows[0];
+  if (replay) {
+    if (
+      replay.registered_source_type !== source.source_type ||
+      replay.registered_locator !== source.locator ||
+      replay.registered_license !== source.license
+    ) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "skill_import_source_identity_mismatch" },
+      });
+    }
+    return toRun(replay);
+  }
+  if (!source.enabled) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_import_source_disabled" },
+    });
+  }
+  const runId = crypto.randomUUID();
+  const snapshot = {
+    schemaVersion: 1,
+    kind: "skill_import",
+    source: {
+      id: source.id,
+      sourceType: source.source_type,
+      locator: source.locator,
+      license: source.license,
+    },
+    request: {
+      requestedRevision,
+      sourcePath,
+      ...(followedRevision === undefined ? {} : { followedRevision }),
+    },
+  };
+  const inserted = await transaction.query<RunRow>(
+    `insert into bakery.workflow_runs (
+           id, organization_id, kind, task_id, workflow_version_id,
+           skill_source_id, requested_by, status, snapshot, budget_limit_usd
+         ) values ($1, $2, 'skill_import', null, null, $3, $4, 'queued',
+           $5::jsonb, 0)
+         returning id, kind, task_id, workflow_version_id, skill_source_id,
+           repository_profile_id, repository_profile_revision,
+           repository_profile_digest, observation_id, observation_digest,
+           base_sha, null::text as workspace_base_sha, requested_by,
+           inngest_run_id, status, budget_limit_usd,
+           started_at, finished_at, created_at, updated_at, version`,
+    [
+      runId,
+      organizationId,
+      source.id,
+      principalId,
+      JSON.stringify(snapshot),
+    ],
+  );
+  const run = inserted.rows[0];
+  if (!run) throw new Error("SKILL_IMPORT_RUN_INSERT_FAILED");
+  await transaction.query(
+    `insert into bakery.skill_imports (
+           id, organization_id, run_id, source_id, requested_revision,
+           source_path, registered_source_type, registered_locator,
+           registered_license, state
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued')`,
+    [
+      crypto.randomUUID(),
+      organizationId,
+      run.id,
+      source.id,
+      requestedRevision,
+      sourcePath,
+      source.source_type,
+      source.locator,
+      source.license,
+    ],
+  );
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "skills.import",
+    resourceType: "skill_import",
+    resourceId: run.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: {
+      sourceId: source.id,
+      ...(followedRevision === undefined ? {} : { followedRevision }),
+    },
+  });
+  await appendDomainEvent(transaction, {
+    organizationId,
+    eventType: "skill.import.requested",
+    aggregateId: run.id,
+    aggregateVersion: run.version,
+    payload: { runId: run.id },
+    traceId: context.traceId,
+    outboxDeliveryKey: `skill-import:${run.id}:generation:0`,
+  });
+  return toRun(run);
+}
+
+/**
+ * skills.takeSourceUpdate's write: imports the reviewed revision from the
+ * skill's own source and folder, and audits that a person took the update.
+ */
+export async function admitReviewedSkillUpdate(
+  transaction: PgTransactionClient,
+  context: ActionContext,
+  facts: Readonly<{
+    organizationId: string;
+    principalId: string;
+    skillId: string;
+    sourceId: string;
+    sourcePath: string;
+    revision: string;
+    followedRevision: string;
+  }>,
+): Promise<ReturnType<typeof toRun>> {
+  await assertNotQuiesced(transaction, "intake");
+  const sourceResult = await transaction.query<SkillSourceRow>(
+    `select ${SOURCE_COLUMNS} from bakery.skill_sources
+      where organization_id = $1 and id = $2
+      for update`,
+    [facts.organizationId, facts.sourceId],
+  );
+  const source = sourceResult.rows[0];
+  if (!source) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (source.source_type === "local_bundle") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_has_no_remote_source" },
+    });
+  }
+  let requestedRevision: string;
+  try {
+    requestedRevision = normalizeSkillSourceRevision(
+      source.source_type,
+      facts.revision,
+    );
+  } catch (error) {
+    if (error instanceof SkillSourceAdapterError) invalidSourceInput(error);
+    throw error;
+  }
+  const run = await admitSkillImport(transaction, context, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    source,
+    requestedRevision,
+    sourcePath: facts.sourcePath,
+    followedRevision: facts.followedRevision,
+  });
+  await appendAudit(transaction, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    operation: "skills.takeSourceUpdate",
+    resourceType: "skill",
+    resourceId: facts.skillId,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: {
+      runId: run.id,
+      revision: requestedRevision,
+      followedRevision: facts.followedRevision,
+    },
+  });
+  return run;
+}
+
 export function createCatalogHandlers(
   secret: string,
   options: Readonly<{
@@ -582,109 +791,13 @@ export function createCatalogHandlers(
         if (error instanceof SkillSourceAdapterError) invalidSourceInput(error);
         throw error;
       }
-      const existing = await transaction.query<ExistingSkillImportRow>(
-        `select ${IMPORT_RUN_COLUMNS}, import.registered_source_type,
-                import.registered_locator, import.registered_license
-           from bakery.skill_imports as import
-           join bakery.workflow_runs as run
-             on run.organization_id = import.organization_id
-            and run.id = import.run_id
-          where import.organization_id = $1 and import.source_id = $2
-            and import.requested_revision = $3 and import.source_path = $4`,
-        [organizationId, source.id, requestedRevision, sourcePath],
-      );
-      const replay = existing.rows[0];
-      if (replay) {
-        if (
-          replay.registered_source_type !== source.source_type ||
-          replay.registered_locator !== source.locator ||
-          replay.registered_license !== source.license
-        ) {
-          throw new StandardError({
-            code: "STATE_CONFLICT",
-            params: { reason: "skill_import_source_identity_mismatch" },
-          });
-        }
-        return toRun(replay);
-      }
-      if (!source.enabled) {
-        throw new StandardError({
-          code: "STATE_CONFLICT",
-          params: { reason: "skill_import_source_disabled" },
-        });
-      }
-      const runId = crypto.randomUUID();
-      const snapshot = {
-        schemaVersion: 1,
-        kind: "skill_import",
-        source: {
-          id: source.id,
-          sourceType: source.source_type,
-          locator: source.locator,
-          license: source.license,
-        },
-        request: { requestedRevision, sourcePath },
-      };
-      const inserted = await transaction.query<RunRow>(
-        `insert into bakery.workflow_runs (
-           id, organization_id, kind, task_id, workflow_version_id,
-           skill_source_id, requested_by, status, snapshot, budget_limit_usd
-         ) values ($1, $2, 'skill_import', null, null, $3, $4, 'queued',
-           $5::jsonb, 0)
-         returning id, kind, task_id, workflow_version_id, skill_source_id,
-           repository_profile_id, repository_profile_revision,
-           repository_profile_digest, observation_id, observation_digest,
-           base_sha, null::text as workspace_base_sha, requested_by,
-           inngest_run_id, status, budget_limit_usd,
-           started_at, finished_at, created_at, updated_at, version`,
-        [
-          runId,
-          organizationId,
-          source.id,
-          principalId,
-          JSON.stringify(snapshot),
-        ],
-      );
-      const run = inserted.rows[0];
-      if (!run) throw new Error("SKILL_IMPORT_RUN_INSERT_FAILED");
-      await transaction.query(
-        `insert into bakery.skill_imports (
-           id, organization_id, run_id, source_id, requested_revision,
-           source_path, registered_source_type, registered_locator,
-           registered_license, state
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued')`,
-        [
-          crypto.randomUUID(),
-          organizationId,
-          run.id,
-          source.id,
-          requestedRevision,
-          sourcePath,
-          source.source_type,
-          source.locator,
-          source.license,
-        ],
-      );
-      await appendAudit(transaction, {
+      return await admitSkillImport(transaction, context, {
         organizationId,
         principalId,
-        operation: "skills.import",
-        resourceType: "skill_import",
-        resourceId: run.id,
-        requestId: context.requestId,
-        traceId: context.traceId,
-        details: { sourceId: source.id },
+        source,
+        requestedRevision,
+        sourcePath,
       });
-      await appendDomainEvent(transaction, {
-        organizationId,
-        eventType: "skill.import.requested",
-        aggregateId: run.id,
-        aggregateVersion: run.version,
-        payload: { runId: run.id },
-        traceId: context.traceId,
-        outboxDeliveryKey: `skill-import:${run.id}:generation:0`,
-      });
-      return toRun(run);
     },
 
     async updateSource(context: ActionContext, input: SourceUpdateInput) {
@@ -893,8 +1006,25 @@ export function createCatalogHandlers(
       );
     },
 
+    // Served behind the staged source runners in routes.ts, like the check.
+    takeSkillSourceUpdate(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.SkillSourceUpdateTake>,
+    ): Promise<ReturnType<typeof toRun>> {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
+    },
+
     saveSkillDraftFile(context: ActionContext, input: SkillDraftFileSaveInput) {
       return saveSkillDraftFile(context, input);
+    },
+
+    renameSkillDraftFile(
+      context: ActionContext,
+      input: z.output<typeof contractSchemas.SkillDraftFileRename>,
+    ) {
+      return renameSkillDraftFile(context, input);
     },
 
     getSkillDraftFile(context: ActionContext) {
@@ -938,6 +1068,52 @@ export function createCatalogHandlers(
       return Promise.reject(
         new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
       );
+    },
+
+    async getSkillImport(context: ActionContext) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const runId = idFromPath(context);
+      const result = await transaction.query<{
+        run_id: string;
+        state:
+          | "queued"
+          | "resolved"
+          | "reserved"
+          | "stored"
+          | "completed"
+          | "failed";
+        skill_id: string | null;
+        skill_version_id: string | null;
+        terminal_fault: { code?: unknown } | null;
+        visible: boolean | null;
+      }>(
+        `select import.run_id, import.state, import.skill_id,
+                import.skill_version_id, import.terminal_fault,
+                (skill.id is null or skill.scope <> 'personal'
+                  or skill.owner_principal_id = $3::uuid) as visible
+           from bakery.skill_imports as import
+           left join bakery.skills as skill
+             on skill.organization_id = import.organization_id
+            and skill.id = import.skill_id
+          where import.organization_id = $1 and import.run_id = $2`,
+        [organizationId, runId, principalId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      // What it made is reported once it is complete, and only to someone who
+      // may see that skill.
+      const made = row.state === "completed" && row.visible === true;
+      const code = row.terminal_fault?.code;
+      return {
+        runId: row.run_id,
+        state: row.state,
+        skillId: made ? row.skill_id : null,
+        versionId: made ? row.skill_version_id : null,
+        failureCode: row.state === "failed" && typeof code === "string"
+          ? code
+          : null,
+      };
     },
 
     async listSkillVersions(context: ActionContext, input: CursorInput) {

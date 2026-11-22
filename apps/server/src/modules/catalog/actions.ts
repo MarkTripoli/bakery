@@ -102,6 +102,18 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<SkillUsage>"]>>;
+  takeSkillSourceUpdate: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillSourceUpdateTake>,
+  ) => Promise<z.output<typeof contractSchemas.Run>>;
+  getSkillImport: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillImportResult>>;
+  renameSkillDraftFile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillDraftFileRename>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraft>>;
   listSkillVersions: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
@@ -277,6 +289,15 @@ export function createCatalogActionRegistry(
     handler: handlers.importSkill,
   });
   registry.register({
+    name: CatalogImplementedAction.SkillImportsGet,
+    method: HttpMethod.Get,
+    path: "/v1/skill-imports/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillImportResult,
+    policy: queryPolicy,
+    handler: handlers.getSkillImport,
+  });
+  registry.register({
     name: CatalogImplementedAction.SkillsList,
     method: HttpMethod.Get,
     path: "/v1/skills",
@@ -422,6 +443,17 @@ export function createCatalogActionRegistry(
     handler: handlers.saveSkillDraftFile,
   });
   registry.register({
+    name: CatalogImplementedAction.SkillDraftFilesRename,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/draft/files/rename",
+    input: contractSchemas.SkillDraftFileRename,
+    output: contractSchemas.SkillDraft,
+    successStatus: 200,
+    explicitIdempotency: "key-and-if-match",
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.renameSkillDraftFile,
+  });
+  registry.register({
     name: CatalogImplementedAction.SkillDraftFilesGet,
     method: HttpMethod.Get,
     path: "/v1/skills/:id/draft/files/:fileId",
@@ -468,6 +500,9 @@ export function createCatalogActionRegistry(
     registry.register(skillDraftPublishDefinition(handlers.publishSkillDraft));
     registry.register(
       skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
+    );
+    registry.register(
+      skillSourceUpdateTakeDefinition(handlers.takeSkillSourceUpdate),
     );
     registry.register({
       name: CatalogImplementedAction.SkillVersionsCreate,
@@ -544,8 +579,33 @@ export function createSkillDraftPublishActionRegistry(
  * (see routes.ts) and has a registry of its own, like a skill copy: the shared
  * catalog registry does not carry it.
  */
+/**
+ * Taking a reviewed update reads the source over the network, like the check,
+ * so it runs behind the same staged runners in routes.ts.
+ */
+function skillSourceUpdateTakeDefinition(
+  handler: CatalogActionHandlers["takeSkillSourceUpdate"],
+) {
+  return {
+    name: CatalogImplementedAction.SkillsTakeSourceUpdate,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/source-update/take",
+    input: contractSchemas.SkillSourceUpdateTake,
+    output: contractSchemas.Run,
+    explicitIdempotency: "key-and-if-match",
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler,
+  } as const;
+}
+
 export function createSkillSourceUpdateActionRegistry(
-  handlers: Pick<CatalogActionHandlers, "checkSkillSourceUpdate">,
+  handlers: Pick<
+    CatalogActionHandlers,
+    "checkSkillSourceUpdate" | "takeSkillSourceUpdate"
+  >,
   options: {
     authorityRunner?: ActionAuthorityRunner;
     commandRunner?: CommandRunner;
@@ -558,9 +618,13 @@ export function createSkillSourceUpdateActionRegistry(
   registry.register(
     skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
   );
+  registry.register(
+    skillSourceUpdateTakeDefinition(handlers.takeSkillSourceUpdate),
+  );
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     CatalogImplementedAction.SkillsSourceUpdate,
+    CatalogImplementedAction.SkillsTakeSourceUpdate,
   ]);
   return registry;
 }

@@ -40,6 +40,7 @@ type Skill = {
 
 type SkillSource = {
   id: string;
+  name: string | null;
   sourceType: string;
   locator: string;
   publisher: string | null;
@@ -152,6 +153,7 @@ Deno.test("authenticated skills.create persists an exact tenant-local identity",
     const source = await sourceResponse.json() as SkillSource;
     assertEquals(source, {
       id: created.sourceId,
+      name: "Release notes",
       sourceType: "local_bundle",
       locator: `bakery://organizations/${organizationId}/skills/${created.id}`,
       publisher: null,
@@ -183,6 +185,7 @@ Deno.test("authenticated skills.create persists an exact tenant-local identity",
     const updatedSource = await sourceUpdateResponse.json() as SkillSource;
     assertEquals(updatedSource, {
       ...source,
+      name: "Release notes source",
       enabled: false,
       updatedAt: updatedSource.updatedAt,
       version: 2,

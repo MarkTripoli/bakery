@@ -867,6 +867,9 @@ export const CatalogImplementedAction = Object.freeze(
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
     SkillsSetActiveVersion: "skills.setActiveVersion",
+    SkillImportsGet: "skillImports.get",
+    SkillsTakeSourceUpdate: "skills.takeSourceUpdate",
+    SkillDraftFilesRename: "skillDraftFiles.rename",
     SkillVersionsList: "skillVersions.list",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
@@ -880,7 +883,8 @@ export const catalogIdentityImplementedActions = Object.freeze(
     action !== CatalogImplementedAction.SkillVersionsList &&
     action !== CatalogImplementedAction.SkillsCopy &&
     action !== CatalogImplementedAction.SkillDraftsPublish &&
-    action !== CatalogImplementedAction.SkillsSourceUpdate
+    action !== CatalogImplementedAction.SkillsSourceUpdate &&
+    action !== CatalogImplementedAction.SkillsTakeSourceUpdate
   ),
 );
 

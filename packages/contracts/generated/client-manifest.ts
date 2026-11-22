@@ -2827,6 +2827,28 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-imports/{id}",
+      "action": "skillImports.get",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "IdPath",
+      "output": "SkillImportResult",
+      "event": "",
+      "mcp": "bakery_skillImports_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "POST",
       "path": "/v1/skills",
       "action": "skills.create",
@@ -3158,6 +3180,34 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/source-update/take",
+      "action": "skills.takeSourceUpdate",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillSourceUpdateTake",
+      "output": "Run",
+      "event": "skill.import.requested",
+      "mcp": "bakery_skills_takeSourceUpdate",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/check",
       "action": "skillDrafts.check",
       "access": "Owner for personal; Admin for organization",
@@ -3235,6 +3285,34 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/files/rename",
+      "action": "skillDraftFiles.rename",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFileRename",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "bakery_skillDraftFiles_rename",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -19159,6 +19237,7 @@ export const clientManifest = {
             "skillSources.create",
             "skillSources.update",
             "skills.import",
+            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -19172,9 +19251,11 @@ export const clientManifest = {
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
+            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
+            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -33854,6 +33935,60 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
     },
+    "SkillSourceUpdateTake": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed. SkillSourceUpdateTake.revision must contain at most 200 characters."
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
+    },
+    "SkillDraftFileRename": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Current relative path of the file in the draft. SkillDraftFileRename.path must contain at most 500 characters."
+        },
+        "newPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals. SkillDraftFileRename.newPath must contain at most 500 characters."
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "newPath"
+      ],
+      "additionalProperties": false,
+      "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -45014,6 +45149,20 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID identifying the skill source record."
               },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillSource.name may be null in this transport value."
+              },
               "sourceType": {
                 "type": "string",
                 "enum": [
@@ -45096,6 +45245,7 @@ export const clientManifest = {
             },
             "required": [
               "id",
+              "name",
               "sourceType",
               "locator",
               "publisher",
@@ -47702,6 +47852,7 @@ export const clientManifest = {
                   "skillSources.create",
                   "skillSources.update",
                   "skills.import",
+                  "skillImports.get",
                   "skills.create",
                   "skills.copy",
                   "skills.list",
@@ -47715,9 +47866,11 @@ export const clientManifest = {
                   "skillDrafts.update",
                   "skillDrafts.discard",
                   "skills.sourceUpdate",
+                  "skills.takeSourceUpdate",
                   "skillDrafts.check",
                   "skillDrafts.publish",
                   "skillDraftFiles.save",
+                  "skillDraftFiles.rename",
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
@@ -66553,6 +66706,20 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID identifying the skill source record."
         },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSource.name may be null in this transport value."
+        },
         "sourceType": {
           "type": "string",
           "enum": [
@@ -66635,6 +66802,7 @@ export const clientManifest = {
       },
       "required": [
         "id",
+        "name",
         "sourceType",
         "locator",
         "publisher",
@@ -69038,6 +69206,7 @@ export const clientManifest = {
             "skillSources.create",
             "skillSources.update",
             "skills.import",
+            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -69051,9 +69220,11 @@ export const clientManifest = {
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
+            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
+            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -79260,8 +79431,8 @@ export const clientManifest = {
               "skillSource:read",
               "skillSource:manage",
               "skill:manage",
-              "skill:author",
               "skill:read",
+              "skill:author",
               "library:read",
               "skillVersion:read",
               "skillVersion:readPinned",
@@ -117871,6 +118042,83 @@ export const clientManifest = {
       "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
       "type": "string",
       "format": "binary"
+    },
+    "SkillImportResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the import run, as skills.import returned it."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "resolved",
+            "reserved",
+            "stored",
+            "completed",
+            "failed"
+          ],
+          "description": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed."
+        },
+        "skillId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.skillId may be null in this transport value."
+        },
+        "versionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.versionId may be null in this transport value."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.failureCode may be null in this transport value."
+        }
+      },
+      "required": [
+        "runId",
+        "state",
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "additionalProperties": false,
+      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
     }
   }
 } as const;

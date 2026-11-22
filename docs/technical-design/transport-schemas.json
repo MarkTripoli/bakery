@@ -14899,6 +14899,63 @@
         }
       ],
       "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+    },
+    "SkillSourceUpdateTake": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
+        },
+        {
+          "name": "revision",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the skill's version are required. The import pins this exact revision; a skill that follows a branch keeps following it."
+      ],
+      "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
+    },
+    "SkillDraftFileRename": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "path",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Current relative path of the file in the draft."
+        },
+        {
+          "name": "newPath",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
+      ],
+      "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     }
   },
   "projections": {
@@ -23718,6 +23775,7 @@
       "projection": "skill_sources",
       "fields": [
         "id",
+        "name",
         "sourceType",
         "locator",
         "publisher",
@@ -23738,12 +23796,14 @@
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "name": "string|null"
       },
       "nullableFields": [
         "publisher",
         "license",
-        "lastCheckedAt"
+        "lastCheckedAt",
+        "name"
       ],
       "description": "An external origin a skill was imported from: a Git repository, a URL, or a local bundle, with its normalized locator and optional publisher/license metadata; the importer only follows permitted origin kinds and checked archive paths, never an executable mutable URL.",
       "fieldDescriptions": {
@@ -23756,7 +23816,8 @@
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "name": "Name a person gave the source, shown wherever sources are listed; null when none was given."
       }
     },
     "Skill": {
@@ -37374,6 +37435,35 @@
     "WorkerLinkPackageBytes": {
       "body": "bytes",
       "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes."
+    },
+    "SkillImportResult": {
+      "fields": [
+        "runId",
+        "state",
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "state": "enum(queued|resolved|reserved|stored|completed|failed)",
+        "skillId": "uuid|null",
+        "versionId": "uuid|null",
+        "failureCode": "string|null"
+      },
+      "nullableFields": [
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the import run, as skills.import returned it.",
+        "state": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed.",
+        "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
+        "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
+        "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
     }
   },
   "pageEnvelope": {

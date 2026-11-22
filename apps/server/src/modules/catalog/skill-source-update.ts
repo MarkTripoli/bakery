@@ -1,6 +1,6 @@
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { type contractSchemas } from "@bakery/contracts/contracts";
-import { StandardError } from "@bakery/contracts/http";
+import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
 import { appendAudit } from "@bakery/persistence";
 import type { z } from "zod";
 import { authorableSkill } from "./skill-drafts.ts";
@@ -104,8 +104,14 @@ export async function prepareSkillSourceUpdate(
          on version.organization_id = skill.organization_id
         and version.id = skill.active_version_id
        left join lateral (
-         select requested_revision
+         -- A reviewed update pins the exact revision it took and records the
+         -- branch it follows; the check keeps following that branch.
+         select coalesce(run.snapshot #>> '{request,followedRevision}',
+                         import.requested_revision) as requested_revision
            from bakery.skill_imports as import
+           join bakery.workflow_runs as run
+             on run.organization_id = import.organization_id
+            and run.id = import.run_id
           where import.organization_id = skill.organization_id
             and import.skill_id = skill.id and import.state = 'completed'
           order by import.updated_at desc, import.id desc
@@ -336,4 +342,79 @@ export async function commitSkillSourceUpdate(
     changes: [...reading.changes],
     changesTruncated: reading.changesTruncated,
   };
+}
+
+/**
+ * skills.takeSourceUpdate, last phase: the caller may still author the skill,
+ * the skill is the version they saw (If-Match), it still has the source and
+ * installed version that were read, and the source's latest revision is still
+ * the one they reviewed. Returns what the import needs; nothing is written here.
+ */
+export async function confirmSkillSourceUpdateTake(
+  context: ActionContext,
+  preparation: SkillSourceUpdatePreparation,
+  reading: SkillSourceUpdateReading,
+  revision: string,
+): Promise<
+  Readonly<{
+    principalId: string;
+    organizationId: string;
+    sourceId: string;
+    sourcePath: string;
+    followedRevision: string;
+  }>
+> {
+  const facts = await authorableSkill(context);
+  const { transaction, organizationId } = facts;
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const current = await transaction.query<
+    { source_id: string | null; source_path: string | null; version: number }
+  >(
+    `select source_id, source_path, version from bakery.skills
+      where organization_id = $1 and id = $2
+      for update`,
+    [organizationId, facts.skillId],
+  );
+  const skill = current.rows[0];
+  if (!skill) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (skill.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  if (
+    facts.activeVersionId !== preparation.installedVersionId ||
+    skill.source_id !== preparation.sourceId
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_changed_during_source_check" },
+    });
+  }
+  if (!reading.reached) {
+    throw new StandardError({
+      code: "DEPENDENCY_UNAVAILABLE",
+      params: { reason: reading.problem },
+    });
+  }
+  if (reading.latestRevision !== revision) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_update_revision_not_latest" },
+    });
+  }
+  if (revision === preparation.installedRevision) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_update_already_installed" },
+    });
+  }
+  return Object.freeze({
+    principalId: facts.principalId,
+    organizationId,
+    sourceId: preparation.sourceId,
+    sourcePath: skill.source_path ?? "",
+    followedRevision: preparation.requestedRevision,
+  });
 }
