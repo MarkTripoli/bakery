@@ -45,10 +45,14 @@ test -x "$OUT/bakery" || { echo "deno compile produced no binary" >&2; exit 1; }
 # runtime the sandbox needs stays the image owner's decision. The binary goes in
 # 0555 and root-owned; the sandbox binds this one file read-only and puts its
 # directory first on PATH, so nothing is mounted from the host.
+# `PATH` is set here, in the image, because the worker hands its own `PATH` to
+# every harness child: a directory that is only added at run time would reach the
+# action's sandbox and not the agent's shell.
 docker build -q -t "$IMAGE" -f - . <<EOF
 FROM ${IMAGE}
 COPY --chmod=0555 bakery ${BINARY}
-RUN test -x ${BINARY}
+ENV PATH=/opt/bakery/bin:\$PATH
+RUN test -x ${BINARY} && command -v bakery
 EOF
 
 echo "baked ${BINARY} into ${IMAGE}"
