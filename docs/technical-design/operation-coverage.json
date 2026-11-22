@@ -791,15 +791,15 @@
       },
       "plugin_authoring_attempts": {
         "module": "workflows",
-        "migration": "apps/server/src/modules/catalog/migrations/bakery/0317_plugin_authoring_runs.sql"
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
       },
       "plugin_authoring_events": {
         "module": "workflows",
-        "migration": "apps/server/src/modules/catalog/migrations/bakery/0317_plugin_authoring_runs.sql"
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
       },
       "plugin_authoring_runs": {
         "module": "workflows",
-        "migration": "apps/server/src/modules/catalog/migrations/bakery/0317_plugin_authoring_runs.sql"
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
       },
       "plugin_install_grants": {
         "module": "catalog",
