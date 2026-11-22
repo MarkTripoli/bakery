@@ -14093,7 +14093,7 @@
           "name": "candidate",
           "type": "json",
           "required": true,
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -14102,7 +14102,7 @@
           "name": "baseline",
           "type": "json",
           "required": false,
-          "description": "Optional pin of what the candidate is compared with, in the same shape.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -14114,6 +14114,15 @@
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers.",
           "bounds": {
             "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        {
+          "name": "optionalScorerIds",
+          "type": "uuid[]",
+          "required": false,
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away.",
+          "bounds": {
             "maxItems": 50
           }
         },
@@ -14156,6 +14165,48 @@
       ],
       "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent."
     },
+    "EvaluationBatchListQuery": {
+      "fields": [
+        {
+          "name": "pinDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 64
+          },
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
+    },
+    "EvaluationBatchRun": {
+      "fields": [],
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "fields": [],
       "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."
@@ -14189,6 +14240,12 @@
           ]
         },
         {
+          "name": "required",
+          "type": "boolean",
+          "required": false,
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -14213,7 +14270,7 @@
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "fields": [
@@ -36091,20 +36148,122 @@
         "scorerId",
         "slug",
         "scorerRevision",
-        "evaluatorType"
+        "evaluatorType",
+        "required"
       ],
       "fieldTypes": {
         "scorerId": "uuid",
         "slug": "string",
         "scorerRevision": "integer",
-        "evaluatorType": "enum(deterministic|model)"
+        "evaluatorType": "enum(deterministic|model)",
+        "required": "boolean"
       },
       "description": "One scorer revision a batch pinned.",
       "fieldDescriptions": {
         "scorerId": "The scorer definition, for linking to it.",
         "slug": "Its name.",
         "scorerRevision": "Its revision.",
-        "evaluatorType": "Deterministic check or model rubric."
+        "evaluatorType": "Deterministic check or model rubric.",
+        "required": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
+      }
+    },
+    "EvaluationBudget": {
+      "fields": [
+        "limitUsd",
+        "settledUsd",
+        "estimatedUsd",
+        "unknownCount",
+        "status",
+        "blocksNewAttempts",
+        "oldestUnknownAt"
+      ],
+      "fieldTypes": {
+        "limitUsd": "decimal|null",
+        "settledUsd": "decimal",
+        "estimatedUsd": "decimal",
+        "unknownCount": "integer",
+        "status": "enum(none|within|exhausted|unsettled)",
+        "blocksNewAttempts": "boolean",
+        "oldestUnknownAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "limitUsd",
+        "oldestUnknownAt"
+      ],
+      "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount.",
+      "fieldDescriptions": {
+        "limitUsd": "The most the batch may spend, in USD; null when it was admitted without a limit.",
+        "settledUsd": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero.",
+        "estimatedUsd": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill.",
+        "unknownCount": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt.",
+        "status": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within.",
+        "blocksNewAttempts": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet.",
+        "oldestUnknownAt": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+      }
+    },
+    "EvaluationAttemptUsage": {
+      "fields": [
+        "measurement",
+        "costUsd"
+      ],
+      "fieldTypes": {
+        "measurement": "enum(reported|estimated|unknown)",
+        "costUsd": "decimal|null"
+      },
+      "nullableFields": [
+        "costUsd"
+      ],
+      "description": "What one model attempt cost, as the usage ledger records it.",
+      "fieldDescriptions": {
+        "measurement": "reported by the provider, estimated by Bakery, or unknown.",
+        "costUsd": "Cost in USD; null when unknown. Never zero for an unknown cost."
+      }
+    },
+    "EvaluationCorpusReport": {
+      "fields": [
+        "total",
+        "attempted",
+        "passed",
+        "failed",
+        "unknown",
+        "unrun",
+        "interrupted",
+        "recovered",
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "fieldTypes": {
+        "total": "integer",
+        "attempted": "integer",
+        "passed": "integer",
+        "failed": "integer",
+        "unknown": "integer",
+        "unrun": "integer",
+        "interrupted": "integer",
+        "recovered": "integer",
+        "passedOfAttempted": "number|null",
+        "failedOfAttempted": "number|null",
+        "recoveredOfInterrupted": "number|null"
+      },
+      "nullableFields": [
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero. passed + failed + unknown + unrun is total, which for the report is the batch's requiredCount. Against the six state counts: passed and failed are the same; unknown is error plus unscored (each comes from an attempt); unrun is missing plus canceled plus skipped (none of them has an attempt).",
+      "fieldDescriptions": {
+        "total": "Results in the set.",
+        "attempted": "Results with at least one attempt.",
+        "passed": "Attempted, and the latest attempt measured a pass.",
+        "failed": "Attempted, and the latest attempt measured a fail.",
+        "unknown": "Attempted, but the latest attempt measured nothing, so the outcome is not known.",
+        "unrun": "Never attempted: neither a pass nor a failure.",
+        "interrupted": "Results with at least one attempt that was interrupted before it measured anything.",
+        "recovered": "Of those, results whose latest attempt measured a pass or a fail.",
+        "passedOfAttempted": "passed divided by attempted; null when nothing was attempted.",
+        "failedOfAttempted": "failed divided by attempted; null when nothing was attempted.",
+        "recoveredOfInterrupted": "recovered divided by interrupted; null when nothing was interrupted."
       }
     },
     "EvaluationStateCounts": {
@@ -36202,10 +36361,14 @@
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -36225,10 +36388,14 @@
         "baseline": "json|null",
         "baselineDefinition": "EvaluationPinDefinition|null",
         "scorers": "EvaluationScorerPin[]",
+        "pinDigest": "string",
         "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
         "requiredCount": "integer",
         "measuredCount": "integer",
         "counts": "EvaluationStateCounts",
+        "report": "EvaluationCorpusReport",
+        "optionalReport": "EvaluationCorpusReport|null",
+        "budget": "EvaluationBudget",
         "gate": "EvaluationGate",
         "hiddenCount": "integer",
         "canceledAt": "timestamp|null",
@@ -36242,6 +36409,7 @@
         "candidateDefinition",
         "baseline",
         "baselineDefinition",
+        "optionalReport",
         "canceledAt",
         "canceledBy",
         "completedAt"
@@ -36256,11 +36424,15 @@
         "candidateDefinition": "The definition the candidate pin names and its current name, for display; null when the pin names no definition.",
         "baseline": "What it is compared with, as pinned; null without a baseline.",
         "baselineDefinition": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition.",
-        "scorers": "The scorer revisions pinned.",
+        "scorers": "The scorer revisions pinned, each with whether the gate requires it.",
+        "pinDigest": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it.",
         "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
         "requiredCount": "Required candidate results.",
         "measuredCount": "Of those, how many were measured (passed or failed).",
         "counts": "Required candidate results per state.",
+        "report": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those.",
+        "optionalReport": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer.",
+        "budget": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it.",
         "gate": "The gate's answer.",
         "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
         "canceledAt": "When it was canceled.",
@@ -36328,7 +36500,7 @@
         "scorerId": "The scorer, for linking to it.",
         "scorerRevision": "The scorer revision used.",
         "repetition": "Which repetition, from 1.",
-        "required": "Whether the gate needs it.",
+        "required": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate.",
         "state": "passed, failed, error, unscored, canceled, skipped or missing.",
         "reason": "A short sentence: which stage failed, the policy that skipped it, who stopped it; null when passed.",
         "score": "The measurement, 0 to 1; null unless passed or failed.",
@@ -36352,18 +36524,20 @@
         "startedAt",
         "endedAt",
         "traceRef",
+        "usage",
         "createdAt"
       ],
       "fieldTypes": {
         "id": "uuid",
         "resultId": "uuid",
         "attemptNo": "integer",
-        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing|interrupted)",
         "reason": "string|null",
         "score": "number|null",
         "startedAt": "timestamp|null",
         "endedAt": "timestamp|null",
         "traceRef": "string|null",
+        "usage": "EvaluationAttemptUsage|null",
         "createdAt": "timestamp"
       },
       "nullableFields": [
@@ -36371,19 +36545,21 @@
         "score",
         "startedAt",
         "endedAt",
-        "traceRef"
+        "traceRef",
+        "usage"
       ],
       "description": "One append-only attempt at a result.",
       "fieldDescriptions": {
         "id": "Attempt id.",
         "resultId": "Its result.",
         "attemptNo": "Order, from 1.",
-        "state": "The attempt's outcome state.",
+        "state": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered.",
         "reason": "Why, as a sentence; null when passed.",
         "score": "Its measurement; null unless passed or failed.",
         "startedAt": "When it started.",
         "endedAt": "When it ended.",
         "traceRef": "Link to the trace; null when none.",
+        "usage": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free.",
         "createdAt": "When it was recorded."
       }
     },

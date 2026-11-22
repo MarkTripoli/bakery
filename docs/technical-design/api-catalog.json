@@ -8049,7 +8049,7 @@
       "action": "evaluationBatches.list",
       "access": "Developer",
       "permission": "evaluationRun:read",
-      "input": "CursorQuery",
+      "input": "EvaluationBatchListQuery",
       "output": "Page<EvaluationBatch>",
       "idempotency": "Read; opaque cursor pagination"
     },
@@ -8096,6 +8096,29 @@
       "input": "EvaluationBatchCancel",
       "output": "EvaluationBatch",
       "idempotency": "Idempotency-Key required; If-Match required"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "UNPROCESSABLE"
+      ],
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/run",
+      "action": "evaluationBatches.run",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchRun",
+      "output": "EvaluationBatch",
+      "idempotency": "Idempotency-Key required"
     },
     {
       "group": "Observation",
