@@ -45,7 +45,13 @@ function expectState(state: string, body: string) {
     }
     return;
   }
-  expect(body).toContain("Slack is set up.");
+  // A pair Slack refused is not "set up", whatever the stored row says: the
+  // block's own top line carries the refusal (#7 audit, #823).
+  expect(body).toContain(
+    state === "refused-check"
+      ? "Slack does not accept these details."
+      : "Slack is set up.",
+  );
   // A secret is never on screen; only the day it was saved.
   expect(body).not.toContain("evidence-client-secret");
   expect(body).toContain("A0123ABCD");
@@ -105,7 +111,11 @@ for (const [state, initial] of STATES) {
         const section = page.getByTestId("slack-app");
         await section.waitFor({ state: "visible", timeout: 45_000 });
         await expect(section).toContainText(
-          state === "unset" ? "Slack is not set up yet" : "Slack is set up.",
+          state === "unset"
+            ? "Slack is not set up yet"
+            : state === "refused-check"
+            ? "Slack does not accept these details."
+            : "Slack is set up.",
         );
         expectState(state, await section.innerText());
 

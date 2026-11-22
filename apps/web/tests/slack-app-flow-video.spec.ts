@@ -44,6 +44,10 @@ test.skip(OUT === undefined, "BAKERY_SLACK_FLOW_VIDEO_DIR is not set");
 test("the Slack app is set up, checked and removed in one path", async ({
   page,
 }, testInfo) => {
+  // The path is a real sign-in, four typed fields, a save, a check and a
+  // removal against the real server; the default 30 s is a unit test's budget,
+  // not a screen recording's.
+  test.setTimeout(180_000);
   await mkdir(OUT!, { recursive: true });
   const video = page.video();
   expect(video).not.toBeNull();

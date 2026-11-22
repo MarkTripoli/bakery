@@ -328,13 +328,7 @@ export function SlackAppSection(
                           : undefined}
                         description={
                           <span data-testid="slack-signin-state">
-                            {signInFaulted
-                              ? (
-                                <UI.Text variant="error">
-                                  {signInState}
-                                </UI.Text>
-                              )
-                              : signInState}
+                            {signInState}
                           </span>
                         }
                         title={translate(key("signInRow"))}
