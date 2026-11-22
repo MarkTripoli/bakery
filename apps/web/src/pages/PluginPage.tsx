@@ -853,6 +853,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
             name={row.name}
             to={dialog.version}
             from={current}
+            currentName={row.versionName}
             copy={row.stateCopy}
             added={capabilityDifference(
               current === undefined ? [] : capabilitiesOf(current),

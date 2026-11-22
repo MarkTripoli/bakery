@@ -423,10 +423,23 @@ export function VersionChangeDialog(
  * say what goes and what comes back.
  */
 export function RestoreDialog(
-  { name, to, from, copy, added, pending, failure, onCancel, onConfirm }: {
+  {
+    name,
+    to,
+    from,
+    currentName,
+    copy,
+    added,
+    pending,
+    failure,
+    onCancel,
+    onConfirm,
+  }: {
     readonly name: string;
     readonly to: PluginVersion;
     readonly from: PluginVersion | undefined;
+    /** The installed version's own name, for when it is not in the loaded list. */
+    readonly currentName: string;
     readonly copy: PluginStateCopy;
     /** Permissions the version being restored asks for beyond the installed one. */
     readonly added: readonly PluginCapability[];
@@ -444,7 +457,10 @@ export function RestoreDialog(
     timeStyle: "short",
     timeZone,
   }).format(new Date(copy.takenAt));
-  const current = from?.versionName ?? "";
+  const current = from?.versionName ?? currentName;
+  // The installed version is not in the loaded list: say it without its name,
+  // never with a blank where the name belongs.
+  const known = current !== "";
   return (
     <UI.AlertDialog
       open
@@ -475,11 +491,16 @@ export function RestoreDialog(
       <UI.Stack gap="standard">
         <UI.Stack gap="tight">
           <UI.Text>
-            {translate("settings.plugins.restore.body", {
-              version: to.versionName,
-              name,
-              current,
-            })}
+            {known
+              ? translate("settings.plugins.restore.body", {
+                version: to.versionName,
+                name,
+                current,
+              })
+              : translate("settings.plugins.restore.bodyUnknown", {
+                version: to.versionName,
+                name,
+              })}
           </UI.Text>
           <UI.Text>
             {translate("settings.plugins.restore.data", {
@@ -488,7 +509,9 @@ export function RestoreDialog(
             })}
           </UI.Text>
           <UI.Text>
-            {translate("settings.plugins.restore.removed", { current })}
+            {known
+              ? translate("settings.plugins.restore.removed", { current })
+              : translate("settings.plugins.restore.removedUnknown")}
           </UI.Text>
         </UI.Stack>
         {added.length === 0 ? null : (
@@ -497,7 +520,9 @@ export function RestoreDialog(
           </UI.Stack>
         )}
         <UI.Text variant="caption">
-          {translate("settings.plugins.restore.caption", { current })}
+          {known
+            ? translate("settings.plugins.restore.caption", { current })
+            : translate("settings.plugins.restore.captionUnknown", { name })}
         </UI.Text>
         {failure === "noCopy"
           ? (
@@ -505,6 +530,14 @@ export function RestoreDialog(
               {translate("settings.plugins.restore.noCopy", {
                 version: to.versionName,
                 name,
+              })}
+            </UI.InlineNotice>
+          )
+          : failure === "changed"
+          ? (
+            <UI.InlineNotice tone="warning" role="alert">
+              {translate("settings.plugins.update.added.changed", {
+                version: to.versionName,
               })}
             </UI.InlineNotice>
           )

@@ -1168,6 +1168,88 @@ for (
       ).toEqual(["jobs.schedule"]);
     });
 
+    test("a refused approval in the restore dialog says what the Update dialog says, and nothing else", async ({ page }) => {
+      const state = await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: NOTES_V1,
+            lastUpdateFailure: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              reason: "plugin_state_incompatible",
+              at: "2026-11-20T00:00:00.000Z",
+              restoreState: false,
+              addedCapabilities: [],
+            },
+            stateCopy: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              takenAt: "2026-11-19T10:30:00.000Z",
+              itemCount: 3,
+            },
+            cannotReadVersionIds: [NOTES_V2],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      await page.getByRole("alert").getByRole("button", {
+        name: "Go back and restore its data",
+      }).click();
+      const dialog = page.getByRole("alertdialog");
+      // The list changed under the person: the server refuses what they approved.
+      state.failNextUpdate = {
+        reason: "plugin_capabilities_not_approved",
+        addedCapabilities: ["jobs.schedule"],
+      };
+      const confirm = dialog.getByRole("button", {
+        name: "Go back, restore and allow 1",
+      });
+      await confirm.click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("alert")).toHaveCount(1);
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "Version 1.1.0 now asks for a different list. Check it and allow again.",
+      );
+      await expect(confirm).toBeEnabled();
+      await still(page, "plugin-restore-refused");
+    });
+
+    test("the restore dialog never leaves a blank where the installed version's name goes", async ({ page }) => {
+      // The installed version is not in the list the page loaded.
+      await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: id(999),
+            stateCopy: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              takenAt: "2026-11-19T10:30:00.000Z",
+              itemCount: 3,
+            },
+            cannotReadVersionIds: [NOTES_V2],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      await page.getByRole("button", {
+        name: "Go back to 1.1.0 and restore its data",
+      }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText(
+        "Version 1.1.0 cannot read what Notes has saved since it moved to another version.",
+      );
+      await expect(dialog).toContainText(
+        "Everything it saved after that is removed.",
+      );
+      await expect(dialog).toContainText(
+        "You can return to the version Notes runs now, with that data, until the next version change.",
+      );
+      await expect(dialog).not.toContainText(/moved to \.|on ,|return to {2}/);
+      await still(page, "plugin-restore-unknown");
+    });
+
     test("a refused approval keeps the dialog open with one warning and raises no page notice", async ({ page }) => {
       const state = await pluginsFixture(page);
       await page.goto("/settings/organization/plugins");

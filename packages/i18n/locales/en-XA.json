@@ -6226,5 +6226,8 @@
   "library.evaluation.sampled.listLabel": "⟦Šàɱþļëð ŕëšûļŧš ŧëš⟧",
   "settings.plugins.update.added.caption": "⟦{kept, plural, =0 {} one {It keeps the 1 permission it already has. } other {It keeps the # permissions it already has. }}Ïƒ {version} àšķš ƒôŕ àñÿŧĥïñĝ ëļšë, Ɓàķëŕÿ ðôëš ñôŧ šŵïŧçĥ àñð àšķš ÿôû àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "settings.plugins.versions.cannotRead.hint": "⟦Àšķ ŧĥë þļûĝïñ'š àûŧĥôŕ ƒôŕ à ṽëŕšïôñ ŧĥàŧ çàñ ŕëàð ŧĥïš ðàŧà. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "settings.plugins.versions.restoreNamed": "⟦Ĝô ƀàçķ ŧô {version} àñð ŕëšŧôŕë ïŧš ðàŧà ŧëšŧ çôþÿ ŧë⟧"
+  "settings.plugins.versions.restoreNamed": "⟦Ĝô ƀàçķ ŧô {version} àñð ŕëšŧôŕë ïŧš ðàŧà ŧëšŧ çôþÿ ŧë⟧",
+  "settings.plugins.restore.bodyUnknown": "⟦Ṽëŕšïôñ {version} çàññôŧ ŕëàð ŵĥàŧ {name} ĥàš šàṽëð šïñçë ïŧ ɱôṽëð ŧô àñôŧĥëŕ ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "settings.plugins.restore.removedUnknown": "⟦Ëṽëŕÿŧĥïñĝ ïŧ šàṽëð àƒŧëŕ ŧĥàŧ ïš ŕëɱôṽëð. ŧëšŧ çôþÿ ŧë⟧",
+  "settings.plugins.restore.captionUnknown": "⟦Ɓàķëŕÿ ķëëþš ôñë çôþÿ ôƒ ŧĥë ðàŧà àš ïŧ ïš ñôŵ. Ÿôû çàñ ŕëŧûŕñ ŧô ŧĥë ṽëŕšïôñ {name} ŕûñš ñôŵ, ŵïŧĥ ŧĥàŧ ðàŧà, ûñŧïļ ŧĥë ñëẋŧ ṽëŕšïôñ çĥàñĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }
