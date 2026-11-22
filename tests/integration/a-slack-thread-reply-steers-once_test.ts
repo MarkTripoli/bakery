@@ -249,6 +249,66 @@ Deno.test("a signed url_verification echoes the challenge, and an unsigned one i
   });
 });
 
+Deno.test("only a signature that did not match is recorded as a refused request", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const keyConfig = await freshKey();
+    const app = await seedSlackApp(fixture, keyConfig);
+    const readFailure = async () => {
+      const row = await fixture.pgDatabase.query<
+        { failedAt: string | null }
+      >(
+        `select last_request_failed_at::text as "failedAt"
+           from bakery.slack_app_settings where id = true`,
+      );
+      return row.rows[0]?.failedAt ?? null;
+    };
+    try {
+      const route = endpoint(fixture, keyConfig);
+      const body = JSON.stringify({ type: "url_verification", challenge: "c" });
+
+      // An unsigned probe: the screen must not tell an administrator the secret is
+      // wrong because a stranger found the URL.
+      const unsigned = await route.request(SLACK_EVENTS_PATH, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      assertEquals(unsigned.status, 401);
+      assertEquals(await readFailure(), null);
+
+      // A stale timestamp is the same story: the headers are present, but they do
+      // not say this app's signing secret refused the body.
+      const stale = await signedEvent({
+        body: { type: "url_verification", challenge: "c" },
+        timestamp: Math.floor(Date.now() / 1000) - 3600,
+      });
+      const staleAnswer = await route.request(SLACK_EVENTS_PATH, {
+        method: "POST",
+        headers: stale.headers,
+        body: stale.body,
+      });
+      assertEquals(staleAnswer.status, 401);
+      assertEquals(await readFailure(), null);
+
+      // A fresh signature that is not this app's is the one case that says the
+      // signing secret is wrong, so it is the one case that is recorded.
+      const forged = await signedEvent({
+        body: { type: "url_verification", challenge: "c" },
+        secret: "not-the-configured-signing-secret",
+      });
+      const forgedAnswer = await route.request(SLACK_EVENTS_PATH, {
+        method: "POST",
+        headers: forged.headers,
+        body: forged.body,
+      });
+      assertEquals(forgedAnswer.status, 401);
+      assert(await readFailure() !== null);
+    } finally {
+      await cleanUp(fixture, app);
+    }
+  });
+});
+
 Deno.test("a thread reply steers the run once, and Slack's retry changes nothing", async () => {
   await withWorkerFixture(async (fixture) => {
     const keyConfig = await freshKey();

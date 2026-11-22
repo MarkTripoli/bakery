@@ -50,6 +50,7 @@ Deno.test("installation bootstraps, browser sessions list live devices, and revo
       bootstrapped: false,
       restoreHeld: false,
       updatePaused: false,
+      release: fixture.config.version,
     });
 
     await createSuperuser({
@@ -64,6 +65,7 @@ Deno.test("installation bootstraps, browser sessions list live devices, and revo
       bootstrapped: true,
       restoreHeld: false,
       updatePaused: false,
+      release: fixture.config.version,
     });
 
     const signInA = await fixture.app.fetch(

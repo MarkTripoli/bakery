@@ -38,6 +38,7 @@ export function SealedFrame({ src, title, ...props }: SealedFrameProps) {
       className="ui-sealed-frame"
       {...props}
       data-ui-component="sealedFrame"
+      data-state="default"
       data-variant="default"
       referrerPolicy="no-referrer"
       sandbox="allow-scripts"

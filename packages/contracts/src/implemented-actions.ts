@@ -146,7 +146,19 @@ export const MachineImplementedAction = Object.freeze(
     WorkerReportInventory: "worker.reportInventory",
     WorkerComponentsList: "workerComponents.list",
     WorkersRepairEnrollment: "workers.repairEnrollment",
+    WorkerLinkPackage: "worker.linkPackage",
+    WorkerInspectLinkCode: "worker.inspectLinkCode",
+    WorkerCreateLinkRequest: "worker.createLinkRequest",
+    WorkerPollLinkRequest: "worker.pollLinkRequest",
+    WorkerLinkRequestsFind: "workerLinkRequests.find",
+    WorkerLinkRequestsApprove: "workerLinkRequests.approve",
+    WorkerLinkRequestsDecline: "workerLinkRequests.decline",
     WorkersRevoke: "workers.revoke",
+    WorkersArchive: "workers.archive",
+    WorkerMaintenanceCreate: "workerMaintenance.create",
+    WorkerMaintenanceList: "workerMaintenance.list",
+    WorkerMaintenanceGet: "workerMaintenance.get",
+    WorkerMaintenanceCancel: "workerMaintenance.cancel",
     ModelProviderAccountsList: "modelProviderAccounts.list",
     WorkerProviderBindingsList: "workerProviderBindings.list",
     WorkerProviderBindingsCreate: "workerProviderBindings.create",
@@ -155,6 +167,7 @@ export const MachineImplementedAction = Object.freeze(
     WorkerProviderAuthGet: "workerProviderAuth.get",
     WorkerProviderAuthCancel: "workerProviderAuth.cancel",
     WorkerReportProviderAuth: "worker.reportProviderAuth",
+    WorkerReportMaintenance: "worker.reportMaintenance",
     WorkersUpdate: "workers.update",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -411,6 +424,7 @@ export const EvaluationImplementedAction = Object.freeze(
     EvaluationBatchesList: "evaluationBatches.list",
     EvaluationBatchesGet: "evaluationBatches.get",
     EvaluationBatchesCancel: "evaluationBatches.cancel",
+    EvaluationBatchesRun: "evaluationBatches.run",
     EvaluationBatchesCompare: "evaluationBatches.compare",
     EvaluationBatchResultsList: "evaluationBatchResults.list",
     EvaluationAttemptsList: "evaluationAttempts.list",
@@ -748,6 +762,9 @@ export const BackupImplementedAction = Object.freeze(
     InstallationRestoreGet: "installationRestore.get",
     InstallationRestoreStep: "installationRestore.step",
     InstallationUncertainActionsGet: "installationUncertainActions.get",
+    InstallationUpdatesStatus: "installationUpdates.status",
+    InstallationUpdatesList: "installationUpdates.list",
+    InstallationUpdatesDismiss: "installationUpdates.dismiss",
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",
@@ -919,6 +936,16 @@ export const pluginInstallImplementedActions = Object.freeze(
   Object.values(PluginInstallImplementedAction),
 );
 
+export const PluginAuthoringImplementedAction = Object.freeze(
+  {
+    PluginAuthoringRunsCreate: "pluginAuthoringRuns.create",
+    PluginAuthoringRunsGet: "pluginAuthoringRuns.get",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const pluginAuthoringImplementedActions = Object.freeze(
+  Object.values(PluginAuthoringImplementedAction),
+);
+
 export const PreviewImplementedAction = Object.freeze(
   {
     PreviewsList: "previews.list",
@@ -1000,6 +1027,7 @@ export const implementedActions = Object.freeze(
     ...catalogImplementedActions,
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
+    ...pluginAuthoringImplementedActions,
     ...skillStorageImplementedActions,
     ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,

@@ -320,6 +320,11 @@
 .ui-help-tip .ui-icon-button:focus-visible {
   color: var(--color-fg);
 }
+/* On a line of text the 44px target hangs out of the line box, so a name with a
+   tip keeps the same height as one without: rows keep one rhythm. */
+[data-hung-tip] > .ui-help-tip {
+  margin-block: calc(var(--space-2-5) * -1);
+}
 .ui-help-tip__panel {
   background: var(--color-surface-raised);
   border: var(--border-default) solid var(--color-border);

@@ -41,7 +41,6 @@ import {
   type SlackAppSettings,
   type SlackCheckResult,
 } from "./slack-app-credentials.ts";
-import {} from "./slack-client-check.ts";
 import { openAppSecret } from "./callbacks.ts";
 
 /**
@@ -231,7 +230,7 @@ export async function putSlackApp(
  *
  * The design's dialog promises that a person linked with Slack can link again when
  * details are entered again, so the identity links and organization connections
- * survive; the two secrets go, because the app they belonged to is gone.
+ * survive; the two secrets are revoked, because the app they belonged to is gone.
  */
 export async function deleteSlackApp(
   context: ActionContext,

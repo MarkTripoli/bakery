@@ -408,7 +408,11 @@ export function MachineWizardPage(
     ? finishing.data?.items.find((row) => row.enrollmentId === finishId)
     : undefined;
 
-  const finishInput: EnrollmentInput | null = finishRow
+  // A one-paste enrollment (#70) may leave the name and system to the
+  // machine; the by-hand steps cannot continue one of those.
+  const finishInput: EnrollmentInput | null = finishRow &&
+      finishRow.name !== null && finishRow.os !== null &&
+      finishRow.architecture !== null
     ? {
       name: finishRow.name,
       os: finishRow.os,

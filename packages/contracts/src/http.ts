@@ -322,6 +322,8 @@ function safeConflictReason(value: unknown): string | undefined {
 const UNAVAILABLE_REASONS: ReadonlySet<string> = new Set([
   "draft_worker_pool_busy",
   "draft_worker_organization_share_used",
+  // No plugin generator or preview runtime is configured (#45).
+  "plugin_authoring_unavailable",
 ]);
 function safeUnavailableReason(value: unknown): string | undefined {
   return typeof value === "string" && UNAVAILABLE_REASONS.has(value)
@@ -589,6 +591,7 @@ export function toProblem(
     ? safeResetMetadata(rawParams)
     : undefined;
   const reason = standard?.code === "STATE_CONFLICT" ||
+      standard?.code === "RESOURCE_NOT_FOUND" ||
       standard?.code === "STORAGE_AREA_REFUSED" ||
       standard?.code === "STORAGE_QUOTA_EXCEEDED" ||
       standard?.code === "STEP_WRITE_LIMIT_EXCEEDED"

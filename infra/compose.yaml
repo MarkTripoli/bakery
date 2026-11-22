@@ -307,8 +307,8 @@ services:
       BAKERY_LOCAL_APP_PASSWORD: ${BAKERY_LOCAL_APP_PASSWORD:-bakery-local-app}
       # Bare optional mappings distinguish an unset host variable (omitted) from
       # an explicitly empty or partial configuration (preserved for validation).
-      BAKERY_SECRETS_KEY_FILE:
-      BAKERY_SECRETS_KEY_ID:
+      BAKERY_SECRETS_KEY_FILE: ${BAKERY_SECRETS_KEY_FILE:-}
+      BAKERY_SECRETS_KEY_ID: ${BAKERY_SECRETS_KEY_ID:-}
       BAKERY_SECRET_IDENTITY_PROVIDER_FIXTURE_FILE:
       # Budget policy for run admission; all three or none (see worktree-dev-stack runbook).
       BAKERY_BUDGET_INSTALLATION_MONTHLY_LIMIT_USD:
@@ -317,6 +317,9 @@ services:
       # Test-only scripted coordinator directory; rejected outside BAKERY_ENV=test.
       BAKERY_SCRIPTED_COORDINATOR_DIR: ${BAKERY_SCRIPTED_COORDINATOR_DIR:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}
+      # Evidence and dev stacks serve the web app on its own port, whose origin
+      # Better Auth must trust or every sign-in is refused as a foreign origin.
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
       BAKERY_DEV_WATCH: "0"
       INNGEST_URL: http://inngest:8288
       INNGEST_SIGNING_KEY: ${BAKERY_INNGEST_SIGNING_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}

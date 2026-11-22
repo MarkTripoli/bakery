@@ -441,9 +441,8 @@ export async function lockSlackAppSettings(
  *
  * Identity links and organization connections are kept: the design's dialog promises
  * they work again when details are entered again, and deleting them would silently
- * unlink people over a credential rotation. The secrets go, because the app they
- * belonged to no longer exists here, and with them the only two rows that ever
- * named them.
+ * unlink people over a credential rotation. The two secrets are revoked rather than
+ * removed, because a stored credential is revoked here and never destroyed.
  */
 export async function removeSlackAppSettings(
   transaction: PgTransactionClient,
