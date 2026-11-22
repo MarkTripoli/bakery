@@ -23,6 +23,12 @@ export const Contract: StoryObj = {
         state="retrying"
         action={<Button loading>Retrying page</Button>}
       />
+      <ErrorState
+        title="Could not load this batch"
+        variant="region"
+        headingLevel={1}
+        action={<Button variant="secondary">Try again</Button>}
+      />
     </Stack>
   ),
 };
