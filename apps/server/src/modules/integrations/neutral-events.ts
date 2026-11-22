@@ -95,6 +95,18 @@ const TRANSLATIONS: Readonly<
 });
 
 /**
+ * The neutral kinds one provider event name can produce, whatever its action.
+ * The receipt gate asks it before the action is read: does any start listen
+ * for a kind this delivery could be.
+ */
+export function neutralKindsOf(provider: string, eventName: string): string[] {
+  if (!Object.hasOwn(TRANSLATIONS, provider)) return [];
+  const byAction = TRANSLATIONS[provider];
+  if (!Object.hasOwn(byAction, eventName)) return [];
+  return [...new Set(Object.values(byAction[eventName]))];
+}
+
+/**
  * The fields a start of this neutral kind may filter on and their types, or
  * undefined when nothing emits or reserves the kind.
  */

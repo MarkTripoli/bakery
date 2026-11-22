@@ -1438,10 +1438,12 @@ export async function activateWorkflowVersion(
   const updated = await boundedMutation(() =>
     transaction.query<WorkflowDefinitionRow>(
       `update bakery.workflow_definitions
-          set active_version_id = $4, updated_at = now(), version = version + 1
+          set active_version_id = $4, active_version_set_by = $5,
+              updated_at = now(), version = version + 1
         where organization_id = $1 and id = $2 and version = $3
         returning ${DEFINITION_COLUMNS}`,
-      [organizationId, workflowId, expectedVersion, versionId],
+      // The principal who uses the version is who its starts run as.
+      [organizationId, workflowId, expectedVersion, versionId, principalId],
     )
   );
   const row = updated.rows[0];

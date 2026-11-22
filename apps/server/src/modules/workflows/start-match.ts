@@ -41,6 +41,41 @@ export type LiveStart = Readonly<{
 }>;
 
 /**
+ * Whether any enabled workflow of the organization has, in the version in use,
+ * a start for one of these neutral kinds. It is the coarse half, read at
+ * receipt so a delivery nobody listens for earns no route; the filter is
+ * judged later by `startMatches`.
+ */
+export async function startListens(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  eventKinds: readonly string[],
+): Promise<boolean> {
+  if (eventKinds.length === 0) return false;
+  const containing = eventKinds.map((_, index) =>
+    `version.starts @> $${index + 2}::jsonb`
+  ).join(" or ");
+  const found = await transaction.query(
+    `select 1
+       from bakery.workflow_definitions definition
+       join bakery.workflow_versions version
+         on version.organization_id = definition.organization_id
+        and version.id = definition.active_version_id
+      where definition.organization_id = $1
+        and definition.enabled
+        and (${containing})
+      limit 1`,
+    [
+      organizationId,
+      ...eventKinds.map((eventKind) =>
+        JSON.stringify([{ on: { kind: "event", eventKind } }])
+      ),
+    ],
+  );
+  return found.rows.length > 0;
+}
+
+/**
  * The live starts of one organization that answer the event, in workflow id
  * then start id order. The kind is narrowed in the database (jsonb
  * containment), and the filter is judged in TypeScript by `startMatches`.

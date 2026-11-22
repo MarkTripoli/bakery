@@ -38209,6 +38209,24 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "A firing could not start a run and was marked failed with a stable code. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "workflow.start_firing_started": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A workflow start answered an event and started a run. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflow.start_firing_failed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A workflow start answered an event but could not start a run and was marked failed with a stable code, for example actor_unavailable when the principal who used the version has lost access. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
     "automations.created": {
       "schemaVersion": 1,
       "payloadFields": {
