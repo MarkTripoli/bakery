@@ -2100,6 +2100,8 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly id: string;
     readonly state?: EvaluationResultState;
+    /** true: only the results that count toward the gate; false: only the sampled ones; omitted: both. */
+    readonly required?: boolean;
     readonly cursor?: string;
     readonly limit?: number;
     readonly signal?: AbortSignal;
@@ -6809,6 +6811,9 @@ export function createBakeryApiClient({
           {
             id: options.id,
             ...(options.state === undefined ? {} : { state: options.state }),
+            ...(options.required === undefined
+              ? {}
+              : { required: options.required }),
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },

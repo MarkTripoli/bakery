@@ -516,5 +516,207 @@ for (
           timeout: 20_000,
         });
     });
+
+    // What a run cost, and the report numbers (#75, design-ux revision 6).
+    test("a run within its limit shows what was spent, what it stops at and what is unknown", async ({ page }) => {
+      await evaluationsFixture(page, { costRuns: true });
+      await page.goto(run(IDS.costWithin));
+      const cost = page.getByTestId("evaluation-cost");
+      // The same heading scale as Results and What this run used, with its
+      // help tip beside the title.
+      const title = cost.getByRole("heading", { name: "Cost", level: 2 });
+      await expect(title).toBeVisible();
+      await expect(title.getByRole("button", { name: "About the cost" }))
+        .toBeVisible();
+      await expect(
+        page.getByTestId("evaluation-results").getByRole("heading", {
+          name: "Results",
+          level: 2,
+        }),
+      ).toBeVisible();
+      await expect(cost).toContainText("Spent");
+      await expect(cost).toContainText("$12.40");
+      await expect(cost).toContainText(
+        "$3.10 of it is Bakery's estimate. The rest was reported by the provider.",
+      );
+      await expect(cost).toContainText("Stops at");
+      await expect(cost).toContainText("$20.00");
+      await expect(cost).toContainText(
+        "No new model call starts once the cost reaches this.",
+      );
+      await expect(cost).toContainText("Cost unknown");
+      await expect(cost).toContainText(
+        "The cost of every model call is known.",
+      );
+      // The meter says only what is left; the figures above say the rest.
+      await expect(cost.getByRole("meter", { name: "Cost against the limit" }))
+        .toHaveAttribute("aria-valuetext", "$7.60 left");
+      await expect(cost.getByTestId("evaluation-cost-notice")).toHaveCount(0);
+      // Every result was attempted, so the counts already say it: no rate line.
+      await expect(page.getByTestId("evaluation-attempted-rate")).toHaveCount(
+        0,
+      );
+      await expect(page.getByTestId("evaluation-sampled")).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-cost-within");
+    });
+
+    test("two costs that are not known say so: at least, no figure for zero, and what stops", async ({ page }) => {
+      await evaluationsFixture(page, { costRuns: true });
+      await page.goto(run(IDS.costUnsettled));
+      const cost = page.getByTestId("evaluation-cost");
+      await expect(cost).toContainText("At least $18.20");
+      await expect(cost).toContainText(
+        "No cost was reported. Unknown is not zero.",
+      );
+      // Each fact once: the calls with no cost are counted in one tile, the
+      // limit is in one tile, and Spent adds no line saying the same.
+      await expect(cost.getByText("2 model calls")).toHaveCount(1);
+      await expect(cost.getByText("$20.00")).toHaveCount(1);
+      await expect(cost).not.toContainText("not in this figure");
+      await expect(cost.getByRole("meter", { name: "Cost against the limit" }))
+        .toHaveAttribute("aria-valuetext", "Cannot say what is left");
+      const notice = cost.getByTestId("evaluation-cost-notice");
+      await expect(notice).toContainText(
+        "Bakery cannot say this run stayed within its limit",
+      );
+      await expect(notice).toContainText(
+        "No new model call starts until the missing cost is known.",
+      );
+      await expect(notice).not.toContainText("$");
+      // All ten results were attempted: no rate line. Two were interrupted.
+      await expect(page.getByTestId("evaluation-attempted-rate")).toHaveCount(
+        0,
+      );
+      await expect(page.getByTestId("evaluation-interrupted")).toHaveText(
+        "2 results were interrupted part-way. 1 of them was measured on a later attempt.",
+      );
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-cost-unsettled");
+    });
+
+    test("a run that reached its limit says where it stopped and that checks still run", async ({ page }) => {
+      await evaluationsFixture(page, { costRuns: true });
+      await page.goto(run(IDS.costExhausted));
+      const cost = page.getByTestId("evaluation-cost");
+      await expect(cost.getByRole("meter", { name: "Cost against the limit" }))
+        .toHaveAttribute("aria-valuetext", "Nothing left");
+      const notice = cost.getByTestId("evaluation-cost-notice");
+      await expect(notice).toContainText("This run reached its limit");
+      await expect(notice).toContainText(
+        "Checks still run, and they cost nothing.",
+      );
+      // Four results never ran, so the rate line says what it is out of.
+      await expect(page.getByTestId("evaluation-attempted-rate")).toHaveText(
+        "100% of the 6 results attempted passed. Results never attempted are not in this rate.",
+      );
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-cost-reached");
+    });
+
+    test("a run of checks has one line where the cost would be", async ({ page }) => {
+      await evaluationsFixture(page, { costRuns: true });
+      await page.goto(run(IDS.checksOnly));
+      await expect(page.getByTestId("evaluation-cost")).toHaveText(
+        "This run used only checks, which cost nothing.",
+      );
+      await expect(page.getByRole("meter")).toHaveCount(0);
+      await expect(page.getByText("Stops at")).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-cost-checks-only");
+    });
+
+    test("a run with no limit shows no meter and no notice, and its unknown cost is still a floor", async ({ page }) => {
+      await evaluationsFixture(page, { costRuns: true });
+      await page.goto(run(IDS.noLimit));
+      const cost = page.getByTestId("evaluation-cost");
+      await expect(cost).toContainText("At least $4.20");
+      await expect(cost).toContainText("No limit");
+      await expect(cost).toContainText("This run was started without one.");
+      await expect(cost.getByRole("meter")).toHaveCount(0);
+      await expect(cost.getByTestId("evaluation-cost-notice")).toHaveCount(0);
+    });
+
+    test("sampled opinions are reported apart: Results lists required results only, and the sampled ones open on request", async ({ page }) => {
+      const fixture = await evaluationsFixture(page, { costRuns: true });
+      await page.goto(run(IDS.sampled));
+      const sampled = page.getByTestId("evaluation-sampled");
+      const title = sampled.getByRole("heading", {
+        name: "Sampled opinions",
+        level: 2,
+      });
+      await expect(title).toBeVisible();
+      await expect(
+        title.getByRole("button", { name: "About sampled opinions" }),
+      )
+        .toBeVisible();
+      await expect(sampled).toContainText("3 passed");
+      await expect(sampled).toContainText("1 failed");
+      await expect(sampled).toContainText("1 could not be scored");
+      await expect(sampled).toContainText("0 not run");
+      await expect(sampled).toContainText(
+        "These never count toward the quality gate.",
+      );
+      // Results counts and lists only what counts toward the run.
+      const results = page.getByTestId("evaluation-results");
+      await expect(results).toContainText("5 passed");
+      await expect(results.getByText(/exact-answer: Passed/)).toHaveCount(5);
+      await expect(results.getByText(/polite-tone/)).toHaveCount(0);
+      await expect(results.getByText("Sampled", { exact: true })).toHaveCount(
+        0,
+      );
+      const sampledReads = () =>
+        fixture.seen.filter((entry) =>
+          entry.path.endsWith("/results") &&
+          entry.search.includes("required=false")
+        );
+      const requiredReads = fixture.seen.filter((entry) =>
+        entry.path.endsWith("/results") &&
+        entry.search.includes("required=true")
+      );
+      expect(requiredReads.length).toBeGreaterThan(0);
+      // Nothing sampled is read until the person opens it.
+      expect(sampledReads()).toHaveLength(0);
+      const used = page.getByTestId("evaluation-used");
+      await expect(used).toContainText("exact-answer, revision 2");
+      await expect(
+        used.getByText("polite-tone, revision 1 · not in the quality gate"),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-sampled");
+      const open = page.getByTestId("evaluation-sampled-results");
+      await open.getByText("Show the 5 sampled results").click();
+      const list = open.getByRole("list", { name: "Sampled results" });
+      await expect(list.getByText(/polite-tone: Passed/)).toHaveCount(3);
+      await expect(list.getByText(/polite-tone: Failed/)).toHaveCount(1);
+      await expect(list.getByText(/polite-tone: Could not be scored/))
+        .toHaveCount(1);
+      expect(sampledReads()).toHaveLength(1);
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-sampled-open");
+    });
+
+    test("an attempt says what it cost, or that the cost is not known, and an interrupted one says so", async ({ page }) => {
+      await evaluationsFixture(page, { attemptCosts: true });
+      await page.goto(run(IDS.gaps));
+      await page.getByRole("button", { name: "3 attempts" }).first().click();
+      // The run's cost agrees with its attempts: $0.06 + $0.04, one not known.
+      const spent = page.getByTestId("evaluation-cost");
+      await expect(spent).toContainText("At least $0.10");
+      await expect(spent).toContainText("1 model call");
+      await expect(spent).not.toContainText("No model call has finished yet.");
+      const list = page.getByRole("list", { name: "Attempts at exact-answer" });
+      await expect(list.getByRole("listitem").first()).toContainText(
+        "Passed · $0.06",
+      );
+      await expect(list.getByRole("listitem").nth(1)).toContainText(
+        "about $0.04",
+      );
+      await expect(list.getByRole("listitem").nth(2)).toContainText(
+        "Interrupted: The machine went away. · cost not known",
+      );
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-attempt-costs");
+    });
   });
 }

@@ -4214,6 +4214,7 @@ export function evaluationResultsQueryOptions(
   state: EvaluationResultState | undefined,
   live: boolean,
   limit = 50,
+  required?: boolean,
 ) {
   return infiniteQueryOptions<
     EvaluationBatchResultPage,
@@ -4225,6 +4226,7 @@ export function evaluationResultsQueryOptions(
     queryKey: protectedQueryKey(scope, "evaluationBatchResults.list", {
       id,
       state: state ?? null,
+      required: required ?? null,
       limit,
     }),
     initialPageParam: null,
@@ -4235,6 +4237,7 @@ export function evaluationResultsQueryOptions(
           organizationId: requireOrganization(scope),
           id,
           ...(state === undefined ? {} : { state }),
+          ...(required === undefined ? {} : { required }),
           cursor: pageParam ?? undefined,
           limit,
           signal,
