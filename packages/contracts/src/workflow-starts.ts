@@ -76,8 +76,35 @@ const scheduleStartSchema = z.object({
   "A clock start: fire this version on the named schedule in the named zone.",
 );
 
+/** The most a run one start fires may spend; a run budget is decimal USD. */
+export const WORKFLOW_START_MAX_BUDGET_USD = 10_000;
+
+/** The most the inputs of one start may weigh once written as JSON. */
+export const WORKFLOW_START_MAX_INPUT_BYTES = 16_000;
+
 export const WorkflowStartSchema = z.object({
   id: startId,
+  inputs: z.record(
+    z.string().min(1).max(120).describe("Name of one workflow input."),
+    z.json().describe("Value of that input, any JSON."),
+  )
+    .refine(
+      (inputs) =>
+        new TextEncoder().encode(JSON.stringify(inputs)).byteLength <=
+          WORKFLOW_START_MAX_INPUT_BYTES,
+      {
+        message:
+          `Inputs weigh at most ${WORKFLOW_START_MAX_INPUT_BYTES} bytes.`,
+      },
+    )
+    .optional()
+    .describe(
+      "Inputs of each run this start fires, by name, as the workflow declares them. Static data, never an expression. Omitted means none, which a workflow that requires an input refuses at start with a stable code on the firing.",
+    ),
+  budgetUsd: z.number().min(0).max(WORKFLOW_START_MAX_BUDGET_USD).optional()
+    .describe(
+      "Budget in USD of each run this start fires. Omitted means 0, which a workflow with a model step refuses at start, so a start that needs a model must name one.",
+    ),
   on: z.discriminatedUnion("kind", [eventStartSchema, scheduleStartSchema])
     .describe("What makes this start fire."),
 }).strict().describe(
