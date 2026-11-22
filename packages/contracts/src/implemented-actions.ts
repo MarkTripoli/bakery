@@ -1076,6 +1076,11 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     EvaluationCheck: "evaluation.check",
     EvaluationScore: "evaluation.score",
     SecretIdentityRead: "secret.identity.read",
+    // Settled by the engine itself, like a projection but over time: the step
+    // calls the deployment target and completes when the deployment is terminal.
+    DeliveryPrepare: "delivery.prepare",
+    DeliveryDeploy: "delivery.deploy",
+    DeliveryHealth: "delivery.health",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
