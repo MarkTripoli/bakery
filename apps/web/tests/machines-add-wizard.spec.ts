@@ -14,6 +14,11 @@ const SECOND_ENROLLMENT_ID = "00000000-0000-4000-8000-0000000000e2";
 const MACHINE_ID = "00000000-0000-4000-8000-0000000000a1";
 const SETUP_CODE = "fixture-setup-code-0001";
 const NEW_SETUP_CODE = "fixture-setup-code-0002";
+/** The one-use link code and the one-line command the server now returns with a setup. */
+const LINK_CODE = "ABCD-2345";
+const NEW_LINK_CODE = "WXYZ-6789";
+const linkCommand = (code: string) =>
+  `npx -y http://127.0.0.1/v1/worker/link.tgz link --server http://127.0.0.1 --code ${code}`;
 const inMinutes = (minutes: number) =>
   new Date(Date.now() + minutes * 60_000).toISOString();
 
@@ -85,6 +90,8 @@ async function open(
           enrollmentId: ENROLLMENT_ID,
           enrollmentToken: SETUP_CODE,
           expiresAt: inMinutes(10),
+          linkCode: LINK_CODE,
+          command: linkCommand(LINK_CODE),
         }, 201));
       }
       return route.fulfill(json({ items: setup.list, nextCursor: null }));
@@ -98,6 +105,8 @@ async function open(
         enrollmentId: SECOND_ENROLLMENT_ID,
         enrollmentToken: NEW_SETUP_CODE,
         expiresAt: inMinutes(10),
+        linkCode: NEW_LINK_CODE,
+        command: linkCommand(NEW_LINK_CODE),
       }, 201));
     },
   );
