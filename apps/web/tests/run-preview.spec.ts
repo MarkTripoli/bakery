@@ -472,6 +472,8 @@ for (const reason of REASONS) {
     await expect(card(page).getByTestId("run-preview-identity")).toContainText(
       "not released",
     );
+    // One status region announces the state, whichever notice shows it too.
+    await expect(card(page).getByRole("status")).toHaveCount(1);
     if (reason.name === "starting") {
       // Open is off, with its reason as the description, until the app runs.
       const prepareButton = card(page).getByRole("button", {

@@ -170,7 +170,13 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
         </UI.Text>
         {state.kind === "lost"
           ? (
-            <UI.InlineNotice tone="warning" data-testid="run-preview-body">
+            // The card's one status region announces this; the notice does not
+            // announce it a second time.
+            <UI.InlineNotice
+              role="none"
+              tone="warning"
+              data-testid="run-preview-body"
+            >
               <UI.Text variant="strong">
                 {translate("tasks.preview.lost.lead", { time: time(state.at) })}
               </UI.Text>
@@ -179,7 +185,11 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
           )
           : older !== null
           ? (
-            <UI.InlineNotice tone="warning" data-testid="run-preview-body">
+            <UI.InlineNotice
+              role="none"
+              tone="warning"
+              data-testid="run-preview-body"
+            >
               <UI.Text variant="strong">
                 {translate("tasks.preview.older.lead")}
               </UI.Text>
