@@ -38,7 +38,7 @@ import {
 import {
   problemSentence,
   problemsOf,
-  SKILL_PROBLEM_CODES,
+  SKILL_PROBLEM_SENTENCE,
   stepProblemLine,
 } from "./editor-validation.ts";
 import { stepName } from "./workflow-state.ts";
@@ -403,14 +403,11 @@ export function WorkflowEditorPage(
   // that points at no step is the workflow's own, and the chip still counts it.
   const [checker, setChecker] = useState<{
     readonly byStep: ReadonlyMap<string, string>;
-    /** Steps whose only problems are skills needing a choice: the row says it, not a problem line. */
-    readonly skillOnly: ReadonlySet<string>;
     /** Problems that name a step the page does not draw, so no card can hold them. */
     readonly unmapped: readonly string[];
     readonly workflow: readonly string[];
   }>({
     byStep: new Map(),
-    skillOnly: new Set(),
     unmapped: [],
     workflow: [],
   });
@@ -435,7 +432,6 @@ export function WorkflowEditorPage(
         ...(report.warnings ?? []),
       ]);
       const byStep = new Map<string, string>();
-      const skillOnly = new Set<string>();
       const unmapped: string[] = [];
       for (const [index, found] of sorted.byStep) {
         const sentence = stepProblemLine(found) ?? "";
@@ -447,13 +443,9 @@ export function WorkflowEditorPage(
           continue;
         }
         byStep.set(step.id, sentence);
-        if (found.every((problem) => SKILL_PROBLEM_CODES.has(problem.code))) {
-          skillOnly.add(step.id);
-        }
       }
       setChecker({
         byStep,
-        skillOnly,
         unmapped,
         // The workflow's own problems are sentences too, never the server's
         // message (ruling 6900485736 section 3).
@@ -468,7 +460,6 @@ export function WorkflowEditorPage(
     if (steps.length === 0) {
       setChecker({
         byStep: new Map(),
-        skillOnly: new Set(),
         unmapped: [],
         workflow: [],
       });
@@ -517,6 +508,31 @@ export function WorkflowEditorPage(
     ? translate("library.editor.save.failed" as never)
     : translate("library.editor.save.saved" as never);
 
+  // A skill that needs a choice makes its step need setup too. The server names a slot only
+  // when the draft is published, so the open rows the page already reads count here (#431).
+  const skillProblemSteps = useMemo<ReadonlySet<string>>(() => {
+    const open = new Set<string>();
+    const items = skillsRead.data?.items ?? [];
+    for (const [id, path] of stepPaths) {
+      const held = new Set(editor.steps.find((step) => step.id === id)?.skills);
+      if (
+        items.some((item) =>
+          item.stepPath === path && item.status !== "available" &&
+          (item.skillVersionId === null
+            ? !resolving.has(item.stepPath)
+            : held.has(item.skillVersionId))
+        )
+      ) open.add(id);
+    }
+    return open;
+  }, [skillsRead.data, stepPaths, editor.steps, resolving]);
+  const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
+    const merged = new Map(checker.byStep);
+    for (const id of skillProblemSteps) {
+      if (!merged.has(id)) merged.set(id, SKILL_PROBLEM_SENTENCE);
+    }
+    return merged;
+  }, [checker.byStep, skillProblemSteps]);
   // Every problem, in the order the page shows them: a card that needs setup
   // first (one problem each), then a definition whose steps cannot be read,
   // then whatever the checker found that those do not already count.
@@ -543,7 +559,7 @@ export function WorkflowEditorPage(
       });
     }
     const drawnIds = new Set(drawn.map((step) => step.id));
-    for (const [id, sentence] of checker.byStep) {
+    for (const [id, sentence] of problemsByStep) {
       if (out.some((row) => row.stepId === id)) continue;
       const step = drawn.find((drawnStep) => drawnStep.id === id);
       if (step === undefined) {
@@ -580,7 +596,7 @@ export function WorkflowEditorPage(
       });
     });
     return out;
-  }, [tree, checker, translate]);
+  }, [tree, checker, problemsByStep, translate]);
 
   const problemCount = rows.length;
   const problemWord = problemCount === 0
@@ -668,9 +684,7 @@ export function WorkflowEditorPage(
       return {
         kind: "codeOnly",
         name: stepName(step, translate),
-        problem: checker.skillOnly.has(step.id)
-          ? undefined
-          : checker.byStep.get(step.id),
+        problem: problemsByStep.get(step.id),
       };
     }
     const live = steps.find((held) => held.id === selectedId);
@@ -801,7 +815,7 @@ export function WorkflowEditorPage(
     catalog.data,
     catalog.status,
     resolving,
-    checker.skillOnly,
+    problemsByStep,
   ]);
 
   const breadcrumbs = (
@@ -916,7 +930,7 @@ export function WorkflowEditorPage(
           <WorkflowDiagram
             tree={tree}
             selectedId={selectedId}
-            problems={checker.byStep}
+            problems={problemsByStep}
             canManage={canManage}
             editable={editable}
             onAdd={(afterId) => setPickerAfter(afterId)}

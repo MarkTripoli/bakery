@@ -1477,6 +1477,16 @@ for (
       // The row that needs a choice comes first, then the skills that work.
       const rows = skills.getByRole("listitem");
       await expect(rows.first()).toContainText("A skill is missing");
+      // The slot is the step's one problem: the count, the card and the list each say so once.
+      const chip = page.getByTestId("editor-problems");
+      await expect(chip).toHaveText("1 problem");
+      await expect(page.locator("[data-card]").filter({ hasText: "Implement" }))
+        .toContainText("Needs setup");
+      await chip.click();
+      await expect(page.getByTestId("editor-problem-list")).toContainText(
+        "A skill on this step needs a choice.",
+      );
+      await page.keyboard.press("Escape");
       const slot = skills.locator("[data-skill-status='missing']");
       await expect(slot.getByRole("button", { name: "Remove" })).toBeVisible();
       await slot.getByRole("button", { name: "Choose a skill…" }).click();
@@ -1487,6 +1497,11 @@ for (
       await expect(skills.locator("[data-skill-status='missing']"))
         .toHaveCount(0);
       await expect(skills).toContainText("House style");
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      await expect(page.locator("[data-card]").filter({ hasText: "Implement" }))
+        .not.toContainText("Needs setup");
       await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
       const sent = seen.draftSaves.at(-1)!.body as {
         resolveSkillSlots?: string[];
@@ -1516,6 +1531,9 @@ for (
       await expect(page.getByText("Removed the missing skill from Implement."))
         .toBeVisible();
       await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
       await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
       expect(
         (seen.draftSaves.at(-1)!.body as { resolveSkillSlots?: string[] })
