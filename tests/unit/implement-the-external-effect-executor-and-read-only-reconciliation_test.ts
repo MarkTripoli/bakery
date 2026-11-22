@@ -652,6 +652,7 @@ Deno.test("run admission blocks terminal runs, canceled jobs and finished jobs o
     taskId: "t",
     runStatus,
     stepStatus,
+    environment: "live",
   });
   const job = (status: string, cancelRequested = false) => ({
     id: "j",

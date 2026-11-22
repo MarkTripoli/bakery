@@ -168,6 +168,14 @@ export async function claimEffect(
         params: { reason: "effect_claim_fence_lost" },
       });
     }
-    return { outcome: "claimed", effect: claimed, bound: authority.bound };
+    // The run's environment rides on the bound invocation so the dispatch picks
+    // the provider port and the broker refuses credentials for it.
+    const bound = run === null ? authority.bound : {
+      ...authority.bound,
+      runEnvironment: run.environment === "live"
+        ? "live" as const
+        : "offline" as const,
+    };
+    return { outcome: "claimed", effect: claimed, bound };
   });
 }
