@@ -30,3 +30,7 @@ graphify-out/
 # Per-worktree scratch: captures, logs and hand-made backups stay local.
 # Local scratch space for browser evidence (never committed).
 .scratch/
+
+# A local stack's secrets key: 32 raw bytes that decrypt every secret in that
+# stack's database. It is generated per machine and never belongs in the tree.
+.local-secrets-key
