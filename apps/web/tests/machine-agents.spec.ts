@@ -634,6 +634,7 @@ test.describe("the Coding agents rows", () => {
     await expect(header(page).getByText("Ready", { exact: true }))
       .toBeVisible();
     await expect(header(page).getByText("Needs attention")).toHaveCount(0);
+    await shot(page, "machine-page-ready-signed-in");
   });
 
   test("for anyone but an administrator the header is the machine's own reading", async ({ page }) => {
