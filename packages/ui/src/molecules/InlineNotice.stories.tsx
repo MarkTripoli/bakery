@@ -12,7 +12,7 @@ const BaseContract: StoryObj = {
   render: () => {
     const [visible, setVisible] = useState(true);
     return (
-      <Stack>
+      <>
         <InlineNotice
           onDismiss={() => setVisible(false)}
           state={visible ? "default" : "dismissed"}
@@ -35,14 +35,14 @@ const BaseContract: StoryObj = {
         >
           A batch is waiting for approval.
         </InlineNotice>
-      </Stack>
+      </>
     );
   },
 };
 
 const BarStory: StoryObj = {
   render: () => (
-    <Stack>
+    <>
       <InlineNotice
         layout="bar"
         icon="clock"
@@ -53,15 +53,15 @@ const BarStory: StoryObj = {
       <InlineNotice layout="bar" icon="refresh" tone="warning">
         This changed while you were looking. The current state is shown.
       </InlineNotice>
-    </Stack>
+    </>
   ),
 };
 
 export const Contract: StoryObj = {
   render: (args, context) => (
-    <>
+    <Stack>
       {BaseContract.render?.(args, context)}
       {BarStory.render?.(args, context)}
-    </>
+    </Stack>
   ),
 };
