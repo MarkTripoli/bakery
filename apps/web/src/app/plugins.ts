@@ -37,7 +37,37 @@ export type PluginUpdateFailure = Readonly<{
   versionName: string;
   reason: string;
   at: string;
+  /** Whether that try asked for the saved data to be restored. */
+  restoreState: boolean;
+  /** For the two permission reasons: what the version asks for beyond the installed one. */
+  addedCapabilities: readonly PluginCapability[];
 }>;
+
+/** The copy of an install's saved data Bakery keeps from before its last move to another version. */
+export type PluginStateCopy = Readonly<{
+  versionId: string;
+  versionName: string;
+  takenAt: string;
+  itemCount: number;
+}>;
+
+/** Reads the kept copy off an install, or null when there is none or it is malformed. */
+export function stateCopyOf(
+  install: Pick<PluginInstall, "stateCopy"> | undefined,
+): PluginStateCopy | null {
+  const raw = install?.stateCopy as Record<string, unknown> | null | undefined;
+  if (
+    raw === null || raw === undefined || typeof raw !== "object" ||
+    typeof raw.versionId !== "string" || typeof raw.versionName !== "string" ||
+    typeof raw.takenAt !== "string" || typeof raw.itemCount !== "number"
+  ) return null;
+  return {
+    versionId: raw.versionId,
+    versionName: raw.versionName,
+    takenAt: raw.takenAt,
+    itemCount: raw.itemCount,
+  };
+}
 
 /** Reads the recorded failure off an install, or null when there is none or it is malformed. */
 export function updateFailureOf(
@@ -57,6 +87,12 @@ export function updateFailureOf(
     versionName: raw.versionName,
     reason: raw.reason,
     at: raw.at,
+    restoreState: raw.restoreState === true,
+    addedCapabilities: Array.isArray(raw.addedCapabilities)
+      ? PLUGIN_CAPABILITIES.filter((capability) =>
+        (raw.addedCapabilities as unknown[]).includes(capability)
+      )
+      : [],
   };
 }
 
@@ -74,6 +110,10 @@ export type InstalledPlugin = Readonly<{
   ownerPrincipalId: string | null;
   /** The last update the server refused to start, until it succeeds or is dismissed. */
   updateFailure: PluginUpdateFailure | null;
+  /** The saved data Bakery kept when this install last moved to another version. */
+  stateCopy: PluginStateCopy | null;
+  /** Published versions that cannot read the saved data the install holds now. */
+  cannotReadVersionIds: readonly string[];
   /** The newest published version, when it is not the one installed. */
   update: Readonly<{ versionId: string; versionName: string }> | null;
 }>;
@@ -160,6 +200,12 @@ export function installedPlugins(
       scope: install.scope,
       ownerPrincipalId: install.ownerPrincipalId,
       updateFailure: updateFailureOf(install),
+      stateCopy: stateCopyOf(install),
+      cannotReadVersionIds: Array.isArray(install.cannotReadVersionIds)
+        ? install.cannotReadVersionIds.filter((id): id is string =>
+          typeof id === "string"
+        )
+        : [],
       update: latest !== null && latest.id !== install.pluginVersionId &&
           // Only an upgrade is offered here; moving back is a separate choice.
           (current === undefined || current.publishedAt === null ||

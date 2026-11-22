@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBakeryApi } from "../../api/context.tsx";
 import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import type { PluginApproval } from "../../api/client.ts";
 import type { PluginScope } from "../../app/plugins.ts";
 
 /** What went wrong with a change, in the words the page has for it. */
@@ -17,6 +18,8 @@ type Change = {
   readonly versionId?: string;
   readonly status?: "enabled" | "disabled" | "uninstalled";
   readonly dismissUpdateFailure?: boolean;
+  readonly approveCapabilities?: PluginApproval;
+  readonly restoreState?: boolean;
 };
 
 /**

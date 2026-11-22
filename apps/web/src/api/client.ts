@@ -219,6 +219,10 @@ export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
 export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
 export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
+/** The permissions a move to another version may approve; the contract's own names. */
+export type PluginApproval = NonNullable<
+  ClientInputMap["PluginInstallUpdate"]["approveCapabilities"]
+>;
 export type PluginPageListResponse = ClientOutputMap["Page<PluginPageEntry>"];
 export type PluginPageEntry = PluginPageListResponse["items"][number];
 export type PluginPageAccessResponse = ClientOutputMap["PluginPageAccess"];
@@ -1024,6 +1028,10 @@ export type BakeryApiClient = {
         readonly versionId?: string;
         readonly status?: "enabled" | "disabled" | "uninstalled";
         readonly dismissUpdateFailure?: boolean;
+        /** The permissions the new version adds, exactly those shown and no others. */
+        readonly approveCapabilities?: PluginApproval;
+        /** Bring back the copy of the saved data kept from the version being moved to. */
+        readonly restoreState?: boolean;
       };
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
