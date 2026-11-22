@@ -89,6 +89,7 @@ const step = (id: string, stepKey: string, status: string) => ({
   createdAt: stamp,
   updatedAt: stamp,
   version: 1,
+  handoffManifest: null,
 });
 const session = (runStepId: string, status: string) => ({
   id: sessionId,

@@ -27,6 +27,7 @@ type Skill = {
   slug: string;
   name: string;
   activeVersionId: string | null;
+  activeRevision: number | null;
   enabled: boolean;
   scope: "global" | "organization" | "personal";
   ownerPrincipalId: string | null;
@@ -126,6 +127,7 @@ Deno.test("authenticated skills.create persists an exact tenant-local identity",
       slug: "release-notes",
       name: "Release notes",
       activeVersionId: null,
+      activeRevision: null,
       enabled: true,
       scope: "organization",
       ownerPrincipalId: null,
@@ -592,6 +594,21 @@ Deno.test("authenticated local skill publication stores deterministic metadata a
       digest: upload.digest,
     });
     assertEquals(published.id, expectedId);
+    // The skill carries the revision of its active version: the number people read as its version.
+    const publishedSkill = await (await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/skills/${skill.id}`, { headers }),
+    )).json() as Skill;
+    assertEquals(
+      [publishedSkill.activeVersionId, publishedSkill.activeRevision],
+      [published.id, 1],
+    );
+    const listed = await (await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/skills`, { headers }),
+    )).json() as { items: Skill[] };
+    assertEquals(
+      listed.items.find((item) => item.id === skill.id)?.activeRevision,
+      1,
+    );
     const replay = await publishRequest();
     assertEquals(replay.status, 201);
     assertEquals(replay.headers.get("Idempotent-Replayed"), "true");
@@ -679,6 +696,18 @@ Deno.test("authenticated local skill publication stores deterministic metadata a
       ),
       largeContent,
     );
+    // A later published revision moves the number with the active version.
+    const activeNow = await fixture.pgDatabase.query<{ revision: number }>(
+      `select version.revision from bakery.skills as skill
+         join bakery.skill_versions as version
+           on version.id = skill.active_version_id
+        where skill.id = $1`,
+      [skill.id],
+    );
+    const afterLarge = await (await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/skills/${skill.id}`, { headers }),
+    )).json() as Skill;
+    assertEquals(afterLarge.activeRevision, activeNow.rows[0].revision);
     const tooLargeResponse = await fixture.app.fetch(
       new Request(`${authTestOrigin}/v1/skills/${skill.id}/versions`, {
         method: "POST",

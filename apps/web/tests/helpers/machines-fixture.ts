@@ -34,6 +34,8 @@ export function worker(status = "online") {
     failedCheckIds: [],
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
     credentialGeneration: 1,
+    archivedAt: null,
+    cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     version: 1,
@@ -129,6 +131,9 @@ export async function adminMachinesFixture(
             enrollmentId: NEW_ENROLLMENT_ID,
             enrollmentToken: "touch-target-enrollment-token-0001",
             expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+            linkCode: "TUCH-0001",
+            command:
+              "npx -y http://127.0.0.1/v1/worker/link.tgz link --server http://127.0.0.1 --code TUCH-0001",
           }),
         })
         : route.fulfill(json({ items: [ENROLLMENT], nextCursor: null })),

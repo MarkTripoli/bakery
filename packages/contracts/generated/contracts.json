@@ -101421,6 +101421,21 @@
               ],
               "description": "Skill.activeVersionId may be null in this transport value."
             },
+            "activeRevision": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "Skill.activeRevision may be null in this transport value."
+            },
             "enabled": {
               "type": "boolean",
               "description": "Whether the record is enabled."
@@ -101504,6 +101519,7 @@
             "slug",
             "name",
             "activeVersionId",
+            "activeRevision",
             "enabled",
             "scope",
             "ownerPrincipalId",
@@ -153843,6 +153859,21 @@
                     ],
                     "description": "Skill.activeVersionId may be null in this transport value."
                   },
+                  "activeRevision": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Skill.activeRevision may be null in this transport value."
+                  },
                   "enabled": {
                     "type": "boolean",
                     "description": "Whether the record is enabled."
@@ -153926,6 +153957,7 @@
                   "slug",
                   "name",
                   "activeVersionId",
+                  "activeRevision",
                   "enabled",
                   "scope",
                   "ownerPrincipalId",
@@ -240619,6 +240651,17 @@
               "type": "string",
               "maxLength": 65536,
               "description": "Registered workflow action the step runs."
+            },
+            "repeatId": {
+              "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+              "type": "string",
+              "maxLength": 65536
+            },
+            "repeatMax": {
+              "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8
             }
           },
           "required": [
@@ -240626,7 +240669,7 @@
             "uses"
           ],
           "additionalProperties": false,
-          "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs."
+          "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run."
         },
         "WorkflowPresetAvailability": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -240730,6 +240773,17 @@
                     "type": "string",
                     "maxLength": 65536,
                     "description": "Registered workflow action the step runs."
+                  },
+                  "repeatId": {
+                    "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                    "type": "string",
+                    "maxLength": 65536
+                  },
+                  "repeatMax": {
+                    "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8
                   }
                 },
                 "required": [
@@ -240875,6 +240929,17 @@
                           "type": "string",
                           "maxLength": 65536,
                           "description": "Registered workflow action the step runs."
+                        },
+                        "repeatId": {
+                          "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                          "type": "string",
+                          "maxLength": 65536
+                        },
+                        "repeatMax": {
+                          "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 8
                         }
                       },
                       "required": [
@@ -279468,7 +279533,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:af5b91647781f4676a59c7266a5ced21d5f12365db537c6aa123d8d8e3f84334",
+  "compatibilityDigest": "sha256:665cf7db94bcd1320aacd47ab851b834fb928f793c1903a7d88e6aac9260dbbb",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -329674,6 +329739,21 @@
           ],
           "description": "Skill.activeVersionId may be null in this transport value."
         },
+        "activeRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.activeRevision may be null in this transport value."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether the record is enabled."
@@ -329757,6 +329837,7 @@
         "slug",
         "name",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
@@ -382276,6 +382357,21 @@
                 ],
                 "description": "Skill.activeVersionId may be null in this transport value."
               },
+              "activeRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.activeRevision may be null in this transport value."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether the record is enabled."
@@ -382359,6 +382455,7 @@
               "slug",
               "name",
               "activeVersionId",
+              "activeRevision",
               "enabled",
               "scope",
               "ownerPrincipalId",
@@ -469174,6 +469271,17 @@
           "type": "string",
           "maxLength": 65536,
           "description": "Registered workflow action the step runs."
+        },
+        "repeatId": {
+          "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "repeatMax": {
+          "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
         }
       },
       "required": [
@@ -469181,7 +469289,7 @@
         "uses"
       ],
       "additionalProperties": false,
-      "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs."
+      "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run."
     },
     "WorkflowPresetAvailability": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -469285,6 +469393,17 @@
                 "type": "string",
                 "maxLength": 65536,
                 "description": "Registered workflow action the step runs."
+              },
+              "repeatId": {
+                "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                "type": "string",
+                "maxLength": 65536
+              },
+              "repeatMax": {
+                "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8
               }
             },
             "required": [
@@ -469430,6 +469549,17 @@
                       "type": "string",
                       "maxLength": 65536,
                       "description": "Registered workflow action the step runs."
+                    },
+                    "repeatId": {
+                      "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                      "type": "string",
+                      "maxLength": 65536
+                    },
+                    "repeatMax": {
+                      "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 8
                     }
                   },
                   "required": [

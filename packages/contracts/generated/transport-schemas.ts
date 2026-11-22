@@ -23873,6 +23873,7 @@ const transportSchemas = {
         "slug",
         "name",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
@@ -23888,6 +23889,7 @@ const transportSchemas = {
         "slug": "string",
         "name": "string",
         "activeVersionId": "uuid|null",
+        "activeRevision": "integer|null",
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -23900,6 +23902,7 @@ const transportSchemas = {
       "nullableFields": [
         "sourceId",
         "activeVersionId",
+        "activeRevision",
         "ownerPrincipalId",
         "copiedFromSkillId",
         "copiedFromVersionId"
@@ -23911,6 +23914,7 @@ const transportSchemas = {
         "slug": "URL-safe stable name used to address the record.",
         "name": "Human-readable name displayed for the record.",
         "activeVersionId": "Stable UUID linking this record to the related active version entity.",
+        "activeRevision": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version.",
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -30469,16 +30473,32 @@ const transportSchemas = {
     "WorkflowPresetStep": {
       "fields": [
         "id",
-        "uses"
+        "uses",
+        "repeatId",
+        "repeatMax"
       ],
       "fieldTypes": {
         "id": "string",
-        "uses": "string"
+        "uses": "string",
+        "repeatId": "string",
+        "repeatMax": "integer"
       },
-      "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs.",
+      "optionalFields": [
+        "repeatId",
+        "repeatMax"
+      ],
+      "fieldBounds": {
+        "repeatMax": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run.",
       "fieldDescriptions": {
         "id": "Stable step key within the preset.",
-        "uses": "Registered workflow action the step runs."
+        "uses": "Registered workflow action the step runs.",
+        "repeatId": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+        "repeatMax": "Most iterations of that repeat; present exactly when repeatId is."
       }
     },
     "WorkflowPresetAvailability": {
