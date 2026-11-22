@@ -70,11 +70,21 @@ Deno.test("the request view shows active until the completion policy is met", ()
             where organization_id = $1 and id = $2`,
           [fx.organizationId, request.workflowRunId, status],
         );
+      // The run ended long enough ago that a pull request would have registered.
+      const ageRun = () =>
+        fx.owner.query(
+          `update bakery.workflow_runs
+              set finished_at = now() - interval '11 minutes'
+            where organization_id = $1 and id = $2`,
+          [fx.organizationId, request.workflowRunId],
+        );
       const progress = () => progressOf(fx, request.id, admitted.ticketId!);
       const seen: string[] = [];
 
       await finishRun("completed");
-      seen.push(await progress()); // completed run, no pull request
+      seen.push(await progress()); // run just ended, no pull request yet
+      await ageRun();
+      seen.push(await progress()); // run ended a while ago, still none
       await fx.registerPullRequest({
         sourceId,
         taskId: request.taskId,
@@ -101,12 +111,21 @@ Deno.test("the request view shows active until the completion policy is met", ()
         seen,
         completion === "task"
           // Pull requests do not matter to a task policy: finished is done.
-          ? ["completed", "completed", "completed", "completed", "failed"]
+          ? [
+            "completed",
+            "completed",
+            "completed",
+            "completed",
+            "completed",
+            "failed",
+          ]
           : completion === "merged"
-          // No pull request yet is delivered (nothing to merge); once one is
-          // registered, an unmerged one holds the work until it merges.
-          ? ["completed", "active", "active", "completed", "failed"]
-          : ["active", "active", "active", "active", "failed"],
+          // A run that just ended is held: its pull request may register a
+          // moment later. Once it has ended a while ago with none, there was
+          // nothing to merge. A registered one that is unmerged holds the work
+          // until it merges.
+          ? ["active", "completed", "active", "active", "completed", "failed"]
+          : ["active", "active", "active", "active", "active", "failed"],
         completion,
       );
     }

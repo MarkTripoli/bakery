@@ -50,15 +50,26 @@ export type TreeGroup = {
   readonly kind: "group";
   /** A stable id for the group, so selecting it opens its panel. */
   readonly id: string;
-  /** What the group is called: "Yes", "Otherwise", "At the same time", "Repeat", "Wait". */
+  /**
+   * What the group is called: "Yes", "Otherwise", "At the same time", "Repeat",
+   * "Fix until it passes" (a repeat that repairs and reviews) or "Wait".
+   */
   readonly label: GroupLabel;
+  /** The most tries a "fix" group makes; set only when `label` is `fix`. */
+  readonly max?: number;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
   /** How the definition states it, so the page can say it is code-only. */
   readonly editedInCode: true;
 };
 
-export type GroupLabel = "yes" | "otherwise" | "together" | "repeat" | "wait";
+export type GroupLabel =
+  | "yes"
+  | "otherwise"
+  | "together"
+  | "repeat"
+  | "fix"
+  | "wait";
 
 export type TreeNode = TreeStep | TreeGroup;
 
@@ -118,6 +129,27 @@ function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
   if (node.effectKey !== undefined) return true;
   if (Array.isArray(node.checks) && node.checks.length > 0) return true;
   return Array.isArray(node.needs) && node.needs.length > 0;
+}
+
+/** The actions a repeat must run to be named "Fix until it passes" (#62). */
+const FIX_ACTION = "harness.repair";
+const REVIEW_ACTION = "review.independent";
+
+/**
+ * The most tries of a repeat that fixes and then reviews, or undefined for any
+ * other repeat (#62). Its own steps must include a repair and end with an
+ * independent review; a repeat with no readable limit keeps the word "Repeat",
+ * because the block would otherwise name a limit it cannot state.
+ */
+function fixLimitOf(node: Record<string, unknown>): number | undefined {
+  const body = Array.isArray(node.steps) ? node.steps : [];
+  const uses = body.map((step) => text(record(step).uses));
+  if (!uses.includes(FIX_ACTION)) return undefined;
+  if (uses[uses.length - 1] !== REVIEW_ACTION) return undefined;
+  const max = node.max;
+  return typeof max === "number" && Number.isInteger(max) && max >= 1
+    ? max
+    : undefined;
 }
 
 /**
@@ -247,10 +279,12 @@ function drawNode(
       Array.isArray(node.steps) ? node.steps : [],
       counter,
     );
+    const max = fixLimitOf(node);
     return [{
       kind: "group",
       id: anonymousId(counter, "group"),
-      label: "repeat",
+      label: max === undefined ? "repeat" : "fix",
+      ...(max === undefined ? {} : { max }),
       children: [...seedNodes, ...body],
       editedInCode: true,
     }];

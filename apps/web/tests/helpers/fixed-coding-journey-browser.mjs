@@ -67,6 +67,20 @@ const stepRow = (page, title) =>
   steps(page).getByRole("listitem").filter({ hasText: title });
 const runStatus = (page) => page.getByRole("status", { name: "Run updates" });
 const control = (page, name) => page.getByRole("button", { name, exact: true });
+/** The one "Run actions" menu: only what the server allows is listed. */
+const runActions = (page) => control(page, "Run actions");
+const menuItem = (page, name) =>
+  page.locator(".ui-popover__content").getByRole("button", {
+    name,
+    exact: true,
+  });
+async function openMenu(page) {
+  const trigger = runActions(page);
+  await expect(trigger).toBeVisible({ timeout: 90_000 });
+  if (await trigger.getAttribute("aria-expanded") !== "true") {
+    await trigger.click();
+  }
+}
 const composer = (page) => page.getByRole("form", { name: "New task" });
 
 async function release(input) {
@@ -303,9 +317,13 @@ async function race(page, input) {
   await page.goto(`${input.baseUrl}/tasks/${input.taskId}`, {
     waitUntil: "domcontentloaded",
   });
-  const cancel = control(page, "Request cancellation");
-  await expect(cancel).toBeEnabled({ timeout: 90_000 });
-  await Promise.all([cancel.click(), release(input)]);
+  await openMenu(page);
+  await menuItem(page, "Cancel run").click();
+  const confirm = page.getByRole("alertdialog").getByRole("button", {
+    name: "Cancel run",
+    exact: true,
+  });
+  await Promise.all([confirm.click(), release(input)]);
   const run = await until("raced run terminal", 120_000, async () => {
     const current = await get(`/v1/runs/${input.runId}`);
     return TERMINAL.has(current.status) ? current : undefined;
@@ -337,12 +355,8 @@ async function blocked(page, input) {
       hasText: "Run blocked",
     }),
   ).toContainText("Waiting for a dependency task to finish.");
-  await expect(page.getByText("Run controls", { exact: true })).toHaveCount(0);
-  for (
-    const name of ["Request pause", "Request resume", "Request cancellation"]
-  ) {
-    await expect(control(page, name)).toHaveCount(0);
-  }
+  await expect(runActions(page)).toHaveCount(0);
+  await expect(control(page, "Resume run")).toHaveCount(0);
   const run = await get(`/v1/runs/${input.runId}`);
   assert.equal(run.status, "blocked");
   return { status: run.status };
@@ -354,37 +368,33 @@ async function pauseResume(page, input) {
   await page.goto(`${input.baseUrl}/tasks/${input.taskId}`, {
     waitUntil: "domcontentloaded",
   });
-  await expect(control(page, "Request pause")).toBeVisible({ timeout: 90_000 });
-  const REASON = {
-    no_active_attempt: "Nothing is running that this can be sent to.",
-    already_terminal: "This run is already terminal.",
-    authority_unavailable: "Request authority is unavailable.",
-  };
+  await expect(runActions(page).or(control(page, "Resume run")))
+    .toBeVisible({ timeout: 90_000 });
   const observed = [];
+  // Whether the open menu lists an entry (false when there is no menu).
+  const listed = async (name) => {
+    if (await runActions(page).count() === 0) return false;
+    await openMenu(page);
+    return await menuItem(page, name).count() > 0;
+  };
   async function assertCapabilities() {
     const capabilities = await get(`/v1/runs/${input.runId}/controls`);
+    const status = (await get(`/v1/runs/${input.runId}`)).status;
     for (const action of ["pause", "resume"]) {
       const capability = capabilities.actions.find((item) =>
         item.action === action
       );
       assert.ok(capability, `no ${action} capability`);
-      const button = control(
-        page,
-        `Request ${action}`,
-      );
-      if (capability.canRequest) {
-        await expect(button).toBeEnabled({ timeout: 30_000 });
+      // Pause is a menu entry; Resume is the primary button of a paused run.
+      // What the server does not allow is not drawn at all.
+      if (action === "pause") {
+        await expect.poll(() => listed("Pause run"), { timeout: 30_000 })
+          .toBe(capability.canRequest);
       } else {
-        await expect(button).toBeDisabled({ timeout: 30_000 });
-        await expect(
-          page.getByText(
-            capability.reason === "unsupported"
-              ? `This machine cannot ${action} a run.`
-              : REASON[capability.reason],
-            { exact: true },
-          )
-            .first(),
-        ).toBeVisible();
+        await expect(control(page, "Resume run")).toHaveCount(
+          capability.canRequest && status === "paused" ? 1 : 0,
+          { timeout: 30_000 },
+        );
       }
       observed.push({ action, canRequest: capability.canRequest });
     }
@@ -405,13 +415,13 @@ async function pauseResume(page, input) {
     await expectRunMatchesApi(page, get, input.runId);
   };
   if (canPause) {
-    await control(page, "Request pause").click();
+    await openMenu(page);
+    await menuItem(page, "Pause run").click();
     await settle();
     paused = true;
-    await control(page, "Start a new control request").click();
     const during = await assertCapabilities();
     if (during.actions.find((item) => item.action === "resume")?.canRequest) {
-      await control(page, "Request resume").click();
+      await control(page, "Resume run").click();
       await settle();
       resumed = true;
     }

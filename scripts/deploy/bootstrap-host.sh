@@ -45,12 +45,17 @@ systemctl start "user@$api_uid.service"
 install -d -m 0755 /opt/bakery/{deploy,releases,slots,static,production} /etc/bakery /var/lib/bakery
 install -d -o root -g root -m 0700 /opt/bakery/quarantine
 install -d -m 0700 /var/lib/bakery/{deploy,backups,postgres,redis}
+# The WAL spool Postgres archives into: owned by the postgres image user (uid
+# 70 in the alpine image) so its archive_command can write there.
+install -d -o 70 -g 70 -m 0700 /var/lib/bakery/wal-spool
 install -d -o bakery-api -g bakery-api -m 0700 /var/lib/bakery/skills /home/bakery-api/.cache/deno
 install -d -o bakery-worker -g bakery-worker -m 0700 /var/lib/bakery/worker /home/bakery-worker/.cache/deno
 install -d -o bakery-migrate -g bakery-migrate -m 0700 /home/bakery-migrate/.cache/deno
 install -d -o bakery-deploy -g bakery-deploy -m 0700 /var/lib/bakery/incoming
 install -m 0755 "$repo"/scripts/deploy/*.sh /opt/bakery/deploy/
 install -m 0644 "$repo"/scripts/deploy/*.mjs /opt/bakery/deploy/
+# The page Caddy serves while the API cannot be reached (renderCaddy, #59).
+install -m 0644 "$repo"/scripts/deploy/unavailable.html /opt/bakery/deploy/
 install -m 0644 "$repo/infra/production/compose.yaml" /opt/bakery/production/compose.yaml
 install -m 0755 "$repo/infra/production/001-roles.sh" /opt/bakery/production/001-roles.sh
 node --input-type=module - "$public_ip" "$public_host" "$acme_email" <<'JS'
@@ -72,9 +77,17 @@ done
 cat > /usr/local/sbin/bakery-release <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-case "${1:-}" in bootstrap|deploy|rollback|recover) ;; *) exit 64;; esac
+case "${1:-}" in bootstrap|deploy|rollback|recover|status|approve-gate) ;; *) exit 64;; esac
 [[ "${1:-}" != bootstrap || "${SUDO_USER:-}" != bakery-deploy ]] || exit 77
-exec /usr/bin/systemd-run --wait --pipe --collect --unit="bakery-release-$(cat /proc/sys/kernel/random/uuid)" \
+# The deploy user runs updates from CI. It must never approve a change to the
+# checks or the launcher that its own update makes.
+[[ "${1:-}" != approve-gate || "${SUDO_USER:-}" != bakery-deploy ]] || exit 77
+# status only reads the journal, so it takes no lock and works mid-switch.
+[[ "${1:-}" != status ]] || exec /usr/bin/node /opt/bakery/deploy/release.mjs status
+# A person at a terminal gets one, so the question "go back?" can be asked; a
+# script (CI over ssh) gets pipes and is never asked.
+if [[ -t 0 && -t 1 ]]; then mode=--pty; else mode=--pipe; fi
+exec /usr/bin/systemd-run --wait "$mode" --collect --unit="bakery-release-$(cat /proc/sys/kernel/random/uuid)" \
   --property=RuntimeMaxSec=30min --property=TimeoutStopSec=15 --property=ExecStopPost=/usr/local/sbin/bakery-recover \
   /usr/bin/flock --exclusive --timeout 300 /run/lock/bakery-deploy.lock /usr/bin/node /opt/bakery/deploy/release.mjs "$@"
 SH

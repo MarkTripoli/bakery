@@ -13,9 +13,9 @@ export type MentionPickerOption = {
   name: string;
   /** The accessible name, including the state ("Sam Patel, gets access on send"). */
   label: string;
-  /** `ready` is the quiet normal row; `gains` carries a badge; `blocked` is muted and cannot be chosen. */
-  kind: "ready" | "gains" | "blocked";
-  /** The badge words for a `gains` row, or the muted note for a `blocked` one. */
+  /** `ready` is the quiet normal row; `gains` carries a badge. Anyone listed can be chosen. */
+  kind: "ready" | "gains";
+  /** The badge words for a `gains` row. */
   note?: string;
 };
 
@@ -50,8 +50,8 @@ export function mentionOptionId(listId: string, id: string): string {
 /**
  * The list of people a writer may mention, hung above a text field. A listbox
  * the field owns: the field keeps focus and points at the highlighted option.
- * A person who cannot be chosen is muted and `aria-disabled`; the ordinary row
- * is quiet, and only the exception (gets access on send) wears a badge.
+ * The ordinary row is quiet, and only the exception (no access yet) wears a
+ * badge; everyone listed can be chosen.
  */
 export function MentionPicker(
   {
@@ -93,7 +93,6 @@ export function MentionPicker(
           >
             {options.map((option) => (
               <li
-                aria-disabled={option.kind === "blocked" || undefined}
                 aria-label={option.label}
                 aria-selected={option.id === activeId}
                 className="ui-mention-picker__option"
@@ -102,22 +101,13 @@ export function MentionPicker(
                 key={option.id}
                 // The field keeps focus: a press must not move it to the row.
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  if (option.kind !== "blocked") onChoose(option.id);
-                }}
+                onClick={() => onChoose(option.id)}
                 role="option"
               >
                 <Avatar alt={option.name} size="small" />
                 <span className="ui-mention-picker__name">{option.name}</span>
                 {option.kind === "gains" && option.note !== undefined
                   ? <Badge tone="warning">{option.note}</Badge>
-                  : null}
-                {option.kind === "blocked" && option.note !== undefined
-                  ? (
-                    <span className="ui-mention-picker__note">
-                      {option.note}
-                    </span>
-                  )
                   : null}
               </li>
             ))}

@@ -7777,7 +7777,7 @@
     },
     {
      "name": "status",
-     "type": "enum(queued,deploying,verifying,healthy,failed,rolling_back,rolled_back)",
+     "type": "enum(queued,deploying,verifying,healthy,degraded,failed,unknown,rolling_back,rolled_back)",
      "nullable": false,
      "references": null
     },

@@ -356,6 +356,39 @@ input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
   gap: var(--space-1);
   max-inline-size: 100%;
   overflow-x: auto;
+  /* One row that scrolls sideways, with no scrollbar drawn: the fades below say
+     there is more. */
+  scrollbar-width: none;
+}
+.ui-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+/* A fade, as a mask on the list itself so it is right in light and dark and
+   never blocks a tap, on each side that has more tabs. Tabs.tsx sets these from
+   the real scroll position and the reading direction; when every tab fits there
+   is no fade at any width. */
+.ui-tabs__list[data-fade-left="true"] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--space-6)
+  );
+}
+.ui-tabs__list[data-fade-right="true"] {
+  mask-image: linear-gradient(
+    to left,
+    transparent,
+    black var(--space-6)
+  );
+}
+.ui-tabs__list[data-fade-left="true"][data-fade-right="true"] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--space-6),
+    black calc(100% - var(--space-6)),
+    transparent
+  );
 }
 .ui-tabs__tab {
   background: transparent;
@@ -783,4 +816,9 @@ input.ui-password-input__field {
 }
 .ui-disclosure__body {
   padding-block-start: var(--space-2);
+}
+/* Disclosures that sit side by side share one row; the one that opens takes the
+   whole row, so what it shows has the width of the section. */
+.ui-inline > .ui-disclosure[open] {
+  flex: 1 1 100%;
 }

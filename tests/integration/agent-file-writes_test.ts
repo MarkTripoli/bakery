@@ -18,10 +18,12 @@ import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-jo
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { assertAgentFileWrite } from "../../apps/server/src/modules/knowledge/agent-file-guard.ts";
-import { stepFilesForAttempt } from "../../apps/server/src/modules/execution/step-files.ts";
+import {
+  stepFilesForAttempt,
+  UNDECLARED_STEP_FILES,
+} from "../../apps/server/src/modules/execution/step-files.ts";
 import {
   compileWorkflowDocument,
-  DEFAULT_STEP_FILES,
 } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 
@@ -554,19 +556,19 @@ Deno.test("a grant is bounded: a person only, a future expiry within 30 days, a 
     );
   }));
 
-Deno.test("the claim mints the step's files section (O44, O45) into the session credential", () =>
+Deno.test("a claim with no files section mints reads only, never the write tools (#448)", () =>
   withWorkerFixture(async (fixture) => {
     const agent = await agentSession(
       fixture,
       "agent-448-scopes",
       async () => {},
     );
-    // The step has no files section, so the defaults apply on a real run.
+    // The step has no files section and no grant: reads only (#448).
     const files = await withPgTransaction(
       fixture.pgDatabase,
       (tx) => stepFilesForAttempt(tx, fixture.organizationId, agent.attemptId),
     );
-    assertEquals(files, DEFAULT_STEP_FILES);
+    assertEquals(files, UNDECLARED_STEP_FILES);
     const stored = await fixture.pgDatabase.query<{ scopes: string[] }>(
       "select scopes from bakery.session_operation_credentials" +
         " where organization_id = $1 and attempt_id = $2" +
@@ -580,12 +582,15 @@ Deno.test("the claim mints the step's files section (O44, O45) into the session 
         "files.read:project",
         "files.read:shared",
         "files.read:library",
-        "files.write",
-        "files.write:attachments",
-        "files.write:assets",
-        "files.write:workspaces",
       ]
     ) assert(scopes.includes(scope), scope + " in " + JSON.stringify(scopes));
+    // Nobody granted a write or bound a connection, so neither is minted.
+    assert(
+      !scopes.some((scope) =>
+        scope.startsWith("files.write") || scope === "files.read:connections"
+      ),
+      JSON.stringify(scopes),
+    );
     // No personal area is ever minted.
     assert(!scopes.some((scope) => scope.includes("users")));
   }));
@@ -812,7 +817,7 @@ Deno.test("an inputs-only step gets no file scope from a live write grant; a def
         fixture.pgDatabase,
         (tx) => stepFilesForAttempt(tx, fixture.organizationId, wide.attemptId),
       ),
-      DEFAULT_STEP_FILES,
+      UNDECLARED_STEP_FILES,
     );
     const wideScopes = await mintedScopes(fixture, wide.attemptId);
     assert(wideScopes.includes("files.write"), JSON.stringify(wideScopes));

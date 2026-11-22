@@ -198,6 +198,10 @@ export async function seedAuthority(
   stack: Stack,
   owner: PgDatabase,
   session: Session,
+  options: {
+    /** Binds the profile's implement step, so a run of the repository can start. */
+    agentVersionId?: string;
+  } = {},
 ): Promise<Authority> {
   const clientSecretId = crypto.randomUUID();
   const privateKeySecretId = crypto.randomUUID();
@@ -283,7 +287,7 @@ export async function seedAuthority(
     organizationId: session.organizationId,
     principalId: session.principalId,
     adminCookie: session.cookie,
-  });
+  }, { agentVersionId: options.agentVersionId ?? null });
   // `ticketSources.create` accepts the repository its resource maps to: the
   // same connection and the provider's repository id.
   await stack.psql(

@@ -97,6 +97,15 @@ export {
   type ReleaseConfig,
 } from "./bootstrap.ts";
 export { type BootstrapIo, runBootstrap } from "./main.ts";
+export {
+  type LinkCommand,
+  type LinkIo,
+  LinkStepFailed,
+  parseLinkCommand,
+  runLink,
+  type ThisMachine,
+} from "./link.ts";
+export { recordLink } from "./pairing.ts";
 export { isExactRelease } from "./manifest.ts";
 export { readPairingBinding } from "./pairing.ts";
 

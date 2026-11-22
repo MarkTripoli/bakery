@@ -230,13 +230,14 @@ Deno.test("only the exact requested release is accepted, never a moving name", (
 
 Deno.test("an unsupported target is named plainly", () => {
   assertEquals(detectTarget("linux", "x64"), "linux-x64");
+  // linux-arm64 joined after the native lane ran green on a real arm64 host (#52).
+  assertEquals(detectTarget("linux", "arm64"), "linux-arm64");
   for (
     const [platform, arch] of [
       ["win32", "x64"],
       ["freebsd", "x64"],
       ["linux", "ia32"],
-      // Real runners exist for linux-x64 only; others are not claimed yet.
-      ["linux", "arm64"],
+      // No real macOS runner yet: not claimed (docs/backend-delivery/native-support-matrix.json).
       ["darwin", "arm64"],
       ["darwin", "x64"],
     ]
@@ -247,7 +248,7 @@ Deno.test("an unsupported target is named plainly", () => {
     codeOf(() =>
       verifySignedManifest(envelope(manifestFor(BINARY)), {
         ...VERIFY,
-        target: "linux-arm64",
+        target: "darwin-arm64",
       })
     ),
     "MANIFEST_TARGET_UNSUPPORTED",

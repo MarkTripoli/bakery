@@ -31,9 +31,25 @@ const RUN_COLUMNS =
   "created_at, updated_at, version, " +
   runWorkspaceBaseShaColumn("workflow_runs");
 
+/**
+ * The newest handoff manifest an attempt of the step saved, as one JSON
+ * object or null. Correlated on the unaliased `run_steps` row, so it works in
+ * a plain select, a `for update` select and an update's `returning`; the
+ * (organization_id, run_step_id, created_at desc, id) index serves it.
+ */
+const RUN_STEP_HANDOFF_MANIFEST_COLUMN =
+  "(select json_build_object('id', manifest.id, 'status', manifest.status, " +
+  "'savedAt', manifest.created_at) " +
+  "from bakery.handoff_manifests manifest " +
+  "where manifest.organization_id = run_steps.organization_id " +
+  "and manifest.run_step_id = run_steps.id " +
+  "order by manifest.created_at desc, manifest.id desc limit 1) " +
+  "as handoff_manifest";
+
 export const RUN_STEP_COLUMNS =
   "id, run_id, step_key, position, iteration, status, input, output, error, " +
-  "started_at, finished_at, created_at, updated_at, version";
+  "started_at, finished_at, created_at, updated_at, version, " +
+  RUN_STEP_HANDOFF_MANIFEST_COLUMN;
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type RunOutput = z.output<typeof contractSchemas.Run>;
@@ -88,6 +104,7 @@ export type RunStepRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  handoff_manifest: { id: string; status: string; savedAt: string } | null;
 };
 
 type KeysetRunRow = RunRow & { cursor_created_at: string };
@@ -160,6 +177,28 @@ export function toRunStep(row: RunStepRow): RunStepOutput {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: Number(row.version),
+    handoffManifest: toStepHandoffManifest(row.handoff_manifest),
+  };
+}
+
+const handoffManifestStatuses: Record<
+  NonNullable<RunStepOutput["handoffManifest"]>["status"],
+  true
+> = { pending: true, continued: true, blocked: true };
+
+function toStepHandoffManifest(
+  value: RunStepRow["handoff_manifest"],
+): RunStepOutput["handoffManifest"] {
+  if (value === null || value === undefined) return null;
+  if (!Object.hasOwn(handoffManifestStatuses, value.status)) {
+    throw new Error("WORK_READ_RUN_STEP_HANDOFF_MANIFEST_INVALID");
+  }
+  return {
+    id: value.id,
+    status: value.status as NonNullable<
+      RunStepOutput["handoffManifest"]
+    >["status"],
+    savedAt: toIso(value.savedAt),
   };
 }
 

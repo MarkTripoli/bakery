@@ -28,18 +28,34 @@ import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
+import { subtractDecimalStrings, usd } from "../screens/usage/usage-money.ts";
 import {
+  attemptCostKind,
+  costDetail,
   countLines,
   gateCard,
   groupByCase,
+  hasModelScorer,
   pinTitle,
   type ResultFilter,
   resultWords,
   runBadge,
+  sampledScorers,
   stateChips,
   statesOfFilter,
   type Words,
 } from "./library/evaluations-state.ts";
+
+/** Money in the page's words: an amount under a cent reads "Less than $0.01", never "$0.00". */
+function useMoney(): (amount: string) => string {
+  const { translate } = useI18n();
+  return (amount) =>
+    usd(
+      amount,
+      (smallest) =>
+        translate("library.evaluation.cost.lessThanCent", { amount: smallest }),
+    );
+}
 
 /** The attempts behind one result, read only once the person opens them. */
 function Attempts(
@@ -48,6 +64,7 @@ function Attempts(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate, locale, timeZone } = useI18n();
+  const money = useMoney();
   const attempts = useQuery(
     evaluationAttemptsQueryOptions(api, scope, resultId),
   );
@@ -82,19 +99,291 @@ function Attempts(
     >
       {rows.map((attempt) => {
         const words = resultWords(attempt, false);
+        const reason = attempt.reason?.trim() ?? "";
+        // An attempt cut short says so in its own words; the rest read as a result does.
+        const state = attempt.state === "interrupted"
+          ? reason === ""
+            ? translate("library.evaluation.attempts.interruptedBare")
+            : translate("library.evaluation.attempts.interrupted", { reason })
+          : translate(words.key, words.values);
+        const kind = attemptCostKind(attempt.usage);
+        const when = time(attempt.startedAt ?? attempt.createdAt);
         return (
           <div key={attempt.id} role="listitem">
             <UI.Text variant="caption">
-              {translate("library.evaluation.attempts.line", {
-                number: attempt.attemptNo,
-                time: time(attempt.startedAt ?? attempt.createdAt),
-                state: translate(words.key, words.values),
-              })}
+              {kind === null
+                ? translate("library.evaluation.attempts.line", {
+                  number: attempt.attemptNo,
+                  time: when,
+                  state,
+                })
+                : translate("library.evaluation.attempts.lineCost", {
+                  number: attempt.attemptNo,
+                  time: when,
+                  state,
+                  cost: kind === "unknown" || attempt.usage?.costUsd == null
+                    ? translate("library.evaluation.attempts.cost.unknown")
+                    : translate(
+                      `library.evaluation.attempts.cost.${kind}` as const,
+                      { amount: money(attempt.usage.costUsd) },
+                    ),
+                })}
             </UI.Text>
           </div>
         );
       })}
     </UI.Stack>
+  );
+}
+
+/**
+ * What the run's model scorers cost (design-ux #75, revision 6): spent, the
+ * limit it stops at, and the calls whose cost is not known, with a meter and a
+ * notice when the limit is reached or the cost cannot be settled. A run of
+ * checks has no cost and says so in one line.
+ */
+function CostSection({ batch }: { readonly batch: EvaluationBatch }) {
+  const { translate } = useI18n();
+  const money = useMoney();
+  if (!hasModelScorer(batch)) {
+    return (
+      <UI.Text data-testid="evaluation-cost" variant="muted">
+        {translate("library.evaluation.cost.checksOnly")}
+      </UI.Text>
+    );
+  }
+  const budget = batch.budget;
+  const detail = costDetail(budget);
+  const spent = money(budget.settledUsd);
+  const limit = budget.limitUsd === null ? null : money(budget.limitUsd);
+  const unknown = budget.unknownCount;
+  // An unknown cost needs no line here: "At least" says it and the third tile counts the calls.
+  const spentDetail = detail === "unknown"
+    ? undefined
+    : detail === "partly"
+    ? translate("library.evaluation.cost.spent.partly", {
+      amount: money(budget.estimatedUsd),
+    })
+    : translate(`library.evaluation.cost.spent.${detail}` as const);
+  const meterText = limit === null
+    ? ""
+    : budget.status === "unsettled"
+    ? translate("library.evaluation.cost.meter.unsettled")
+    : budget.status === "exhausted"
+    ? translate("library.evaluation.cost.meter.exhausted")
+    : translate("library.evaluation.cost.meter.within", {
+      left: money(
+        subtractDecimalStrings(budget.limitUsd ?? "0", budget.settledUsd),
+      ),
+    });
+  return (
+    <UI.SettingsSection
+      data-testid="evaluation-cost"
+      title={
+        <>
+          {translate("library.evaluation.cost.title")}
+          <UI.HelpTip label={translate("library.evaluation.cost.helpLabel")}>
+            {translate("library.evaluation.cost.help")}
+          </UI.HelpTip>
+        </>
+      }
+      variant="stack"
+    >
+      <UI.Inline gap="standard" variant="thirds">
+        <UI.StatTile
+          detail={spentDetail}
+          label={translate("library.evaluation.cost.spent.label")}
+          value={unknown > 0
+            ? translate("library.evaluation.cost.spent.atLeast", {
+              amount: spent,
+            })
+            : spent}
+        />
+        <UI.StatTile
+          detail={limit === null
+            ? translate("library.evaluation.cost.limit.noneDetail")
+            : translate("library.evaluation.cost.limit.detail")}
+          label={translate("library.evaluation.cost.limit.label")}
+          value={limit ?? translate("library.evaluation.cost.limit.none")}
+        />
+        <UI.StatTile
+          detail={unknown > 0
+            ? translate("library.evaluation.cost.unknown.detail")
+            : translate("library.evaluation.cost.unknown.noneDetail")}
+          label={translate("library.evaluation.cost.unknown.label")}
+          value={unknown > 0
+            ? translate("library.evaluation.cost.unknown.value", {
+              count: unknown,
+            })
+            : translate("library.evaluation.cost.unknown.none")}
+        />
+      </UI.Inline>
+      {limit !== null && Number(budget.limitUsd) > 0
+        ? (
+          <UI.Stack gap="compact">
+            <UI.UsageMeter
+              label={translate("library.evaluation.cost.meter.label")}
+              limit={Number(budget.limitUsd)}
+              state={budget.status === "exhausted"
+                ? "paused"
+                : budget.status === "unsettled"
+                ? "warning"
+                : "ok"}
+              value={Number(budget.settledUsd)}
+              valueText={meterText}
+            />
+            <UI.Text variant="caption">{meterText}</UI.Text>
+          </UI.Stack>
+        )
+        : null}
+      {limit !== null && budget.status === "unsettled"
+        ? (
+          <UI.InlineNotice data-testid="evaluation-cost-notice" tone="warning">
+            <UI.Stack gap="none">
+              <UI.Text>
+                {translate("library.evaluation.cost.unsettled.title")}
+              </UI.Text>
+              <UI.Text variant="caption">
+                {translate("library.evaluation.cost.unsettled.body")}
+              </UI.Text>
+            </UI.Stack>
+          </UI.InlineNotice>
+        )
+        : null}
+      {limit !== null && budget.status === "exhausted"
+        ? (
+          <UI.InlineNotice data-testid="evaluation-cost-notice" tone="warning">
+            <UI.Stack gap="none">
+              <UI.Text>
+                {translate("library.evaluation.cost.exhausted.title")}
+              </UI.Text>
+              <UI.Text variant="caption">
+                {translate("library.evaluation.cost.exhausted.body")}
+              </UI.Text>
+            </UI.Stack>
+          </UI.InlineNotice>
+        )
+        : null}
+    </UI.SettingsSection>
+  );
+}
+
+/**
+ * A model's opinion on a sample of the test cases, reported apart: it never
+ * counts toward the quality gate. Its results are not in the Results list; they
+ * open here, and are read only once the person opens them.
+ */
+function SampledSection(
+  { batch, live, scorerLine }: {
+    readonly batch: EvaluationBatch;
+    readonly live: boolean;
+    readonly scorerLine: (result: EvaluationBatchResult) => string;
+  },
+) {
+  const { translate } = useI18n();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const [opened, setOpened] = useState(false);
+  const report = batch.optionalReport;
+  const read = useInfiniteQuery({
+    ...evaluationResultsQueryOptions(
+      api,
+      scope,
+      batch.id,
+      undefined,
+      live,
+      50,
+      false,
+    ),
+    enabled: Boolean(scope.organizationId) && opened && report !== null &&
+      report.total > 0,
+  });
+  if (report === null) return null;
+  const groups = groupByCase(
+    read.data?.pages.flatMap((page) => page.items) ?? [],
+  );
+  return (
+    <UI.SettingsSection
+      data-testid="evaluation-sampled"
+      title={
+        <>
+          {translate("library.evaluation.sampled.title")}
+          <UI.HelpTip label={translate("library.evaluation.sampled.helpLabel")}>
+            {translate("library.evaluation.sampled.help")}
+          </UI.HelpTip>
+        </>
+      }
+      variant="stack"
+    >
+      <UI.Inline gap="standard">
+        {(["passed", "failed", "unknown", "unrun"] as const).map((id) => (
+          <UI.Text key={id}>
+            {translate(`library.evaluation.sampled.${id}` as const, {
+              count: report[id],
+            })}
+          </UI.Text>
+        ))}
+      </UI.Inline>
+      <UI.Text variant="muted">
+        {translate("library.evaluation.sampled.note")}
+      </UI.Text>
+      {report.total > 0
+        ? (
+          <UI.Disclosure
+            data-testid="evaluation-sampled-results"
+            onOpenChange={setOpened}
+            summary={translate("library.evaluation.sampled.show", {
+              count: report.total,
+            })}
+          >
+            {read.isError
+              ? (
+                <UI.InlineNotice tone="error">
+                  {translate("library.evaluation.results.error")}
+                </UI.InlineNotice>
+              )
+              : read.isPending
+              ? <UI.Skeleton shape="row" />
+              : (
+                <UI.Stack
+                  aria-label={translate("library.evaluation.sampled.listLabel")}
+                  gap="none"
+                  role="list"
+                >
+                  {groups.map((group) => (
+                    <div
+                      data-case={group.caseId}
+                      key={group.caseId}
+                      role="listitem"
+                    >
+                      <UI.StackedRow title={group.caseName}>
+                        <UI.Stack gap="compact">
+                          {group.results.map((result) => (
+                            <UI.Text key={result.id} variant="caption">
+                              {scorerLine(result)}
+                            </UI.Text>
+                          ))}
+                        </UI.Stack>
+                      </UI.StackedRow>
+                    </div>
+                  ))}
+                </UI.Stack>
+              )}
+            {read.hasNextPage
+              ? (
+                <UI.Button
+                  loading={read.isFetchingNextPage}
+                  onClick={() => void read.fetchNextPage()}
+                  variant="secondary"
+                >
+                  {translate("library.evaluation.results.more")}
+                </UI.Button>
+              )
+              : null}
+          </UI.Disclosure>
+        )
+        : null}
+    </UI.SettingsSection>
   );
 }
 
@@ -130,7 +419,15 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const wanted = filter === null ? [undefined] : statesOfFilter(filter);
   const ready = Boolean(scope.organizationId) && batch !== undefined;
   const firstRead = useInfiniteQuery({
-    ...evaluationResultsQueryOptions(api, scope, batchId, wanted[0], live),
+    ...evaluationResultsQueryOptions(
+      api,
+      scope,
+      batchId,
+      wanted[0],
+      live,
+      50,
+      true,
+    ),
     enabled: ready,
   });
   // The second state is read only once the first has no more pages, so errors
@@ -144,6 +441,8 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
       batchId,
       wanted[1] ?? "unscored",
       live,
+      50,
+      true,
     ),
     enabled: ready && wanted.length > 1 && firstDone,
   });
@@ -487,6 +786,30 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
                 required: batch.requiredCount,
               })}
             </UI.Text>
+            {batch.report.passedOfAttempted === null ||
+                batch.report.attempted >= batch.requiredCount
+              ? null
+              : (
+                <UI.Text
+                  data-testid="evaluation-attempted-rate"
+                  variant="muted"
+                >
+                  {translate("library.evaluation.results.attemptedRate", {
+                    rate: Math.round(batch.report.passedOfAttempted * 100),
+                    attempted: batch.report.attempted,
+                  })}
+                </UI.Text>
+              )}
+            {batch.report.interrupted > 0
+              ? (
+                <UI.Text data-testid="evaluation-interrupted" variant="muted">
+                  {translate("library.evaluation.results.interruptedLine", {
+                    interrupted: batch.report.interrupted,
+                    recovered: batch.report.recovered,
+                  })}
+                </UI.Text>
+              )
+              : null}
             {chips.length > 0
               ? (
                 <UI.SegmentedControl
@@ -609,6 +932,10 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
               : null}
           </UI.SettingsSection>
 
+          <CostSection batch={batch} />
+
+          <SampledSection batch={batch} live={live} scorerLine={scorerLine} />
+
           <UI.SettingsSection
             data-testid="evaluation-used"
             title={translate("library.evaluation.used.title")}
@@ -639,13 +966,25 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
               />
               <UI.DescriptionItem
                 title={translate("library.evaluation.used.scorers")}
-                description={batch.scorers.map((scorer) =>
-                  translate("library.evaluation.used.scorerValue", {
-                    slug: scorer.slug,
-                    revision: scorer.scorerRevision,
-                  })
-                ).join("; ")}
+                description={batch.scorers.filter((scorer) => scorer.required)
+                  .map((scorer) =>
+                    translate("library.evaluation.used.scorerValue", {
+                      slug: scorer.slug,
+                      revision: scorer.scorerRevision,
+                    })
+                  ).join("; ")}
               />
+              {sampledScorers(batch).length === 0 ? null : (
+                <UI.DescriptionItem
+                  title={translate("library.evaluation.used.sampled")}
+                  description={sampledScorers(batch).map((scorer) =>
+                    translate("library.evaluation.used.sampledValue", {
+                      slug: scorer.slug,
+                      revision: scorer.scorerRevision,
+                    })
+                  ).join("; ")}
+                />
+              )}
               <UI.DescriptionItem
                 title={translate("library.evaluation.used.rule")}
                 description={batch.gate.rule}

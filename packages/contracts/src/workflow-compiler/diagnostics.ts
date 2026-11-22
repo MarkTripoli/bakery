@@ -111,6 +111,10 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "expansion_attempts_exceeded",
     "expansion_wall_clock_exceeded",
     "expansion_cost_exceeded",
+    // The repair block: it reviews its own result, and nothing merges before a review.
+    "fix_loop_review_missing",
+    "fix_loop_review_not_last",
+    "merge_without_review",
   ] as const,
 );
 
@@ -235,6 +239,12 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
     "The worst-case attempt count exceeds the limit.",
   expansion_wall_clock_exceeded: "The worst-case duration exceeds the limit.",
   expansion_cost_exceeded: "The worst-case cost exceeds the limit.",
+  fix_loop_review_missing:
+    "A block that repairs must contain an independent review.",
+  fix_loop_review_not_last:
+    "The independent review must be the last step of a block that repairs.",
+  merge_without_review:
+    "A merge must come after an independent review in a workflow that repairs.",
 });
 
 export const WorkflowCompilerDiagnosticSchema = z.object({

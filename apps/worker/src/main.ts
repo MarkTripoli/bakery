@@ -1,4 +1,6 @@
 import { join } from "node:path";
+import { MaintenanceExecutor, MaintenanceJournalStore } from "./maintenance.ts";
+import { workerMaintenanceAdapters } from "./maintenance-release.ts";
 import { WorkerApiClient } from "./client.ts";
 import {
   disabledMonitoring,
@@ -263,6 +265,12 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
           return served.value;
         },
       });
+    // A coding harness writes a step's pinned inputs into its attempt root
+    // before it starts, from the same route the check executor reads.
+    const readAttemptContext = async (attemptId: string) => {
+      const served = await client.attemptContext(attemptId);
+      return served.value;
+    };
     const harnessExecutor = codingHarness?.name === "claude"
       ? createClaudeHarnessExecutor({
         publishFor: publishArtifactFor,
@@ -277,6 +285,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         stateDir: config.stateDir,
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
+        readAttemptContext,
         inner: checkedExecutor,
       })
       : codingHarness?.name === "pi"
@@ -292,6 +301,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         piAgentSourceDir: piAgentSourceDir!,
         redactionSecrets: config.outputRedactionSecrets,
         capabilities: config.adapterCapabilities,
+        readAttemptContext,
         inner: checkedExecutor,
       })
       : codingHarness?.name === "codex"
@@ -304,6 +314,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         stateDir: config.stateDir,
         authSourceDir: config.codexAuthSourceDir ?? join(home!, ".codex"),
         redactionSecrets: config.outputRedactionSecrets,
+        readAttemptContext,
         inner: checkedExecutor,
       })
       : checkedExecutor;
@@ -332,8 +343,23 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       new SkillCache(config.stateDir),
       client,
     );
+    const maintenanceAdapters = workerMaintenanceAdapters(config);
+    if (maintenanceAdapters.length === 0) {
+      console.warn(JSON.stringify({
+        component: "worker-maintenance",
+        event: "maintenance_no_managed_components",
+      }));
+    }
+    const maintenance = new MaintenanceExecutor({
+      journal: await MaintenanceJournalStore.open(config.stateDir),
+      adapters: maintenanceAdapters,
+      report: async (operationId, body, idempotencyKey) => {
+        await client.reportMaintenance(operationId, body, idempotencyKey);
+      },
+    });
     const supervisor = new WorkerSupervisor({
       monitoring: options.monitoring,
+      maintenance,
       config,
       client,
       registrationStore,

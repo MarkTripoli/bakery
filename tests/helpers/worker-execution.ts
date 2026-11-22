@@ -218,6 +218,31 @@ async function deleteWorkerOrganization(
   organizationId: string,
 ): Promise<void> {
   const organizationIds = [organizationId];
+  // A stored version names the run, step, attempt and agent session that made
+  // it, each by its own set-null foreign key. Deleting the steps below fires
+  // those one after another on the same row, and the second update re-checks
+  // the key the first one's cascade already removed (the row was changed
+  // earlier in this transaction), which Postgres rejects. Which row is hit
+  // first follows the table's physical order, so the failure appeared only in
+  // a long lane. Clear the names in one update first, so no cascade has a row
+  // left to change.
+  await pgDatabase.query(
+    `update bakery.storage_file_versions
+        set run_id = null, run_step_id = null, attempt_id = null,
+            agent_session_id = null
+      where organization_id = any($1::uuid[])
+        and (run_id is not null or run_step_id is not null
+             or attempt_id is not null or agent_session_id is not null)`,
+    [organizationIds],
+  );
+  await pgDatabase.query(
+    `update bakery.artifact_versions
+        set run_id = null, attempt_id = null, agent_session_id = null
+      where organization_id = any($1::uuid[])
+        and (run_id is not null or attempt_id is not null
+             or agent_session_id is not null)`,
+    [organizationIds],
+  );
   // Ledger rows are never deleted by the application; the fixture clears the
   // reservation link and the effects before the steps they reference.
   await pgDatabase.query(
@@ -370,6 +395,9 @@ export async function openWorkerFixture(options: {
   pluginBrokerOperations?: NonNullable<
     Parameters<typeof openAuthFixture>[0]
   >["pluginBrokerOperations"];
+  pluginAuthoring?: Parameters<typeof openAuthFixture>[0] extends infer O
+    ? O extends { pluginAuthoring?: infer P } ? P : never
+    : never;
   env?: Record<string, string>;
   telemetry?: ExecutionTelemetry;
 } = {}): Promise<WorkerFixture> {
@@ -709,6 +737,8 @@ export async function enrollWorker(
     slots?: number;
     idempotencyKey?: string;
     scope?: WorkerScope;
+    os?: string;
+    architecture?: string;
   } = {},
 ): Promise<Response> {
   return await adminRequest(
@@ -716,8 +746,8 @@ export async function enrollWorker(
     "/v1/worker-enrollments",
     {
       name: options.name ?? `issue39-host-${crypto.randomUUID()}`,
-      os: "linux",
-      architecture: "x64",
+      os: options.os ?? "linux",
+      architecture: options.architecture ?? "x64",
       capabilities: options.capabilities ?? ["git"],
       slots: options.slots ?? 1,
     },
@@ -738,6 +768,8 @@ export async function registerWorker(
     slots?: number;
     idempotencyKey?: string;
     protocolVersion?: number;
+    os?: string;
+    architecture?: string;
   } = {},
 ): Promise<Response> {
   const headers = jsonHeaders({
@@ -754,8 +786,8 @@ export async function registerWorker(
         enrollmentToken,
         workerCredential: credential,
         name: options.name ?? `issue39-worker-${crypto.randomUUID()}`,
-        os: "linux",
-        architecture: "x64",
+        os: options.os ?? "linux",
+        architecture: options.architecture ?? "x64",
         capabilities: options.capabilities ?? ["git"],
         toolchainVersions: { deno: "2.x" },
         slots: options.slots ?? 1,
@@ -773,6 +805,9 @@ export async function registeredWorker(
     enrollmentIdempotencyKey?: string;
     registrationIdempotencyKey?: string;
     scope?: WorkerScope;
+    /** Enrolled and registered OS; linux unless a test needs another host. */
+    os?: string;
+    architecture?: string;
   } = {},
 ): Promise<{
   enrollment: WorkerEnrollment;
@@ -787,6 +822,8 @@ export async function registeredWorker(
     slots: options.slots,
     idempotencyKey: options.enrollmentIdempotencyKey,
     scope: options.scope,
+    os: options.os,
+    architecture: options.architecture,
   });
   assertEquals(enrollmentResponse.status, 201);
   const enrollment = await enrollmentResponse.json() as WorkerEnrollment;
@@ -801,6 +838,8 @@ export async function registeredWorker(
       slots: options.slots,
       idempotencyKey: options.registrationIdempotencyKey,
       protocolVersion: 2,
+      os: options.os,
+      architecture: options.architecture,
     },
   );
   assertEquals(registrationResponse.status, 200);

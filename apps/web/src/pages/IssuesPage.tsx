@@ -24,6 +24,9 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { IssuesList } from "./IssuesList.tsx";
+import { IssuesBatchNotice } from "./issues/IssuesBatchNotice.tsx";
+import { issuesInBatch, noticesFor } from "./issues/batch-notice-model.ts";
+import { useLiveBatches } from "./issues/useLiveBatches.ts";
 import { ChooseRepositoriesSheet } from "./ChooseRepositoriesSheet.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { type StartRefusal, StartWorkDialog } from "./StartWorkDialog.tsx";
@@ -97,6 +100,34 @@ export function IssuesPage() {
   const sources = useQuery(ticketSourcesListQueryOptions(api, scope));
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const isAdmin = access.data?.role === "admin";
+  // Batches (#58): a live batch in the repository in view is said under the
+  // header, and the issues it has taken wear "In the batch".
+  const chosenRepositoryId = sourceId === ""
+    ? null
+    : sources.data?.items.find((source) => source.id === sourceId)
+      ?.repositoryId ?? null;
+  // A chosen repository with no Bakery repository behind it has no batches.
+  const batchesInView = sourceId === "" || chosenRepositoryId !== null;
+  const batches = useLiveBatches({
+    repositoryId: chosenRepositoryId,
+    enabled: access.data?.capabilities.includes("batch:read") === true &&
+      batchesInView,
+  });
+  const batchNotices = batchesInView
+    ? noticesFor(batches, chosenRepositoryId)
+    : [];
+  const inBatch = useMemo(
+    () => issuesInBatch(batchesInView ? batches : []),
+    [batches, batchesInView],
+  );
+  const batchRepositories = new Map<string, string>();
+  for (const source of sources.data?.items ?? []) {
+    if (source.repositoryId !== null) {
+      batchRepositories.set(source.repositoryId, source.externalContainerId);
+    }
+  }
+  // Name the repository only when the list shows more than one.
+  const nameBatchRepository = sourceId === "" && batchRepositories.size > 1;
 
   const rows = useMemo(
     () => issues.data?.pages.flatMap((page) => page.items) ?? [],
@@ -253,6 +284,15 @@ export function IssuesPage() {
           subtitle={translate("issues.description" as never)}
           actions={headerActions !== null && phone ? headerActions : null}
         />
+        {batchNotices.map((notice) => (
+          <IssuesBatchNotice
+            key={notice.batchId}
+            notice={notice}
+            repository={nameBatchRepository
+              ? batchRepositories.get(notice.repositoryId) ?? null
+              : null}
+          />
+        ))}
         {started
           ? (
             <UI.InlineNotice tone="success">
@@ -440,6 +480,7 @@ export function IssuesPage() {
                   <div data-paged-list="issues">
                     <IssuesList
                       offered={startOffered}
+                      inBatch={inBatch}
                       onStart={(row) => {
                         opener.current = document.activeElement instanceof
                             HTMLElement

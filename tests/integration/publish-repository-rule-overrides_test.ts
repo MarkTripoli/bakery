@@ -551,24 +551,53 @@ Deno.test("repository rule overrides publish, resolve and follow organization re
       );
     });
 
-    await test.step("AC5: a publisher demoted while waiting for the lock is refused", async () => {
+    await test.step("AC5: a demotion during a publish is ordered after it, and a demoted publisher is refused", async () => {
+      // Since #48 the request holds the publisher's membership row for share
+      // from its role check to its commit, so a demotion that starts while the
+      // publish waits for the organization lock waits for the publish: the
+      // write commits under the role it was checked with, never after the role
+      // was taken away. The next publish sees the demotion and is refused.
       const before = await counts();
+      const demotable = {
+        cookie: f.cookies.demotableA,
+        organizationId: organizationAId,
+      };
       let pending: Promise<Response> | Response;
+      let demotion: Promise<unknown> = Promise.resolve();
+      let demotedAt = 0;
       await withPgTransaction(runtime, async (transaction) => {
         await lockOrganization(transaction, organizationAId);
-        pending = createProfile(8, { entries: [titleOverride(70)] }, 5, {
-          cookie: f.cookies.demotableA,
-          organizationId: organizationAId,
-        });
+        pending = createProfile(
+          8,
+          { entries: [titleOverride(70)] },
+          5,
+          demotable,
+        );
         await new Promise((resolve) => setTimeout(resolve, 400));
-        await f.owner`
+        demotion = f.owner`
           update bakery.organization_memberships
              set role = 'developer'
            where organization_id = ${organizationAId}
-             and principal_id = ${f.demotableA.principalId}`;
+             and principal_id = ${f.demotableA.principalId}`
+          .then(() => {
+            demotedAt = performance.now();
+          });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        assertEquals(demotedAt, 0, "the demotion did not wait for the publish");
       });
-      assertEquals((await pending!).status, 403);
-      assertEquals(await counts(), before);
+      const published = await pending!;
+      await demotion;
+      assertEquals(published.status, 201);
+      const after = await counts();
+      assertEquals(after.profiles, before.profiles + 1);
+      const refused = await createProfile(
+        9,
+        { entries: [titleOverride(70)] },
+        6,
+        demotable,
+      );
+      assertEquals(refused.status, 403);
+      assertEquals(await counts(), after);
     });
 
     await test.step("AC6: another organization and developers cannot publish overrides, without leaking existence", async () => {

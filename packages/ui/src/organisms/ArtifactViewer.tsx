@@ -101,7 +101,11 @@ function markdown(text: string): ReactNode[] {
         code.push(lines[index++] ?? "");
       }
       index++;
-      blocks.push(<pre key={key}><code>{code.join("\n")}</code></pre>);
+      blocks.push(
+        <pre dir="ltr" key={key}>
+          <code>{code.join("\n")}</code>
+        </pre>,
+      );
       continue;
     }
     const heading = /^(#{1,6})\s+(.+)$/.exec(line);
@@ -155,6 +159,8 @@ function preview(content: ArtifactViewerContent): ReactNode {
     case "patch":
       return (
         <pre
+          // Code and log text read left to right whatever the page direction.
+          dir="ltr"
           data-ui-overflow="wrap"
           data-cut={content.cut === true ? "panel" : undefined}
         >

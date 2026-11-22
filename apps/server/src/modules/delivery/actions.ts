@@ -24,6 +24,9 @@ import type { PgDatabase } from "../../platform/database.ts";
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
 type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
+type RepairAllowanceCreate = z.output<
+  typeof contractSchemas.RepairAllowanceCreate
+>;
 type MergeEntryCreate = z.output<typeof contractSchemas.MergeEntryCreate>;
 type PullRequestMerge = z.output<typeof contractSchemas.PullRequestMerge>;
 type MergeAttemptQuery = z.output<typeof contractSchemas.MergeAttemptQuery>;
@@ -31,6 +34,8 @@ type MergeEntryQuery = z.output<typeof contractSchemas.MergeEntryQuery>;
 type MergeAttemptReconcile = z.output<
   typeof contractSchemas.MergeAttemptReconcile
 >;
+type DeploymentCreate = z.output<typeof contractSchemas.DeploymentCreate>;
+type DeploymentRollback = z.output<typeof contractSchemas.DeploymentRollback>;
 
 type MetricsQuery = z.output<typeof contractSchemas.MetricsQuery>;
 type MetricSourcesQuery = z.output<typeof contractSchemas.MetricSourcesQuery>;
@@ -64,6 +69,14 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: CursorQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<DeliveryDecision>"]>>;
+  runRepairTriesList: (
+    context: ActionContext,
+    input: CursorQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<RepairTry>"]>>;
+  runRepairAllowancesCreate: (
+    context: ActionContext,
+    input: RepairAllowanceCreate,
+  ) => Promise<z.output<typeof contractSchemas.DeliveryDecision>>;
   pullRequestsList: (
     context: ActionContext,
     input: PullRequestQuery,
@@ -88,6 +101,18 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: MergeAttemptReconcile,
   ) => Promise<z.output<typeof contractSchemas.MergeReconciliation>>;
+  deploymentsList: (
+    context: ActionContext,
+    input: RepositoryQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<Deployment>"]>>;
+  deploymentsCreate: (
+    context: ActionContext,
+    input: DeploymentCreate,
+  ) => Promise<z.output<typeof contractSchemas.Deployment>>;
+  deploymentsRollback: (
+    context: ActionContext,
+    input: DeploymentRollback,
+  ) => Promise<z.output<typeof contractSchemas.Deployment>>;
 };
 
 export function createDeliveryActionRegistry(
@@ -158,6 +183,25 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.runDeliveryDecisionsList,
+  });
+  registry.register({
+    name: DeliveryImplementedAction.RunRepairTriesList,
+    method: HttpMethod.Get,
+    path: "/v1/runs/:id/repair-tries",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<RepairTry>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.runRepairTriesList,
+  });
+  registry.register({
+    name: DeliveryImplementedAction.RunRepairAllowancesCreate,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/repair-allowances",
+    input: contractSchemas.RepairAllowanceCreate,
+    output: contractSchemas.DeliveryDecision,
+    policy: { ...commandPolicy, access: ActionAccess.Admin },
+    handler: handlers.runRepairAllowancesCreate,
   });
 
   registry.register({
@@ -246,6 +290,39 @@ export function createDeliveryActionRegistry(
     policy: commandPolicy,
     transactionIsolation: TransactionIsolation.ReadCommitted,
     handler: handlers.mergeAttemptsReconcile,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.DeploymentsList,
+    method: HttpMethod.Get,
+    path: "/v1/deployments",
+    input: contractSchemas.RepositoryQuery,
+    output: contractSchemas["Page<Deployment>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.deploymentsList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.DeploymentsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/deployments",
+    input: contractSchemas.DeploymentCreate,
+    output: contractSchemas.Deployment,
+    policy: { ...commandPolicy, access: ActionAccess.DeveloperAndDeployGrant },
+    explicitIdempotency: "key",
+    handler: handlers.deploymentsCreate,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.DeploymentsRollback,
+    method: HttpMethod.Post,
+    path: "/v1/deployments/:id/rollbacks",
+    input: contractSchemas.DeploymentRollback,
+    output: contractSchemas.Deployment,
+    policy: { ...commandPolicy, access: ActionAccess.DeveloperAndDeployGrant },
+    explicitIdempotency: "key",
+    handler: handlers.deploymentsRollback,
   });
 
   assertRegisteredActions(registry);

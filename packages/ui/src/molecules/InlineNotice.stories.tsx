@@ -29,6 +29,12 @@ const BaseContract: StoryObj = {
         <InlineNotice tone="error">
           The latest change could not be saved.
         </InlineNotice>
+        <InlineNotice
+          tone="warning"
+          action={<Button variant="secondary">Open</Button>}
+        >
+          A batch is waiting for approval.
+        </InlineNotice>
       </Stack>
     );
   },

@@ -61,6 +61,15 @@ export type BatchSeed = {
   elapsedSeconds?: number;
   spentUsd?: string;
   issues?: BatchIssueSeed[];
+  /** What the issue being worked on waits for a person to do (`waitingOn`); null when nothing does. */
+  waitingOn?: {
+    kind: "question" | "approval";
+    /** Who it was put to by name; empty when it was put to the task's participants. */
+    askedOf: { principalId: string; displayName: string }[];
+    /** Minutes ago it was put. */
+    askedMinutesAgo?: number;
+    taskId?: string;
+  } | null;
   startedAt?: string;
   finishedAt?: string | null;
 };
@@ -94,7 +103,15 @@ export function batch(seed: BatchSeed = {}) {
       issues.filter((i) => i.state === "merged").length,
     elapsedSeconds: seed.elapsedSeconds ?? 0,
     spentUsd: seed.spentUsd ?? "0.0000",
-    waitingOn: null,
+    waitingOn: seed.waitingOn == null ? null : {
+      kind: seed.waitingOn.kind,
+      questionId: uuid(9100),
+      taskId: seed.waitingOn.taskId ?? taskOf(421),
+      since: new Date(
+        Date.now() - (seed.waitingOn.askedMinutesAgo ?? 5) * 60_000,
+      ).toISOString(),
+      askedOf: seed.waitingOn.askedOf,
+    },
     issues: issues.map((issue) => ({
       id: uuid(5000 + id.charCodeAt(30) * 10 + issue.position + issue.number),
       position: issue.position,

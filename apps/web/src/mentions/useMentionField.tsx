@@ -13,13 +13,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
-import type {
-  ApiFailure,
-  ConversationSharer,
-  MentionSource,
-} from "../api/client.ts";
+import type { ApiFailure, MentionSource } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  artifactAccessQueryOptions,
+  artifactSharersQueryOptions,
   conversationAccessQueryOptions,
   conversationSharersQueryOptions,
   mentionCandidatesQueryOptions,
@@ -49,6 +47,9 @@ import {
   withoutMention,
 } from "./mentions-state.ts";
 
+/** What a mention that gives access to a document gives: read and comment, or also edit. */
+export type AccessLevel = "read_comment" | "edit";
+
 /** What a composer needs from the mention field: the props for its text field, and the parts to draw. */
 export type MentionField = {
   /** Everyone chosen and still named in the text, in the order sent as `mentions`. */
@@ -73,8 +74,14 @@ export type MentionField = {
   readonly refused: boolean;
   /** What the send button says while an offer is open ("Give access and send"); null with no offer. */
   readonly sendLabel: string | null;
+  /** What the send button says while the send that gives access is under way; null with no offer. */
+  readonly sendingLabel: string | null;
+  /** What the send button says after a send that was giving access failed ("Try again: give access and post"). */
+  readonly retryLabel: string;
   /** How many people the send would give access to. */
   readonly offered: number;
+  /** The level the offer gives, for a document; "read_comment" until the writer chooses "Can also edit". */
+  readonly accessLevel: AccessLevel;
   /** The "Not sent." sentence for what the server refused; null otherwise. */
   readonly notice: string | null;
   /** A chosen person needs someone else to give them access: Send stays off until that mention is removed or someone is asked. */
@@ -90,6 +97,58 @@ export type MentionField = {
 };
 
 const DEBOUNCE_MS = 150;
+
+/**
+ * The words that differ between a conversation ("send", "reply") and a
+ * document ("post", "comment"). Everything else in a mention field reads the
+ * same in both places (design-ux #73 revision 3).
+ */
+const WORDS = {
+  conversation: {
+    footerGains: "mentions.footer.conversation",
+    offerQuestion: "mentions.offer.question",
+    offerQuestionNotSent: "mentions.offer.questionNotSent",
+    offerDetail: "mentions.offer.detail",
+    offerSend: "mentions.offer.send",
+    offerSending: "mentions.offer.sending",
+    shareQuestion: "mentions.share.question",
+    shareQuestionNotSent: "mentions.share.questionNotSent",
+    shareLine: "mentions.share.line",
+    shareLineNone: "mentions.share.lineNone",
+    shareFailed: "mentions.share.failed",
+    shareReason: "mentions.share.reason",
+    shareReasonNone: "mentions.share.reasonNone",
+    sentLine: "mentions.sent.line",
+    sentUndone: "mentions.sent.undone",
+    failedLine: "mentions.failed.line",
+    failedDetail: "mentions.failed.detail",
+    failedRetry: "mentions.failed.retry",
+    notMember: "mentions.refused.notMember",
+    several: "mentions.refused.several",
+  },
+  comment: {
+    footerGains: "mentions.footer.document",
+    offerQuestion: "mentions.offer.documentQuestion",
+    offerQuestionNotSent: "mentions.offer.documentQuestionNotSent",
+    offerDetail: "mentions.offer.documentDetail",
+    offerSend: "mentions.offer.documentSend",
+    offerSending: "mentions.offer.documentSending",
+    shareQuestion: "mentions.share.documentQuestion",
+    shareQuestionNotSent: "mentions.share.documentQuestionNotSent",
+    shareLine: "mentions.share.documentLine",
+    shareLineNone: "mentions.share.documentLineNone",
+    shareFailed: "mentions.share.documentFailed",
+    shareReason: "mentions.share.documentReason",
+    shareReasonNone: "mentions.share.documentReasonNone",
+    sentLine: "mentions.sent.documentLine",
+    sentUndone: "mentions.sent.documentUndone",
+    failedLine: "mentions.failed.documentLine",
+    failedDetail: "mentions.failed.documentDetail",
+    failedRetry: "mentions.failed.documentRetry",
+    notMember: "mentions.refused.documentNotMember",
+    several: "mentions.refused.documentSeveral",
+  },
+} as const;
 
 /**
  * The mention field of a composer or comment editor (design-ux #73). The text
@@ -128,9 +187,12 @@ export function useMentionField(
   const [sent, setSent] = useState<
     {
       readonly people: readonly { principalId: string; name: string }[];
+      readonly level: AccessLevel;
       readonly state: "done" | "undoing" | "undone" | "failed";
     } | null
   >(null);
+  // What the offer on a document gives; one level for everyone offered.
+  const [level, setLevel] = useState<AccessLevel>("read_comment");
   const queryClient = useQueryClient();
 
   const trigger = triggerAt(value, Math.min(caret, value.length));
@@ -166,9 +228,10 @@ export function useMentionField(
   }, [open, nothingLeft, read.hasNextPage, read.isFetchingNextPage]);
 
   const full = mentions.length >= MAX_MENTIONS;
+  const words = WORDS[source.kind];
   const rows = candidates.map((candidate) => {
-    const kind = rowKind(candidate, source.kind);
-    return { candidate, kind, asks: needsSharer(candidate, source.kind) };
+    const kind = rowKind(candidate);
+    return { candidate, kind, asks: needsSharer(candidate) };
   });
   const optionsForPicker = rows.map(({ candidate, kind }) => ({
     id: candidate.principalId,
@@ -176,17 +239,8 @@ export function useMentionField(
     kind,
     label: kind === "ready"
       ? candidate.displayName
-      : kind === "gains"
-      ? translate("mentions.row.optionGains", { name: candidate.displayName })
-      // Only a comment has a row that cannot be chosen: it never gives access.
-      : translate("mentions.row.optionBlockedComment", {
-        name: candidate.displayName,
-      }),
-    ...(kind === "gains"
-      ? { note: translate("mentions.row.gains") }
-      : kind === "blocked"
-      ? { note: translate("mentions.row.blockedComment") }
-      : {}),
+      : translate("mentions.row.optionGains", { name: candidate.displayName }),
+    ...(kind === "gains" ? { note: translate("mentions.row.gains") } : {}),
   }));
   const activeId =
     optionsForPicker[Math.min(active, optionsForPicker.length - 1)]
@@ -197,7 +251,7 @@ export function useMentionField(
     const row = rows.find((entry) =>
       entry.candidate.principalId === principalId
     );
-    if (row === undefined || row.kind === "blocked" || trigger === null) return;
+    if (row === undefined || trigger === null) return;
     if (mentions.length >= MAX_MENTIONS) return;
     const mention: Mention = {
       principalId,
@@ -247,14 +301,12 @@ export function useMentionField(
     ? (
       <UI.MentionPicker
         activeId={activeId}
-        footer={source.kind === "comment"
-          ? translate("mentions.footer.comment")
-          : pickerState !== "options"
+        footer={pickerState !== "options"
           ? undefined
           : hasGains
-          ? translate("mentions.footer.conversation")
+          ? translate(words.footerGains)
           : hasAsks
-          ? translate("mentions.footer.conversationAsk")
+          ? translate("mentions.footer.ask")
           : undefined}
         label={translate("mentions.picker.label")}
         listId={listId}
@@ -279,34 +331,41 @@ export function useMentionField(
     refusals.map((entry) => entry.mention.principalId),
   );
   // A refused person gains nothing, so the offer leaves them out.
-  const offering = source.kind === "conversation"
-    ? mentions.filter((mention) =>
-      mention.gainsAccess && !refusedIds.has(mention.principalId)
-    )
-    : [];
+  const offering = mentions.filter((mention) =>
+    mention.gainsAccess && !refusedIds.has(mention.principalId)
+  );
   // A person the writer may not give access to: someone who can share has to be asked.
-  const blocking = source.kind === "conversation"
-    ? mentions.filter((mention) =>
-      mention.needsSharer && !refusedIds.has(mention.principalId)
-    )
-    : [];
+  const blocking = mentions.filter((mention) =>
+    mention.needsSharer && !refusedIds.has(mention.principalId)
+  );
   // "Not sent." is true only while these are the very people a refusal marked.
   const offerNotSent = onlyThese(offering, offerNotSentIds);
   const notSent = onlyThese(blocking, notSentIds);
-  const sharersRead = useQuery(
+  const conversationSharers = useQuery(
     conversationSharersQueryOptions(
       api,
       scope,
-      source.id,
-      blocking.length > 0,
+      source.kind === "conversation" ? source.id : "",
+      blocking.length > 0 && source.kind === "conversation",
     ),
   );
+  const documentSharers = useQuery(
+    artifactSharersQueryOptions(
+      api,
+      scope,
+      source.kind === "comment" ? source.artifactId : "",
+      blocking.length > 0 && source.kind === "comment",
+    ),
+  );
+  const sharersRead = source.kind === "conversation"
+    ? conversationSharers
+    : documentSharers;
   // The line names up to two of the (at most three) people who can share.
   const sharers = (sharersRead.data?.items ?? []).slice(0, 2);
   const joined = (names: readonly string[]) =>
     translate("mentions.names", nameParts(names));
   /** Swaps the blocked chip for the sharer's and adds a selected line that asks them. */
-  const ask = (sharer: ConversationSharer) => {
+  const ask = (sharer: { principalId: string; displayName: string }) => {
     let next = value;
     for (const mention of blocking) next = withoutAtSign(next, mention);
     const appended = appendLine(
@@ -341,37 +400,53 @@ export function useMentionField(
   };
   /** Takes back the access the last send gave: the live grants of those people, each revoked. */
   const undo = async () => {
-    if (sent === null || source.kind !== "conversation") return;
+    if (sent === null) return;
     if (!scope.organizationId) return;
     const organizationId = scope.organizationId;
     const undoing = sent;
     setSent({ ...undoing, state: "undoing" });
     let state: "undone" | "failed" = "failed";
     try {
-      const grants = await queryClient.fetchQuery({
-        ...conversationAccessQueryOptions(api, scope, source.id),
-        staleTime: 0,
-      });
+      const grants = source.kind === "conversation"
+        ? await queryClient.fetchQuery({
+          ...conversationAccessQueryOptions(api, scope, source.id),
+          staleTime: 0,
+        })
+        : await queryClient.fetchQuery({
+          ...artifactAccessQueryOptions(api, scope, source.artifactId),
+          staleTime: 0,
+        });
       const people = new Set(
         undoing.people.map((person) => person.principalId),
       );
       const results = await Promise.all(
-        grants.filter((grant) => people.has(grant.principalId)).map((grant) =>
-          api.revokeConversationAccess({
-            organizationId,
-            conversationId: source.id,
-            principalId: grant.principalId,
-            version: grant.version,
-            idempotencyKey: `${grant.id}:undo:${grant.version}`,
-          })
-        ),
+        grants.filter((grant) => people.has(grant.principalId)).map((grant) => {
+          const idempotencyKey = `${grant.id}:undo:${grant.version}`;
+          return source.kind === "conversation"
+            ? api.revokeConversationAccess({
+              organizationId,
+              conversationId: source.id,
+              principalId: grant.principalId,
+              version: grant.version,
+              idempotencyKey,
+            })
+            : api.revokeArtifactAccess({
+              organizationId,
+              artifactId: source.artifactId,
+              principalId: grant.principalId,
+              version: grant.version,
+              idempotencyKey,
+            });
+        }),
       );
       if (results.every((result) => result.ok)) state = "undone";
     } catch {
       state = "failed";
     }
     void queryClient.invalidateQueries({
-      queryKey: conversationAccessQueryOptions(api, scope, source.id).queryKey,
+      queryKey: (source.kind === "conversation"
+        ? conversationAccessQueryOptions(api, scope, source.id)
+        : artifactAccessQueryOptions(api, scope, source.artifactId)).queryKey,
     });
     setSent((current) => current === null ? null : { ...current, state });
   };
@@ -446,11 +521,47 @@ export function useMentionField(
                   onDecline: () => removeMention(offering[0], true),
                 }
                 : undefined}
-              detail={translate("mentions.offer.detail")}
+              control={source.kind === "comment"
+                ? (
+                  <UI.Stack gap="tight">
+                    <UI.Combobox
+                      disabled={disabled}
+                      label={translate("mentions.access.label")}
+                      onChange={(event) =>
+                        setLevel(
+                          event.currentTarget.value === "edit"
+                            ? "edit"
+                            : "read_comment",
+                        )}
+                      options={[
+                        {
+                          value: "read_comment",
+                          label: translate("mentions.access.readComment"),
+                        },
+                        {
+                          value: "edit",
+                          label: translate("mentions.access.edit"),
+                        },
+                      ]}
+                      value={level}
+                    />
+                    {level === "edit"
+                      ? (
+                        <UI.Text variant="caption">
+                          {translate("mentions.access.editHelp")}
+                        </UI.Text>
+                      )
+                      : null}
+                  </UI.Stack>
+                )
+                : undefined}
+              detail={translate(
+                source.kind === "comment" && level === "edit"
+                  ? "mentions.offer.documentDetailEdit"
+                  : words.offerDetail,
+              )}
               question={translate(
-                offerNotSent
-                  ? "mentions.offer.questionNotSent"
-                  : "mentions.offer.question",
+                offerNotSent ? words.offerQuestionNotSent : words.offerQuestion,
                 { count: offering.length, name: offering[0].name },
               )}
               // While the send that gives the access is under way, the offer is read-only.
@@ -486,23 +597,23 @@ export function useMentionField(
                 }
                 : undefined}
               detail={sharersRead.isError
-                ? translate("mentions.share.failed")
+                ? translate(words.shareFailed)
                 : sharersRead.isPending
                 ? translate("mentions.share.loading")
                 : sharers.length === 0
-                ? translate("mentions.share.lineNone", {
+                ? translate(words.shareLineNone, {
                   organization: organizationName,
                 })
-                : translate("mentions.share.line", {
+                : translate(words.shareLine, {
+                  // One name asks "them"; several ask "one of them".
+                  count: sharers.length,
                   names: translate(
                     "mentions.share.names",
                     nameParts(sharers.map((sharer) => sharer.displayName)),
                   ),
                 })}
               question={translate(
-                notSent
-                  ? "mentions.share.questionNotSent"
-                  : "mentions.share.question",
+                notSent ? words.shareQuestionNotSent : words.shareQuestion,
                 { count: blocking.length, name: blocking[0].name },
               )}
               state={disabled ? "busy" : "default"}
@@ -514,7 +625,7 @@ export function useMentionField(
             ? (
               <UI.AccessOffer
                 tone="success"
-                question={translate("mentions.sent.undone", {
+                question={translate(words.sentUndone, {
                   names: joined(sent.people.map((person) => person.name)),
                 })}
               />
@@ -528,9 +639,12 @@ export function useMentionField(
                 detail={sent.state === "failed"
                   ? translate("mentions.sent.undoFailed")
                   : undefined}
-                question={translate("mentions.sent.line", {
-                  names: joined(sent.people.map((person) => person.name)),
-                })}
+                question={translate(
+                  source.kind === "comment" && sent.level === "edit"
+                    ? "mentions.sent.documentLineEdit"
+                    : words.sentLine,
+                  { names: joined(sent.people.map((person) => person.name)) },
+                )}
                 state={sent.state === "undoing" ? "busy" : "default"}
                 // Good news is not warning-coloured; a failed undo keeps the warning.
                 tone={sent.state === "failed" ? "warning" : "success"}
@@ -550,13 +664,11 @@ export function useMentionField(
   const notice = refusals.length === 0
     ? null
     : refusals.length > 1
-    ? translate("mentions.refused.several", { count: refusals.length })
-    : translate(
-      refusals[0].code === "not_member"
-        ? "mentions.refused.notMember"
-        : "mentions.refused.noThreadAccess",
-      { name: refusals[0].mention.name, organization: organizationName },
-    );
+    ? translate(words.several, { count: refusals.length })
+    : translate(words.notMember, {
+      name: refusals[0].mention.name,
+      organization: organizationName,
+    });
 
   return {
     mentions,
@@ -609,21 +721,24 @@ export function useMentionField(
     picker,
     row,
     offered: offering.length,
+    accessLevel: level,
     sendLabel: offering.length > 0
-      ? translate("mentions.offer.send", { count: offering.length })
+      ? translate(words.offerSend, { count: offering.length })
       : null,
+    sendingLabel: offering.length > 0 ? translate(words.offerSending) : null,
+    retryLabel: translate(words.failedRetry),
     refused: refusals.length > 0,
     notice,
     blocked: blocking.length > 0,
     sendReason: blocking.length === 0 ? null : sharers.length > 0
       ? translate(
-        "mentions.share.reason",
+        words.shareReason,
         nameParts(sharers.map((sharer) => sharer.displayName)),
       )
-      : translate("mentions.share.reasonNone"),
+      : translate(words.shareReasonNone),
     failed: offering.length === 0 ? null : {
-      line: translate("mentions.failed.line"),
-      detail: translate("mentions.failed.detail", {
+      line: translate(words.failedLine),
+      detail: translate(words.failedDetail, {
         names: joined(offering.map((mention) => mention.name)),
       }),
     },
@@ -641,11 +756,9 @@ export function useMentionField(
         );
         setNotSentIds(noShare.map((entry) => entry.mention.principalId));
       }
-      // A person has no access after all, in a conversation: the offer comes back,
-      // starting "Not sent.", and the same Send gives the access. A comment never gives it.
-      const lost = source.kind === "conversation"
-        ? found.filter((entry) => entry.code === "no_thread_access")
-        : [];
+      // A person has no access after all: the offer comes back, starting
+      // "Not sent." (or "Not posted."), and the same Send gives the access.
+      const lost = found.filter((entry) => entry.code === "no_thread_access");
       if (lost.length > 0) {
         setMentions((current) =>
           markGainsAccess(
@@ -663,15 +776,17 @@ export function useMentionField(
       return true;
     },
     clear: () => {
-      if (offering.length > 0 && source.kind === "conversation") {
+      if (offering.length > 0) {
         setSent({
           people: offering.map((mention) => ({
             principalId: mention.principalId,
             name: mention.name,
           })),
+          level,
           state: "done",
         });
       }
+      setLevel("read_comment");
       setMentions([]);
       setRefusals([]);
       setNotSentIds([]);
