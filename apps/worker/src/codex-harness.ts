@@ -633,6 +633,14 @@ async function executeCodexFreeform(
     }
 
     const answerPath = join(dirs.root, "answer.txt");
+    // A turn is what Codex itself delimits, not an item: one turn holds every
+    // command, file read and message the model produces while it works, so
+    // counting items would stop a session after a few real turns. A turn is
+    // counted when it starts (the bound is hit the moment one too many starts,
+    // as on the other harnesses); `turn.completed` also counts, so a stream that
+    // reports only the end of a turn is still counted.
+    let turnsStarted = 0;
+    let turnsCompleted = 0;
     let turns = 0;
     let tokens = 0;
     let stop: FreeformStop | undefined;
@@ -640,13 +648,10 @@ async function executeCodexFreeform(
     const relay = () => stopper.abort();
     signal.addEventListener("abort", relay, { once: true });
     const reader = createJsonlReader((record) => {
-      if (record.type === "item.completed") {
-        const item = record.item;
-        const itemType = item !== null && typeof item === "object"
-          ? (item as Record<string, unknown>).type
-          : undefined;
-        if (itemType !== "reasoning") turns++;
+      if (record.type === "turn.started") {
+        turnsStarted++;
       } else if (record.type === "turn.completed") {
+        turnsCompleted++;
         const usage = record.usage;
         if (usage !== null && typeof usage === "object") {
           for (const value of Object.values(usage as Record<string, unknown>)) {
@@ -656,6 +661,7 @@ async function executeCodexFreeform(
           }
         }
       }
+      turns = Math.max(turnsStarted, turnsCompleted);
       if (stop !== undefined) return;
       if (turns > request.maxTurns) stop = "max_turns";
       else if (conservativeCostUsd(tokens) > request.maxCostUsd) {

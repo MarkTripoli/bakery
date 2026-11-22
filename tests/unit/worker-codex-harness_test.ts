@@ -551,6 +551,7 @@ ${body}
 
 const item = (type: string) =>
   `printf '%s\\n' '{"type":"item.completed","item":{"type":"${type}","text":"x"}}'`;
+const turnStart = () => `printf '%s\\n' '{"type":"turn.started"}'`;
 const turnDone = (tokens = 100) =>
   `printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":${tokens},"output_tokens":0}}'`;
 const answer = (text: string) => `printf '%s' '${text}' > "$out"`;
@@ -591,10 +592,16 @@ Deno.test({
   fn: async () => {
     const run = await freeformRun(
       [
+        turnStart(),
         item("agent_message"),
+        turnDone(),
+        turnStart(),
         item("command_execution"),
+        turnDone(),
+        turnStart(),
         item("agent_message"),
-        item("command_execution"),
+        turnDone(),
+        turnStart(),
         answer("a partial answer"),
         "sleep 60",
       ].join("\n"),
@@ -602,7 +609,54 @@ Deno.test({
       20_000,
     );
     assertEquals(freeformResult(run.outcome).status, "failed");
-    assert(run.published[0].includes("limit of 3 turns"));
+    assert(run.published[0].includes("limit of 3 turns after 4 turns"));
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform counts a turn once, however many commands and messages it holds",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        turnStart(),
+        item("agent_message"),
+        item("command_execution"),
+        item("command_execution"),
+        item("file_change"),
+        item("command_execution"),
+        item("agent_message"),
+        turnDone(),
+        answer("the answer"),
+      ].join("\n"),
+      { maxTurns: 1 },
+    );
+    // Six items, one turn: a limit of one turn is not reached.
+    assertEquals(freeformResult(run.outcome).status, "completed");
+    assertEquals(run.published[0].includes("limit of"), false);
+  },
+});
+
+Deno.test({
+  name:
+    "Codex freeform counts a turn from its end when the stream never reports its start",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        item("agent_message"),
+        turnDone(),
+        item("agent_message"),
+        turnDone(),
+        answer("a partial answer"),
+        "sleep 60",
+      ].join("\n"),
+      { maxTurns: 1 },
+      20_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "failed");
+    assert(run.published[0].includes("limit of 1 turns after 2 turns"));
   },
 });
 

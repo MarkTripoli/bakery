@@ -1039,6 +1039,56 @@ Deno.test({
   },
 });
 
+// Claude Code writes one assistant record per content block, and the blocks of
+// one reply share a message id: a reply is one turn however many records it takes.
+const assistantBlock = (id: string, block: string) =>
+  `printf '%s\\n' '{"type":"assistant","message":{"id":"${id}","role":"assistant","content":[${block}]}}'`;
+const textBlock = (text: string) => `{"type":"text","text":"${text}"}`;
+const toolUse = (n: number) =>
+  `{"type":"tool_use","id":"tool-${n}","name":"Read","input":{}}`;
+
+Deno.test({
+  name:
+    "Claude freeform counts one reply as one turn, however many records carry its blocks",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistantBlock("msg-1", textBlock("reading")),
+        assistantBlock("msg-1", toolUse(1)),
+        assistantBlock("msg-1", toolUse(2)),
+        resultLine(),
+      ].join("\n"),
+      { maxTurns: 1 },
+    );
+    // Three records, one turn: a limit of one turn is not reached.
+    assertEquals(freeformResult(run.outcome).status, "completed");
+    assertEquals(run.published[0].includes("limit of"), false);
+  },
+});
+
+Deno.test({
+  name:
+    "Claude freeform counts a second message id as a second turn and stops there",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [
+        INIT,
+        assistantBlock("msg-1", textBlock("first")),
+        assistantBlock("msg-1", toolUse(1)),
+        assistantBlock("msg-2", textBlock("second")),
+        "sleep 60",
+      ].join("\n"),
+      { maxTurns: 1 },
+      20_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "failed");
+    assert(run.published[0].includes("limit of 1 turns after 2 turns"));
+  },
+});
+
 Deno.test({
   name: "Claude freeform reports a session over its cost limit",
   ...RUN_PERMISSIONS,

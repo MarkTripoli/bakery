@@ -241,7 +241,12 @@ export type ClaudeStreamState = {
   truncated: boolean;
   /** The terminal `result` record, kept for structured-output readers. */
   resultRecord?: JsonObject;
-  /** Assistant messages seen so far: one per model turn. */
+  /**
+   * Model turns seen so far: one per distinct assistant `message.id`. Claude
+   * Code writes one assistant record per content block, and the blocks of one
+   * reply share the id, so a reply with text and two tool calls is one turn. A
+   * record that names no id counts as a turn of its own.
+   */
   assistantTurns: number;
   /** Text blocks of the assistant messages, in order, for a freeform answer. */
   answerText: string[];
@@ -489,6 +494,9 @@ export class ClaudeStreamParser {
     answerText: [],
   };
 
+  /** Ids of the assistant messages already counted as a turn. */
+  private readonly assistantMessageIds = new Set<string>();
+
   constructor(private readonly eventRecorder?: ClaudeHarnessEventRecorder) {}
 
   feed(chunk: Uint8Array): void {
@@ -597,7 +605,7 @@ export class ClaudeStreamParser {
     else if (type === "rate_limit_event") this.parseRateLimit(value);
     else if (type === "assistant") {
       this.parseAssistantError(value);
-      this.state.assistantTurns++;
+      this.countAssistantTurn(value);
       this.collectAnswerText(value);
     }
   }
@@ -627,8 +635,23 @@ export class ClaudeStreamParser {
     });
   }
 
-  // A usage-limit refusal arrives as an assistant record with a top-level
-  // error. api_retry also says `rate_limit` but is retried, so it is not quota.
+  // A reply is one turn however many records carry it, so only the first record
+  // of each message id counts; a record with no id cannot be matched and counts.
+  private countAssistantTurn(value: JsonObject): void {
+    const message = value.message;
+    const id = message !== null && typeof message === "object"
+      ? (message as JsonObject).id
+      : undefined;
+    if (typeof id !== "string" || id === "") {
+      this.state.assistantTurns++;
+    } else if (!this.assistantMessageIds.has(id)) {
+      this.assistantMessageIds.add(id);
+      this.state.assistantTurns++;
+    }
+  }
+
+  // The text blocks of an assistant record are kept, in order, as the answer a
+  // freeform step falls back to when the session never reports a result.
   private collectAnswerText(value: JsonObject): void {
     const message = value.message;
     if (message === null || typeof message !== "object") return;
@@ -644,6 +667,8 @@ export class ClaudeStreamParser {
     }
   }
 
+  // A usage-limit refusal arrives as an assistant record with a top-level
+  // error. api_retry also says `rate_limit` but is retried, so it is not quota.
   private parseAssistantError(value: JsonObject): void {
     if (value.error === "rate_limit" || value.error === "billing_error") {
       this.recordQuota({});

@@ -17,7 +17,7 @@ import type { ArtifactRef } from "./client.ts";
 import type { ExecutionOutcome } from "./executor.ts";
 import { harnessFault, sha256Hex } from "./harness-common.ts";
 import type { PublishArtifact } from "./task-brief.ts";
-import type { JobAssignment } from "./types.ts";
+import type { JobAssignment, JsonValue } from "./types.ts";
 
 export const FREEFORM_ACTION = "agent.freeform";
 
@@ -168,8 +168,9 @@ export function statusOfStop(stop: FreeformStop | undefined): FreeformStatus {
 }
 
 const encoder = new TextEncoder();
-/** The largest answer kept; the rest is cut and the cut is said. */
+/** The largest answer kept, the note that says it was cut included. */
 export const FREEFORM_MAX_ANSWER_BYTES = 256 * 1024;
+const CUT_NOTE = "\n\n> The answer was cut at the size limit.";
 
 /** Renders what the session produced, and why it stopped when it was stopped. */
 export function renderFreeformAnswer(options: {
@@ -195,14 +196,18 @@ export function renderFreeformAnswer(options: {
     );
   }
   lines.push(options.answer);
-  let bytes = encoder.encode(lines.join("\n"));
-  if (bytes.byteLength > FREEFORM_MAX_ANSWER_BYTES) {
-    bytes = encoder.encode(
-      new TextDecoder().decode(bytes.slice(0, FREEFORM_MAX_ANSWER_BYTES)) +
-        "\n\n> The answer was cut at the size limit.",
-    );
-  }
-  return bytes;
+  const bytes = encoder.encode(lines.join("\n"));
+  if (bytes.byteLength <= FREEFORM_MAX_ANSWER_BYTES) return bytes;
+  // Cut where a character ends, with room left for the note, so the result is
+  // valid UTF-8 and never larger than the limit it announces.
+  const note = encoder.encode(CUT_NOTE);
+  let end = FREEFORM_MAX_ANSWER_BYTES - note.byteLength;
+  // A continuation byte (10xxxxxx) at the cut means it falls inside a character.
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end--;
+  const kept = new Uint8Array(end + note.byteLength);
+  kept.set(bytes.subarray(0, end));
+  kept.set(note, end);
+  return kept;
 }
 
 /**
@@ -217,7 +222,7 @@ export async function freeformOutcome(options: {
   bytes: Uint8Array;
   stop: FreeformStop | undefined;
   source: string;
-  extra?: Record<string, unknown>;
+  extra?: Record<string, JsonValue>;
 }): Promise<ExecutionOutcome> {
   let artifact: ArtifactRef;
   try {
@@ -249,15 +254,13 @@ export async function freeformOutcome(options: {
       false,
     );
   }
-  return {
-    status: "completed",
-    result: {
-      sessionId: options.assignment.agentSessionId!,
-      artifacts: [artifact],
-      status: statusOfStop(options.stop),
-      ...options.extra,
-    } as unknown as import("../../../packages/contracts/src/contracts.ts").JsonValue,
+  const result: JsonValue = {
+    sessionId: options.assignment.agentSessionId!,
+    artifacts: [artifact],
+    status: statusOfStop(options.stop),
+    ...options.extra,
   };
+  return { status: "completed", result };
 }
 
 /**

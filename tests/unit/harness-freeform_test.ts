@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  FREEFORM_MAX_ANSWER_BYTES,
   parseFreeformTimeout,
   renderFreeformAnswer,
   statusOfStop,
@@ -70,13 +71,38 @@ Deno.test("a stopped session says which limit stopped it before the partial answ
   assertEquals(text.endsWith("Half an answer."), true);
 });
 
-Deno.test("an answer over the size limit is cut and says so", () => {
-  const text = new TextDecoder().decode(renderFreeformAnswer({
-    answer: "x".repeat(300 * 1024),
-    stop: undefined,
-    turns: 1,
-    limits,
-  }));
-  assertEquals(text.endsWith("The answer was cut at the size limit."), true);
-  assertEquals(text.length < 300 * 1024, true);
+const CUT_NOTE = "The answer was cut at the size limit.";
+const render = (answer: string) =>
+  renderFreeformAnswer({ answer, stop: undefined, turns: 1, limits });
+
+Deno.test("an answer over the size limit is cut and says so, within the limit", () => {
+  const bytes = render("x".repeat(300 * 1024));
+  const text = new TextDecoder().decode(bytes);
+  assertEquals(text.endsWith(CUT_NOTE), true);
+  // The limit is the largest answer kept, so the note has to fit inside it.
+  assertEquals(bytes.byteLength <= FREEFORM_MAX_ANSWER_BYTES, true);
+});
+
+Deno.test("an answer of exactly the size limit is kept whole, with no note", () => {
+  const bytes = render("x".repeat(FREEFORM_MAX_ANSWER_BYTES));
+  assertEquals(bytes.byteLength, FREEFORM_MAX_ANSWER_BYTES);
+  assertEquals(new TextDecoder().decode(bytes).includes(CUT_NOTE), false);
+});
+
+Deno.test("a cut never splits a multi-byte character, wherever it falls", () => {
+  // Two, three and four byte characters, with 0 to 3 bytes of padding so the
+  // cut lands at every offset inside a character.
+  for (const character of ["é", "日", "🙂"]) {
+    for (let padding = 0; padding < 4; padding++) {
+      const bytes = render(
+        "x".repeat(padding) + character.repeat(FREEFORM_MAX_ANSWER_BYTES),
+      );
+      assertEquals(bytes.byteLength <= FREEFORM_MAX_ANSWER_BYTES, true);
+      // A strict decoder throws on a split character; the replacement
+      // character is what a lenient one would have written instead.
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      assertEquals(text.includes("\uFFFD"), false, `${character} +${padding}`);
+      assertEquals(text.endsWith(CUT_NOTE), true);
+    }
+  }
 });
