@@ -124,7 +124,6 @@ async function taskStatus(
   return rows[0]!.status;
 }
 
-/** Distinct sessions per model-backed step, and the cycle rows' provenance. */
 /**
  * The step names of one review cycle: the step whose session produced the
  * candidate and the review step that judged it. A repair round's steps are the
@@ -138,6 +137,7 @@ const REPAIR_CYCLE: CycleSteps = {
   review: "repair@1.repair_review@0",
 };
 
+/** Distinct sessions per model-backed step, and the cycle rows' provenance. */
 async function assertProvenance(
   ctx: ScenarioContext,
   runId: string,

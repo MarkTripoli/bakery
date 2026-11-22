@@ -76,10 +76,10 @@ type StepRow = {
   error: Record<string, unknown> | null;
 };
 
-/** Steps of a run in the order the engine takes them. */
 /** A run step's key without the plan container prefix the engine adds. */
 const PLAN_STEP_KEY = "regexp_replace(step.step_key, '^flow\\.', '')";
 
+/** Steps of a run in the order the engine takes them. */
 export async function readSteps(
   world: World,
   runId: string,
