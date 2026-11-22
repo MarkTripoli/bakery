@@ -975,6 +975,13 @@ a.bakery-application-rail__link:hover {
   padding: var(--gutter);
 }
 
+/* The page stays mounted, but hidden, while Bakery is being updated (#59). The
+   rest of the time its wrapper has no box, so the page lays out exactly as if
+   nothing wrapped it (a child sized by a percentage of main still is). */
+.bakery-app-shell__main > [data-update-cover]:not([hidden]) {
+  display: contents;
+}
+
 .bakery-app-shell[data-main-inset="flush"] .bakery-app-shell__main,
 .bakery-app-shell[data-main-inset="page"] .bakery-app-shell__main,
 .bakery-app-shell[data-main-inset="pageWide"] .bakery-app-shell__main {

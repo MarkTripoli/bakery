@@ -919,7 +919,7 @@ function ShellFrame() {
           was typed on the page is still there when Bakery is back. */
       }
       <div
-        data-update-cover={update.updating ? "" : undefined}
+        data-update-cover=""
         hidden={update.updating}
       >
         <StartupGate

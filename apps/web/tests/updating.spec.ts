@@ -250,3 +250,18 @@ test("away with no pause seen first: no being-updated page, the page stays as it
   await expect(toast(page)).toHaveCount(0);
   await expect(announcement(page)).toHaveText("");
 });
+
+test("the wrapper around the page has no box of its own until Bakery is being updated", async ({ page }) => {
+  const world = await updateWorld(page, { paused: true });
+  await open(page);
+  // Not updating: the page lays out exactly as if nothing wrapped it, so a
+  // child sized by a percentage of the shell's main area still is.
+  const cover = page.locator("[data-update-cover]");
+  await expect(cover).toHaveCount(1);
+  await expect(cover).toHaveCSS("display", "contents");
+  world.away = true;
+  await nextRead(page);
+  await expect(updating(page)).toBeVisible();
+  await expect(cover).toHaveAttribute("hidden", "");
+  await expect(cover).toHaveCSS("display", "none");
+});
