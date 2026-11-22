@@ -55,10 +55,8 @@ import {
   undeliveredStepNotes,
 } from "../execution/step-notes.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
-import {
-  type DeliveryStepRunner,
-  isDeliveryStepAction,
-} from "../delivery/delivery-steps.ts";
+import { isEngineSettledStepAction } from "@bakery/contracts/implemented-actions";
+import type { EngineStepRunner } from "./engine-steps.ts";
 import {
   nextPlanStep,
   planActionAgentsFromSnapshot,
@@ -457,16 +455,16 @@ function stateFromRow(
     });
   }
   const terminal = isTerminal(row);
-  // A delivery step has no job. While its next look is not due it reads as
+  // An engine-settled step has no job. While its next look is not due it reads as
   // admitted and retryable, so the engine sleeps; once due it reads as not
   // admitted, so the engine admits it again and the step reads its effect back.
-  const deliveryRetryAt = row.jobId === null && !terminal
-    ? deliveryRetryAtOf(row.stepDispatch)
+  const stepRetryAt = row.jobId === null && !terminal
+    ? stepRetryAtOf(row.stepDispatch)
     : null;
-  const deliveryWaiting = deliveryRetryAt !== null &&
-    deliveryRetryAt.getTime() > Date.now();
+  const stepWaiting = stepRetryAt !== null &&
+    stepRetryAt.getTime() > Date.now();
   const admission = row.jobId === null
-    ? (deliveryWaiting ? { key, terminal } : undefined)
+    ? (stepWaiting ? { key, terminal } : undefined)
     : {
       key,
       terminal,
@@ -482,8 +480,8 @@ function stateFromRow(
     attempts,
     liveAttempts,
     maxAttempts: persistedMaxAttempts(row, configuredMaxAttempts),
-    ...(deliveryWaiting && deliveryRetryAt !== null
-      ? { nextRetryAt: deliveryRetryAt }
+    ...(stepWaiting && stepRetryAt !== null
+      ? { nextRetryAt: stepRetryAt }
       : row.availableAt && new Date(row.availableAt).getTime() > Date.now()
       ? { nextRetryAt: new Date(row.availableAt) }
       : {}),
@@ -1506,31 +1504,31 @@ async function projectRunEnd(
   });
 }
 
-/** Audit operation recorded when the engine settles a delivery step itself. */
-export const WORKFLOW_DELIVERY_STEP_OPERATION = "workflow.delivery.complete";
+/** Audit operation recorded when the engine settles a step a pack runner owns. */
+export const WORKFLOW_ENGINE_STEP_OPERATION = "workflow.step.complete";
 
-/** How long a delivery step that is not done waits before the engine looks at it again. */
-const DELIVERY_STEP_RETRY_MS = 10_000;
+/** How long an engine-settled step that is not done waits before the engine looks at it again. */
+const ENGINE_STEP_RETRY_MS = 10_000;
 
-/** When the engine looks at a waiting delivery step again, as it recorded on the step row. */
-function deliveryRetryAtOf(dispatch: unknown): Date | null {
-  const at = jsonRecord(dispatch)?.deliveryRetryAt;
+/** When the engine looks at a waiting engine-settled step again, as it recorded on the step row. */
+function stepRetryAtOf(dispatch: unknown): Date | null {
+  const at = jsonRecord(dispatch)?.stepRetryAt;
   if (typeof at !== "string") return null;
   const time = Date.parse(at);
   return Number.isNaN(time) ? null : new Date(time);
 }
 
 /**
- * Settles a delivery step (`delivery.prepare`, `delivery.deploy`,
- * `delivery.health`) the way a projection is settled: no job, no budget. The
+ * Settles a step a pack runner owns (the delivery steps today) the way a
+ * projection is settled: no job, no budget. The
  * target is called outside any transaction, between two short ones: the first
  * decides the step is still due, the second records what the call answered.
  * A step that is not done keeps its row pending and carries the time of its
  * next look, so a crash anywhere in between replays into the same effect key.
  */
-async function admitDeliveryStep(
+async function admitEngineStep(
   database: PgDatabase,
-  runner: DeliveryStepRunner | undefined,
+  runner: EngineStepRunner | undefined,
   key: LogicalInvocationKey,
   owner: EngineOwner | undefined,
 ): Promise<AdmissionRecord | null> {
@@ -1543,19 +1541,19 @@ async function admitDeliveryStep(
     if (!carriesPlanRuntime(row.runSnapshot)) return null;
     if (planDispatchFromRow(row.stepDispatch) === null) return null;
     const { action, input } = actionAndInputFromSnapshot(row);
-    if (!isDeliveryStepAction(action)) return null;
+    if (!isEngineSettledStepAction(action)) return null;
     const eligible = eligibleRunStatuses[row.runStatus] &&
       eligibleStepStatuses[row.stepStatus] && row.cancelRequestedAt === null;
     return { row, action, input, eligible: eligible === true };
   });
   if (due === null) return null;
   if (!due.eligible) return { key, terminal: true };
-  if (runner === undefined) {
+  if (runner === undefined || !runner.handles(due.action)) {
     return await withPgTransaction(database, async (transaction) => {
       await projectFailure(
         transaction,
         due.row,
-        "DELIVERY_STEP_UNAVAILABLE:Deployment steps are not configured on this server.",
+        "ENGINE_STEP_UNAVAILABLE:No runner is configured for this step on this server.",
         owner,
       );
       return { key, terminal: true };
@@ -1568,7 +1566,7 @@ async function admitDeliveryStep(
       await projectFailure(
         transaction,
         due.row,
-        "DELIVERY_REQUESTER_MISSING:The run has no requesting person to record the deployment under.",
+        "ENGINE_STEP_REQUESTER_MISSING:The run has no requesting person to record the step under.",
         owner,
       );
       return { key, terminal: true };
@@ -1604,7 +1602,7 @@ async function admitDeliveryStep(
         key,
         due.action,
         result.output,
-        WORKFLOW_DELIVERY_STEP_OPERATION,
+        WORKFLOW_ENGINE_STEP_OPERATION,
       );
     }
     if (result.kind === "failed") {
@@ -1620,7 +1618,7 @@ async function admitDeliveryStep(
     await transaction.query(
       `update bakery.run_steps
           set dispatch = dispatch || jsonb_build_object(
-                'deliveryRetryAt',
+                'stepRetryAt',
                 to_char(
                   (clock_timestamp() + ($3::integer * interval '1 millisecond'))
                     at time zone 'UTC',
@@ -1630,7 +1628,7 @@ async function admitDeliveryStep(
               started_at = coalesce(started_at, clock_timestamp()),
               updated_at = clock_timestamp(), version = version + 1
         where organization_id = $1 and id = $2 and status = 'pending'`,
-      [row.organizationId, row.runStepId, DELIVERY_STEP_RETRY_MS],
+      [row.organizationId, row.runStepId, ENGINE_STEP_RETRY_MS],
     );
     const runUpdate = await transaction.query<{ version: number }>(
       `update bakery.workflow_runs
@@ -1651,8 +1649,8 @@ export function createBakeryPostgresWorkflowRepository(options: {
   database: PgDatabase;
   maxAttempts: number;
   budgetPolicy?: BudgetPolicy;
-  /** Settles the delivery steps of a plan (prepare, deploy, health); none fails them with a stable code. */
-  deliverySteps?: DeliveryStepRunner;
+  /** Settles the steps a pack owns (delivery prepare, deploy, health); none fails them with a stable code. */
+  engineSteps?: EngineStepRunner;
   /** The host's view of a plan run (`$delivery`, a halt); none leaves both unresolved. */
   planHost?: PlanHostReader;
 }): BakeryPostgresWorkflowRepository {
@@ -2092,9 +2090,9 @@ export function createBakeryPostgresWorkflowRepository(options: {
     },
     async admit(key, owner) {
       assertLogicalKey(key);
-      const delivery = await admitDeliveryStep(
+      const delivery = await admitEngineStep(
         options.database,
-        options.deliverySteps,
+        options.engineSteps,
         key,
         owner,
       );
@@ -2624,8 +2622,8 @@ export function createBakeryFixedWorkflow(options: {
   engineRetries: number;
   budgetPolicy?: BudgetPolicy;
   planHost?: PlanHostReader;
-  /** Settles the delivery steps of a plan; none fails them with a stable code. */
-  deliverySteps?: DeliveryStepRunner;
+  /** Settles the steps a pack owns; none fails them with a stable code. */
+  engineSteps?: EngineStepRunner;
   /** Durable operations one function run may use; a test sets it small. */
   stepOperationBudget?: number;
 }) {
@@ -2636,7 +2634,7 @@ export function createBakeryFixedWorkflow(options: {
     maxAttempts: options.maxAttempts,
     budgetPolicy: options.budgetPolicy,
     planHost: options.planHost,
-    deliverySteps: options.deliverySteps,
+    engineSteps: options.engineSteps,
   });
   const engineRetries = options.engineRetries as
     | 1
@@ -3198,14 +3196,14 @@ export function createBakeryWorkflowRecovery(options: {
   limit?: number;
   budgetPolicy?: BudgetPolicy;
   planHost?: PlanHostReader;
-  deliverySteps?: DeliveryStepRunner;
+  engineSteps?: EngineStepRunner;
 }) {
   const repository = createBakeryPostgresWorkflowRepository({
     database: options.database,
     maxAttempts: 1,
     budgetPolicy: options.budgetPolicy,
     planHost: options.planHost,
-    deliverySteps: options.deliverySteps,
+    engineSteps: options.engineSteps,
   });
   const limit = options.limit ?? 50;
   return options.client.createFunction(

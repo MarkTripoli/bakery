@@ -1088,6 +1088,23 @@ export const workflowRuntimeImplementedActions = Object.freeze(
   Object.values(WorkflowRuntimeImplementedAction),
 );
 
+/**
+ * Actions the engine settles in its own admission, over time, through a runner a
+ * pack registers: no worker job. A projection finishes in one pass; these may
+ * answer "not yet" and are looked at again.
+ */
+export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
+  [
+    WorkflowRuntimeImplementedAction.DeliveryPrepare,
+    WorkflowRuntimeImplementedAction.DeliveryDeploy,
+    WorkflowRuntimeImplementedAction.DeliveryHealth,
+  ] as const,
+);
+
+export function isEngineSettledStepAction(action: string): boolean {
+  return (ENGINE_SETTLED_STEP_ACTIONS as readonly string[]).includes(action);
+}
+
 /** Proves a workflow action registry holds exactly its assigned subset. */
 export function assertImplementedWorkflowActionRegistry(
   registry: { list(): readonly { action: string }[] },

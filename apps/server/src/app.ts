@@ -787,7 +787,7 @@ export function createApp(options: {
       // Delivery steps run only where the install configured a target.
       ...(options.config.deliveryTarget
         ? {
-          deliverySteps: createDeliveryStepRunner({
+          engineSteps: createDeliveryStepRunner({
             database: options.pgDatabase,
             targets: createLocalDeliveryTargets(options.config.deliveryTarget),
           }),

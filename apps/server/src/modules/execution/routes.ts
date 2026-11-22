@@ -1,5 +1,5 @@
 import { type Context, Hono } from "hono";
-import type { DeliveryStepRunner } from "../delivery/delivery-steps.ts";
+import type { EngineStepRunner } from "../workflow-adapter/engine-steps.ts";
 import type { ArtifactActions } from "../knowledge/resource-routes.ts";
 import type { InngestRuntimeConfig } from "@bakery/config";
 import { problemResponse, StandardError } from "@bakery/contracts/http";
@@ -105,8 +105,8 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   ticketNoteWriter?: TicketNoteWriter;
   /** Changes Bakery's progress labels; see `ticket-labels.ts`. */
   ticketLabelWriter?: TicketLabelWriter;
-  /** Settles the delivery steps of a plan; absent, they fail with a stable code. */
-  deliverySteps?: DeliveryStepRunner;
+  /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
+  engineSteps?: EngineStepRunner;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -219,7 +219,7 @@ export function createExecutionRoutes(
       integrations: options.integrations,
       ticketNoteWriter: options.ticketNoteWriter,
       ticketLabelWriter: options.ticketLabelWriter,
-      deliverySteps: options.deliverySteps,
+      engineSteps: options.engineSteps,
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);

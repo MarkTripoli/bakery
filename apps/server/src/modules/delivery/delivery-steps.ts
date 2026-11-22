@@ -20,6 +20,11 @@ import {
   type DeploymentEnvironment,
 } from "./deployment-states.ts";
 import type { HealthEvidence } from "./local-release-target.ts";
+import type {
+  EngineStepRequest,
+  EngineStepResult,
+  EngineStepRunner,
+} from "../workflow-adapter/engine-steps.ts";
 import { createPostgresDeploymentLedger } from "./postgres-deployment-ledger.ts";
 import {
   deployEffectKey,
@@ -73,29 +78,17 @@ export function isDeliveryStepAction(
   return (DELIVERY_STEP_ACTIONS as readonly string[]).includes(action);
 }
 
-/** What the engine knows about the step it hands over. */
-export type DeliveryStepRequest = Readonly<{
-  organizationId: string;
-  runId: string;
-  taskId: string;
-  repositoryId: string | null;
-  requestedBy: string;
-  traceId: string;
-  stepKey: string;
-  iteration: number;
-  action: DeliveryStepAction;
-  input: unknown;
-}>;
+/** What the engine hands a delivery step; the action is one of ours. */
+export type DeliveryStepRequest =
+  & EngineStepRequest
+  & Readonly<{
+    action: DeliveryStepAction;
+  }>;
 
-/** The three ways a step can answer: done, refused with a stable code, or not yet. */
-export type DeliveryStepResult =
-  | Readonly<{ kind: "completed"; output: unknown }>
-  | Readonly<{ kind: "failed"; code: string; message: string }>
-  | Readonly<{ kind: "pending" }>;
+export type DeliveryStepResult = EngineStepResult;
 
-export type DeliveryStepRunner = Readonly<{
-  run(request: DeliveryStepRequest): Promise<DeliveryStepResult>;
-}>;
+/** The engine's port, owned here for the three delivery actions. */
+export type DeliveryStepRunner = EngineStepRunner;
 
 /** Where releases go: the target of a repository, and of an environment when the step names one. */
 export type DeliveryTargets = Readonly<{
@@ -625,14 +618,24 @@ export function createDeliveryStepRunner(
   }
 
   return {
+    handles: isDeliveryStepAction,
     run(request) {
-      switch (request.action) {
+      if (!isDeliveryStepAction(request.action)) {
+        return Promise.resolve(
+          failed(
+            "DELIVERY_ACTION_UNKNOWN",
+            "This runner does not own that action.",
+          ),
+        );
+      }
+      const owned: DeliveryStepRequest = { ...request, action: request.action };
+      switch (owned.action) {
         case "delivery.prepare":
-          return runPrepare(request);
+          return runPrepare(owned);
         case "delivery.deploy":
-          return runDeploy(request);
+          return runDeploy(owned);
         case "delivery.health":
-          return runHealth(request);
+          return runHealth(owned);
       }
     },
   };

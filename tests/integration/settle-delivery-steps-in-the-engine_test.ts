@@ -2,10 +2,10 @@ import { assert, assertEquals } from "@std/assert";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 import { decideResume } from "../../apps/server/src/modules/workflow-adapter/resume-decision.ts";
 import type {
-  DeliveryStepRequest,
-  DeliveryStepResult,
-  DeliveryStepRunner,
-} from "../../apps/server/src/modules/delivery/delivery-steps.ts";
+  EngineStepRequest,
+  EngineStepResult,
+  EngineStepRunner,
+} from "../../apps/server/src/modules/workflow-adapter/engine-steps.ts";
 import { seedPlanRun, setRow } from "../helpers/plan-run.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
@@ -44,12 +44,12 @@ async function atTheDeliveryStep(fixture: WorkerFixture) {
 
 function repositoryWith(
   fixture: WorkerFixture,
-  deliverySteps?: DeliveryStepRunner,
+  engineSteps?: EngineStepRunner,
 ) {
   return createBakeryPostgresWorkflowRepository({
     database: fixture.pgDatabase,
     maxAttempts: 3,
-    ...(deliverySteps ? { deliverySteps } : {}),
+    ...(engineSteps ? { engineSteps } : {}),
   });
 }
 
@@ -61,7 +61,7 @@ const step = async (fixture: WorkerFixture, runId: string) =>
     retryAt: string | null;
   }>(
     `select status, output, error,
-            dispatch ->> 'deliveryRetryAt' as "retryAt"
+            dispatch ->> 'stepRetryAt' as "retryAt"
        from bakery.run_steps where run_id = $1 and step_key = 'prep'`,
     [runId],
   )).rows[0];
@@ -77,8 +77,9 @@ const audits = async (fixture: WorkerFixture, runId: string) =>
 Deno.test("a delivery step the target completes is written by the engine with no job (#43)", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await atTheDeliveryStep(fixture);
-    const seen: DeliveryStepRequest[] = [];
-    const runner: DeliveryStepRunner = {
+    const seen: EngineStepRequest[] = [];
+    const runner: EngineStepRunner = {
+      handles: () => true,
       run: (request) => {
         seen.push(request);
         return Promise.resolve({ kind: "completed", output: PREPARED });
@@ -99,7 +100,7 @@ Deno.test("a delivery step the target completes is written by the engine with no
     assertEquals(row.output, PREPARED);
     assert(
       (await audits(fixture, seeded.job.runId)).includes(
-        "workflow.delivery.complete",
+        "workflow.step.complete",
       ),
     );
     const jobs = await fixture.pgDatabase.query(
@@ -115,8 +116,9 @@ Deno.test("a step that is not done stays pending, reads as retryable until its n
   withWorkerFixture(async (fixture) => {
     const seeded = await atTheDeliveryStep(fixture);
     let calls = 0;
-    const runner: DeliveryStepRunner = {
-      run: (): Promise<DeliveryStepResult> => {
+    const runner: EngineStepRunner = {
+      handles: () => true,
+      run: (): Promise<EngineStepResult> => {
         calls += 1;
         return Promise.resolve(
           calls === 1
@@ -144,7 +146,7 @@ Deno.test("a step that is not done stays pending, reads as retryable until its n
     // Once due it reads as not admitted, so the engine admits it again.
     await fixture.pgDatabase.query(
       `update bakery.run_steps
-          set dispatch = jsonb_set(dispatch, '{deliveryRetryAt}',
+          set dispatch = jsonb_set(dispatch, '{stepRetryAt}',
                                    to_jsonb('2020-01-01T00:00:00.000Z'::text))
         where run_id = $1 and step_key = 'prep'`,
       [seeded.job.runId],
@@ -164,7 +166,8 @@ Deno.test("a step that is not done stays pending, reads as retryable until its n
 Deno.test("a refusal fails the step with its stable code, and no configured runner fails it the same way (#43)", () =>
   withWorkerFixture(async (fixture) => {
     const refused = await atTheDeliveryStep(fixture);
-    const runner: DeliveryStepRunner = {
+    const runner: EngineStepRunner = {
+      handles: () => true,
       run: () =>
         Promise.resolve({
           kind: "failed",
@@ -192,15 +195,16 @@ Deno.test("with no runner configured a delivery step fails with a stable code in
     assertEquals((await repository.admit(key, seeded.owner)).terminal, true);
     const row = await step(fixture, seeded.job.runId);
     assertEquals(row.status, "failed");
-    assert(JSON.stringify(row.error).includes("DELIVERY_STEP_UNAVAILABLE"));
+    assert(JSON.stringify(row.error).includes("ENGINE_STEP_UNAVAILABLE"));
   }));
 
 Deno.test("a crash after the target answered and before the step was written leaves the step pending and replays it (#43)", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await atTheDeliveryStep(fixture);
     let calls = 0;
-    const runner: DeliveryStepRunner = {
-      run: (): Promise<DeliveryStepResult> => {
+    const runner: EngineStepRunner = {
+      handles: () => true,
+      run: (): Promise<EngineStepResult> => {
         calls += 1;
         // The first call dies after its effect, as a killed process would: the
         // engine never hears the answer and writes nothing.
