@@ -17,6 +17,7 @@ import {
   renderFreeformAnswer,
 } from "./harness-freeform.ts";
 import {
+  contextTamperingRefusal,
   prepareHarnessContext,
   type ReadAttemptContext,
 } from "./harness-context.ts";
@@ -1787,6 +1788,10 @@ async function executePiHarness(
       signal.aborted ? "abort" : rpc.parser.state.settled ? "normal" : "abort",
     );
     if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    // A step that changed its own inputs answered a different question than
+    // the one admission pinned, so nothing it produced is published.
+    const tampering = await contextTamperingRefusal(context);
+    if (tampering !== null) return tampering;
     if (run.timedOut) {
       if (
         run.teardown !== "not-needed" && run.teardown.status === "unconfirmed"
@@ -2213,6 +2218,10 @@ async function executePiFreeform(
       run.teardown !== "not-needed" && run.teardown.status === "unconfirmed"
     ) return harnessTeardownFault("PI", run.teardown);
     if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    // A step that changed its own inputs answered a different question than
+    // the one admission pinned, so nothing it produced is published.
+    const tampering = await contextTamperingRefusal(context);
+    if (tampering !== null) return tampering;
     live.parser.finish();
     const state = live.parser.state;
     if (stop === undefined && run.timedOut) stop = "timeout";

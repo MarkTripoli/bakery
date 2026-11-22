@@ -1,6 +1,7 @@
 import { basename, join, relative, resolve } from "node:path";
 import { withStepNotes } from "./step-notes-prompt.ts";
 import {
+  contextTamperingRefusal,
   prepareHarnessContext,
   type ReadAttemptContext,
 } from "./harness-context.ts";
@@ -1583,6 +1584,10 @@ async function executeClaudeHarness(
     parser.finish();
     const sessionId = parser.state.sessionId;
     if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    // A step that changed its own inputs answered a different question than
+    // the one admission pinned, so nothing it produced is published.
+    const tampering = await contextTamperingRefusal(context);
+    if (tampering !== null) return tampering;
     if (run.timedOut) {
       if (
         run.teardown !== "not-needed" && run.teardown.status === "unconfirmed"
@@ -1905,6 +1910,10 @@ async function executeClaudeFreeform(
     // The caller's own abort wins over every bound: nothing is published for
     // work somebody asked to stop.
     if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    // A step that changed its own inputs answered a different question than
+    // the one admission pinned, so nothing it produced is published.
+    const tampering = await contextTamperingRefusal(context);
+    if (tampering !== null) return tampering;
     if (stop === undefined && run.timedOut) stop = "timeout";
     const record = parser.state.resultRecord;
     if (

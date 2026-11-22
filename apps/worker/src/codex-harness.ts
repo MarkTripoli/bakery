@@ -18,6 +18,7 @@ import {
   renderFreeformAnswer,
 } from "./harness-freeform.ts";
 import {
+  contextTamperingRefusal,
   prepareHarnessContext,
   type ReadAttemptContext,
 } from "./harness-context.ts";
@@ -434,6 +435,10 @@ async function executeCodexHarness(
       ],
     });
     if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    // A step that changed its own inputs answered a different question than
+    // the one admission pinned, so nothing it produced is published.
+    const tampering = await contextTamperingRefusal(context);
+    if (tampering !== null) return tampering;
     if (run.timedOut) {
       if (
         run.teardown !== "not-needed" && run.teardown.status === "unconfirmed"
@@ -720,6 +725,10 @@ async function executeCodexFreeform(
       run.teardown !== "not-needed" && run.teardown.status === "unconfirmed"
     ) return harnessTeardownFault("CODEX", run.teardown);
     if (signal.aborted) return harnessCanceledOutcome(run.teardown);
+    // A step that changed its own inputs answered a different question than
+    // the one admission pinned, so nothing it produced is published.
+    const tampering = await contextTamperingRefusal(context);
+    if (tampering !== null) return tampering;
     if (stop === undefined && run.timedOut) stop = "timeout";
     const answerText = await Deno.readTextFile(answerPath).catch(() => "");
     if (stop === undefined && (run.code !== 0 || answerText.trim() === "")) {

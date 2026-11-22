@@ -17,6 +17,7 @@
  */
 
 import { join } from "node:path";
+import { harnessFault } from "./harness-common.ts";
 import type { WorkerContextInput } from "./client.ts";
 import type { ContextDocument } from "./context-document.ts";
 import { type ContextTreeFault, verifyContextTree } from "./context-digest.ts";
@@ -27,6 +28,7 @@ import {
 } from "./context-seed.ts";
 import { renderContextDocument } from "./context-document.ts";
 import type { JobAssignment } from "./types.ts";
+import type { ExecutionOutcome } from "./executor.ts";
 
 /** Reads the bytes the server pinned for one attempt. */
 export type ReadAttemptContext = (
@@ -163,6 +165,28 @@ export async function verifyHarnessContext(
   const document = context.document;
   if (document === undefined) return [];
   return await verifyContextTree({ contextDir: context.contextDir, document });
+}
+
+/**
+ * The refusal a step earns when it changed its own pinned inputs.
+ *
+ * Every adapter asks this after its harness exits and before it publishes
+ * anything, so no adapter can enforce it alone: a check that lived inside one
+ * of them would be a property of that harness rather than of the step.
+ */
+export async function contextTamperingRefusal(
+  context: HarnessContext,
+): Promise<ExecutionOutcome | null> {
+  const faults = await verifyHarnessContext(context);
+  if (faults.length === 0) return null;
+  return harnessFault(
+    "HARNESS_CONTEXT_TAMPERED",
+    `The step changed its own pinned inputs: ${
+      describeContextTampering(faults)
+    }. Its output was not accepted.`,
+    409,
+    false,
+  );
 }
 
 /** One line naming what the step did to its inputs, for a refusal. */
