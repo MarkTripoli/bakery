@@ -6208,5 +6208,13 @@
   "library.evaluation.cost.exhausted.body": "⟪Checks still run, and they cost nothing.⟫",
   "library.evaluation.sampled.help": "⟪A model's opinion on a sample of the test cases.⟫",
   "library.evaluation.sampled.show": "⟪Show the {count, plural, one {# sampled result} other {# sampled results}}⟫",
-  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫"
+  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫",
+  "shell.states.updatePausedTitle": "⟪Bakery is about to be updated.⟫",
+  "shell.states.updatePausedDescription": "⟪New work waits and starts by itself afterwards.⟫",
+  "shell.states.updatingTitle": "⟪Bakery is being updated⟫",
+  "shell.states.updatingDescription": "⟪This usually takes a few minutes. Your work is paused and carries on by itself afterwards. This page reloads when Bakery is back.⟫",
+  "shell.states.updatingChecking": "⟪Started {time} · checking again in {seconds, plural, one {# second} other {# seconds}}⟫",
+  "shell.states.updatingLonger": "⟪This is taking longer than usual. If it lasts, tell whoever runs your Bakery server.⟫",
+  "shell.states.updatingUpdated": "⟪Bakery was updated.⟫",
+  "shell.states.updatingNotUpdated": "⟪Bakery is back. The update did not go through.⟫"
 }

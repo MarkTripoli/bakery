@@ -37,6 +37,7 @@ import {
   InstallationSettingsNavigation,
 } from "./InstallationSettingsNavigation.tsx";
 import { HeldBanner } from "./HeldBanner.tsx";
+import { UpdateNotices, UpdatingPage, useUpdateWatch } from "./UpdateWatch.tsx";
 import { OrganizationSettingsNavigation } from "./OrganizationSettingsNavigation.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import {
@@ -613,6 +614,8 @@ function ShellFrame() {
   const pageTitle = usePageTitle(pathname);
   // The New task panel sits under Work, so the trail says so.
   const creatingTask = pathname === "/tasks/new" || pathname === "/tasks/new/";
+  // Says when Bakery is about to be, is being, or was updated (#59).
+  const update = useUpdateWatch();
   const onNavigate = (
     event: MouseEvent<HTMLAnchorElement>,
     item: { readonly href: string },
@@ -906,16 +909,29 @@ function ShellFrame() {
       )}
       variant={shellVariant}
     >
-      <HeldBanner pathname={pathname} />
-      <StartupGate
-        enabled={needsOrganization}
-        failure={restore.failure}
-        onRetry={restore.retry}
-        onSignOut={() => void navigate({ to: SIGN_OUT_PATH })}
-        signOutHref={SIGN_OUT_PATH}
+      {update.updating
+        ? null
+        : <HeldBanner pathname={pathname} updatePaused={update.paused} />}
+      <UpdateNotices update={update} />
+      {update.updating ? <UpdatingPage update={update} /> : null}
+      {
+        /* Hidden, never unmounted, while Bakery is being updated (#59): what
+          was typed on the page is still there when Bakery is back. */
+      }
+      <div
+        data-update-cover={update.updating ? "" : undefined}
+        hidden={update.updating}
       >
-        <Outlet />
-      </StartupGate>
+        <StartupGate
+          enabled={needsOrganization}
+          failure={restore.failure}
+          onRetry={restore.retry}
+          onSignOut={() => void navigate({ to: SIGN_OUT_PATH })}
+          signOutHref={SIGN_OUT_PATH}
+        >
+          <Outlet />
+        </StartupGate>
+      </div>
       <OrganizationSwitchGuard onAsk={() => setNavigationOpen(false)} />
     </UI.AppShell>
   );
