@@ -685,10 +685,23 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
       capabilities: ["git", "shell", "web", "model", "claude"],
       slots: 1,
     });
-    enrollmentId = String(made.enrollmentId);
-    // The setup code is shown once and was not shown here: new settings make one.
-    await page.goto(`/machines/new?finish=${enrollmentId}`);
+    const first = String(made.enrollmentId);
+    // The setup code is shown once and was not shown here: new settings cancel
+    // this setup and make a replacement. The worker registers with the
+    // replacement, so every later step follows the replacement's id, not this one.
+    await page.goto(`/machines/new?finish=${first}`);
+    const replaced = page.waitForResponse((response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.startsWith(
+        `/v1/worker-enrollments/${first}`,
+      )
+    );
     await page.getByRole("button", { name: "Get new settings" }).click();
+    const replacement = await replaced;
+    expect(replacement.ok(), `replacement: ${replacement.status()}`).toBe(true);
+    enrollmentId =
+      ((await replacement.json()) as { enrollmentId: string }).enrollmentId;
+    expect(enrollmentId, "the replacement is a new setup").not.toBe(first);
   }
   remember("enrollmentId", enrollmentId);
 
