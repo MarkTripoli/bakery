@@ -493,14 +493,15 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
   // A pin names one exact version, so a repeated run measures the same thing.
-  const pins = [["candidate", input.candidate], [
-    "baseline",
-    input.baseline,
-  ]] as const;
-  for (const [field, pin] of pins) {
-    if (field === "baseline" && (pin === undefined || pin === null)) continue;
-    const checked = validatePin(pin);
-    if (!checked.ok) unprocessable(field, checked.reason);
+  // Hashed and stored as validated, so one version has one spelling and one digest.
+  const checkedCandidate = validatePin(input.candidate);
+  if (!checkedCandidate.ok) unprocessable("candidate", checkedCandidate.reason);
+  const candidatePin = checkedCandidate.pin;
+  let baselinePin: typeof candidatePin | null = null;
+  if (input.baseline !== undefined && input.baseline !== null) {
+    const checkedBaseline = validatePin(input.baseline);
+    if (!checkedBaseline.ok) unprocessable("baseline", checkedBaseline.reason);
+    baselinePin = checkedBaseline.pin;
   }
   const dataset = await tx.query<DatasetRow>(
     "select * from bakery.evaluation_datasets where organization_id = $1 and id = $2",
@@ -549,7 +550,7 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
       input.scorerIds.indexOf(a.scorerId) - input.scorerIds.indexOf(b.scorerId)
     );
   const repetitions = input.repetitions ?? 1;
-  const roles: Role[] = input.baseline === undefined || input.baseline === null
+  const roles: Role[] = baselinePin === null
     ? ["candidate"]
     : ["candidate", "baseline"];
   const cases = dataset.rows[0].cases;
@@ -561,8 +562,8 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
   };
   const pinDigest = await sha256(canonical(pinSpec({
     datasetDigest: dataset.rows[0].digest,
-    candidate: input.candidate,
-    baseline: roles.length === 2 ? input.baseline : null,
+    candidate: candidatePin,
+    baseline: baselinePin,
     scorers: scorers.map((s) => ({
       scorerId: s.scorerId,
       scorerRevision: s.scorerRevision,
@@ -579,8 +580,8 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
       organizationId,
       input.datasetId,
       dataset.rows[0].digest,
-      JSON.stringify(input.candidate),
-      roles.length === 2 ? JSON.stringify(input.baseline) : null,
+      JSON.stringify(candidatePin),
+      baselinePin === null ? null : JSON.stringify(baselinePin),
       JSON.stringify(scorers),
       JSON.stringify(rule),
       JSON.stringify({
@@ -717,16 +718,23 @@ async function viewOf(
     }
   >(
     `select d.evaluator_type, u.measurement, count(*)::text as n,
-            sum(u.cost_usd)::text as cost,
+            sum(u.cost)::text as cost,
             to_char(min(a.created_at) at time zone 'UTC', ${TS}) as since
        from bakery.evaluation_attempts a
        join bakery.evaluation_results r
          on r.organization_id = a.organization_id and r.id = a.result_id
        join bakery.evaluation_definitions d
          on d.organization_id = r.organization_id and d.id = r.scorer_id
-       left join bakery.usage_records u
-         on u.organization_id = a.organization_id
-        and u.attempt_id::text = a.delivery_key
+       left join lateral (
+         select case when count(*) = 0 then null
+                     when bool_or(x.measurement = 'unknown') then 'unknown'
+                     when bool_or(x.measurement = 'estimated') then 'estimated'
+                     else 'reported' end as measurement,
+                sum(x.cost_usd) as cost
+           from bakery.usage_records x
+          where x.organization_id = a.organization_id
+            and x.attempt_id::text = a.delivery_key
+       ) u on true
       where a.organization_id = $1 and r.batch_id = $2
       group by 1, 2`,
     [organizationId, row.id],

@@ -387,7 +387,9 @@ export function validatePin(
     ok: true,
     pin: {
       kind: record.kind as PinKind,
-      id: record.id,
+      // The same version has one spelling: a UUID's case does not name a
+      // different one, and the pin digest hashes this spelling.
+      id: record.id.toLowerCase(),
       version: record.version,
     },
   };

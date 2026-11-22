@@ -468,6 +468,113 @@ Deno.test("AC3: a model attempt that ends with no ledger receipt is an unknown c
     assertEquals((checkAttempts.items as Json[]).map((a) => a.usage), [null]);
   }));
 
+/** One provider call's ledger row for a delivery key: the key is the worker attempt id the ledger carries. */
+function usageRow(
+  fixture: Fixture,
+  deliveryKey: string,
+  measurement: "reported" | "estimated" | "unknown",
+  costUsd: string | null,
+) {
+  const call = crypto.randomUUID();
+  return fixture.pgDatabase.query(
+    `insert into bakery.usage_records (organization_id, run_id, run_step_id,
+       attempt_id, worker_host_id, worker_session_id, worker_session_generation,
+       fence, result_event_id, usage_fact_id, canonical_digest, provider,
+       billing_account_id, model, billing_type, cost_usd, measurement,
+       provider_call_id, pricing_metadata_snapshot, dedupe_key, occurred_at,
+       budget_reservation_id)
+     values ($1, $2, $2, $3, $2, $2, 1, 1, $2, $4, 'digest', 'p', 'acct', 'm',
+             'api', $5, $6, $4, 'snapshot', $4, now(), $2)`,
+    [
+      fixture.organizationId,
+      crypto.randomUUID(),
+      deliveryKey,
+      call,
+      costUsd,
+      measurement,
+    ],
+  );
+}
+
+Deno.test("the budget counts attempts, not provider calls, and agrees with the attempts list", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const batch = await ok(
+      await admitWith(fixture, w, {
+        scorerIds: [w.rubric.id],
+        budgetLimitUsd: "5.00",
+      }),
+      201,
+    );
+    const model = await results(fixture, batch.id);
+    // One attempt made two calls and both are unknown; another made a
+    // reported call and an unknown one. Each attempt is one unknown cost.
+    const first = crypto.randomUUID();
+    const second = crypto.randomUUID();
+    await record(fixture, model[0].id, "error", null, first);
+    await record(fixture, model[1].id, "error", null, second);
+    await usageRow(fixture, first, "unknown", null);
+    await usageRow(fixture, first, "unknown", null);
+    await usageRow(fixture, second, "reported", "0.010000");
+    await usageRow(fixture, second, "unknown", null);
+    const read = await ok(
+      await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+    );
+    const budget = read.budget as Json;
+    assertEquals(budget.unknownCount, 2, "two attempts, four ledger rows");
+    assertEquals(budget.status, "unsettled");
+    let unknownAttempts = 0;
+    for (const result of model) {
+      const attempts = await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/evaluation-results/" + result.id + "/attempts",
+        ),
+      );
+      for (const attempt of attempts.items as Json[]) {
+        assertEquals((attempt.usage as Json).measurement, "unknown");
+        unknownAttempts++;
+      }
+    }
+    assertEquals(
+      budget.unknownCount,
+      unknownAttempts,
+      "the batch budget and the attempts list say the same thing",
+    );
+  }));
+
+Deno.test("two pins that differ only in the case of the id are one pin with one digest", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const scorerIds = [w.schema.id];
+    const lower = await ok(await admitWith(fixture, w, { scorerIds }), 201);
+    const upper = await ok(
+      await admitWith(fixture, w, {
+        scorerIds,
+        candidate: { ...PIN, id: PIN.id.toUpperCase() },
+      }),
+      201,
+    );
+    assertEquals(upper.pinDigest, lower.pinDigest);
+    assertEquals(
+      (upper.candidate as Json).id,
+      PIN.id,
+      "stored in one spelling",
+    );
+    const listed = await ok(
+      await call(
+        fixture,
+        "GET",
+        "/v1/evaluation-batches?pinDigest=" + lower.pinDigest,
+      ),
+    );
+    assertEquals(
+      (listed.items as Json[]).map((b) => b.id).sort(),
+      [lower.id, upper.id].sort(),
+    );
+  }));
+
 /** A scorer revision with its own config (a deterministic check is {kind, config}). */
 async function definition(
   fixture: Fixture,
