@@ -535,7 +535,6 @@ for (
       await expect(save).toHaveCount(0);
       await page.getByRole("radio", { name: "Stop and ask" }).check();
       await expect(save).toBeEnabled();
-      const saveBox = (await save.boundingBox())!;
       await page.mouse.move(5, 5);
       await still(page, "updates-policy-changed");
       await save.click();
@@ -544,9 +543,14 @@ for (
       await expect(savedToast).toHaveText(
         /Saved\. It applies from the next update\./,
       );
-      // The answer to Save takes the button's place, inside the section.
+      // The answer to Save sits right under the hint, inside the section: both
+      // are measured now, in one frame, so a scroll cannot skew the distance.
+      const hintBox =
+        (await policy.getByText(/^Either way, an update that would/)
+          .boundingBox())!;
       const savedBox = (await savedToast.boundingBox())!;
-      expect(Math.abs(savedBox.y - saveBox.y)).toBeLessThan(40);
+      expect(savedBox.y).toBeGreaterThanOrEqual(hintBox.y + hintBox.height - 1);
+      expect(savedBox.y - (hintBox.y + hintBox.height)).toBeLessThan(80);
       expect(fixture.writes).toEqual([{
         body: {
           registrationMode: "invitation",
@@ -569,8 +573,15 @@ for (
       expect(fixture.writes[1]?.ifMatch).toBe('"v4"');
       const conflict = policy.locator("[data-result='conflict']");
       await expect(conflict).toBeVisible();
+      const conflictHint = (await policy.getByText(
+        /^Either way, an update that would/,
+      ).boundingBox())!;
       const conflictBox = (await conflict.boundingBox())!;
-      expect(Math.abs(conflictBox.y - saveBox.y)).toBeLessThan(80);
+      expect(conflictBox.y).toBeGreaterThanOrEqual(
+        conflictHint.y + conflictHint.height - 1,
+      );
+      expect(conflictBox.y - (conflictHint.y + conflictHint.height))
+        .toBeLessThan(80);
       // Changing the choice clears the saved message.
       await expect(savedToast).toHaveCount(0);
       await page.mouse.move(5, 5);
