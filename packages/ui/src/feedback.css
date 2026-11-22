@@ -92,6 +92,17 @@
   }
 }
 
+/* A notice that opts in to its action below: on a phone it wraps, and the
+   action takes its own full-width row under the text. */
+@media (max-width: 743px) {
+  .ui-inline-notice[data-action-layout="below"] {
+    flex-wrap: wrap;
+  }
+  .ui-inline-notice[data-action-layout="below"] > .ui-inline-notice__action {
+    flex: 1 1 100%;
+  }
+}
+
 .ui-inline-notice__icon,
 .ui-alert-banner__icon {
   flex: none;

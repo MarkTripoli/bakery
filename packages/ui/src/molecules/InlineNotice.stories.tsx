@@ -35,6 +35,13 @@ const BaseContract: StoryObj = {
         >
           A batch is waiting for approval.
         </InlineNotice>
+        <InlineNotice
+          tone="warning"
+          actionLayout="below"
+          action={<Button variant="secondary">Dismiss</Button>}
+        >
+          On a phone the button sits on its own row under this text.
+        </InlineNotice>
       </Stack>
     );
   },
