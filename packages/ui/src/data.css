@@ -1801,6 +1801,12 @@
   padding: var(--space-0);
   text-align: start;
 }
+/* A ruled table whose first cell is the row's button: that button is a tall tap
+   target with its text centred, so the other cells centre too and a row's four
+   cells share one text line. */
+.ui-data-table--ruled:has(.ui-data-table__select) td {
+  vertical-align: middle;
+}
 .ui-data-table__select > * {
   display: block;
 }

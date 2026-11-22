@@ -94,6 +94,15 @@ export const DEFAULT_STEP_FILES: Readonly<{
   write: WORKFLOW_FILE_WRITE_AREAS,
 });
 
+/**
+ * What a files section that names `read` but not `write` may write: only
+ * the step's own outputs and workspace. An omitted write is least privilege,
+ * not the O45 defaults, so a read-only section never reaches the tree's write
+ * areas (#448).
+ */
+export const OMITTED_STEP_FILES_WRITE: readonly WorkflowFileWriteArea[] = Object
+  .freeze(["outputs", "workspace"] as const);
+
 /** The files a step runs with: its own section, or the defaults when it has none. */
 export function resolveStepFiles(
   files: WorkflowStepFiles | undefined,
