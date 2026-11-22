@@ -149,7 +149,8 @@ function nowCopy(
     case "clean":
       return {
         title: t("tasks.delivery.now.clean.title"),
-        body: t("tasks.delivery.now.clean.body"),
+        // The title says it; the two settled lines under it say why (#57).
+        body: "",
         action: null,
       };
     case "approval":
@@ -769,7 +770,7 @@ function ReadyView(
       <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
         {copy.title}
       </UI.Heading>
-      <UI.Text>{copy.body}</UI.Text>
+      {copy.body === "" ? null : <UI.Text>{copy.body}</UI.Text>}
       {offline && (
         <UI.Text>
           {t("tasks.delivery.offline")}
