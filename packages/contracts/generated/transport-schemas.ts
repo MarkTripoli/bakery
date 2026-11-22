@@ -5530,6 +5530,135 @@ const transportSchemas = {
       ],
       "description": "Admin creation of one provider binding: an explicit authorized account placement naming provider, billing route, harness component and credential location for one machine."
     },
+    "WorkerMaintenanceCreate": {
+      "fields": [
+        {
+          "name": "verb",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "refresh_inventory",
+            "verify",
+            "install_component",
+            "update_component",
+            "rollback_component",
+            "remove_component"
+          ],
+          "description": "Typed maintenance verb. refresh_inventory and verify only read the host; every other verb changes it and closes the machine's claim gate until the operation ends."
+        },
+        {
+          "name": "componentKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 255
+          },
+          "description": "Inventory component key the verb acts on. Required for install, update, rollback and remove; optional for verify; not allowed for refresh_inventory. An existing component must be Bakery-managed, never an external install."
+        },
+        {
+          "name": "targetVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Exact version to install, update or roll back to. Required for install_component and update_component; not allowed for refresh_inventory, verify or remove_component."
+        },
+        {
+          "name": "targetDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest the target version must match; only allowed together with targetVersion."
+        },
+        {
+          "name": "expectedInventoryRevision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; the same key with the same body replays the original operation, with a different body it is IDEMPOTENCY_PAYLOAD_MISMATCH.",
+        "At most one unfinished mutating operation per machine: a second is STATE_CONFLICT with reason maintenance_in_progress.",
+        "A revoked machine is STATE_CONFLICT. An externally managed component is UNPROCESSABLE with reason externally_managed.",
+        "Never cancels or changes running task attempts: a busy machine starts in waiting_for_idle."
+      ],
+      "description": "Admin request for one typed, pinned maintenance operation on one machine. There is no shell command input: the worker adapter maps the verb to fixed executables."
+    },
+    "WorkerMaintenanceReport": {
+      "fields": [
+        {
+          "name": "fence",
+          "type": "decimalString",
+          "required": true,
+          "description": "Maintenance fence from the heartbeat assignment. It must equal the operation's current fence; a stale or foreign fence is AUTH_FORBIDDEN."
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "minimum": 1
+          },
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+        },
+        {
+          "name": "phase",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "applying",
+            "succeeded",
+            "failed",
+            "reconciling",
+            "rolled_back"
+          ],
+          "description": "Phase the worker reached: applying before the irreversible switch, reconciling when the outcome is unknown, or a final succeeded, failed or rolled_back (stored as failed with reason rolled_back)."
+        },
+        {
+          "name": "installedDigest",
+          "type": "sha256",
+          "required": false,
+          "description": "Lowercase hex SHA-256 of the release manifest actually installed now. A reconciling operation is decided only by this value: it succeeds when it equals the target digest."
+        },
+        {
+          "name": "installedVersion",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Version string actually installed now, as the host adapter reports it."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Short machine reason code for the report, for example release_verification_failed, or removed when a remove_component operation finds the component gone."
+        },
+        {
+          "name": "diagnostic",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 8192
+          },
+          "description": "Safe diagnostic text of at most 8 KiB; the server redacts recognised credentials before storing it."
+        }
+      ],
+      "rules": [
+        "The operation must belong to the calling machine at its current credential generation.",
+        "Reports are accepted only while the operation is assigned, applying or reconciling; a finished operation refuses new reports with STATE_CONFLICT except exact replays.",
+        "A reconciling operation reaches succeeded or failed only from a report that carries installedDigest, or for remove_component a report without it whose reason is removed."
+      ],
+      "description": "Worker report for one maintenance operation it was assigned: the fenced, sequenced phase it reached and what is installed now. There is no shell output here, only bounded redacted text."
+    },
     "WorkerProviderBindingUpdate": {
       "fields": [
         {
@@ -8298,12 +8427,27 @@ const transportSchemas = {
           "type": "boolean",
           "required": false,
           "description": "True to clear the install's recorded last update failure without changing its version or status."
+        },
+        {
+          "name": "approveCapabilities",
+          "type": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 7
+          },
+          "description": "The capabilities the new version asks for that the version this install pins now did not, approved by the caller for this move: exactly those and no others. Without them, a version that asks for more is not activated and the install stays as it is. Only meaningful with a versionId that differs from the pinned one."
+        },
+        {
+          "name": "restoreState",
+          "type": "boolean",
+          "required": false,
+          "description": "True to move back to a version the install left by restoring the state as that version left it, discarding what was saved since. Only the version the install's snapshot was taken from can be restored, and only when it can read that state; only meaningful with a versionId that differs from the pinned one."
         }
       ],
       "rules": [
-        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
+        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that asks for capabilities the pinned one did not is activated only when approveCapabilities names exactly those (plugin_capabilities_not_approved, plugin_capability_approval_mismatch otherwise), and one that cannot read the state the install holds is not activated (plugin_state_incompatible) unless restoreState brings back the snapshot taken as the install left that version (plugin_state_snapshot_not_for_version when the snapshot is of another version). Moving takes a fresh snapshot of the state in the same transaction. approveCapabilities or restoreState without another version is VALIDATION_FAILED. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible, plugin_state_snapshot_not_for_version) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
       ],
-      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active; added capabilities need the caller's approval, and incompatible state blocks the move unless a restore is asked for. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "fields": [
@@ -14483,6 +14627,41 @@ const transportSchemas = {
       ],
       "description": "The host runner's report of the restorable window it holds off-site."
     },
+    "WorkerListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of the machine list, bound to the caller, organization and includeArchived choice; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most machines returned in one page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "includeArchived",
+          "type": "boolean",
+          "required": false,
+          "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip. Order is createdAt then id ascending; a cursor is good only with the same includeArchived value."
+      ],
+      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+    },
     "WorkerLinkCodeInspect": {
       "fields": [
         {
@@ -20577,6 +20756,77 @@ const transportSchemas = {
       "pageOf": "WorkerComponent",
       "description": "Cursor page of one machine's typed installed/available component inventory, projected from the latest accepted worker inventory report; Developer-readable and free of host-local paths or secret material."
     },
+    "WorkerMaintenanceOperation": {
+      "projection": "worker_maintenance_operations",
+      "fields": [
+        "id",
+        "workerHostId",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "requestedBy",
+        "expectedInventoryRevision",
+        "expectedCredentialGeneration",
+        "capturedDesiredMode",
+        "phase",
+        "deadlineAt",
+        "expiresAt",
+        "result",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "result"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workerHostId": "uuid",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "requestedBy": "uuid",
+        "expectedInventoryRevision": "integer",
+        "expectedCredentialGeneration": "integer",
+        "capturedDesiredMode": "enum(accepting|paused|draining|revoked)",
+        "phase": "enum(queued|waiting_for_idle|assigned|applying|reconciling|succeeded|failed|canceled|expired|needs_attention)",
+        "deadlineAt": "timestamp",
+        "expiresAt": "timestamp",
+        "result": "json",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One durable maintenance operation on a machine: the typed verb, its exact target pin, who asked, the host state it was requested against, and its current phase. Developer-readable; carries no shell input, host paths or secrets.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the maintenance operation.",
+        "workerHostId": "Machine the operation runs on.",
+        "verb": "Typed maintenance verb; refresh_inventory and verify are read-only, the rest change the machine.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version the operation installs, updates or rolls back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the target version must match, or null.",
+        "requestedBy": "Principal ID of the Admin who requested the operation.",
+        "expectedInventoryRevision": "Machine inventory revision the operation was requested against; a worker must not apply it to different inventory.",
+        "expectedCredentialGeneration": "Machine credential generation at request time; a re-paired machine cannot pick up the operation.",
+        "capturedDesiredMode": "The machine's desired mode when the operation was requested, restored only if no newer Admin change replaces it.",
+        "phase": "Current phase: queued, waiting_for_idle (running work finishes first), assigned, applying, reconciling, or a terminal succeeded, failed, canceled, expired; needs_attention when it waited too long or the outcome is unknown.",
+        "deadlineAt": "When an operation still waiting for the machine to go idle needs Admin attention (30 minutes after the request); running work is never canceled.",
+        "expiresAt": "When a request that never reached the machine expires instead of running on a later reconnect (24 hours after the request).",
+        "result": "Bounded, redacted outcome reported for a finished operation, or null.",
+        "createdAt": "UTC timestamp when the operation was requested.",
+        "updatedAt": "UTC timestamp of the last phase change.",
+        "version": "Row version, incremented on every phase change."
+      }
+    },
+    "Page<WorkerMaintenanceOperation>": {
+      "pageOf": "WorkerMaintenanceOperation",
+      "description": "Cursor page of one machine's maintenance operations, newest first; Developer-readable and free of shell input, host paths or secret material."
+    },
     "Page<ModelProviderAccount>": {
       "pageOf": "ModelProviderAccount",
       "description": "Cursor page of the organization's provider accounts with safe display identities and known/unknown account-level quota observations; Admin-only and never carrying billing identity values."
@@ -24196,6 +24446,8 @@ const transportSchemas = {
         "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
+        "archivedAt",
+        "cleanup",
         "createdAt",
         "updatedAt",
         "version"
@@ -24218,15 +24470,18 @@ const transportSchemas = {
         "unsettledAttemptCount": "integer",
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
+        "archivedAt": "timestamp|null",
+        "cleanup": "WorkerHostCleanup",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
       },
       "nullableFields": [
         "lastHeartbeatAt",
-        "readinessReason"
+        "readinessReason",
+        "archivedAt"
       ],
-      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
+      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the worker host record.",
         "principalId": "Stable UUID linking this record to the related principal entity.",
@@ -24245,6 +24500,8 @@ const transportSchemas = {
         "unsettledAttemptCount": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
+        "archivedAt": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID.",
+        "cleanup": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
@@ -25509,13 +25766,15 @@ const transportSchemas = {
         "workerSessionId",
         "workerSessionGeneration",
         "serverTime",
-        "inventoryRevision"
+        "inventoryRevision",
+        "maintenanceAssignments"
       ],
       "optionalFields": [
         "reconciledAttemptIds",
         "workerSessionId",
         "workerSessionGeneration",
-        "serverTime"
+        "serverTime",
+        "maintenanceAssignments"
       ],
       "fieldTypes": {
         "workerHostId": "uuid",
@@ -25527,9 +25786,11 @@ const transportSchemas = {
         "workerSessionId": "uuid",
         "workerSessionGeneration": "decimalString",
         "serverTime": "timestamp",
-        "inventoryRevision": "integer"
+        "inventoryRevision": "integer",
+        "maintenanceAssignments": "WorkerMaintenanceAssignment[]"
       },
       "bounds": {
+        "maintenanceAssignmentsMaxItems": 20,
         "pendingCommandsMaxItems": 100,
         "commandAcksMaxItems": 100,
         "reconciledAttemptIdsMaxItems": 100
@@ -25545,7 +25806,8 @@ const transportSchemas = {
         "workerSessionId": "Server-issued session identifier for the worker process.",
         "workerSessionGeneration": "Monotonic server fence for the worker process session.",
         "serverTime": "PostgreSQL-authoritative receipt time for deriving monotonic client deadlines.",
-        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response."
+        "inventoryRevision": "Host inventory revision (always at least 1) after this heartbeat applied; the worker bases its next inventory/check report on it and holds claims until a report for this revision is accepted. A replayed heartbeat returns the revision stored with the original response.",
+        "maintenanceAssignments": "Up to 20 maintenance operations this machine must run or keep reporting on (assigned, applying or reconciling), oldest first; always present in new responses, and an empty list means nothing to do. A replayed heartbeat repeats the stored list."
       }
     },
     "WorkerCommand": {
@@ -25597,6 +25859,50 @@ const transportSchemas = {
         "commandId": "Stable UUID linking this record to the related command entity.",
         "status": "Current lifecycle status of the record.",
         "acknowledgedAt": "Timestamp recorded by PostgreSQL when the terminal outcome was committed."
+      }
+    },
+    "WorkerMaintenanceAssignment": {
+      "fields": [
+        "operationId",
+        "workerHostId",
+        "credentialGeneration",
+        "verb",
+        "componentKey",
+        "targetVersion",
+        "targetDigest",
+        "expectedInventoryRevision",
+        "fence",
+        "deadlineAt"
+      ],
+      "nullableFields": [
+        "componentKey",
+        "targetVersion",
+        "targetDigest"
+      ],
+      "fieldTypes": {
+        "operationId": "uuid",
+        "workerHostId": "uuid",
+        "credentialGeneration": "integer",
+        "verb": "enum(refresh_inventory|verify|install_component|update_component|rollback_component|remove_component)",
+        "componentKey": "string",
+        "targetVersion": "string",
+        "targetDigest": "sha256",
+        "expectedInventoryRevision": "integer",
+        "fence": "decimalString",
+        "deadlineAt": "timestamp"
+      },
+      "description": "One maintenance operation handed to the machine in a heartbeat response. It binds the operation to this host, its credential generation and a fence; a duplicate delivery repeats the same assignment and never asks the host to run it twice.",
+      "fieldDescriptions": {
+        "operationId": "Maintenance operation the machine must run and report on.",
+        "workerHostId": "Machine the assignment is bound to.",
+        "credentialGeneration": "Machine credential generation the assignment is bound to; a re-paired machine cannot report on it.",
+        "verb": "Typed maintenance verb the host adapter maps to fixed executables.",
+        "componentKey": "Inventory component the verb acts on, or null for whole-machine verbs.",
+        "targetVersion": "Exact version to install, update or roll back to, or null.",
+        "targetDigest": "SHA-256 of the release manifest the installed result must match, or null.",
+        "expectedInventoryRevision": "Inventory revision the operation was requested against; the host must not apply it to different inventory.",
+        "fence": "Maintenance fence for this operation, strictly greater than every earlier fence on this machine; every report must carry it.",
+        "deadlineAt": "When the host must have reported progress; past it an applying operation with no report moves to reconciling instead of being retried."
       }
     },
     "WorkerRegistrationResult": {
@@ -28736,7 +29042,9 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -28752,13 +29060,16 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "lastUpdateFailure": "json|null"
+        "lastUpdateFailure": "json|null",
+        "stateCopy": "json|null",
+        "cannotReadVersionIds": "uuid[]"
       },
       "nullableFields": [
         "ownerPrincipalId",
         "activatedAt",
         "disabledAt",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy"
       ],
       "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
       "fieldDescriptions": {
@@ -28775,10 +29086,14 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this plugin install record.",
         "updatedAt": "Timestamp recording the last update to this plugin install record.",
         "version": "Monotonic revision used to order or conditionally update this plugin install record.",
-        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show.",
+        "stateCopy": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved.",
+        "cannotReadVersionIds": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it."
       },
       "optionalFields": [
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ]
     },
     "Page<PluginInstall>": {
@@ -36799,6 +37114,29 @@ const transportSchemas = {
       "pageOf": "InstallationUpdateEvent",
       "description": "Cursor page of the update history returned by `GET /v1/installation/updates`, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
+    "WorkerHostCleanup": {
+      "projection": "worker_hosts",
+      "fields": [
+        "state",
+        "requestedAt",
+        "confirmedAt"
+      ],
+      "fieldTypes": {
+        "state": "enum(not_requested|unconfirmed|confirmed)",
+        "requestedAt": "timestamp|null",
+        "confirmedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "requestedAt",
+        "confirmedAt"
+      ],
+      "description": "Read-only outcome of local cleanup on a retired machine. not_requested while the host has never been revoked; unconfirmed from the moment of revocation, because a revoked credential can no longer report; confirmed only when the same host later re-pairs and reports the Bakery-owned binaries and service files it removed. Lost connectivity never reads as removal.",
+      "fieldDescriptions": {
+        "state": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself.",
+        "requestedAt": "UTC timestamp when revocation requested local cleanup; null when it was never requested.",
+        "confirmedAt": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+      }
+    },
     "WorkerLinkCodeInspection": {
       "fields": [
         "organizationName",
@@ -37742,6 +38080,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Provider binding or auth attempt state changed (binding created/updated, auth attempt issued, won, failed or canceled); fetch the safe binding projection. Public payloads contain references/versions, never provider responses or credentials."
+    },
+    "worker.maintenance_updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A machine maintenance operation was requested or changed phase (resourceId is the operation, resourceVersion its row version); fetch the safe operation projection. Trigger consumers always re-read durable state."
     },
     "worker.updated": {
       "schemaVersion": 1,

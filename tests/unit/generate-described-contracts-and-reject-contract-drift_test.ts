@@ -884,16 +884,24 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "9422f56a8b751ca4a57edf8c02149606e8da529a",
+    "dc1728c0f3e887d52aec240ec602e9da14aa7e35",
   ];
   const approvedDigest =
-    "sha256:70103759445477b4a67ba14765c615aee4392117d2e9f71ff535e66d6dc8a6f9";
+    "sha256:ad327569850d96568a2ea09792b94a086cd308761092a2ce6a8dd136824994ca";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #59 slice 3 rebind onto main 9422f56a8: main's own approval, kept unchanged.
+    // Displaced by the #59 slice 3 rebind onto main dc1728c0f: main's own approval, kept unchanged.
+    "sha256:0e92d311a1f2274c39ae8f13895c0b7423df24a3b62458e2f278fbd990e255b2",
+    // Displaced when main moved again (#876 merged): my previous #25 approval on main 9422f56a8.
+    "sha256:dd56648af7ba5523cc95bd57715731a20eaf66a21f32266d21629f61f634027c",
+    // Displaced when main moved again (#70 one-paste link merged): my previous #25 approval on main bab18ab7d/46f1ca889.
+    "sha256:2199a6ed830ff45d9b59b5fe83b40c9f92dd0b0594789e40e697003d74dce978",
+    // Displaced by the #25 maintenance rebind onto main 9422f56a8: main's own #70 approval, kept unchanged.
     "sha256:74cd9dbc5efe4ab6e8ddf44bd016fa24bcc95b07c43255cccde24f19183f763f",
+    // Displaced earlier (#59 ask 9 merged): my #25 slice C approval on main 7ff69adbf.
+    "sha256:6da4387e06fe3baf8453668e397561d7b4ac346ed9012201f9ea7409f987e74c",
     // Displaced by the #70 round-3 rebind onto main 46f1ca889: my previous #70 approval on main bab18ab7d, kept unchanged.
     "sha256:503059407be95022ac2cbf30a6e2560f71d4c1cf358494228b80ac079b5b5561",
     // Displaced by the #70 one-paste link rebind onto main bab18ab7d: main's own #59 ask 9 approval, kept unchanged.
