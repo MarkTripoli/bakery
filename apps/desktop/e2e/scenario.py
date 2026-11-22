@@ -564,7 +564,7 @@ def phase_sign_out():
     start_len, opened_before = len(views(p)), len(opened_browsers(p))
     press(p, "sign_in")
     check("[sign out] signing in again works", sign_in_to_app_from_waiting(p, start_len, opened_before))
-    still_listed = desktop_sessions()
+    still_listed = settled_sessions()
     check("[sign out] the server is stopped", server_flag("stop"))
     press(p, "sign_out")
     check("[sign out] with no answer the window still comes back, within seconds",
@@ -573,7 +573,9 @@ def phase_sign_out():
     check("[sign out] and says the server may still list it", window.get("ended_on_server") is False, str(window))
     check("[sign out] the sign-in is removed from this computer anyway", stored() == "")
     check("[sign out] the server is started again", server_flag("start"))
-    check("[sign out] and still lists the sign-in, as the window said", desktop_sessions() == still_listed)
+    now_listed = settled_sessions()
+    check("[sign out] and still lists the sign-in, as the window said", now_listed == still_listed,
+          f"before {still_listed}, after {now_listed}")
     stop_app()
 
 
