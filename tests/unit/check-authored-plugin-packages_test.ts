@@ -105,6 +105,11 @@ const ESCAPES: Record<string, string> = {
   "import that climbs out from a subdirectory":
     'import { x } from "../../x.ts";',
   "import of a file the package lacks": 'import { x } from "./missing.ts";',
+  "triple-slash reference (QA880 A1)":
+    '/// <reference path="../outside.d.ts" />',
+  "deno-types pragma (QA880 A2)": '// @deno-types="../outside.d.ts"',
+  "pragma in a block comment": '/* @ts-self-types="../outside.d.ts" */',
+  "jsx import source pragma": "/** @jsxImportSource npm:preact */",
 };
 
 for (const [name, line] of Object.entries(ESCAPES)) {
@@ -218,4 +223,24 @@ Deno.test("a relative import of a file in the package, or a host file, is allowe
     POLICY,
   );
   assertEquals(result.diagnostics, []);
+});
+
+Deno.test("a package may not ship a config the host typecheck would read", async () => {
+  const result = await checkPluginPackage(
+    example({ "deno.json": '{"imports":{"x":"../x.ts"}}' }),
+    POLICY,
+  );
+  assertEquals(
+    result.diagnostics.map((d) => d.code),
+    ["PATH_RESERVED"],
+  );
+  assertEquals(
+    result.report.checks.find((c) => c.id === "typecheck")?.status,
+    "skipped",
+  );
+});
+
+Deno.test("the report says where the typecheck ran", async () => {
+  const result = await checkPluginPackage(example(), POLICY);
+  assertEquals(result.report.typecheckMode, "host_isolated");
 });

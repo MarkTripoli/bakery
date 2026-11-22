@@ -290,3 +290,49 @@ Deno.test("a parent-directory import cannot read a host file back through diagno
     }
   });
 });
+
+for (
+  const [name, directive] of [
+    [
+      "triple-slash reference (QA880 P7, A1)",
+      (p: string) => `/// <reference path="${p}" />`,
+    ],
+    [
+      "deno-types pragma (QA880 A2)",
+      (p: string) => `// @deno-types="${p}"\nimport "./sdk.ts";`,
+    ],
+  ] as const
+) {
+  Deno.test(`a compiler directive cannot read a host file back through diagnostics: ${name}`, () => {
+    const dir = Deno.makeTempDirSync({ prefix: "bakery-qa880-p7-" });
+    Deno.writeTextFileSync(
+      `${dir}/qa880-p7-types.d.ts`,
+      'declare const qa880P7: "TOPSECRET-QA880-P7";\n',
+    );
+    // The check's directory is made beside this one, so one level up reaches it.
+    const target = `../${
+      dir.slice(dir.lastIndexOf("/") + 1)
+    }/qa880-p7-types.d.ts`;
+    const generator = scriptedGenerator([
+      counterPackage({
+        "job.ts": `${directive(target)}\nconst n: "x" = qa880P7;\n${JOB}`,
+      }),
+    ]);
+    const preview = previewRunner(localDenoRuntime());
+    return withAuthoringFixture({ generator, preview }, async ({ fixture }) => {
+      try {
+        const run = await authored(fixture, { maxAttempts: 1 });
+        assertEquals(run.status, "blocked");
+        assertEquals(JSON.stringify(run).includes("TOPSECRET-QA880-P7"), false);
+        assertEquals(
+          run.attempts[0].checkReport.checks.find((c: { id: string }) =>
+            c.id === "typecheck"
+          ).status,
+          "skipped",
+        );
+      } finally {
+        await Deno.remove(dir, { recursive: true }).catch(() => undefined);
+      }
+    });
+  });
+}

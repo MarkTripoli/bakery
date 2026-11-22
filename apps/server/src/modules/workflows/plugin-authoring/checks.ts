@@ -93,11 +93,27 @@ export type PluginPackageCheckResult = Readonly<{
     checks: readonly PluginPackageCheckOutcome[];
     sdkVersion: string;
     filesDigest: string;
+    /**
+     * Where the typecheck ran: host_isolated is the server's own Deno in a
+     * fresh directory holding only the package and the host files, with its
+     * own empty config and cache, no remote, npm or lock file and an empty
+     * environment. The server has no containment runtime; jobs get that one.
+     */
+    typecheckMode: "host_isolated";
   }>;
   manifest: PluginManifest | null;
   sdkRange: string | null;
   bundle: PluginBundle | null;
 }>;
+
+/** Names the host's own typecheck config uses, which a package may not ship. */
+const HOST_CONFIG_NAMES: ReadonlySet<string> = new Set([
+  "deno.json",
+  "deno.jsonc",
+  "package.json",
+  "node_modules",
+  "import_map.json",
+]);
 
 const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const SOURCE_FILE = /\.(?:ts|js|mjs|mts|tsx|jsx)$/;
@@ -129,6 +145,23 @@ const FORBIDDEN_TOKENS: readonly Readonly<
   { pattern: /\bimport\s*\(/, label: "import(" },
   { pattern: /\bimport\.meta\b/, label: "import.meta" },
   { pattern: /\bWorker\b/, label: "Worker" },
+];
+
+/**
+ * Comment directives the TypeScript and Deno compilers follow to load another
+ * file: any triple-slash directive, and the type and JSX pragmas. A package
+ * never needs one (its types come from ./sdk.ts), so each is refused outright
+ * rather than resolved, whether written in a line or a block comment.
+ */
+const COMPILER_DIRECTIVES: readonly Readonly<
+  { pattern: RegExp; label: string }
+>[] = [
+  { pattern: /\/\/\/\s*</, label: "a triple-slash directive" },
+  {
+    pattern:
+      /@(?:deno-types|ts-types|ts-self-types|jsxImportSource|jsxImportSourceTypes|jsxRuntime|jsxFrag|jsx)\b/,
+    label: "a compiler pragma",
+  },
 ];
 
 // Whitespace after the keyword is optional: `import{a}from"x"` is valid.
@@ -234,7 +267,10 @@ function checkFileTree(files: PluginPackageFiles): PluginPackageDiagnostic[] {
         "not a relative POSIX path of plain segments",
         path,
       ));
-    } else if (Object.hasOwn(HOST_OWNED_FILES, path)) {
+    } else if (
+      Object.hasOwn(HOST_OWNED_FILES, path) ||
+      HOST_CONFIG_NAMES.has(path.split("/")[0])
+    ) {
       out.push(diagnostic(
         "file_tree",
         "PATH_RESERVED",
@@ -411,6 +447,18 @@ function checkIsolation(files: PluginPackageFiles): PluginPackageDiagnostic[] {
         }
       }
     }
+    // Read on the raw source: these live in comments by design, and each one
+    // makes the compiler load a file the import scan never sees.
+    for (const { pattern, label } of COMPILER_DIRECTIVES) {
+      if (pattern.test(source)) {
+        out.push(diagnostic(
+          "isolation",
+          "ISOLATION_VIOLATION",
+          `imports through ${label}, which the compiler would follow`,
+          path,
+        ));
+      }
+    }
     for (const match of source.matchAll(IMPORT_SPECIFIER)) {
       const specifier = match[1];
       const resolved = resolveWithinPackage(path, specifier);
@@ -465,6 +513,12 @@ async function checkTypes(
       await Deno.mkdir(parent, { recursive: true });
       await Deno.writeTextFile(target, content);
     }
+    // The package's own config, so nothing from the host's (an import map,
+    // a node_modules directory) can name a file for it.
+    await Deno.writeTextFile(
+      join(dir, "deno.json"),
+      JSON.stringify({ nodeModulesDir: "none", imports: {} }),
+    );
     let output: Deno.CommandOutput;
     try {
       output = await new Deno.Command(Deno.execPath(), {
@@ -473,7 +527,8 @@ async function checkTypes(
           "--quiet",
           "--no-remote",
           "--no-npm",
-          "--no-config",
+          "--config",
+          "deno.json",
           "--no-lock",
           "runner.ts",
         ],
@@ -617,6 +672,7 @@ export async function checkPluginPackage(
       checks: Object.freeze(checks),
       sdkVersion: sdkVersionText(),
       filesDigest: digestFiles(files),
+      typecheckMode: "host_isolated",
     }),
     manifest: manifest.manifest,
     sdkRange: manifest.sdkRange,

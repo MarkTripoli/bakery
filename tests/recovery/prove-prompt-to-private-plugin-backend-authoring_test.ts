@@ -22,6 +22,7 @@ import {
   withAuthoringFixture,
 } from "../helpers/plugin-authoring-fixture.ts";
 import type { Fixture } from "../helpers/plugin-pages-fixture.ts";
+import { patchInstall } from "../helpers/plugin-upgrade-fixture.ts";
 
 /**
  * Recovery for authoring (#45, B14.04, AC3).
@@ -389,3 +390,69 @@ for (
     });
   });
 }
+
+/**
+ * QA880 R: the person moves the install while a revision's preview runs. The
+ * revision's rollback is then refused by #34, and the run says so: blocked,
+ * rollback_refused with the refusal, never rolled_back, and the install stays
+ * where the person put it.
+ */
+Deno.test("a rollback the install refuses is recorded as rollback_refused, never rolled_back", () => {
+  const generator: PluginGenerator = {
+    modelId: "qa880",
+    generate(input) {
+      const files = input.request === "B"
+        ? counterPackage({ "job.ts": CRASHING_JOB })
+        : input.request === "A"
+        ? counterPackage({ "job.ts": counterPackage()["job.ts"] + "\n// A\n" })
+        : counterPackage();
+      return Promise.resolve({ files, usage: { costUsd: 0.01 } });
+    },
+  };
+  const inner = previewRunner(localDenoRuntime());
+  let hook: null | (() => Promise<void>) = null;
+  const preview = {
+    results: inner.results,
+    async run(input: Parameters<typeof inner.run>[0]) {
+      const h = hook;
+      hook = null;
+      if (h) await h();
+      return await inner.run(input);
+    },
+  };
+  return withAuthoringFixture({ generator, preview }, async ({ fixture }) => {
+    const seed = await authored(fixture, { request: "seed" });
+    const installId = seed.pluginInstallId;
+    const a = await authored(fixture, {
+      request: "A",
+      installId,
+      maxAttempts: 1,
+    });
+    assertEquals(a.status, "succeeded");
+    hook = async () => {
+      const moved = await patchInstall(fixture, installId, {
+        versionId: seed.pluginVersionId,
+      });
+      assertEquals(moved.status, 200, await moved.clone().text());
+      await moved.body?.cancel();
+    };
+    const b = await authored(fixture, {
+      request: "B",
+      installId,
+      maxAttempts: 1,
+    });
+    assertEquals(b.status, "blocked", JSON.stringify(b));
+    assertEquals(b.failure.reason, "rollback_refused");
+    assert(b.failure.refusal.lastUpdateFailure !== null);
+    assertEquals(b.events.map((e: { kind: string }) => e.kind), [
+      "published",
+      "rollback_refused",
+    ]);
+    const after = await installRow(fixture, installId);
+    // The person's move held, then B's own move put B's version on top; #34
+    // refused the move back, so the install is on B's version and the record
+    // says exactly that.
+    assertEquals(after.plugin_version_id, b.events[1].detail.installVersionId);
+    assert(after.plugin_version_id !== a.pluginVersionId);
+  });
+});
