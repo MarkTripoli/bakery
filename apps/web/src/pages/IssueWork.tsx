@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
@@ -12,11 +13,13 @@ import {
   pullRequestsQueryOptions,
   questionsQueryOptions,
   repositoryQueryOptions,
+  runControlCapabilitiesQueryOptions,
   taskQueryOptions,
   ticketLinksByIssueQueryOptions,
   ticketRequestsQueryOptions,
 } from "../api/query.ts";
 import { failureStatus } from "../app/async-state.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { useSession } from "../app/session-context.tsx";
@@ -31,7 +34,12 @@ import {
   questionRow,
   type QuestionRowView,
   startedBy,
+  STOP_POLL_MS,
+  STOP_SLOW_MS,
+  stoppableRunId,
+  stopsBeforeStart,
   waitsOnAnswer,
+  workFinished,
   type WorkStartedBy,
 } from "./issues/work-model.ts";
 
@@ -344,8 +352,10 @@ function NoteLine(
  * pull requests and Bakery's note on GitHub. Not shown until there is some work.
  */
 export function IssueWork(
-  { issueId, issueUrl, canWrite, reasonSentence, onStart }: {
+  { issueId, issueNumber, issueUrl, canWrite, reasonSentence, onStart }: {
     readonly issueId: string;
+    /** The issue's number, for the question Stop work asks. */
+    readonly issueNumber: number | null;
     readonly issueUrl: string;
     /** Developers and administrators may retry the note. */
     readonly canWrite: boolean;
@@ -359,13 +369,71 @@ export function IssueWork(
   const navigate = useNavigate();
   const { translate } = useI18n();
   const viewer = useSession().identity?.principalId ?? null;
-  const requests = useQuery(ticketRequestsQueryOptions(api, scope, issueId));
+  const queryClient = useQueryClient();
+  // The request this person asked to stop, and when: it reads "Stopping…" until
+  // the server reports the work ended, and is read again every few seconds.
+  const [stopped, setStopped] = useState<
+    { readonly requestId: string; readonly at: number } | null
+  >(null);
+  const [confirming, setConfirming] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const requests = useQuery({
+    ...ticketRequestsQueryOptions(api, scope, issueId),
+    refetchInterval: (query) => {
+      if (stopped === null) return false;
+      const latest = currentRequest(query.state.data?.items ?? []);
+      return latest?.id === stopped.requestId && !workFinished(latest.progress)
+        ? STOP_POLL_MS
+        : false;
+    },
+  });
   const links = useQuery(ticketLinksByIssueQueryOptions(api, scope, issueId));
   const members = useQuery(organizationMembersQueryOptions(api, scope));
   const nameOf = (principalId: string) =>
     members.data?.items.find((member) => member.principalId === principalId)
       ?.displayName ?? null;
   const request = currentRequest(requests.data?.items ?? []);
+  const runId = request === null ? null : stoppableRunId(request);
+  const stopping = request !== null && stopped?.requestId === request.id &&
+    !workFinished(request.progress);
+  // Whether this person may stop the run is the run's own read, as on the task page.
+  const capabilities = useQuery({
+    ...runControlCapabilitiesQueryOptions(api, scope, runId ?? ""),
+    enabled: scope.organizationId !== null && runId !== null &&
+      stopped === null,
+  });
+  const mayStop = runId !== null &&
+    (capabilities.data?.actions.some((item) =>
+      item.action === "cancel" && item.canRequest
+    ) ?? false);
+  const stop = useMutation({
+    mutationKey: ["runs.control", "cancel"],
+    mutationFn: async (target: { requestId: string; runId: string }) => {
+      const result = await api.controlRun({
+        organizationId: scope.organizationId as string,
+        runId: target.runId,
+        input: { action: "cancel" },
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
+    onSuccess: (_run, target) =>
+      setStopped({ requestId: target.requestId, at: Date.now() }),
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: ["protected"] }),
+  });
+  const progress = request?.progress ?? null;
+  // A paused request can show "paused" for a while after the run is stopped.
+  useEffect(() => {
+    setSlow(false);
+    if (stopped === null || progress !== "suspended") return;
+    const timer = setTimeout(
+      () => setSlow(true),
+      Math.max(0, STOP_SLOW_MS - (Date.now() - stopped.at)),
+    );
+    return () => clearTimeout(timer);
+  }, [stopped, progress]);
   const linkItems = links.data?.items ?? [];
   const own = request === null
     ? undefined
@@ -421,6 +489,18 @@ export function IssueWork(
   const reason = request === null ? null : progressReason(request);
   const next = request === null ? "none" : progressNext(request.progress);
   const repositoryTargets = request?.targets ?? [];
+  const stopButton = (
+    <UI.Button
+      variant="secondary"
+      data-testid="issue-stop-work"
+      onClick={() => {
+        stop.reset();
+        setConfirming(true);
+      }}
+    >
+      {translate("issues.work.stop.button" as never)}
+    </UI.Button>
+  );
 
   return (
     <UI.Stack
@@ -460,20 +540,32 @@ export function IssueWork(
         : null}
       {request !== null && by !== null
         ? (
-          <UI.Stack gap="compact" aria-live="polite">
+          <UI.Stack
+            gap="compact"
+            aria-live="polite"
+            data-testid="issue-work-progress"
+          >
             <UI.Inline gap="compact">
-              <UI.Badge
-                tone={waitsOnAnswer(request.progress, asking)
-                  ? "warning"
-                  : PROGRESS_TONE[request.progress]}
-              >
-                {translate(
-                  (waitsOnAnswer(request.progress, asking)
-                    ? "issues.work.progress.needsAnswer"
-                    : `issues.work.progress.${request.progress}`) as never,
+              {stopping
+                ? (
+                  <UI.Badge tone="neutral">
+                    {translate("issues.work.progress.stopping" as never)}
+                  </UI.Badge>
+                )
+                : (
+                  <UI.Badge
+                    tone={waitsOnAnswer(request.progress, asking)
+                      ? "warning"
+                      : PROGRESS_TONE[request.progress]}
+                  >
+                    {translate(
+                      (waitsOnAnswer(request.progress, asking)
+                        ? "issues.work.progress.needsAnswer"
+                        : `issues.work.progress.${request.progress}`) as never,
+                    )}
+                  </UI.Badge>
                 )}
-              </UI.Badge>
-              {reason !== null
+              {reason !== null && !stopping
                 ? <UI.Text>{reasonSentence(reason)}</UI.Text>
                 : null}
               <UI.Text variant="muted">
@@ -487,7 +579,7 @@ export function IssueWork(
                   ago(request.createdAt, translate),
                 ].filter(Boolean).join(" · ")}
               </UI.Text>
-              {next === "openTask" && own !== undefined
+              {next === "openTask" && own !== undefined && !stopping
                 ? (
                   <UI.Button
                     variant="secondary"
@@ -508,7 +600,95 @@ export function IssueWork(
                   </UI.Button>
                 )
                 : null}
+              {mayStop && !stopping && !phone ? stopButton : null}
             </UI.Inline>
+            {mayStop && !stopping && phone ? stopButton : null}
+            {stop.isError && !stopping
+              ? (
+                <UI.InlineNotice tone="error">
+                  {translate("issues.work.stop.failed" as never)}
+                </UI.InlineNotice>
+              )
+              : null}
+            {stopping && slow
+              ? (
+                <UI.Text variant="caption">
+                  {translate("issues.work.stop.slow" as never)}
+                </UI.Text>
+              )
+              : null}
+            {stopsBeforeStart(request)
+              ? (
+                <UI.Text variant="caption">
+                  {translate("issues.work.stop.beforeStart" as never)}
+                </UI.Text>
+              )
+              : null}
+            {confirming && runId !== null
+              ? (
+                <UI.AlertDialog
+                  open
+                  data-actions-layout="stack"
+                  onOpenChange={(open) => {
+                    if (!open && !stop.isPending) {
+                      setConfirming(false);
+                      focusAfterPaint(() =>
+                        document.querySelector<HTMLElement>(
+                          '[data-testid="issue-stop-work"]',
+                        )
+                      );
+                    }
+                  }}
+                  state={stop.isPending ? "confirming" : "open"}
+                  title={translate("issues.work.stop.title" as never, {
+                    number: issueNumber ?? "",
+                  })}
+                  variant="destructive"
+                  cancelAction={
+                    <UI.Button
+                      variant="secondary"
+                      disabled={stop.isPending}
+                      onClick={() => {
+                        setConfirming(false);
+                        focusAfterPaint(() =>
+                          document.querySelector<HTMLElement>(
+                            '[data-testid="issue-stop-work"]',
+                          )
+                        );
+                      }}
+                    >
+                      {translate("issues.work.stop.keep" as never)}
+                    </UI.Button>
+                  }
+                  confirmAction={
+                    <UI.Button
+                      variant="destructive"
+                      disabled={stop.isPending}
+                      loading={stop.isPending}
+                      onClick={() =>
+                        stop.mutateAsync({ requestId: request.id, runId }).then(
+                          () => {
+                            setConfirming(false);
+                            focusAfterPaint(() =>
+                              document.querySelector<HTMLElement>(
+                                '[data-testid="issue-work-progress"]',
+                              )
+                            );
+                          },
+                          // The notice under the row says it failed; the row is unchanged.
+                          () => setConfirming(false),
+                        )}
+                    >
+                      {translate("issues.work.stop.confirm" as never)}
+                    </UI.Button>
+                  }
+                >
+                  <UI.Text>
+                    {translate("issues.work.stop.body" as never)}
+                  </UI.Text>
+                </UI.AlertDialog>
+              )
+              : null}
           </UI.Stack>
         )
         : null}

@@ -428,6 +428,147 @@ for (
         .toBeVisible();
     });
 
+    const WITH_RUN: WorkSeed = { ...ONE_REPOSITORY, run: {} };
+    const stopButton = (page: Page) =>
+      section(page).getByRole("button", { name: "Stop work" });
+
+    test("Stop work asks first; Keep working sends nothing", async ({ page }) => {
+      const seen = await open(page, WITH_RUN);
+      await expect(stopButton(page)).toBeVisible();
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByRole("heading", { name: "Stop work on #201?" }))
+        .toBeVisible();
+      await expect(
+        dialog.getByText(
+          "Bakery stops at the next safe point. The task, its plan and any pull request stay as they are, and nothing is deleted on GitHub. To work on this issue again, press Start work; that begins a new task.",
+        ),
+      ).toBeVisible();
+      await still(page, "issue-work-stop-dialog");
+      await dialog.getByRole("button", { name: "Keep working" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(stopButton(page)).toBeFocused();
+      await expect(section(page).getByText("Working", { exact: true }))
+        .toBeVisible();
+      expect(seen.stops).toHaveLength(0);
+    });
+
+    test("Stop work: confirm, Stopping…, then Stopped with Start work", async ({ page }) => {
+      const seen = await open(page, WITH_RUN);
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Stopping…", { exact: true })).toBeVisible();
+      // One cancel, with its own key, and nothing else to press while it stops.
+      expect(seen.stops).toHaveLength(1);
+      expect(seen.stops[0]!.body).toEqual({ action: "cancel" });
+      expect(seen.stops[0]!.key).toMatch(/^[0-9a-f-]{36}$/);
+      await expect(stopButton(page)).toHaveCount(0);
+      await expect(work.getByRole("button", { name: "Open task" }))
+        .toHaveCount(0);
+      await expect(work.getByText("Working", { exact: true })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stopping");
+      // The server reports the run ended; the page reads it again within 5 seconds.
+      seen.stopEnded = true;
+      await expect(work.getByText("Stopped", { exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(work.getByText("Stopping…")).toHaveCount(0);
+      await expect(work.getByRole("button", { name: "Start work" }))
+        .toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stopped");
+    });
+
+    test("a paused request still unstopped after 15 seconds says it can take a while", async ({ page }) => {
+      await page.clock.install();
+      await open(page, {
+        issue: 201,
+        progress: "suspended",
+        pausedReason: "hold_label_added",
+        run: {},
+      });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Stopping…", { exact: true })).toBeVisible();
+      await expect(work.getByText(/It can take up to 5 minutes/)).toHaveCount(
+        0,
+      );
+      await page.clock.fastForward(16_000);
+      await expect(
+        work.getByText(
+          "Bakery is stopping this. It can take up to 5 minutes to show here.",
+        ),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stopping-slow");
+    });
+
+    test("a person who may not stop the run sees no Stop work", async ({ page }) => {
+      await open(page, { ...ONE_REPOSITORY, run: { mayStop: false } });
+      await expect(section(page).getByRole("button", { name: "Open task" }))
+        .toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+    });
+
+    test("a refused stop says so and leaves the row as it was", async ({ page }) => {
+      const seen = await open(page, {
+        ...ONE_REPOSITORY,
+        run: { stop: "refused" },
+      });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Work could not be stopped. Try again."))
+        .toBeVisible();
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(work.getByText("Working", { exact: true })).toBeVisible();
+      await expect(work.getByRole("button", { name: "Open task" }))
+        .toBeVisible();
+      await expect(stopButton(page)).toBeVisible();
+      expect(seen.stops).toHaveLength(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-failed");
+    });
+
+    test("work started from a label with no run yet says how to stop it on GitHub", async ({ page }) => {
+      await open(page, {
+        issue: 201,
+        progress: "waiting",
+        origin: "webhook",
+        triggerLabel: "bakery",
+        reason: "predecessor_open",
+      });
+      await expect(
+        section(page).getByText(
+          "To stop this before it starts, remove the label on GitHub.",
+        ),
+      ).toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+    });
+
+    test("work a person started with no run yet shows no Stop work and no label sentence", async ({ page }) => {
+      await open(page, {
+        issue: 201,
+        progress: "waiting",
+        reason: "predecessor_open",
+      });
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+      await expect(section(page).getByText(/remove the label on GitHub/))
+        .toHaveCount(0);
+    });
+
     test("on hold pauses with an information banner", async ({ page }) => {
       await open(page, {
         issue: 201,

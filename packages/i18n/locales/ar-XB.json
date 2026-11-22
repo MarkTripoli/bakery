@@ -6113,5 +6113,14 @@
   "library.workflow.editor.skills.picker.slugTail": "⟪ · {slug}⟫",
   "library.editor.group.fixUntilPasses": "⟪Fix until it passes⟫",
   "library.editor.group.fixLimit": "⟪At most {max, plural, one {# try} other {# tries}}⟫",
-  "library.editor.group.fixHelp": "⟪Fixes what the checks and the review found, then checks and reviews again. If the first review is already clean, this block is skipped.⟫"
+  "library.editor.group.fixHelp": "⟪Fixes what the checks and the review found, then checks and reviews again. If the first review is already clean, this block is skipped.⟫",
+  "issues.work.stop.button": "⟪Stop work⟫",
+  "issues.work.stop.title": "⟪Stop work on #{number}?⟫",
+  "issues.work.stop.body": "⟪Bakery stops at the next safe point. The task, its plan and any pull request stay as they are, and nothing is deleted on GitHub. To work on this issue again, press Start work; that begins a new task.⟫",
+  "issues.work.stop.keep": "⟪Keep working⟫",
+  "issues.work.stop.confirm": "⟪Stop work⟫",
+  "issues.work.progress.stopping": "⟪Stopping…⟫",
+  "issues.work.stop.slow": "⟪Bakery is stopping this. It can take up to 5 minutes to show here.⟫",
+  "issues.work.stop.failed": "⟪Work could not be stopped. Try again.⟫",
+  "issues.work.stop.beforeStart": "⟪To stop this before it starts, remove the label on GitHub.⟫"
 }

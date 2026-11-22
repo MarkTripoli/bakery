@@ -645,6 +645,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
         {phone ? card : null}
         <IssueWork
           issueId={issueId}
+          issueNumber={number}
           issueUrl={row.safeUrl}
           canWrite={access.data?.role === "admin" ||
             access.data?.role === "developer"}

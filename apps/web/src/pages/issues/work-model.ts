@@ -61,6 +61,58 @@ export function progressNext(progress: WorkProgress): WorkNext {
   }
 }
 
+/** Progress values after which nothing more happens to the request. */
+const FINISHED: ReadonlySet<WorkProgress> = new Set([
+  "completed",
+  "failed",
+  "canceled",
+  "rejected",
+]);
+
+/** True once the request has reached an end state. */
+export function workFinished(progress: WorkProgress): boolean {
+  return FINISHED.has(progress);
+}
+
+/** Progress values in which a run exists that a person may ask to stop. */
+const STOPPABLE: ReadonlySet<WorkProgress> = new Set([
+  "admitted",
+  "active",
+  "suspended",
+]);
+
+/**
+ * The run a person could ask to stop: the request's own run while it is
+ * starting, working or paused; null when there is none. Whether this person may
+ * stop it is the run's own capability read, not a guess from here.
+ */
+export function stoppableRunId(
+  request: Pick<TicketRequestViewResponse, "progress" | "workflowRunId">,
+): string | null {
+  return STOPPABLE.has(request.progress) ? request.workflowRunId : null;
+}
+
+/**
+ * True when work began from a label and has no run yet: nothing here can stop it
+ * until it starts, so the page says how to stop it on GitHub (design: Stop work).
+ */
+export function stopsBeforeStart(
+  request: Pick<
+    TicketRequestViewResponse,
+    "progress" | "workflowRunId" | "origin"
+  >,
+): boolean {
+  return request.workflowRunId === null &&
+    (request.origin === "webhook" || request.origin === "poll") &&
+    !workFinished(request.progress);
+}
+
+/** How often the page re-reads a request it asked to stop. */
+export const STOP_POLL_MS = 5_000;
+
+/** How long a paused request may stay unstopped before the page says it can take a while. */
+export const STOP_SLOW_MS = 15_000;
+
 /** Who or what began the work, as the line under the state reads it. */
 export type WorkStartedBy =
   | { kind: "you" }
