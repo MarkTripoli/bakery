@@ -64,6 +64,9 @@ export type ReadText = (path: string) => string | null;
 
 const OWNER = /^#[1-9][0-9]*$/;
 
+/** An unbuilt row's reason must say something a reader can act on. */
+export const MIN_REASON_LENGTH = 20;
+
 /** Source text with `//` and block comments removed, so commented code counts for nothing. */
 export function withoutComments(text: string): string {
   return text
@@ -107,8 +110,10 @@ export function reconcileOperations(input: {
           `${action} owner "${entry.owner}" is not an issue like #12`,
         );
       }
-      if (entry.reason.trim() === "") {
-        problems.push(`${action} is unbuilt with no reason`);
+      if (entry.reason.trim().length < MIN_REASON_LENGTH) {
+        problems.push(
+          `${action} is unbuilt without a plain reason (at least ${MIN_REASON_LENGTH} characters)`,
+        );
       }
       continue;
     }
@@ -164,8 +169,10 @@ export function reconcileTables(input: {
           `table ${table} owner "${row.owner}" is not an issue like #12`,
         );
       }
-      if (row.reason.trim() === "") {
-        problems.push(`table ${table} is unbuilt with no reason`);
+      if (row.reason.trim().length < MIN_REASON_LENGTH) {
+        problems.push(
+          `table ${table} is unbuilt without a plain reason (at least ${MIN_REASON_LENGTH} characters)`,
+        );
       }
     } else if (!Object.hasOwn(input.migrated, row.implementedAs)) {
       problems.push(
