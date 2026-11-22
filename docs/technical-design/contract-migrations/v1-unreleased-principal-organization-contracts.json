@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "37671299ccc60ea85a48d6043df3d248a0129a39"
+    "ff261554bc072b571324c0281b44e3db73ea75ad"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:6394b48f00be02758128f4439f544657839ff4f4c0cd5ae3bd38bd31061070ef",
-  "reason": "#427 offline runs (slice S1) by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 37671299ccc60ea85a48d6043df3d248a0129a39: Run gains a required environment (live or offline) pinned at creation, and RunCreate gains an optional environment, so a client reads where a run may reach. Main's own approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:e3151ce38c42870f7b724105c598de947e02fd0f81181528abfa589ce1f6199e",
+  "reason": "#427 offline runs (slice S1) by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main ff261554bc072b571324c0281b44e3db73ea75ad: Run gains a required environment (live or offline) pinned at creation, and RunCreate gains an optional environment, so a client reads where a run may reach. Main's own approval it displaces is kept unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",

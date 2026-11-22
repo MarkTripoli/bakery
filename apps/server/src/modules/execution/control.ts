@@ -356,7 +356,12 @@ export async function runControlAction(
        left join bakery.tasks as task
          on task.organization_id = run.organization_id
         and task.id = run.task_id
-      where run.organization_id = $1 and run.id = $2`,
+      where run.organization_id = $1 and run.id = $2
+      -- Two controls on one run, from an agent and a person or from two
+      -- agents, take turns: the second reads what the first committed (a
+      -- cancelled run is then ALREADY_TERMINAL), so only one can take the
+      -- run's last transition.
+      for update of run`,
     [organizationId, runId],
   );
   const run = runResult.rows[0];
