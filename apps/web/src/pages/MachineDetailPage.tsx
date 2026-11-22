@@ -389,6 +389,8 @@ export function MachineDetailPage(
     await refreshMachine();
   };
   const reason = workerData ? machineReason(workerData) : null;
+  // A retired machine shows its header, the one banner and what Bakery knows about it: no empty Checks or Coding agents.
+  const isRetired = reason?.kind === "retired";
   // One problem, one banner: failed checks that are only an agent's sign-in are that agent's banner.
   const signInBanner = agentsKnown && reason?.kind === "checkFailed" &&
       workerData && Array.isArray(workerData.failedCheckIds)
@@ -452,7 +454,7 @@ export function MachineDetailPage(
               },
             )
             : machineId}
-          summary={workerData
+          summary={workerData && !(reason && !signInBanner)
             ? (
               <UI.Badge tone={machineBadgeTone(headerBadge)}>
                 {message(translate, `machines.badge.${headerBadge}`)}
@@ -722,119 +724,127 @@ export function MachineDetailPage(
                   </UI.Stack>
                 )
                 : null}
-              <UI.SettingsSection
-                title={message(translate, "machines.checks.title")}
-                variant="stack"
-                data-testid="machine-checks"
-              >
-                {blockers.isPending
-                  ? (
-                    <UI.AlertBanner tone="information">
-                      {message(translate, "machines.loading")}
-                    </UI.AlertBanner>
-                  )
-                  : blockers.isError
-                  ? (
-                    <UI.ErrorState
-                      title={message(translate, "machines.error.title")}
-                      description={message(
-                        translate,
-                        "machines.error.description",
-                      )}
-                      action={
-                        <UI.Button
-                          variant="secondary"
-                          onClick={() => void blockers.refetch()}
-                        >
-                          {message(translate, "machines.retry")}
-                        </UI.Button>
-                      }
-                    />
-                  )
-                  : blockers.data?.failedChecks.length
-                  ? (
-                    <UI.Stack gap="standard">
-                      {groupChecks(
-                        blockers.data.failedChecks.map((check) =>
-                          check.checkId
-                        ),
-                      ).map(({ group, ids }) => (
-                        <UI.Stack key={group} gap="compact">
-                          <UI.Heading level="subsection-compact" rank={3}>
-                            {message(
-                              translate,
-                              `machines.checks.group.${group}`,
-                            )}
-                          </UI.Heading>
-                          <UI.DescriptionList>
-                            {ids.map((id) => {
-                              const info = checkInfo(id);
-                              const failed = blockers.data!.failedChecks.find((
-                                check,
-                              ) =>
-                                check.checkId === id
-                              )!;
-                              const agentName = info.agent
-                                ? message(
+              {!isRetired
+                ? (
+                  <UI.SettingsSection
+                    title={message(translate, "machines.checks.title")}
+                    variant="stack"
+                    data-testid="machine-checks"
+                  >
+                    {blockers.isPending
+                      ? (
+                        <UI.AlertBanner tone="information">
+                          {message(translate, "machines.loading")}
+                        </UI.AlertBanner>
+                      )
+                      : blockers.isError
+                      ? (
+                        <UI.ErrorState
+                          title={message(translate, "machines.error.title")}
+                          description={message(
+                            translate,
+                            "machines.error.description",
+                          )}
+                          action={
+                            <UI.Button
+                              variant="secondary"
+                              onClick={() => void blockers.refetch()}
+                            >
+                              {message(translate, "machines.retry")}
+                            </UI.Button>
+                          }
+                        />
+                      )
+                      : blockers.data?.failedChecks.length
+                      ? (
+                        <UI.Stack gap="standard">
+                          {groupChecks(
+                            blockers.data.failedChecks.map((check) =>
+                              check.checkId
+                            ),
+                          ).map(({ group, ids }) => (
+                            <UI.Stack key={group} gap="compact">
+                              <UI.Heading level="subsection-compact" rank={3}>
+                                {message(
                                   translate,
-                                  `machines.agent.${info.agent}`,
-                                )
-                                : null;
-                              return (
-                                <UI.DescriptionItem
-                                  key={id}
-                                  action={
-                                    <UI.Badge tone="danger">
-                                      {message(
-                                        translate,
-                                        "machines.checks.failed",
-                                      )}
-                                    </UI.Badge>
-                                  }
-                                  title={info.nameKey
+                                  `machines.checks.group.${group}`,
+                                )}
+                              </UI.Heading>
+                              <UI.DescriptionList>
+                                {ids.map((id) => {
+                                  const info = checkInfo(id);
+                                  const failed = blockers.data!.failedChecks
+                                    .find((
+                                      check,
+                                    ) =>
+                                      check.checkId === id
+                                    )!;
+                                  const agentName = info.agent
                                     ? message(
                                       translate,
-                                      info.agent
-                                        ? "machines.check.name.capability.modelAgent"
-                                        : info.nameKey,
-                                      { agent: agentName ?? "" },
+                                      `machines.agent.${info.agent}`,
                                     )
-                                    : id}
-                                  description={
-                                    <UI.Stack gap="compact">
-                                      {info.fixKey
-                                        ? (
-                                          <UI.Text>
-                                            {message(translate, info.fixKey)}
-                                          </UI.Text>
-                                        )
-                                        : null}
-                                      <UI.DataText
-                                        variant="code"
-                                        state="wrapped"
-                                      >
-                                        {boundedReason(failed.reason) ||
-                                          message(
+                                    : null;
+                                  return (
+                                    <UI.DescriptionItem
+                                      key={id}
+                                      action={
+                                        <UI.Badge tone="danger">
+                                          {message(
                                             translate,
-                                            "machines.checks.noReason",
+                                            "machines.checks.failed",
                                           )}
-                                      </UI.DataText>
-                                    </UI.Stack>
-                                  }
-                                />
-                              );
-                            })}
-                          </UI.DescriptionList>
+                                        </UI.Badge>
+                                      }
+                                      title={info.nameKey
+                                        ? message(
+                                          translate,
+                                          info.agent
+                                            ? "machines.check.name.capability.modelAgent"
+                                            : info.nameKey,
+                                          { agent: agentName ?? "" },
+                                        )
+                                        : id}
+                                      description={
+                                        <UI.Stack gap="compact">
+                                          {info.fixKey
+                                            ? (
+                                              <UI.Text>
+                                                {message(
+                                                  translate,
+                                                  info.fixKey,
+                                                )}
+                                              </UI.Text>
+                                            )
+                                            : null}
+                                          <UI.DataText
+                                            variant="code"
+                                            state="wrapped"
+                                          >
+                                            {boundedReason(failed.reason) ||
+                                              message(
+                                                translate,
+                                                "machines.checks.noReason",
+                                              )}
+                                          </UI.DataText>
+                                        </UI.Stack>
+                                      }
+                                    />
+                                  );
+                                })}
+                              </UI.DescriptionList>
+                            </UI.Stack>
+                          ))}
                         </UI.Stack>
-                      ))}
-                    </UI.Stack>
-                  )
-                  : (
-                    <UI.Text>
-                      {message(translate, "machines.checks.none")}
-                    </UI.Text>
-                  )}
-              </UI.SettingsSection>
+                      )
+                      : (
+                        <UI.Text>
+                          {message(translate, "machines.checks.none")}
+                        </UI.Text>
+                      )}
+                  </UI.SettingsSection>
+                )
+                : null}
               <UI.SettingsSection
                 title={message(translate, "machines.about.title")}
                 variant="stack"
@@ -906,6 +916,8 @@ export function MachineDetailPage(
                         }
                       />
                     )
+                    : components.isSuccess
+                    ? null
                     : (
                       <UI.DescriptionItem
                         title={message(translate, "machines.software.title")}
@@ -946,66 +958,73 @@ export function MachineDetailPage(
                   )
                   : null}
               </UI.SettingsSection>
-              <UI.SettingsSection
-                title={message(translate, "machines.detail.providers")}
-                variant="stack"
-                data-testid="machine-agents"
-              >
-                {providers.isError && isAdmin
-                  ? isForbiddenFailure(providers.error)
-                    ? (
-                      <UI.EmptyState
-                        title={message(translate, "machines.forbidden.title")}
-                        description={message(
-                          translate,
-                          "machines.agents.adminOnly",
-                        )}
-                      />
-                    )
-                    : (
-                      <UI.ErrorState
-                        title={message(translate, "machines.error.title")}
-                        description={message(
-                          translate,
-                          "machines.error.description",
-                        )}
-                        action={
-                          <UI.Button
-                            variant="secondary"
-                            onClick={() => void providers.refetch()}
-                          >
-                            {message(translate, "core.pagination.retry")}
-                          </UI.Button>
-                        }
-                      />
-                    )
-                  : agents.length
-                  ? (
-                    <UI.DescriptionList>
-                      {agents.map((row) => (
-                        <CodingAgentRow
-                          key={row.agent}
-                          row={row}
-                          translate={translate}
-                          access={agentAccess}
-                          signIn={signIn}
-                        />
-                      ))}
-                    </UI.DescriptionList>
-                  )
-                  : (
-                    <UI.Text>
-                      {message(translate, "machines.provider.empty")}
-                    </UI.Text>
-                  )}
-                {agents.length
-                  ? (
-                    <UI.Text variant="muted">
-                      {message(translate, "machines.agents.apiKeyLater")}
-                    </UI.Text>
-                  )
-                  : null}
-              </UI.SettingsSection>
+              {!isRetired
+                ? (
+                  <UI.SettingsSection
+                    title={message(translate, "machines.detail.providers")}
+                    variant="stack"
+                    data-testid="machine-agents"
+                  >
+                    {providers.isError && isAdmin
+                      ? isForbiddenFailure(providers.error)
+                        ? (
+                          <UI.EmptyState
+                            title={message(
+                              translate,
+                              "machines.forbidden.title",
+                            )}
+                            description={message(
+                              translate,
+                              "machines.agents.adminOnly",
+                            )}
+                          />
+                        )
+                        : (
+                          <UI.ErrorState
+                            title={message(translate, "machines.error.title")}
+                            description={message(
+                              translate,
+                              "machines.error.description",
+                            )}
+                            action={
+                              <UI.Button
+                                variant="secondary"
+                                onClick={() => void providers.refetch()}
+                              >
+                                {message(translate, "core.pagination.retry")}
+                              </UI.Button>
+                            }
+                          />
+                        )
+                      : agents.length
+                      ? (
+                        <UI.DescriptionList>
+                          {agents.map((row) => (
+                            <CodingAgentRow
+                              key={row.agent}
+                              row={row}
+                              translate={translate}
+                              access={agentAccess}
+                              signIn={signIn}
+                            />
+                          ))}
+                        </UI.DescriptionList>
+                      )
+                      : (
+                        <UI.Text>
+                          {message(translate, "machines.provider.empty")}
+                        </UI.Text>
+                      )}
+                    {agents.length
+                      ? (
+                        <UI.Text variant="muted">
+                          {message(translate, "machines.agents.apiKeyLater")}
+                        </UI.Text>
+                      )
+                      : null}
+                  </UI.SettingsSection>
+                )
+                : null}
               {isAdmin && workerData.status !== "revoked"
                 ? (
                   <UI.SettingsSection

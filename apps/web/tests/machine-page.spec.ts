@@ -287,7 +287,7 @@ test.describe("machine page: the one banner", () => {
       await expect(banner(page)).toContainText(item.title);
       if (item.body) await expect(banner(page)).toContainText(item.body);
       await expect(banner(page)).toHaveAttribute("data-variant", item.tone);
-      // The status is the badge and the banner: not a third time in the line under the name.
+      // The status is the banner (the badge only when there is no banner): not again in the line under the name.
       await expect(detail.getByText(/· (Online|Offline|Not responding) ·/))
         .toHaveCount(0);
       if (item.fix) {
@@ -318,8 +318,12 @@ test.describe("machine page: the one banner", () => {
     await expect(about).toContainText("Processor");
     await expect(about).toContainText("x86_64");
     await expect(about).toContainText("Tasks at once");
-    await expect(about).toContainText("Software");
-    await expect(about).toContainText("No software has been reported.");
+    // Nothing reported, nothing drawn: no Software row and no "none" line.
+    await expect(about).not.toContainText("Software");
+    await expect(about).not.toContainText("No software has been reported.");
+    // With no problem banner the state is the header badge.
+    await expect(detail.locator('[data-ui-component="badge"]').first())
+      .toBeVisible();
     await expect(detail.getByRole("heading", { name: "Capacity" })).toHaveCount(
       0,
     );
@@ -557,6 +561,55 @@ test.describe("machine page: mode and Retire", () => {
         timeout: 2_000,
       });
     }).toPass();
+  });
+
+  test("a machine with a banner has no header badge: the banner is its status", async ({ page }) => {
+    await open(page, fixture({ status: "offline", connectivity: "offline" }));
+    await expect(banner(page)).toBeVisible();
+    const badge = page.getByTestId("machine-detail-page").locator(
+      '[data-ui-component="badge"]',
+    );
+    await expect(badge.filter({ hasText: /^Offline$/ })).toHaveCount(0);
+  });
+
+  test("a retired machine shows its header, one banner and About, with no empty Checks or Coding agents", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "macos", architecture: "arm64" },
+    });
+    await open(page, f);
+    const detail = page.getByTestId("machine-detail-page");
+    await expect(banner(page)).toContainText(
+      "Retired. It no longer takes work.",
+    );
+    await expect(
+      detail.locator('[data-ui-component="badge"]').filter({
+        hasText: /^Retired$/,
+      }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await expect(page.getByTestId("machine-checks")).toHaveCount(0);
+    await expect(page.getByTestId("machine-agents")).toHaveCount(0);
+    await expect(detail.getByText("No failed checks reported.")).toHaveCount(0);
+    await expect(detail.getByText("No software has been reported."))
+      .toHaveCount(0);
+  });
+
+  test("a retired Linux x86_64 machine has one banner, with the system warning as a plain line under the heading", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    const warning = setup.getByText(
+      "Linux x86_64 is not a supported system yet. These are the same steps this machine was set up with.",
+    );
+    await expect(warning).toBeVisible();
+    // A line of text, not a second banner.
+    await expect(
+      setup.locator('[data-ui-component="alertBanner"]').filter({
+        hasText: "is not a supported system yet",
+      }),
+    ).toHaveCount(0);
   });
 
   test("a retired machine on a supported system sets up again with no warning", async ({ page }) => {

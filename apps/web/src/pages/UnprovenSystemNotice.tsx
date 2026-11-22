@@ -11,7 +11,7 @@ export function isUnprovenWithSteps(os: string, architecture: string): boolean {
   return hasSetupSteps(os) && !isSupportedSystem(os, architecture);
 }
 
-/** Above the steps of an enrolled machine whose system is not yet supported: it keeps its steps, and is told why they carry a warning. */
+/** The first line under the set-up-again heading for an enrolled machine whose system is not yet supported: it keeps its steps, and is told why. A plain line: the page already has its one banner. */
 export function UnprovenSystemNotice(
   { os, architecture, translate }: {
     os: string;
@@ -20,11 +20,11 @@ export function UnprovenSystemNotice(
   },
 ) {
   return (
-    <UI.AlertBanner tone="warning" role="status" id="machine-unproven-system">
+    <UI.Text id="machine-unproven-system" role="status">
       {translate("machines.wizard.unproven" as never, {
         system: translate(`machines.os.${os}` as never),
         processor: processorLabel(os, architecture),
       })}
-    </UI.AlertBanner>
+    </UI.Text>
   );
 }
