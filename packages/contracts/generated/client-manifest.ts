@@ -21212,6 +21212,14 @@ export const clientManifest = {
           ],
           "description": "Execution environment for this run: `repository` requires repositoryProfileId and runs inside a cloned repository worktree; `cloud_only` must omit repositoryProfileId and runs without a repository checkout."
         },
+        "environment": {
+          "description": "Where this run may reach, pinned at creation: `live` (the default) admits external effects and brokered integration credentials; `offline` refuses every external effect and brokered credential while metered model calls stay allowed. A run an agent spawns inherits the spawning run's environment when omitted, and an offline run may not spawn a live one (409 `environment_offline_parent`).",
+          "type": "string",
+          "enum": [
+            "live",
+            "offline"
+          ]
+        },
         "budgetLimitUsd": {
           "description": "Maximum execution budget for this run, in US dollars; inclusive cap 200.000000 with up to six decimal places. New spend stops once the cap is reached and admission is refused with `BUDGET_CAP_EXCEEDED` if it cannot be reserved.",
           "type": "string",
@@ -40236,6 +40244,14 @@ export const clientManifest = {
                 "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
                 "description": "Maximum execution budget measured in US dollars."
               },
+              "environment": {
+                "type": "string",
+                "enum": [
+                  "live",
+                  "offline"
+                ],
+                "description": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline."
+              },
               "startedAt": {
                 "anyOf": [
                   {
@@ -40574,6 +40590,7 @@ export const clientManifest = {
               "inngestRunId",
               "status",
               "budgetLimitUsd",
+              "environment",
               "startedAt",
               "finishedAt",
               "createdAt",
@@ -60597,6 +60614,14 @@ export const clientManifest = {
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
           "description": "Maximum execution budget measured in US dollars."
         },
+        "environment": {
+          "type": "string",
+          "enum": [
+            "live",
+            "offline"
+          ],
+          "description": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline."
+        },
         "startedAt": {
           "anyOf": [
             {
@@ -60935,6 +60960,7 @@ export const clientManifest = {
         "inngestRunId",
         "status",
         "budgetLimitUsd",
+        "environment",
         "startedAt",
         "finishedAt",
         "createdAt",
