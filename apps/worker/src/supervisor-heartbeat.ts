@@ -809,6 +809,13 @@ export async function runHeartbeatLoop(
               inventoryRevision: result.result.inventoryRevision,
               replayed: result.replayed,
             }, signal);
+            // Maintenance runs beside the heartbeat loop, never inside it,
+            // so a long update cannot starve the host's liveness.
+            if (state.maintenance) {
+              void state.maintenance.accept(
+                result.result.maintenanceAssignments ?? [],
+              ).catch(() => undefined);
+            }
           }
         }
         return result;

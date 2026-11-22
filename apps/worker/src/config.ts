@@ -60,6 +60,14 @@ export type WorkerConfig = {
   os: "linux" | "macos";
   architecture: string;
   /**
+   * The worker's own Bakery-managed release for remote maintenance
+   * (`BAKERY_WORKER_RELEASE_ROOT`): release folders and the `current` link.
+   * Staging reads only from the fixed local `BAKERY_WORKER_RELEASE_SOURCE_DIR`
+   * the operator or installer fills; there is no download. Unset means the
+   * host has no managed components.
+   */
+  maintenanceRelease?: { root: string; sourceDir: string };
+  /**
    * Capabilities this host enrolls (`BAKERY_WORKER_CAPABILITIES`). A host
    * claims a job only when every capability the job requires is in this list.
    * `review.independent` requires `model` and `reviewer`; nothing adds
@@ -430,6 +438,8 @@ export const WORKER_RUNTIME_ENVIRONMENT_NAMES = [
   "CODEX_HOME",
   "TMPDIR",
   "BAKERY_ENV",
+  "BAKERY_WORKER_RELEASE_ROOT",
+  "BAKERY_WORKER_RELEASE_SOURCE_DIR",
   "BAKERY_SERVER_URL",
   "BAKERY_VERSION",
   "BAKERY_WORKER_STARTUP_MARKER",
@@ -717,6 +727,24 @@ export function readWorkerEnvironment(): Record<
   return environment;
 }
 
+/** Both release paths, or neither; one without the other is a config error. */
+export function readMaintenanceRelease(
+  env: Record<string, string | undefined>,
+): { root: string; sourceDir: string } | undefined {
+  const root = env.BAKERY_WORKER_RELEASE_ROOT?.trim();
+  const sourceDir = env.BAKERY_WORKER_RELEASE_SOURCE_DIR?.trim();
+  if (!root && !sourceDir) return undefined;
+  if (!root) throw new Error("BAKERY_WORKER_RELEASE_ROOT_REQUIRED");
+  if (!sourceDir) throw new Error("BAKERY_WORKER_RELEASE_SOURCE_DIR_REQUIRED");
+  return {
+    root: assertAbsolutePath(root, "BAKERY_WORKER_RELEASE_ROOT"),
+    sourceDir: assertAbsolutePath(
+      sourceDir,
+      "BAKERY_WORKER_RELEASE_SOURCE_DIR",
+    ),
+  };
+}
+
 export function readWorkerConfig(
   env: Record<string, string | undefined> = readWorkerEnvironment(),
 ): WorkerConfig {
@@ -825,7 +853,9 @@ export function readWorkerConfig(
       3_600_000,
     )
     : undefined;
+  const maintenanceRelease = readMaintenanceRelease(env);
   return {
+    ...(maintenanceRelease ? { maintenanceRelease } : {}),
     sentry: readSentryConfig(env, "worker", environment),
     environment,
     serverUrl,
