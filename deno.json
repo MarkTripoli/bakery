@@ -71,6 +71,7 @@
       "packages/contracts/src/catalog-literals.ts",
       "packages/contracts/generated/client-manifest.ts",
       "packages/contracts/generated/transport-schemas.ts",
+      "packages/worker-bootstrap/generated/link-bundle.ts",
       "docs/technical-design/enterprise-mocks/paper-source/",
       "docs/technical-design/enterprise-mocks/site/",
       "docs/technical-design/settings-mocks/source/",

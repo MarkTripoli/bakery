@@ -125,7 +125,7 @@ export const OPEN: Seed[] = [
   },
   {
     number: 204,
-    title: "Fix rounding on totals",
+    title: "Fix rounding on order totals when a gift card pays part",
     verdict: "ready",
     checks: ready,
     request: { disposition: "active" },
@@ -190,6 +190,13 @@ export type WorkSeed = {
 };
 
 export type Options = {
+  /**
+   * The batches the server lists (as `batch()` of batches-fixture builds them);
+   * giving any also gives the person `batch:read`, which the notice needs.
+   */
+  batches?: readonly { repositoryId: string }[];
+  /** A second repository that is taking issues (acme/api, repository uuid(913)), with no issues of its own. */
+  secondSource?: boolean;
   work?: WorkSeed;
   /** The work that exists once somebody else's start has been refused (start: "alreadyRunning"). */
   workWhenRunning?: WorkSeed;
@@ -244,9 +251,27 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
           role: options.role ?? "admin",
-          capabilities: [],
+          capabilities: options.batches === undefined ? [] : ["batch:read"],
         }),
       }),
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/batches",
+    (route) => {
+      const repository = new URL(route.request().url()).searchParams.get(
+        "repositoryId",
+      );
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: (options.batches ?? []).filter((batch) =>
+            repository === null || batch.repositoryId === repository
+          ),
+          nextCursor: null,
+        }),
+      });
+    },
   );
   const sourcesMode = options.sources ?? "healthy";
   await page.route(
@@ -256,30 +281,52 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          items: sourcesMode === "none" ? [] : [{
-            id: SOURCE_ID,
-            organizationId: MOCK_ORGANIZATION_ID,
-            integrationConnectionId: uuid(901),
-            integrationResourceId: uuid(902),
-            applicationId: uuid(904),
-            repositoryId: uuid(903),
-            externalContainerId: "acme/web",
-            enabled: true,
-            policy: {},
-            policyRevision: 1,
-            syncHealth: sourcesMode === "degraded"
-              ? "degraded"
-              : sourcesMode === "authRequired"
-              ? "auth_required"
-              : sourcesMode === "unknown"
-              ? "unknown"
-              : "healthy",
-            lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-            lastProblemCode: null,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-            version: 1,
-          }],
+          items: sourcesMode === "none" ? [] : [
+            ...(options.secondSource
+              ? [{
+                id: uuid(910),
+                organizationId: MOCK_ORGANIZATION_ID,
+                integrationConnectionId: uuid(901),
+                integrationResourceId: uuid(911),
+                applicationId: uuid(904),
+                repositoryId: uuid(913),
+                externalContainerId: "acme/api",
+                enabled: true,
+                policy: {},
+                policyRevision: 1,
+                syncHealth: "healthy",
+                lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+                lastProblemCode: null,
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+                version: 1,
+              }]
+              : []),
+            {
+              id: SOURCE_ID,
+              organizationId: MOCK_ORGANIZATION_ID,
+              integrationConnectionId: uuid(901),
+              integrationResourceId: uuid(902),
+              applicationId: uuid(904),
+              repositoryId: uuid(903),
+              externalContainerId: "acme/web",
+              enabled: true,
+              policy: {},
+              policyRevision: 1,
+              syncHealth: sourcesMode === "degraded"
+                ? "degraded"
+                : sourcesMode === "authRequired"
+                ? "auth_required"
+                : sourcesMode === "unknown"
+                ? "unknown"
+                : "healthy",
+              lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+              lastProblemCode: null,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              version: 1,
+            },
+          ],
           nextCursor: null,
         }),
       }),

@@ -1,5 +1,5 @@
 {
-  "revision": "80e6793cf36fcf3fefe5d5c061f43ac3ecb90f76c4480c3544cf2323b55a8616",
+  "revision": "490c57a6739a2ca174e18d00954c0a7df161633512eef20143ddb2b5f2948ee1",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -12539,7 +12539,7 @@
     {
       "id": "template.formWithSummary",
       "name": "FormWithSummary",
-      "description": "Places a form beside a plain summary of what it will do, with the buttons under the form, and stacks them on a narrow screen.",
+      "description": "Places a form beside a plain summary of what it will do, with optional buttons under the form, and stacks them on a narrow screen.",
       "level": "template",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Templates/FormWithSummary",
@@ -12569,7 +12569,7 @@
       "a11y": {
         "accessibleName": "none",
         "keyboard": [],
-        "notes": "A form column and a 300px summary column from 1280px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region."
+        "notes": "A form column and a 300px summary column from 1280px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region. Without buttons there is no buttons row and no rule under the form."
       },
       "tokens": [
         "--space-6"
@@ -21257,7 +21257,7 @@
     {
       "id": "ui.mentionPicker",
       "name": "MentionPicker",
-      "description": "A listbox of the people a writer may mention, hung above a text field: quiet rows, a badge only for the exception, muted rows that cannot be chosen, and its loading, empty and failed states.",
+      "description": "A listbox of the people a writer may mention, hung above a text field: quiet rows, a badge only for the exception, and its loading, empty and failed states.",
       "level": "organism",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Organisms/MentionPicker",
@@ -21287,7 +21287,7 @@
         "keyboard": [
           "The text field keeps focus and owns the list: Up and Down move the highlight, Enter or Tab chooses, Escape closes and keeps the typed text."
         ],
-        "notes": "Each option's accessible name includes its state; a person who cannot be chosen is aria-disabled. The caller wires aria-controls and aria-activedescendant on the field."
+        "notes": "Each option's accessible name includes its state (\"Ana Ruiz, no access yet\"). The caller wires aria-controls and aria-activedescendant on the field."
       },
       "tokens": [
         "--border-default",

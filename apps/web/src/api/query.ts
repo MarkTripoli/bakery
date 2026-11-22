@@ -9,6 +9,7 @@ import type {
   ApplicationRepositoryRoleListResponse,
   ApplicationResponse,
   ApprovalListResponse,
+  ArtifactAccessGrant,
   ArtifactCommentListResponse,
   ArtifactCommentQuery,
   ArtifactCursorQuery,
@@ -18,6 +19,7 @@ import type {
   ArtifactPreviewAvailabilityResponse,
   ArtifactQuery,
   ArtifactResponse,
+  ArtifactSharers,
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
   BakeryApiClient,
@@ -47,6 +49,7 @@ import type {
   FileSearchInput,
   FileSearchPage,
   InstallationCapabilities,
+  InstallationRestore,
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
@@ -1942,6 +1945,54 @@ export function usageSummaryQueryOptions(
     queryKey: protectedQueryKey(scope, "usage.list", { ...query }),
     queryFn: async ({ signal }) =>
       unwrap(await client.usage.list({ query, signal })),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * Whether a restore holds the installation right now (#64 E4), read from the
+ * public installation status so every signed-in person, not only an
+ * administrator, can see the banner before their first refused action. It
+ * reads again every minute and when the window is focused again, so the banner
+ * leaves soon after an administrator finishes the restore.
+ */
+export function installationHeldQueryOptions(
+  client: Pick<BakeryApiClient, "installationStatus">,
+) {
+  return queryOptions<boolean, ApiFailure>({
+    queryKey: ["installation", "restoreHeld"],
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationStatus(signal)).restoreHeld,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/**
+ * The restore that holds the installation, or null when none does. "No restore
+ * is held" is the normal answer of a running installation (RESTORE_NOT_HELD),
+ * not a failure: the banner and the Restore item show only while this is a
+ * record.
+ */
+export function installationRestoreQueryOptions(
+  client: Pick<BakeryApiClient, "installationRestore">,
+  scope: ApiScope,
+  enabled = true,
+) {
+  return queryOptions<InstallationRestore | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "installationRestore.get", {}),
+    enabled,
+    queryFn: async ({ signal }) => {
+      const read = await client.installationRestore.get(signal);
+      if (read.ok) return read.data;
+      if (
+        read.error.kind === "problem" &&
+        read.error.problem.code === "RESTORE_NOT_HELD"
+      ) return null;
+      throw read.error;
+    },
     retry: retryNetworkOnce,
   });
 }
@@ -4199,6 +4250,63 @@ export function conversationAccessQueryOptions(
       return items;
     },
     enabled: Boolean(scope.organizationId) && conversationId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Who can give access to one document (up to three people), read only while a writer who may not share needs them. */
+export function artifactSharersQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactSharers">,
+  scope: ApiScope,
+  artifactId: string,
+  enabled: boolean,
+) {
+  return queryOptions<ArtifactSharers, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "artifactAccess.sharers", {
+      artifactId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listArtifactSharers({
+          organizationId: requireOrganization(scope),
+          artifactId,
+          signal,
+        }),
+      ),
+    enabled: enabled && Boolean(scope.organizationId) && artifactId !== "",
+    staleTime: 30_000,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The people one document was opened to directly (a few pages at most), live grants only. */
+export function artifactAccessQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactAccess">,
+  scope: ApiScope,
+  artifactId: string,
+) {
+  return queryOptions<ArtifactAccessGrant[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "artifactAccess.list", { artifactId }),
+    queryFn: async ({ signal }) => {
+      const items: ArtifactAccessGrant[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listArtifactAccess({
+            organizationId: requireOrganization(scope),
+            artifactId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items.filter((grant) => grant.revokedAt === null));
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId) && artifactId !== "",
     retry: retryNetworkOnce,
   });
 }
