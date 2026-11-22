@@ -536,3 +536,141 @@ Deno.test("a token from before a restart is refused, so a spent request cannot r
   });
   assertEquals(runs, 1);
 });
+
+Deno.test("a lease renewal keeps an attempt's replay and sequence state past the first expiry", async () => {
+  let clock = 1_000_000;
+  let ran = 0;
+  const broker = createPluginBroker({
+    key: KEY,
+    epoch: EPOCH,
+    authority: {
+      load: () =>
+        Promise.resolve({ status: "enabled", grants: ["state.write"] }),
+    },
+    operations: [{
+      name: "state.write",
+      run: () => {
+        ran++;
+        return Promise.resolve({ n: ran });
+      },
+    }],
+    now: () => clock,
+  });
+  // The server builds these from the attempt; the token id is the attempt's.
+  const claims = (expiresAt: number) => ({
+    organizationId: ORG,
+    installId: INSTALL,
+    jobId: "job-1",
+    tokenId: "attempt:a1:1",
+    issuedAt: 0,
+    expiresAt,
+  });
+  const body = (requestId: string, sequence: number) =>
+    JSON.stringify({
+      requestId,
+      sequence,
+      operation: "state.write",
+      args: {},
+    });
+  const firstExpiry = clock + 60_000;
+  for (let sequence = 1; sequence <= 5; sequence++) {
+    const outcome = await broker.callAs({
+      claims: claims(firstExpiry),
+      body: body(`r${sequence}`, sequence),
+    });
+    assertEquals(outcome.ok, true);
+  }
+  assertEquals(ran, 5);
+
+  // The lease is renewed, and the clock passes the first expiry.
+  const renewedExpiry = firstExpiry + 60_000;
+  clock = firstExpiry + 1_000;
+
+  // A request id that already ran returns its recorded result; nothing reruns.
+  const again = await broker.callAs({
+    claims: claims(renewedExpiry),
+    body: body("r1", 6),
+  });
+  assertEquals(again.ok && again.replayed, true);
+  assertEquals(ran, 5);
+  // An old sequence under a fresh request id is refused.
+  assertEquals(
+    await broker.callAs({
+      claims: claims(renewedExpiry),
+      body: body("fresh", 2),
+    }),
+    { ok: false, denial: "sequence_replayed" },
+  );
+  // A stale call that still carries the first expiry is refused, and does not
+  // wipe the state the renewal kept alive.
+  assertEquals(
+    await broker.callAs({
+      claims: claims(firstExpiry),
+      body: body("stale", 7),
+    }),
+    { ok: false, denial: "token_expired" },
+  );
+  assertEquals(
+    await broker.callAs({
+      claims: claims(renewedExpiry),
+      body: body("fresh2", 3),
+    }),
+    { ok: false, denial: "sequence_replayed" },
+  );
+  // A new, higher sequence still runs.
+  assertEquals(
+    (await broker.callAs({
+      claims: claims(renewedExpiry),
+      body: body("r6", 6),
+    })).ok,
+    true,
+  );
+  assertEquals(ran, 6);
+});
+
+Deno.test("state of an attempt that went quiet past its expiry is released when another attempt calls", async () => {
+  let clock = 1_000_000;
+  let ran = 0;
+  const broker = createPluginBroker({
+    key: KEY,
+    epoch: EPOCH,
+    authority: {
+      load: () =>
+        Promise.resolve({ status: "enabled", grants: ["state.write"] }),
+    },
+    operations: [{
+      name: "state.write",
+      run: () => {
+        ran++;
+        return Promise.resolve({});
+      },
+    }],
+    now: () => clock,
+  });
+  const claims = (tokenId: string, expiresAt: number) => ({
+    organizationId: ORG,
+    installId: INSTALL,
+    jobId: "job-1",
+    tokenId,
+    issuedAt: 0,
+    expiresAt,
+  });
+  const call = (c: ReturnType<typeof claims>, sequence: number) =>
+    broker.callAs({
+      claims: c,
+      body: JSON.stringify({
+        requestId: `r${sequence}`,
+        sequence,
+        operation: "state.write",
+        args: {},
+      }),
+    });
+  assertEquals((await call(claims("attempt:a:1", clock + 10_000), 5)).ok, true);
+  // The attempt goes quiet and its lease lapses; another attempt's call sweeps.
+  clock += 100_000;
+  assertEquals((await call(claims("attempt:b:1", clock + 10_000), 1)).ok, true);
+  // The abandoned attempt's bookkeeping did not live forever: a fresh start
+  // under a new lease is not held to its old sequence.
+  assertEquals((await call(claims("attempt:a:1", clock + 10_000), 1)).ok, true);
+  assertEquals(ran, 3);
+});

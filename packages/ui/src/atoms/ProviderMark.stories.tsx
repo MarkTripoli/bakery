@@ -31,7 +31,12 @@ export const Contract: StoryObj = {
       {PROVIDERS.map(([provider, name]) => (
         <div
           key={provider}
-          style={{ alignItems: "center", display: "flex", gap: 12 }}
+          style={{
+            alignItems: "center",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
         >
           <ProviderMark name={name} provider={provider} />
           <ProviderMark name={name} provider={provider} size="header" />

@@ -24,11 +24,21 @@ type GrantRow = {
   access_token_id: string | null;
   granted_by: string;
   created_at: Date | string;
+  expires_at: Date | string | null;
+  role_key: string | null;
+  group_id: string | null;
   version: number;
 };
 
 const GRANT_COLUMNS =
-  "id, power, workflow_id, access_token_id, granted_by, created_at, version";
+  "id, power, workflow_id, access_token_id, granted_by, created_at, expires_at, role_key, group_id, version";
+
+/** The built-in roles an ask grant may name; a custom role is named by its key. */
+const ASKABLE_SYSTEM_ROLES = ["admin", "developer"];
+
+function iso(value: Date | string): string {
+  return (value instanceof Date ? value : new Date(value)).toISOString();
+}
 
 function toGrant(row: GrantRow) {
   return {
@@ -37,10 +47,10 @@ function toGrant(row: GrantRow) {
     workflowId: row.workflow_id,
     accessTokenId: row.access_token_id,
     grantedBy: row.granted_by,
-    createdAt:
-      (row.created_at instanceof Date
-        ? row.created_at
-        : new Date(row.created_at)).toISOString(),
+    createdAt: iso(row.created_at),
+    expiresAt: row.expires_at === null ? null : iso(row.expires_at),
+    roleKey: row.role_key,
+    groupId: row.group_id,
     version: row.version,
   };
 }
@@ -72,17 +82,73 @@ export async function createAgentPowerGrant(
     power: string;
     workflowId?: string | null;
     accessTokenId?: string | null;
+    expiresAt?: string | null;
+    roleKey?: string | null;
+    groupId?: string | null;
   };
   if (!isAgentPower(value.power)) {
     unprocessable(
       ["power"],
       "agent_power_unknown",
-      "power must be decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection",
+      "power must be decide, run_control, run_start, steer, steer_reviewer, comment, edit_work, draft_connection or ask",
     );
   }
   const power = value.power;
   const workflowId = value.workflowId ?? null;
   const tokenId = value.accessTokenId ?? null;
+  const roleKey = value.roleKey ?? null;
+  const groupId = value.groupId ?? null;
+  const expiresAt = value.expiresAt == null ? null : new Date(value.expiresAt);
+  if (expiresAt !== null && Number.isNaN(expiresAt.getTime())) {
+    unprocessable(
+      ["expiresAt"],
+      "agent_power_grant_expiry_invalid",
+      "Not a date",
+    );
+  }
+  if (expiresAt !== null && expiresAt.getTime() <= Date.now()) {
+    unprocessable(
+      ["expiresAt"],
+      "agent_power_grant_expiry_past",
+      "A grant must expire in the future, or not at all",
+    );
+  }
+  // An ask grant names exactly who may be asked: one role or one group. No
+  // other power names an audience.
+  if (power === "ask" && (roleKey === null) === (groupId === null)) {
+    unprocessable(
+      ["roleKey"],
+      "agent_power_grant_audience_required",
+      "An ask grant names one role (roleKey) or one group (groupId)",
+    );
+  }
+  if (power !== "ask" && (roleKey !== null || groupId !== null)) {
+    unprocessable(
+      ["roleKey"],
+      "agent_power_grant_audience_unexpected",
+      "Only an ask grant names a role or a group",
+    );
+  }
+  if (roleKey !== null && !ASKABLE_SYSTEM_ROLES.includes(roleKey)) {
+    const custom = await transaction.query(
+      `select 1 from bakery.organization_roles
+        where organization_id = $1 and key = $2`,
+      [organizationId, roleKey],
+    );
+    if (custom.rows.length !== 1) {
+      throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    }
+  }
+  if (groupId !== null) {
+    const group = await transaction.query(
+      `select 1 from bakery.organization_groups
+        where organization_id = $1 and id = $2`,
+      [organizationId, groupId],
+    );
+    if (group.rows.length !== 1) {
+      throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    }
+  }
   if (workflowId === null && tokenId === null) {
     unprocessable(
       ["accessTokenId"],
@@ -116,8 +182,10 @@ export async function createAgentPowerGrant(
     `select id from bakery.agent_power_grants
       where organization_id = $1 and power = $2
         and workflow_id is not distinct from $3::uuid
-        and access_token_id is not distinct from $4::uuid`,
-    [organizationId, power, workflowId, tokenId],
+        and access_token_id is not distinct from $4::uuid
+        and role_key is not distinct from $5
+        and group_id is not distinct from $6::uuid`,
+    [organizationId, power, workflowId, tokenId, roleKey, groupId],
   );
   if (existing.rows[0]) {
     throw new StandardError({
@@ -130,10 +198,20 @@ export async function createAgentPowerGrant(
   }
   const row = (await transaction.query<GrantRow>(
     `insert into bakery.agent_power_grants (
-       organization_id, power, workflow_id, access_token_id, granted_by
-     ) values ($1, $2, $3, $4, $5)
+       organization_id, power, workflow_id, access_token_id, granted_by,
+       expires_at, role_key, group_id
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8)
      returning ${GRANT_COLUMNS}`,
-    [organizationId, power, workflowId, tokenId, principalId],
+    [
+      organizationId,
+      power,
+      workflowId,
+      tokenId,
+      principalId,
+      expiresAt,
+      roleKey,
+      groupId,
+    ],
   )).rows[0];
   if (!row) throw new Error("AGENT_POWER_GRANT_INSERT_FAILED");
   await appendGrantFacts(transaction, context, {
@@ -210,6 +288,11 @@ async function appendGrantFacts(
       power: facts.row.power,
       workflowId: facts.row.workflow_id,
       accessTokenId: facts.row.access_token_id,
+      expiresAt: facts.row.expires_at === null
+        ? null
+        : iso(facts.row.expires_at),
+      roleKey: facts.row.role_key,
+      groupId: facts.row.group_id,
     },
   });
   await appendDomainEvent(transaction, {

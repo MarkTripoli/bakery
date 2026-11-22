@@ -375,6 +375,7 @@ async function mockWorld(page: Page, state: World) {
               createdAt: stamp,
               updatedAt: stamp,
               version: 1,
+              starts: [],
             }],
             nextCursor: null,
           },

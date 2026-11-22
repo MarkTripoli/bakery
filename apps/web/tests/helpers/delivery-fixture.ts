@@ -164,6 +164,7 @@ export async function deliveryFixture(
         share("blocked", null),
         share("unaccounted", row.unaccounted),
       ],
+      lineCount: null,
     };
   };
   const pullRequest = (n: number, missing: boolean) => ({
@@ -191,6 +192,7 @@ export async function deliveryFixture(
     deliveredAt: null,
     deliveryPoint: null,
     waits: null,
+    lineCount: null,
   });
   const pullRequests = Array.from(
     { length: 5 },

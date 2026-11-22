@@ -32,6 +32,7 @@ const expectedCapabilities = [
   "mcp.host_local",
   "model",
   "paper",
+  "plugin.job.contained",
   "reviewer",
   "secret.identity",
   "session.tools",
