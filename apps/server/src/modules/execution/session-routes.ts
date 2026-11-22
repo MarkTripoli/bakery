@@ -33,16 +33,31 @@ import {
   type SessionOperationClaim,
   SessionOperationError,
 } from "./session-credential.ts";
+import { resolveSessionCredential } from "./session-credential-store.ts";
 import { SessionToolError } from "./session-tools.ts";
-import { workerTransaction } from "./shared.ts";
+import {
+  type PgTransactionClient,
+  withPgTransaction,
+} from "@bakery/persistence";
+import type { WorkerIdentity } from "./shared.ts";
+import type { HostRow } from "./shared.ts";
 import type { SessionToolRegistry } from "./session-registry.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 
 /** The header a session credential travels in. Never a query and never a body. */
 export const SESSION_CREDENTIAL_HEADER = "x-session-credential";
 
-export const SESSION_TOOLS_PATH = "/v1/worker/attempts/:id/session-tools";
-export const SESSION_CALL_PATH = "/v1/worker/attempts/:id/session-call";
+/**
+ * Where a session asks, and what it asks for.
+ *
+ * The path carries no attempt id, because the credential already names one: a
+ * session is not given the attempt's identifiers, only the file its credential
+ * sits in. The credential is bound to that attempt's lease and fence, so
+ * resolving it is how the server learns which attempt, and therefore which
+ * organization and which host, is asking.
+ */
+export const SESSION_TOOLS_PATH = "/v1/session/tools";
+export const SESSION_CALL_PATH = "/v1/session/call";
 
 function readSessionCredential(headers: Headers): string {
   const value = headers.get(SESSION_CREDENTIAL_HEADER)?.trim();
@@ -206,33 +221,104 @@ async function refusing<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Which attempt is asking, and the host it belongs to.
+ *
+ * The session credential is the whole authority on this route: it was minted for
+ * one attempt, names that attempt's lease hash and fence, and expires with the
+ * lease. So resolving it is how the server learns the attempt without a host
+ * bearer, and the host identity is then loaded from the attempt's own row rather
+ * than presented by the caller.
+ *
+ * That keeps every downstream check real: `claimAttempt` still locks the attempt
+ * under this host and still compares the fence, `assertSessionOperationLive`
+ * still checks the host's session generation, and a host that has been revoked
+ * or retired fails to load and the call is refused.
+ *
+ * A credential that resolves to an attempt with no host, or to a host that no
+ * longer exists, is refused with the same code as a bad credential: telling a
+ * caller which of the two failed would let it probe.
+ */
+/**
+ * The identity of the host that owns an attempt, read from the database.
+ *
+ * A worker route presented the host's bearer, so the host loads from its token
+ * hash. A session call presents the session credential instead and must never
+ * hold the machine's token, so the attempt's own row says which host owns it and
+ * this loads that host by id. Every check downstream — the revoked status here,
+ * the fence and the session generation in the gateway — then runs against the
+ * real host row rather than an identity the caller asserted.
+ *
+ * `tokenHash` is empty because this caller used no host token. It is an
+ * identity, not a credential: nothing here grants reach, and the session
+ * credential still has to resolve and stay live for the call to happen.
+ */
+async function loadHostIdentityForSession(
+  transaction: PgTransactionClient,
+  hostId: string,
+): Promise<WorkerIdentity> {
+  const result = await transaction.query<HostRow>(
+    `select id, organization_id, principal_id, principal_type, name, os,
+            architecture, capabilities, slots, status, desired_mode,
+            credential_hash, credential_generation, protocol_version,
+            inventory_revision, readiness_revision, worker_session_id,
+            worker_session_generation, last_heartbeat_at
+       from bakery.worker_hosts
+      where id = $1
+      for update`,
+    [hostId],
+  );
+  const host = result.rows[0];
+  if (host === undefined || host.status === "revoked") {
+    throw new SessionOperationError("SESSION_CREDENTIAL_INVALID");
+  }
+  return { tokenHash: "", host };
+}
+
+async function resolveSession(
+  transaction: PgTransactionClient,
+  credentialToken: string,
+): Promise<{ attemptId: string; identity: WorkerIdentity }> {
+  const { claim } = await resolveSessionCredential(
+    transaction,
+    credentialToken,
+    new Date(),
+  );
+  const host = await transaction.query<{ worker_host_id: string }>(
+    `select worker_host_id from bakery.job_attempts where id = $1`,
+    [claim.attemptId],
+  );
+  const hostId = host.rows[0]?.worker_host_id;
+  if (hostId === undefined) {
+    throw new SessionOperationError("SESSION_CREDENTIAL_INVALID");
+  }
+  const identity = await loadHostIdentityForSession(transaction, hostId);
+  return { attemptId: claim.attemptId, identity };
+}
+
 export function createSessionRoutes(
   options: SessionRouteOptions,
 ): Hono<{ Variables: AuthVariables }> {
   const app = new Hono<{ Variables: AuthVariables }>();
 
   app.get(SESSION_TOOLS_PATH, async (context) => {
-    const attemptId = context.req.param("id") ?? "";
     const token = readSessionCredential(context.req.raw.headers);
     const tools = await refusing(() =>
-      workerTransaction(
-        options.database,
-        context.req.raw.headers,
-        (transaction, identity) =>
-          listSessionToolsForCredential({
-            transaction,
-            identity,
-            attemptId,
-            credentialToken: token,
-            registry: options.sessionTools.list(),
-          }),
-      )
+      withPgTransaction(options.database, async (transaction) => {
+        const session = await resolveSession(transaction, token);
+        return await listSessionToolsForCredential({
+          transaction,
+          identity: session.identity,
+          attemptId: session.attemptId,
+          credentialToken: token,
+          registry: options.sessionTools.list(),
+        });
+      })
     );
     return context.json({ tools });
   });
 
   app.post(SESSION_CALL_PATH, async (context) => {
-    const attemptId = context.req.param("id") ?? "";
     const token = readSessionCredential(context.req.raw.headers);
     const body = await context.req.json().catch(() => {
       throw new StandardError({ code: "MALFORMED_REQUEST" });
@@ -244,26 +330,24 @@ export function createSessionRoutes(
     const request = context.req.raw;
 
     const result = await refusing(() =>
-      workerTransaction(
-        options.database,
-        context.req.raw.headers,
-        (transaction, identity) =>
-          callSessionTool({
-            transaction,
-            identity,
-            attemptId,
-            credentialToken: token,
-            registry: options.sessionTools.list(),
-            tool,
-            arguments: body.arguments ?? {},
-            execute: (offered, claim) =>
-              options.sessionTools.execute(
-                offered.name,
-                dispatchedContext(request, attemptId, claim),
-                body.arguments ?? {},
-              ),
-          }),
-      )
+      withPgTransaction(options.database, async (transaction) => {
+        const session = await resolveSession(transaction, token);
+        return await callSessionTool({
+          transaction,
+          identity: session.identity,
+          attemptId: session.attemptId,
+          credentialToken: token,
+          registry: options.sessionTools.list(),
+          tool,
+          arguments: body.arguments ?? {},
+          execute: (offered, claim) =>
+            options.sessionTools.execute(
+              offered.name,
+              dispatchedContext(request, claim.attemptId, claim),
+              body.arguments ?? {},
+            ),
+        });
+      })
     );
     return context.json(result);
   });

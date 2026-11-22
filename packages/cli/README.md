@@ -33,11 +33,16 @@ BAKERY_SESSION_CREDENTIAL_FILE=<attempt-private path>
 
 The credential itself is never in the environment: a value there is a value in
 `ps`, in `/proc/<pid>/environ` and in a crash dump. Because the file's path is
-what says "I am a session", no flag is needed and no script has to choose. The
-command then speaks the gateway's two routes - `GET .../session-tools` and
-`POST .../session-call` - with the host credential in `authorization` and the
-session credential in `x-session-credential`. Both are required and neither
-stands in for the other.
+what says "I am a session", no flag is needed and no script has to choose.
+
+Those two variables are the whole of what a session needs. The command speaks
+the gateway's two routes - `GET /v1/session/tools` and `POST /v1/session/call` -
+with the session credential in `x-session-credential` and no `authorization`
+header at all. The host's credential identifies the machine and stays with the
+worker: an agent that held it could claim work and report a result as that
+machine. The credential names the attempt, its fence, its lease, the person it
+acts for and the organization, so the route resolves all of those from it and
+the command is never told the attempt's identifiers.
 
 ```sh
 bakery tools                      # exactly what this session may call

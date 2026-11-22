@@ -38,21 +38,26 @@ export const SESSION_CREDENTIAL_FILE = "BAKERY_SESSION_CREDENTIAL_FILE";
 
 export type SessionConfig = Readonly<{
   baseUrl: string;
-  /** The enrolled host's credential: it identifies the machine, never the person. */
-  hostToken: string;
-  /** The session operation credential: narrower than the host, dies with the lease. */
+  /**
+   * The session operation credential: narrower than the host, dies with the lease.
+   *
+   * It is the only credential a session call carries. The worker's own host
+   * token identifies the machine and stays with the worker: an agent that held
+   * it could claim work, renew a lease or report a result as that machine.
+   */
   sessionToken: string;
-  attemptId: string;
-  organizationId: string;
 }>;
 
+/**
+ * What a session must have to call Bakery: an address and one file.
+ *
+ * Nothing else. The credential names the attempt, its fence, its lease, the
+ * person it acts for and the organization — the server resolves all of that from
+ * it — so a session is never told the attempt's identifiers either.
+ */
 export const SESSION_ENVIRONMENT = Object.freeze({
   url: "BAKERY_URL",
-  hostToken: "BAKERY_HOST_TOKEN",
-  hostTokenFile: "BAKERY_HOST_TOKEN_FILE",
   credentialFile: SESSION_CREDENTIAL_FILE,
-  attempt: "BAKERY_ATTEMPT_ID",
-  organization: "BAKERY_ORGANIZATION",
 });
 
 /** One operation the server says this credential may call. */
@@ -76,12 +81,12 @@ export type SessionApi = Readonly<{
   call: (tool: string, args: unknown) => Promise<unknown>;
 }>;
 
-export function sessionToolsPath(attemptId: string): string {
-  return `/v1/worker/attempts/${encodeURIComponent(attemptId)}/session-tools`;
+export function sessionToolsPath(): string {
+  return "/v1/session/tools";
 }
 
-export function sessionCallPath(attemptId: string): string {
-  return `/v1/worker/attempts/${encodeURIComponent(attemptId)}/session-call`;
+export function sessionCallPath(): string {
+  return "/v1/session/call";
 }
 
 /**
@@ -144,14 +149,18 @@ function required(
 /**
  * Reads the session's settings, or says which one is missing.
  *
- * The two credentials are separate on purpose and are refused if equal: a host
- * token presented as a session credential must fail here, where the message can
- * explain it, rather than on the server as an opaque AUTH_INVALID.
+ * The credential is the whole of what a session needs. An earlier version also
+ * demanded the enrolled host's token, the attempt id and the organization, none
+ * of which the worker puts in the agent's environment — so every real session
+ * failed at the first `bakery` command. The server learns all three from the
+ * credential, which is the point of it: a session is narrower than its host.
  */
 export async function readSessionConfig(
   sources: Readonly<{
     environment: (name: string) => string | undefined;
-    flags: Readonly<{ url?: string; organization?: string }>;
+    // `--url` only. A session's organization comes from its credential: a flag
+    // could only ever disagree with it, and the server ignores it anyway.
+    flags: Readonly<{ url?: string }>;
     readFileText: (path: string) => Promise<string>;
   }>,
 ): Promise<SessionConfig> {
@@ -181,45 +190,13 @@ export async function readSessionConfig(
     SESSION_ENVIRONMENT.credentialFile,
     "the file the worker wrote this attempt's session credential to. A session is the only place this command works.",
   );
-  let hostToken = sources.environment(SESSION_ENVIRONMENT.hostToken)?.trim() ??
-    "";
-  const hostTokenFile = sources.environment(SESSION_ENVIRONMENT.hostTokenFile)
-    ?.trim();
-  if (hostToken === "" && hostTokenFile) {
-    hostToken = await readFile(
-      hostTokenFile,
-      SESSION_ENVIRONMENT.hostTokenFile,
-    );
-  }
-  required(
-    hostToken,
-    `${SESSION_ENVIRONMENT.hostToken} (or ${SESSION_ENVIRONMENT.hostTokenFile})`,
-    "the enrolled host's credential, which the worker already has.",
-  );
   const sessionToken = await readFile(
     credentialFile,
     SESSION_ENVIRONMENT.credentialFile,
   );
-  if (sessionToken === hostToken) {
-    throw new UsageError(
-      `${SESSION_ENVIRONMENT.credentialFile} holds the host's credential. A session call needs the session's own, which is narrower.`,
-    );
-  }
   return {
     baseUrl: baseUrl.trim().replace(/\/+$/, ""),
-    hostToken,
     sessionToken,
-    attemptId: required(
-      sources.environment(SESSION_ENVIRONMENT.attempt),
-      SESSION_ENVIRONMENT.attempt,
-      "the attempt this session is running.",
-    ),
-    organizationId: required(
-      sources.flags.organization ??
-        sources.environment(SESSION_ENVIRONMENT.organization),
-      SESSION_ENVIRONMENT.organization,
-      "the organization this attempt was claimed in.",
-    ),
   };
 }
 
@@ -250,11 +227,10 @@ export function createSessionApi(
     tool: string,
   ): Promise<unknown> => {
     const headers = new Headers({
-      // The host's credential, because the route checks the lease against the
-      // enrolled machine; and the session's, because that is who is calling.
-      authorization: `Bearer ${config.hostToken}`,
+      // One credential, in the header the server reads for a session. There is
+      // no host bearer here: the route resolves the attempt, its organization
+      // and its host from this token, which is bound to that attempt's lease.
       "x-session-credential": config.sessionToken,
-      "Bakery-Organization-Id": config.organizationId,
       accept: "application/json",
     });
     if (init.body !== undefined) {
@@ -292,7 +268,7 @@ export function createSessionApi(
   return {
     tools: async () => {
       const body = await send(
-        sessionToolsPath(config.attemptId),
+        sessionToolsPath(),
         { method: "GET" },
         "session tools",
       ) as { tools?: unknown };
@@ -301,7 +277,7 @@ export function createSessionApi(
     },
     call: async (tool, args) => {
       const body = await send(
-        sessionCallPath(config.attemptId),
+        sessionCallPath(),
         { method: "POST", body: { tool, arguments: args } },
         tool,
       ) as { outcome?: unknown; result?: unknown };

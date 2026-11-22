@@ -36,10 +36,7 @@ function environmentOf(values: Record<string, string>) {
 function config(overrides: Partial<SessionConfig> = {}): SessionConfig {
   return {
     baseUrl: "https://bakery.example.com",
-    hostToken: HOST_TOKEN,
     sessionToken: SESSION_TOKEN,
-    attemptId: ATTEMPT,
-    organizationId: ORG,
     ...overrides,
   };
 }
@@ -148,7 +145,7 @@ function gatewayOf(
   tools: readonly unknown[] = TOOLS,
 ): ReturnType<typeof fakeGateway> {
   return fakeGateway((seen) =>
-    seen.url.endsWith("/session-tools")
+    seen.url.endsWith("/session/tools")
       ? new Response(JSON.stringify({ tools }), { headers: JSON_HEADERS })
       : answer(seen)
   );
@@ -162,10 +159,7 @@ Deno.test("the credential comes from a file, never from an environment variable"
   const config = await readSessionConfig({
     environment: environmentOf({
       [SESSION_ENVIRONMENT.url]: "https://bakery.example.com",
-      [SESSION_ENVIRONMENT.hostToken]: HOST_TOKEN,
       [SESSION_ENVIRONMENT.credentialFile]: "/run/bakery/session-credential",
-      [SESSION_ENVIRONMENT.attempt]: ATTEMPT,
-      [SESSION_ENVIRONMENT.organization]: ORG,
     }),
     flags: {},
     readFileText: (path) => {
@@ -179,7 +173,33 @@ Deno.test("the credential comes from a file, never from an environment variable"
     SESSION_TOKEN,
     "the file's newline was kept",
   );
-  assertEquals(config.attemptId, ATTEMPT);
+  assertEquals(config.baseUrl, "https://bakery.example.com");
+});
+
+Deno.test("a session needs an address and one file, and nothing else", async () => {
+  // Every real session failed at its first command because this asked for the
+  // host token, the attempt id and the organization — none of which the worker
+  // puts in an agent's environment, and none of which a session should hold.
+  const config = await readSessionConfig({
+    environment: environmentOf({
+      [SESSION_ENVIRONMENT.url]: "https://bakery.example.com/",
+      [SESSION_ENVIRONMENT.credentialFile]: "/run/bakery/session-credential",
+      // Present in the worker's own environment and deliberately unused: if a
+      // future change starts reading them, this case still passes only when the
+      // credential file alone is enough.
+      BAKERY_HOST_TOKEN: HOST_TOKEN,
+      BAKERY_ATTEMPT_ID: ATTEMPT,
+      BAKERY_ORGANIZATION: ORG,
+    }),
+    flags: {},
+    readFileText: () => Promise.resolve(SESSION_TOKEN),
+  });
+  assertEquals(Object.keys(config).sort(), ["baseUrl", "sessionToken"]);
+  assertEquals(
+    config.baseUrl,
+    "https://bakery.example.com",
+    "a trailing slash was kept, so every path we append doubles it",
+  );
 });
 
 Deno.test("a session with no credential file is refused, not guessed at", async () => {
@@ -187,9 +207,6 @@ Deno.test("a session with no credential file is refused, not guessed at", async 
     readSessionConfig({
       environment: environmentOf({
         [SESSION_ENVIRONMENT.url]: "https://bakery.example.com",
-        [SESSION_ENVIRONMENT.hostToken]: HOST_TOKEN,
-        [SESSION_ENVIRONMENT.attempt]: ATTEMPT,
-        [SESSION_ENVIRONMENT.organization]: ORG,
       }),
       flags: {},
       readFileText: () => Promise.resolve(""),
@@ -201,47 +218,24 @@ Deno.test("a session with no credential file is refused, not guessed at", async 
   );
 });
 
-Deno.test("the host credential is refused where the session's belongs", async () => {
-  // A host token presented as a session credential would otherwise reach the
-  // server and come back as an opaque AUTH_INVALID, which reads like a wrong
-  // secret rather than the wrong kind of secret.
-  const message = await assertRejectsUsage(() =>
-    readSessionConfig({
-      environment: environmentOf({
-        [SESSION_ENVIRONMENT.url]: "https://bakery.example.com",
-        [SESSION_ENVIRONMENT.hostToken]: HOST_TOKEN,
-        [SESSION_ENVIRONMENT.credentialFile]: "/run/bakery/session-credential",
-        [SESSION_ENVIRONMENT.attempt]: ATTEMPT,
-        [SESSION_ENVIRONMENT.organization]: ORG,
-      }),
-      flags: {},
-      readFileText: () => Promise.resolve(HOST_TOKEN),
-    })
-  );
-  assert(
-    message.includes("narrower"),
-    `the refusal does not explain the difference: ${message}`,
-  );
-});
-
-Deno.test("both credentials travel, in the headers each one belongs in", async () => {
-  // Two credentials, two headers. `authorization` is the machine (the route
-  // checks the lease against it) and `x-session-credential` is the person the
-  // run is for. Swapping them would make the audit name the host.
+Deno.test("one credential travels, in the session header", async () => {
+  // The host token identifies the machine and stays with the worker: an agent
+  // that carried it could claim work and report a result as that machine. So a
+  // session sends the session credential and no `authorization` at all.
   const gateway = fakeGateway(() =>
     new Response(JSON.stringify({ tools: TOOLS }), { headers: JSON_HEADERS })
   );
   await createSessionApi(config(), gateway.fetch).tools();
   assertEquals(gateway.seen.length, 1);
   const [seen] = gateway.seen;
-  assertEquals(seen.headers.get("authorization"), `Bearer ${HOST_TOKEN}`);
   assertEquals(seen.headers.get("x-session-credential"), SESSION_TOKEN);
-  assertEquals(seen.headers.get("Bakery-Organization-Id"), ORG);
-  assertEquals(seen.headers.get("cookie"), null, "a cookie was sent");
   assertEquals(
-    seen.url,
-    `https://bakery.example.com/v1/worker/attempts/${ATTEMPT}/session-tools`,
+    seen.headers.get("authorization"),
+    null,
+    "a host token was sent",
   );
+  assertEquals(seen.headers.get("cookie"), null, "a cookie was sent");
+  assertEquals(seen.url, "https://bakery.example.com/v1/session/tools");
 });
 
 Deno.test("a call names the operation and carries the arguments unchanged", async () => {
@@ -258,10 +252,7 @@ Deno.test("a call names the operation and carries the arguments unchanged", asyn
   await api.entries(FILE_ID);
   const seen = gateway.seen.at(-1)!;
   assertEquals(seen.method, "POST");
-  assertEquals(
-    seen.url.endsWith(`/v1/worker/attempts/${ATTEMPT}/session-call`),
-    true,
-  );
+  assertEquals(seen.url, "https://bakery.example.com/v1/session/call");
   assertEquals(seen.body, {
     tool: "storageFolderEntries.list",
     arguments: { id: FILE_ID },
@@ -374,7 +365,7 @@ Deno.test("a pin is refused with the reason a person can act on", async () => {
   assert(message.includes("administrator"), `unclear: ${message}`);
   // No call was made: a session telling an agent "denied" would read as a bug.
   assertEquals(
-    gateway.seen.filter((seen) => seen.url.endsWith("/session-call")).length,
+    gateway.seen.filter((seen) => seen.url.endsWith("/session/call")).length,
     0,
   );
 });
@@ -398,10 +389,7 @@ Deno.test("bakery tools lists what the session may call, and nothing else", asyn
   const code = await run(["tools"], {
     environment: environmentOf({
       [SESSION_ENVIRONMENT.url]: "https://bakery.example.com",
-      [SESSION_ENVIRONMENT.hostToken]: HOST_TOKEN,
       [SESSION_ENVIRONMENT.credentialFile]: "/run/bakery/session-credential",
-      [SESSION_ENVIRONMENT.attempt]: ATTEMPT,
-      [SESSION_ENVIRONMENT.organization]: ORG,
     }),
     output: {
       text: (line) => lines.push(line),
