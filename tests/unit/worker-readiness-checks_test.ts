@@ -1,4 +1,16 @@
 import { assert, assertEquals, assertFalse } from "@std/assert";
+import { createHash } from "node:crypto";
+import { join } from "node:path";
+import {
+  MaintenanceExecutor,
+  MaintenanceJournalStore,
+} from "../../apps/worker/src/maintenance.ts";
+import {
+  WORKER_COMPONENT_KEY,
+  workerMaintenanceAdapters,
+} from "../../apps/worker/src/maintenance-release.ts";
+import { readMaintenanceRelease } from "../../apps/worker/src/config.ts";
+import type { SupervisorMaintenance } from "../../apps/worker/src/supervisor-state.ts";
 import { syntheticAuthSource } from "../helpers/harness-auth.ts";
 import {
   claudeAuthSourceAvailable,
@@ -208,6 +220,7 @@ async function startHarness(
     ) => Response;
     stopWhen: (harness: Harness) => boolean;
     capabilities?: string[];
+    maintenance?: SupervisorMaintenance;
   },
 ): Promise<Harness> {
   const { registrationStore, spool } = await openRecoveryState(directory);
@@ -279,6 +292,7 @@ async function startHarness(
     registrationStore,
     spool,
     executor,
+    ...(options.maintenance ? { maintenance: options.maintenance } : {}),
     sleep: fastSleep,
     monotonicNow: () => clock.value,
   });
@@ -597,4 +611,59 @@ Deno.test({
     );
     assertEquals(claimed, ["model", "git"]);
   },
+});
+
+Deno.test({
+  name:
+    "with a release root configured the inventory report carries the worker's own release",
+  ...NO_SANITIZE,
+  fn: () =>
+    withDirectory(async (directory) => {
+      const bytes = new TextEncoder().encode("bakery worker 1.0");
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      const source = join(directory, "source", digest);
+      await Deno.mkdir(source, { recursive: true });
+      await Deno.writeFile(join(source, "artifact"), bytes);
+      await Deno.writeTextFile(
+        join(source, "release.json"),
+        JSON.stringify({ version: "1.0.0", stateFormat: 1 }),
+      );
+      const adapters = workerMaintenanceAdapters({
+        maintenanceRelease: readMaintenanceRelease({
+          BAKERY_WORKER_RELEASE_ROOT: join(directory, "release"),
+          BAKERY_WORKER_RELEASE_SOURCE_DIR: join(directory, "source"),
+        }),
+      });
+      await adapters[0]!.switchTo(
+        await adapters[0]!.stage({ digest, version: null }),
+      );
+      const maintenance = new MaintenanceExecutor({
+        journal: await MaintenanceJournalStore.open(join(directory, "mstate")),
+        adapters,
+        report: () => Promise.resolve(),
+        log: () => undefined,
+      });
+      const harness = await startHarness(directory, {
+        checks: () => [check("capability:model", "pass")],
+        revision: () => 3,
+        inventory: () => receipt(4),
+        stopWhen: (state) => state.reports.length >= 1,
+        maintenance,
+      });
+      const components = harness.reports[0]?.components as Record<
+        string,
+        unknown
+      >[];
+      assertEquals(components.length, 1);
+      assertEquals(components[0]?.componentKey, WORKER_COMPONENT_KEY);
+      assertEquals(components[0]?.installOwner, "bakery");
+      assertEquals(components[0]?.kind, "worker");
+      assertEquals(components[0]?.actualDigest, digest);
+      assertEquals(components[0]?.actualVersion, "1.0.0");
+      assertEquals(
+        (components[0]?.maintenanceSupport as { verbs: string[] }).verbs
+          .includes("update_component"),
+        true,
+      );
+    }),
 });
