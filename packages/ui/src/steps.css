@@ -425,12 +425,14 @@
 }
 [data-group-arm] {
   display: flex;
-  /* A 12rem floor is small enough for a phone and wide enough to read, so two
-     arms sit side by side when there is room and stack when there is not. */
-  flex: 1 1 12rem;
+  /* An arm is as wide as its steps, with a 12rem floor that is small enough for
+     a phone and wide enough to read. The box around the arms is as wide as
+     both of them, so two arms sit side by side when there is room and stack
+     when there is not; they do not stretch to fill the page (#62 UX sign-off). */
+  flex: 0 1 auto;
   flex-direction: column;
   gap: var(--space-2);
-  min-inline-size: 0;
+  min-inline-size: 12rem;
   overflow-wrap: anywhere;
 }
 
