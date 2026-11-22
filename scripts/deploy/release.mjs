@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { createInterface } from "node:readline/promises";
+import { userInfo } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { constants } from "node:fs";
@@ -18,20 +20,43 @@ import { isIP } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  askLines,
   completionLines,
+  decisionLines,
   failedStepLine,
   failureLines,
+  gateReviewLines,
+  isRefusal,
   statusLines,
   STEP_LABELS,
   stepLine,
   unsureLines,
 } from "./release-messages.mjs";
+import {
+  addApproval,
+  approves,
+  gateChanges,
+  gateDigests,
+  gateFingerprint,
+  readApprovals,
+} from "./trusted-gate.mjs";
 
 const execute = promisify(execFile);
 const SHA = /^[a-f0-9]{40}$/;
 const DIGEST = /^[a-f0-9]{64}$/;
 const ROOT = "/opt/bakery";
 const STATE = "/var/lib/bakery/deploy/state.json";
+// Every event of the update history, one JSON line each. Kept on this host so
+// an answer or an outcome is never lost when the database cannot be reached;
+// recover sends them to Bakery again, and Bakery ignores one it already has.
+const HISTORY = "/var/lib/bakery/deploy/history.jsonl";
+// Who approved a change to the checks or the launcher, for exactly which move.
+const GATE_APPROVALS = "/var/lib/bakery/deploy/gate-approvals.json";
+// Exists from just before an update switches versions until it ends. The proxy
+// reads it to say "Bakery is being updated" instead of "not answering". Under
+// /etc/bakery because the proxy user can read it; recover and restore remove
+// one a crashed launcher left.
+const MARKER = "/etc/bakery/update-in-progress";
 
 export function commit(value) {
   if (typeof value !== "string" || !SHA.test(value)) {
@@ -474,6 +499,19 @@ export async function transition(
   }
   await operations.prepare(sha, digest);
   const target = manifest(await operations.manifest(sha), sha);
+  // A candidate never approves a change to its own checks or launcher: the
+  // version running now, which is what this launcher compares it with, does.
+  // Only an update of a running installation is held: a rollback goes to a
+  // release that was already trusted, and a first install has nothing running
+  // (bootstrap onto a running host is refused above, so it never gets here).
+  if (!rollback && old.active) {
+    const gate = typeof operations.gate === "function"
+      ? await operations.gate(old.active.sha, sha)
+      : null;
+    if (gate && gate.changes.length > 0 && !gate.approved) {
+      throw Object.assign(new Error("TRUSTED_GATE_CHANGE"), { gate });
+    }
+  }
   emit(progress, 1);
   const additions = pendingMigrations(old.migrations, target, rollback);
   emit(progress, 2, additions.length ? `${additions.length} to apply` : "none");
@@ -500,6 +538,8 @@ export async function transition(
     }
   }
   emit(progress, 3, pausing ? "quiet" : "skipped");
+  const askable = !rollback && !bootstrap && Boolean(old.active);
+  let switched = false;
   const desired = { sha, slot: old.active?.slot === "blue" ? "green" : "blue" };
   let state = {
     ...old,
@@ -514,6 +554,7 @@ export async function transition(
     if (pausing) await resumeWork(operations, sha);
     throw error;
   }
+  if (askable) await setMarker(operations, true);
   try {
     await operations.backup();
     emit(progress, 4);
@@ -535,21 +576,196 @@ export async function transition(
     state = { ...state, phase: "switching" };
     await store.write(state);
     await operations.switchProxy(desired);
+    switched = true;
     await operations.publicSmoke(desired);
     emit(progress, 5);
     if (bootstrap) {
       state = { ...state, phase: "enrollment" };
       await store.write(state);
+      await note(operations, progress, { kind: "installed", to: sha });
       return state;
     }
-    return await finish(store, operations, state, progress);
+    const done = await finish(store, operations, state, progress, askable);
+    await note(operations, progress, {
+      kind: rollback ? "rolled_back" : "updated",
+      from: old.active.sha,
+      to: sha,
+    });
+    return done;
   } catch (error) {
-    await recover(store, operations);
-    throw error;
+    // finish() already undid it, asked and recorded: once is the rule.
+    if (settled.has(error)) throw error;
+    const attempt = askable ? { from: desired.sha, to: old.active.sha } : null;
+    throw await undoUpdate(store, operations, error, {
+      progress,
+      // Traffic reached the new release only after the switch, so only then is
+      // there a release to go back from and a person to ask.
+      askAbout: switched ? attempt : null,
+      wentBack: attempt,
+    });
+  } finally {
+    if (askable) await setMarker(operations, false);
   }
 }
 
-async function finish(store, operations, state, progress = () => {}) {
+/**
+ * What `recover` records: the switch that did not finish, and the release it
+ * put back. Only a journal that really was mid-switch counts, so running
+ * recover again (or on a committed host) records nothing.
+ */
+export function interruptedMove(before, after) {
+  if (
+    !before?.desired || before.phase === "committed" ||
+    before.phase === "enrollment" || !after?.active
+  ) return null;
+  return {
+    kind: "interrupted",
+    from: before.desired.sha,
+    to: after.active.sha,
+    via: after.active.sha,
+  };
+}
+
+/** Removes a marker a crashed launcher left; recover and a reboot are the ways out. */
+async function clearMarker(operations) {
+  await setMarker(operations, false);
+}
+
+/** Best effort: a marker that cannot be written never stops an update. */
+async function setMarker(operations, on) {
+  if (typeof operations.marker !== "function") return;
+  try {
+    await operations.marker(on);
+  } catch {
+    // The proxy then says "not answering", which is true.
+  }
+}
+
+/**
+ * Undoes an update that failed, or asks first when the installation's policy
+ * says to. Returns the error for the caller to throw.
+ *
+ * Before the switch there is nothing to ask: the old release was never
+ * replaced. After it, the policy decides. `go_back` (also what an unreadable
+ * policy means, because the database may be what is down) goes back at once.
+ * `ask` shows the state and waits for a person at the terminal: yes goes back,
+ * and so does no answer at all being impossible, so a script that cannot be
+ * asked leaves the release in place and says how to go back. The answer is
+ * recorded for Bakery's history, never needed to go back.
+ */
+// Errors an undoUpdate has already dealt with. finish() undoes a failure and
+// rethrows it into transition(), whose own catch must not ask or record again.
+const settled = new WeakSet();
+
+async function undoUpdate(store, operations, error, context) {
+  const result = await undoUpdateOnce(store, operations, error, context);
+  if (typeof result === "object" && result !== null) settled.add(result);
+  return result;
+}
+
+async function undoUpdateOnce(
+  store,
+  operations,
+  error,
+  { progress, askAbout, wentBack },
+) {
+  if (!askAbout || !(await asksFirst(operations, askAbout.from))) {
+    await recover(store, operations);
+    // Bakery did it by itself, so no one is named.
+    if (wentBack) {
+      await note(operations, progress, {
+        kind: "went_back",
+        by: null,
+        ...wentBack,
+      });
+    }
+    return error;
+  }
+  const choice = await operations.ask(askAbout);
+  if (choice !== "go_back" && choice !== "stay") {
+    // Nobody could be asked. The new release stays running, so the history says
+    // it was installed and that it was kept by default, with no one named.
+    await keepRunning(operations, progress, askAbout);
+    await note(operations, progress, {
+      kind: "decided_stay",
+      by: null,
+      from: askAbout.from,
+      to: askAbout.to,
+    });
+    return new Error("UPDATE_LEFT_UNHEALTHY");
+  }
+  if (choice === "stay") {
+    await keepRunning(operations, progress, askAbout);
+    await remember(operations, progress, choice, askAbout);
+    return new Error("UPDATE_LEFT_UNHEALTHY");
+  }
+  await recover(store, operations);
+  await remember(operations, progress, choice, askAbout);
+  return error;
+}
+
+/**
+ * The new release is serving and stays that way: record the move, so the
+ * history (and the Updates page's "can go back to") knows what was replaced
+ * even though the update did not finish well.
+ */
+async function keepRunning(operations, progress, { from, to }) {
+  await note(operations, progress, { kind: "updated", from: to, to: from });
+}
+
+async function asksFirst(operations, sha) {
+  if (
+    typeof operations.policy !== "function" ||
+    typeof operations.ask !== "function"
+  ) return false;
+  try {
+    return (await operations.policy(sha)).onFailure === "ask";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Records one event of the update history: on this host first, then in
+ * Bakery. Never fatal: what happened already happened. Reports through
+ * `progress` so the closing lines can say whether Bakery has it.
+ */
+async function note(operations, progress, event) {
+  if (typeof operations.record !== "function") return;
+  const full = {
+    id: randomUUID(),
+    kind: event.kind,
+    by: event.by === null ? null : event.by ?? operations.who?.() ?? null,
+    at: new Date().toISOString(),
+    fromRelease: event.from ?? null,
+    toRelease: event.to ?? null,
+    detail: event.detail ?? null,
+  };
+  let saved = { kept: false, inBakery: false };
+  try {
+    saved = await operations.record(full, event.via);
+  } catch {
+    // Neither place took it; the lines say so for an answer at the terminal.
+  }
+  progress({ recorded: { ...full, ...saved } });
+  return full;
+}
+
+async function remember(operations, progress, choice, { from, to }) {
+  await note(operations, progress, {
+    kind: choice === "go_back" ? "decided_go_back" : "decided_stay",
+    from,
+    to,
+  });
+}
+
+async function finish(
+  store,
+  operations,
+  state,
+  progress = () => {},
+  askable = false,
+) {
   try {
     await operations.publicSmoke(state.desired);
     state = { ...state, phase: "background" };
@@ -577,8 +793,16 @@ async function finish(store, operations, state, progress = () => {}) {
     if (after.resumed !== undefined) progress({ resumed: after.resumed });
     return after.state;
   } catch (error) {
-    await recover(store, operations);
-    throw error;
+    const attempt = askable && state.active
+      ? { from: state.desired.sha, to: state.active.sha }
+      : null;
+    // Everything in finish() runs after the switch, so there is always a
+    // release to go back from and a person to ask.
+    throw await undoUpdate(store, operations, error, {
+      progress,
+      askAbout: attempt,
+      wentBack: attempt,
+    });
   }
 }
 
@@ -718,9 +942,9 @@ async function hostAction(name, ...args) {
  * What the launcher asks of the database around an update: pause, resume, count
  * or list the unsure actions. Each prints one JSON line.
  */
-export async function updateTask(sha, subcommand) {
+export async function updateTask(sha, subcommand, ...args) {
   try {
-    const stdout = await hostAction("update", sha, subcommand);
+    const stdout = await hostAction("update", sha, subcommand, ...args);
     return JSON.parse(stdout.trim().split("\n").at(-1));
   } catch (error) {
     const refusal = PAUSE_REFUSALS[Number(error.message.split(":")[1])];
@@ -729,7 +953,268 @@ export async function updateTask(sha, subcommand) {
   }
 }
 
-export function hostOperations(config) {
+/** The person at the terminal: who ran sudo, else who is logged in. */
+export function loginName() {
+  const name = process.env.SUDO_USER;
+  if (name && /^[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}$/.test(name)) return name;
+  return userInfo().username;
+}
+
+// The most events kept on the host while Bakery's database does not take them.
+// More than this means the database has been unreachable through a very long
+// run of updates; the oldest go first, and the file says so in the lines kept.
+export const MAX_KEPT_EVENTS = 1000;
+
+async function keptLines(path) {
+  try {
+    return (await readFile(path, "utf8")).split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function writeKept(path, lines) {
+  await writeAtomic(path, lines.length ? `${lines.join("\n")}\n` : "");
+}
+
+/**
+ * Appended and synced, so the event survives a database that is down. The file
+ * holds only events Bakery has not taken: `forgetEvent` removes one once it has.
+ */
+export async function keepEvent(event, path = HISTORY) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const file = await open(path, "a", 0o600);
+  try {
+    await file.appendFile(`${JSON.stringify(event)}\n`);
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  const lines = await keptLines(path);
+  if (lines.length > MAX_KEPT_EVENTS) {
+    await writeKept(path, lines.slice(-MAX_KEPT_EVENTS));
+  }
+}
+
+/** Drops one event from the host file once Bakery has it. */
+export async function forgetEvent(id, path = HISTORY) {
+  const lines = await keptLines(path);
+  const left = lines.filter((line) => {
+    try {
+      return JSON.parse(line).id !== id;
+    } catch {
+      return false;
+    }
+  });
+  if (left.length !== lines.length) await writeKept(path, left);
+}
+
+const dash = (value) => value ?? "-";
+
+/**
+ * Hands one event to Bakery's database through the update task. `via` is the
+ * release whose code runs the task: the newest one that is prepared, since an
+ * older one may not know the task yet. Throws when the database does not take it.
+ */
+async function sendEvent(event, via) {
+  const release = via ?? event.toRelease ?? event.fromRelease;
+  if (!release) throw new Error("EVENT_HAS_NO_RELEASE");
+  await updateTask(
+    release,
+    "record",
+    event.id,
+    event.kind,
+    dash(event.by),
+    event.at,
+    dash(event.fromRelease),
+    dash(event.toRelease),
+    dash(event.detail),
+  );
+  return true;
+}
+
+/**
+ * Sends every event still kept on this host. Bakery ignores one it already
+ * has, so this is safe to repeat. The file is then rewritten with only the
+ * events Bakery did not take, so nothing is ever left behind a window and the
+ * file does not grow. Returns how many were sent and how many are still kept.
+ */
+export async function resendEvents(send = sendEvent, path = HISTORY) {
+  const lines = await keptLines(path);
+  const unsent = [];
+  let sent = 0;
+  for (const line of lines) {
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue; // Not an event: it cannot be sent, so it is not kept.
+    }
+    try {
+      if (await send(event)) {
+        sent++;
+        continue;
+      }
+    } catch {
+      // Not reachable: it stays on this host for the next time.
+    }
+    unsent.push(line);
+  }
+  if (unsent.length !== lines.length) {
+    try {
+      await writeKept(path, unsent);
+    } catch {
+      // The file is left as it was; the next run sends the same events again.
+    }
+  }
+  return { sent, unsent: unsent.length };
+}
+
+/**
+ * Asks the person at the terminal. Returns "go_back" or "stay", or null when
+ * nobody can be asked (no terminal): a script is never answered for. The
+ * default is No, so pressing Enter changes nothing.
+ */
+export async function askAtTerminal(
+  { from, to },
+  { input = process.stdin, output = process.stdout, yes = false } = {},
+) {
+  for (const line of askLines({ from, to })) output.write(`${line}\n`);
+  const answer = await confirmAtTerminal(
+    `Go back to ${to.slice(0, 8)} now? Work resumes afterwards.`,
+    { input, output, yes },
+  );
+  return answer === null ? null : answer ? "go_back" : "stay";
+}
+
+/**
+ * One yes/no question at the terminal. true only on an explicit yes, false for
+ * Enter or anything else, null when nobody can be asked (no terminal). `yes`
+ * answers for a script, and says so on the line.
+ */
+export async function confirmAtTerminal(
+  question,
+  { input = process.stdin, output = process.stdout, yes = false } = {},
+) {
+  if (yes) {
+    output.write(`${question} [y/N] y (--yes)\n`);
+    return true;
+  }
+  if (!input.isTTY) return null;
+  const readline = createInterface({ input, output });
+  try {
+    const answer = await readline.question(`${question} [y/N] `);
+    return /^\s*y(es)?\s*$/i.test(answer);
+  } finally {
+    readline.close();
+  }
+}
+
+/**
+ * What differs between the running release and a prepared candidate in the
+ * trusted gate, and whether a person already approved exactly that move.
+ */
+export async function gateReview(
+  activeSha,
+  sha,
+  { root = ROOT, approvalsPath = GATE_APPROVALS } = {},
+) {
+  // A release that is not on disk must not read as "everything was removed".
+  for (const release of [activeSha, sha]) {
+    await lstat(`${root}/releases/${release}`);
+  }
+  const [before, after] = await Promise.all([
+    gateDigests(`${root}/releases/${activeSha}`),
+    gateDigests(`${root}/releases/${sha}`),
+  ]);
+  const changes = gateChanges(before, after);
+  const fingerprint = gateFingerprint(after);
+  return {
+    changes,
+    fingerprint,
+    approved: changes.length === 0 ||
+      approves(await readApprovals(approvalsPath), {
+        sha,
+        active: activeSha,
+        fingerprint,
+      }),
+  };
+}
+
+/**
+ * approve-gate: shows what the candidate changes in the trusted gate and, on a
+ * yes at the terminal, records that this person approved exactly that move.
+ * Never run by CI: the wrapper refuses it for the deploy user.
+ */
+export async function approveGate(
+  state,
+  sha,
+  {
+    confirm,
+    scripted = false,
+    review = gateReview,
+    who = loginName,
+    write = writeAtomic,
+    approvalsPath = GATE_APPROVALS,
+    print = console.log,
+    now = () => new Date(),
+  },
+) {
+  commit(sha);
+  if (scripted) throw new Error("GATE_NEEDS_A_PERSON");
+  if (!state?.active) throw new Error("GATE_NOTHING_RUNNING");
+  let gate;
+  try {
+    gate = await review(state.active.sha, sha);
+  } catch (error) {
+    if (error.code === "ENOENT") throw new Error("GATE_RELEASE_NOT_PREPARED");
+    throw error;
+  }
+  if (gate.changes.length === 0) {
+    print(
+      "No change to the checks or the launcher, so there is nothing to approve.",
+    );
+    return null;
+  }
+  for (
+    const line of gateReviewLines({
+      active: state.active.sha,
+      sha,
+      changes: gate.changes,
+    })
+  ) print(line);
+  const answer = await confirm("Approve this change?");
+  if (answer !== true) throw new Error("GATE_NOT_APPROVED");
+  const approval = {
+    sha,
+    active: state.active.sha,
+    fingerprint: gate.fingerprint,
+    by: who(),
+    at: now().toISOString(),
+  };
+  await addApproval(approvalsPath, approval, write);
+  print(
+    `Approved by ${approval.by} at ${
+      approval.at.slice(11, 16)
+    } UTC. Run the update again.`,
+  );
+  return approval;
+}
+
+/**
+ * How approve-gate is wired from the command line. `--yes` is never passed on
+ * to the question: it only marks the call as scripted, which approveGate
+ * refuses, so no flag can stand in for a person reading the files at a terminal.
+ * `io` is for tests (input, output).
+ */
+export function gateApprovalDeps({ yes = false } = {}, io = {}) {
+  return {
+    scripted: yes === true,
+    confirm: (question) => confirmAtTerminal(question, io),
+  };
+}
+
+export function hostOperations(config, { yes = false } = {}) {
   const action = hostAction;
   const switchProxy = async (active) => {
     const path = "/etc/bakery/Caddyfile.next";
@@ -739,6 +1224,30 @@ export function hostOperations(config) {
   return {
     pause: (sha) => updateTask(sha, "pause"),
     resume: (sha) => updateTask(sha, "resume"),
+    policy: (sha) => updateTask(sha, "policy"),
+    gate: (activeSha, sha) => gateReview(activeSha, sha),
+    ask: (context) => askAtTerminal(context, { yes }),
+    who: loginName,
+    record: async (event, via) => {
+      let kept = true, inBakery = true;
+      try {
+        await keepEvent(event);
+      } catch {
+        kept = false;
+      }
+      try {
+        await sendEvent(event, via);
+        // Bakery has it: the host copy has done its job.
+        await forgetEvent(event.id).catch(() => {});
+      } catch {
+        inBakery = false;
+      }
+      return { kept, inBakery };
+    },
+    marker: (on) =>
+      on
+        ? writeAtomic(MARKER, `${new Date().toISOString()}\n`, 0o644)
+        : rm(MARKER, { force: true }),
     prepare: (sha, digest) => action("prepare", sha, digest ?? "retained"),
     manifest: async (sha) =>
       JSON.parse(
@@ -796,7 +1305,12 @@ async function readState() {
 }
 
 async function main() {
-  const [command, sha, checksum] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  // --yes answers the question "go back?" for a script; it is not an argument.
+  // approve-gate refuses it: a change to the checks or the launcher is approved
+  // by a person who has read the files it shows, never by a script.
+  const yes = args.includes("--yes");
+  const [command, sha, checksum] = args.filter((arg) => arg !== "--yes");
   let lastStep = 0;
   // `resumed` is what waited through an update: counts, null when work could
   // not be resumed, undefined when nothing was paused.
@@ -806,11 +1320,15 @@ async function main() {
       notes.resumed = event.resumed;
       return;
     }
+    if ("recorded" in event) {
+      (notes.recorded ??= []).push(event.recorded);
+      return;
+    }
     lastStep = event.step;
     console.log(stepLine(event));
   };
   try {
-    await run(command, sha, checksum, progress, notes);
+    await run(command, sha, checksum, progress, notes, { yes });
   } catch (error) {
     const state = await readState();
     const code = error instanceof Error ? error.message.split(":")[0] : "";
@@ -825,13 +1343,40 @@ async function main() {
         active: state?.active?.sha ?? null,
         previous: state?.previous?.sha ?? null,
         phase: state?.phase ?? null,
+        gate: error?.gate,
       })
+    ) console.error(line);
+    // A refusal that changed nothing is still a line of the history.
+    if (
+      ["deploy", "bootstrap", "rollback"].includes(command) &&
+      !notes.recorded?.length && isRefusal(code) && state?.active &&
+      notes.operations
+    ) {
+      await note(notes.operations, progress, {
+        kind: "refused",
+        to: SHA.test(sha ?? "") ? sha : null,
+        detail: failureLines(error, { command, requested: sha })[0]
+          .slice(0, 200),
+        via: state.active.sha,
+      });
+    }
+    for (
+      const line of decisionLines(
+        notes.recorded?.findLast((e) => e.kind.startsWith("decided_")),
+      )
     ) console.error(line);
     process.exitCode = 1;
   }
 }
 
-async function run(command, sha, checksum, progress, notes = {}) {
+async function run(
+  command,
+  sha,
+  checksum,
+  progress,
+  notes = {},
+  options = {},
+) {
   if (process.getuid() !== 0) throw new Error("ROOT_REQUIRED");
   if (command === "status") {
     const state = await readState();
@@ -848,14 +1393,19 @@ async function run(command, sha, checksum, progress, notes = {}) {
     };
     const lines = sha === "--unsure"
       ? unsureLines(await ask("unsure"))
-      : statusLines(state, await ask("counts"));
+      : statusLines(state, await ask("counts"), await ask("policy"));
     for (const line of lines) console.log(line);
+    return;
+  }
+  if (command === "approve-gate") {
+    await approveGate(await readState(), sha, gateApprovalDeps(options));
     return;
   }
   const config = JSON.parse(
     await readFile("/etc/bakery/deployment.json", "utf8"),
   );
-  const operations = await hostOperations(config);
+  const operations = await hostOperations(config, options);
+  notes.operations = operations;
   switch (command) {
     case "deploy": {
       if (!DIGEST.test(checksum)) throw new Error("ARCHIVE_DIGEST_INVALID");
@@ -901,11 +1451,23 @@ async function run(command, sha, checksum, progress, notes = {}) {
       }
       break;
     }
-    case "recover":
+    case "recover": {
+      const before = await readState();
       await recover(store, operations);
+      const after = await readState();
+      // A switch that never finished is part of the history; so is clearing it.
+      const moved = interruptedMove(before, after);
+      if (moved) await note(operations, progress, moved);
+      await clearMarker(operations);
+      // Events kept while the database could not be reached.
+      if (after?.active) {
+        await resendEvents((event) => sendEvent(event, after.active.sha));
+      }
       break;
+    }
     case "restore":
       await restoreAfterBoot(store, operations);
+      await clearMarker(operations);
       break;
     case "render":
       await writeAtomic(

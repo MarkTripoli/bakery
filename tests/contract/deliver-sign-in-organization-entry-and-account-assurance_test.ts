@@ -48,6 +48,7 @@ Deno.test("installation status, browser session list, revoke, and revoke-others 
       bootstrapped: false,
       restoreHeld: false,
       updatePaused: false,
+      release: fixture.config.version,
     });
 
     await createSuperuser({
@@ -63,6 +64,7 @@ Deno.test("installation status, browser session list, revoke, and revoke-others 
       bootstrapped: true,
       restoreHeld: false,
       updatePaused: false,
+      release: fixture.config.version,
     });
 
     const signIn = await fixture.auth.handler(authRequest(
@@ -145,6 +147,7 @@ Deno.test("GET /v1/installation/status returns its boolean body even with an unp
       bootstrapped: false,
       restoreHeld: false,
       updatePaused: false,
+      release: fixture.config.version,
     });
   } finally {
     await fixture.close();

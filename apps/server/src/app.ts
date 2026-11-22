@@ -56,6 +56,8 @@ import type { RemoteTicketCreator } from "./modules/work/ticket-create.ts";
 import type { TicketLabelWriter } from "./modules/work/ticket-labels.ts";
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
+import { createPluginAuthoringRoutes } from "./modules/workflows/plugin-authoring/routes.ts";
+import type { PluginAuthoringDependencies } from "./modules/workflows/plugin-authoring/runner.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import { createEvaluationRoutes } from "./modules/evaluations/routes.ts";
 import {
@@ -98,7 +100,7 @@ import {
   type RuntimeConfig,
 } from "@bakery/config";
 import { contractSchemas } from "@bakery/contracts/contracts";
-import { createHealthApp } from "@bakery/contracts/health-app";
+import { createHealthApp, readiness } from "@bakery/contracts/health-app";
 import {
   createApiRouter,
   problemResponse,
@@ -250,6 +252,12 @@ export function createApp(options: {
   ticketLabelWriter?: TicketLabelWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
+  /**
+   * The plugin generator and preview runtime for prompt-to-private-plugin
+   * authoring (#45). Absent in a deployment that configures none, in which case
+   * starting a run is refused as unavailable rather than faked.
+   */
+  pluginAuthoring?: Omit<PluginAuthoringDependencies, "bundles">;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
   /** Destination test runner; tests inject one so no suite reaches a real bucket. */
@@ -425,30 +433,28 @@ export function createApp(options: {
     "*",
     createDesktopCors({ origins: options.config.auth.desktopOrigins }),
   );
-  app.route(
-    "/",
-    createHealthApp({
-      service: "bakery-server",
-      version: options.config.version,
-      config: options.config,
-      dependencies: [
-        {
-          name: "database",
-          check: async () => {
-            await options.database`select 1`;
-            return true;
-          },
+  const healthOptions = {
+    service: "bakery-server",
+    version: options.config.version,
+    config: options.config,
+    dependencies: [
+      {
+        name: "database",
+        check: async () => {
+          await options.database`select 1`;
+          return true;
         },
-        {
-          name: "postgres",
-          check: async () => {
-            await options.pgDatabase.query("select 1");
-            return true;
-          },
+      },
+      {
+        name: "postgres",
+        check: async () => {
+          await options.pgDatabase.query("select 1");
+          return true;
         },
-      ],
-    }),
-  );
+      },
+    ],
+  };
+  app.route("/", createHealthApp(healthOptions));
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
   // One approvals registry for the routes and for the session tools, so an
@@ -552,6 +558,7 @@ export function createApp(options: {
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
     passwordHasher: providerPasswordHasher(auth),
+    release: options.config.version,
   });
   app.route(
     "/",
@@ -927,6 +934,18 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createPluginAuthoringRoutes({
+      database: options.pgDatabase,
+      ...(options.pluginAuthoring ?? {}),
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
     createPluginPackageRoutes({
       database: options.pgDatabase,
       // Absent when no object store is configured; publishing a version then
@@ -966,6 +985,11 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      // The same store the artifact routes read, so a blob-backed recorded
+      // output is readable by a local run.
+      ...(skillFileStore
+        ? { blobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
     }),
   );
   app.route(
@@ -1177,6 +1201,11 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
+      // The Updates page: which release this process is and its own health check.
+      running: () => ({
+        release: options.config.version,
+        healthy: async () => (await readiness(healthOptions)).state === "ok",
+      }),
       settings: {
         secretsKey: options.config.secretsKey,
         allowLoopbackEndpoint: options.config.environment === "test",
