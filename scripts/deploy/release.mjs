@@ -1201,6 +1201,19 @@ export async function approveGate(
   return approval;
 }
 
+/**
+ * How approve-gate is wired from the command line. `--yes` is never passed on
+ * to the question: it only marks the call as scripted, which approveGate
+ * refuses, so no flag can stand in for a person reading the files at a terminal.
+ * `io` is for tests (input, output).
+ */
+export function gateApprovalDeps({ yes = false } = {}, io = {}) {
+  return {
+    scripted: yes === true,
+    confirm: (question) => confirmAtTerminal(question, io),
+  };
+}
+
 export function hostOperations(config, { yes = false } = {}) {
   const action = hostAction;
   const switchProxy = async (active) => {
@@ -1385,10 +1398,7 @@ async function run(
     return;
   }
   if (command === "approve-gate") {
-    await approveGate(await readState(), sha, {
-      scripted: options.yes,
-      confirm: (question) => confirmAtTerminal(question),
-    });
+    await approveGate(await readState(), sha, gateApprovalDeps(options));
     return;
   }
   const config = JSON.parse(

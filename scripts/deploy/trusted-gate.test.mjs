@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { approveGate, gateReview } from "./release.mjs";
+import { approveGate, gateApprovalDeps, gateReview } from "./release.mjs";
 import {
   addApproval,
   APPROVAL_LIMIT,
@@ -254,6 +254,31 @@ test("a scripted yes never approves: approve-gate asks nothing, records nothing"
     /GATE_NEEDS_A_PERSON/,
   );
   assert.deepEqual(a.asked, [], "no question was put");
+  assert.deepEqual(await readApprovals(a.deps.approvalsPath), []);
+});
+
+test("--yes marks approve-gate as scripted and never answers its question", async () => {
+  const quiet = { write() {} };
+  // No terminal to ask: the answer is "nobody can be asked", with or without --yes.
+  const noTerminal = { input: { isTTY: false }, output: quiet };
+  const scripted = gateApprovalDeps({ yes: true }, noTerminal);
+  assert.equal(scripted.scripted, true);
+  assert.equal(
+    await scripted.confirm("Approve this change?"),
+    null,
+    "--yes does not become an answer",
+  );
+  const person = gateApprovalDeps({}, noTerminal);
+  assert.equal(person.scripted, false);
+  assert.equal(await person.confirm("Approve this change?"), null);
+  assert.equal(gateApprovalDeps(undefined, noTerminal).scripted, false);
+  // And approveGate refuses the scripted wiring before it asks anything.
+  const { root } = await twoReleases(true);
+  const a = approver(root, true);
+  await assert.rejects(
+    approveGate(running, next, { ...a.deps, ...scripted }),
+    /GATE_NEEDS_A_PERSON/,
+  );
   assert.deepEqual(await readApprovals(a.deps.approvalsPath), []);
 });
 
