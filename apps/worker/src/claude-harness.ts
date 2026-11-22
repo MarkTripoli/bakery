@@ -6,6 +6,11 @@ import {
 } from "./harness-context.ts";
 import { enforceWorkerFixedPolicy, type WorkerExecutor } from "./executor.ts";
 import {
+  executeRpiFreeform,
+  isRpiFreeformAction,
+  RPI_FREEFORM_ACTIONS,
+} from "./harness-rpi.ts";
+import {
   FREEFORM_ACTION,
   FREEFORM_MAX_TIMEOUT_MS,
   freeformOutcome,
@@ -135,6 +140,12 @@ export const CLAUDE_EFFORT_LEVELS = Object.freeze(
 );
 
 export type ClaudeHarnessOptions = {
+  /**
+   * Whether this worker has the design tool `rpi.design` declares (the
+   * `paper` capability). Off unless set: a worker without it refuses the step as
+   * capability_unavailable rather than doing design work with no tool.
+   */
+  designToolAvailable?: boolean;
   /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
   readonly readAttemptContext?: ReadAttemptContext;
   /** Configured output redaction secrets; also withheld from published patches. */
@@ -2017,6 +2028,7 @@ export function createClaudeHarnessExecutor(
         HARNESS_REPAIR_ACTION,
         FREEFORM_ACTION,
         COORDINATOR_TURN_ACTION,
+        ...RPI_FREEFORM_ACTIONS,
       ]),
     ],
     capturesNativeOutput: inner?.capturesNativeOutput ?? true,
@@ -2027,7 +2039,8 @@ export function createClaudeHarnessExecutor(
     async credentialRedactionSecrets(assignment) {
       if (
         !isHarnessEditAction(assignment.action) &&
-        assignment.action !== FREEFORM_ACTION
+        assignment.action !== FREEFORM_ACTION &&
+        !isRpiFreeformAction(assignment.action)
       ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
@@ -2062,6 +2075,14 @@ export function createClaudeHarnessExecutor(
       if (assignment.action === FREEFORM_ACTION) {
         // No repository is touched, so the shared worktree latch is not taken.
         return executeClaudeFreeform(assignment, signal, output, options);
+      }
+      if (isRpiFreeformAction(assignment.action)) {
+        // A design or a plan is a bounded freeform session over a pinned artifact.
+        return executeRpiFreeform(
+          assignment,
+          (derived) => executeClaudeFreeform(derived, signal, output, options),
+          { designToolAvailable: options.designToolAvailable },
+        );
       }
       if (!isHarnessEditAction(assignment.action)) {
         if (!inner) {

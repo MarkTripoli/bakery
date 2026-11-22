@@ -82,21 +82,6 @@ function workerDispatchHandler(
   };
 }
 
-/** `rpi.plan` is declared but has no worker contract, so it cannot run. */
-function unavailableHandler(
-  schemas: SchemaMap,
-  action: WorkflowActionName,
-): WorkflowActionHandler {
-  const { input } = WORKFLOW_ACTION_METADATA[action];
-  return (value) => {
-    parser(schemas, input).parse(value);
-    throw new StandardError({
-      code: "STATE_CONFLICT",
-      params: { reason: "workflow_action_unavailable" },
-    });
-  };
-}
-
 function handlerFor(
   schemas: SchemaMap,
   action: WorkflowActionName,
@@ -131,9 +116,6 @@ function handlerFor(
         params: { reason: "workflow_approval_awaits_decision" },
       });
     };
-  }
-  if (action === WorkflowRuntimeImplementedAction.Plan) {
-    return unavailableHandler(schemas, action);
   }
   if (
     action === WorkflowRuntimeImplementedAction.DeliveryPrepare ||
