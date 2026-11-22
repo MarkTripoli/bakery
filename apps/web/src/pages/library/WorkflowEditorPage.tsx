@@ -1019,20 +1019,36 @@ export function WorkflowEditorPage(
         >
           <UI.Stack gap="compact">
             <UI.Text>
+              {
+                /* The workflow and the skill are named in bold, wherever the sentence puts them. */
+              }
               {say("confirm.lead", {
-                workflow: workflow.data?.name ?? "",
-                skill: attaching.choice.name,
+                workflow: "%%workflow%%",
+                skill: "%%skill%%",
                 version: String(attaching.choice.revision),
-              })}
+              }).split(/(%%workflow%%|%%skill%%)/).map((part, index) =>
+                part === "%%workflow%%" || part === "%%skill%%"
+                  ? (
+                    <strong key={index}>
+                      {part === "%%workflow%%"
+                        ? workflow.data?.name ?? ""
+                        : attaching.choice.name}
+                    </strong>
+                  )
+                  : part
+              )}
             </UI.Text>
-            <UI.Text>{say("confirm.see", {})}</UI.Text>
-            <UI.Text>{say("confirm.files", {})}</UI.Text>
-            <UI.Text>{say("confirm.quote", {})}</UI.Text>
-            <UI.Text>
-              {say("confirm.version", {
-                version: String(attaching.choice.revision),
-              })}
-            </UI.Text>
+            {/* A real bulleted list, so a screen reader announces the count. */}
+            <ul aria-label={say("confirm.listLabel", {})}>
+              <li>{say("confirm.see", {})}</li>
+              <li>{say("confirm.files", {})}</li>
+              <li>{say("confirm.quote", {})}</li>
+              <li>
+                {say("confirm.version", {
+                  version: String(attaching.choice.revision),
+                })}
+              </li>
+            </ul>
             <UI.Text variant="muted">{say("confirm.stop", {})}</UI.Text>
           </UI.Stack>
         </UI.AlertDialog>

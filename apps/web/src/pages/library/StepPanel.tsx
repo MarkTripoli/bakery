@@ -1,4 +1,5 @@
 import * as UI from "@bakery/ui";
+import { useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ACTION_LINES } from "./workflow-state.ts";
 
@@ -290,6 +291,8 @@ function AttachSkill(
   { attach, t }: { readonly attach: StepAttach; readonly t: Say },
 ) {
   const { translate } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   if (attach.state === "failed") {
     return (
       <UI.InlineNotice
@@ -313,60 +316,86 @@ function AttachSkill(
       </UI.Text>
     );
   }
-  const optionsOf = (group: SkillChoice["group"]) => {
+  if (attach.state === "loading") {
+    return (
+      <UI.Button aria-busy disabled variant="secondary">
+        {t("picker.placeholder")}
+      </UI.Button>
+    );
+  }
+  const needle = query.trim().toLocaleLowerCase();
+  const items: UI.CommandItem[] = [];
+  for (const group of ["organization", "private"] as const) {
     const inGroup = attach.choices.filter((choice) => choice.group === group);
-    return inGroup.map((choice) => {
+    const shown = inGroup.filter((choice) =>
+      needle === "" ||
+      `${choice.name} ${choice.slug}`.toLocaleLowerCase().includes(needle)
+    );
+    if (shown.length === 0) continue;
+    // A group's heading stays while any of its skills match what was typed.
+    items.push({
+      disabled: true,
+      id: `group-${group}`,
+      label: (
+        <strong>
+          {t(
+            group === "private"
+              ? "picker.groupPrivate"
+              : "picker.groupOrganization",
+          )}
+        </strong>
+      ),
+      searchText: query,
+    });
+    if (group === "private") {
+      items.push({
+        disabled: true,
+        id: "group-private-note",
+        label: t("picker.groupPrivateNote"),
+        searchText: query,
+      });
+    }
+    for (const choice of shown) {
       const same = inGroup.filter((other) => other.name === choice.name).length;
       const label = t(
         group === "private" ? "picker.optionPrivate" : "picker.option",
         { name: choice.name, version: choice.revision },
       );
-      return {
-        value: choice.value,
+      items.push({
+        id: choice.value,
         label: same > 1
           ? t("picker.withSlug", { label, slug: choice.slug })
           : label,
-      };
-    });
-  };
-  const organization = optionsOf("organization");
-  const personal = optionsOf("private");
+        searchText: `${choice.name} ${choice.slug}`,
+      });
+    }
+  }
   return (
-    <UI.Combobox
-      disabled={attach.state === "loading"}
+    <UI.Popover
       label={t("picker.label")}
-      onChange={(event) => {
-        const chosen = event.currentTarget.value;
-        event.currentTarget.value = "";
-        if (chosen !== "") attach.onChoose(chosen);
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
       }}
-      options={[
-        { value: "", label: t("picker.placeholder") },
-        ...(organization.length === 0 ? [] : [
-          {
-            value: "group-organization",
-            label: t("picker.groupOrganization"),
-            disabled: true,
-          },
-          ...organization,
-        ]),
-        ...(personal.length === 0 ? [] : [
-          {
-            value: "group-private",
-            label: t("picker.groupPrivate"),
-            disabled: true,
-          },
-          {
-            value: "group-private-note",
-            label: t("picker.groupPrivateNote"),
-            disabled: true,
-          },
-          ...personal,
-        ]),
-      ]}
-      state={attach.state === "loading" ? "loading" : undefined}
-      value=""
-    />
+      open={open}
+      trigger={t("picker.placeholder")}
+      triggerAppearance="toolbar"
+      variant="interactive"
+    >
+      <UI.Command
+        emptyMessage={t("picker.noMatch", { text: query })}
+        inputLabel={t("picker.find")}
+        items={items}
+        onQueryChange={setQuery}
+        onRun={(id) => {
+          setOpen(false);
+          setQuery("");
+          attach.onChoose(id);
+        }}
+        query={query}
+        variant="scoped"
+      />
+    </UI.Popover>
   );
 }
 

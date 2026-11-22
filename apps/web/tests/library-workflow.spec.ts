@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   type AgentVersionRow,
   definition,
@@ -1421,6 +1421,19 @@ for (
       version: 1,
       ...over,
     });
+    // The picker is a popover with a search field: open it from its trigger, then press an option.
+    const pickerOf = (skills: Locator) =>
+      skills.getByRole("dialog", { name: "Attach a skill" });
+    const openPicker = async (skills: Locator) => {
+      await skills.getByRole("button", { name: "Attach a skill…" }).click();
+      const picker = pickerOf(skills);
+      await expect(picker).toBeVisible();
+      return picker;
+    };
+    const pickSkill = async (skills: Locator, label: string) => {
+      const picker = await openPicker(skills);
+      await picker.getByRole("button", { name: label, exact: true }).click();
+    };
     const savedSkills = (
       seen: { draftSaves: { body: Record<string, unknown> }[] },
     ) => {
@@ -1450,21 +1463,38 @@ for (
           }),
         ],
       });
-      const picker = skills.getByLabel("Attach a skill");
+      const picker = await openPicker(skills);
       // Two groups: the organization's skills, then the caller's own private ones.
-      await expect(picker.locator("option:disabled")).toHaveText([
+      await expect(picker.locator("button:disabled")).toHaveText([
         "Your organization",
         "Private to you",
         "Attaching one shares its use, not its files.",
       ]);
-      await picker.selectOption({ label: "Code style · Version 2" });
+      await shot(page, "workflow-editor-skills-picker");
+      // The search field narrows the list and keeps a group's heading only while it has a match.
+      const find = picker.getByLabel("Find a skill");
+      await find.fill("release");
+      await expect(picker.getByRole("button", { name: /Code style/ }))
+        .toHaveCount(0);
+      await expect(picker.getByRole("button", { name: "Your organization" }))
+        .toHaveCount(0);
+      await expect(picker.getByRole("button", { name: "Private to you" }))
+        .toHaveCount(1);
+      await find.fill("zzz");
+      await expect(picker).toContainText('No skill matches "zzz".');
+      await find.fill("");
+      await picker.getByRole("button", {
+        name: "Code style · Version 2",
+        exact: true,
+      }).click();
       await expect(skills).toContainText("Code style");
       await expect(skills).toContainText("Version 2 · your organization");
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect.poll(() => savedSkills(seen).skills).toEqual([uuid(8100)]);
       expect(savedSkills(seen).confirmed).toBeUndefined();
       // It is no longer offered for this step.
-      await expect(picker.locator("option", { hasText: "Code style" }))
+      const again = await openPicker(skills);
+      await expect(again.getByRole("button", { name: /Code style/ }))
         .toHaveCount(0);
     });
 
@@ -1481,10 +1511,7 @@ for (
           }),
         ],
       });
-      const picker = skills.getByLabel("Attach a skill");
-      await picker.selectOption({
-        label: "Release notes (Private) · Version 3",
-      });
+      await pickSkill(skills, "Release notes (Private) · Version 3");
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText(
         "Let this workflow use your private skill?",
@@ -1504,9 +1531,7 @@ for (
       await expect(skills.getByRole("listitem")).toHaveCount(0);
       expect(seen.draftSaves).toHaveLength(0);
       // Choosing again and confirming attaches it, says what it now allows, and names the confirmation in the save.
-      await picker.selectOption({
-        label: "Release notes (Private) · Version 3",
-      });
+      await pickSkill(skills, "Release notes (Private) · Version 3");
       await page.getByRole("alertdialog").getByRole("button", {
         name: "Attach and allow use",
       }).click();
@@ -1579,14 +1604,15 @@ for (
         ],
       });
       // Two skills of one name carry their slug so they can be told apart.
+      const picker = await openPicker(first.skills);
       await expect(
-        first.skills.getByLabel("Attach a skill").locator("option", {
-          hasText: "Code style · Version 2 · style-a",
+        picker.getByRole("button", {
+          name: "Code style · Version 2 · style-a",
         }),
       ).toHaveCount(1);
       await expect(
-        first.skills.getByLabel("Attach a skill").locator("option", {
-          hasText: "Code style · Version 2 · style-b",
+        picker.getByRole("button", {
+          name: "Code style · Version 2 · style-b",
         }),
       ).toHaveCount(1);
     });
@@ -1600,7 +1626,8 @@ for (
       seen.catalogAnswer = [catalogSkill({})];
       const before = seen.catalogReads;
       await skills.getByRole("button", { name: "Try again" }).click();
-      await expect(skills.getByLabel("Attach a skill")).toBeVisible();
+      await expect(skills.getByRole("button", { name: "Attach a skill…" }))
+        .toBeVisible();
       expect(seen.catalogReads).toBeGreaterThan(before);
     });
 
@@ -1609,19 +1636,20 @@ for (
         skills: { items: [] },
         catalog: [catalogSkill({})],
       });
-      const picker = skills.getByLabel("Attach a skill");
-      await picker.selectOption({ label: "Code style · Version 2" });
+      const trigger = skills.getByRole("button", { name: "Attach a skill…" });
+      await pickSkill(skills, "Code style · Version 2");
       await expect(skills).toContainText(
         "Every skill that fits this step is attached. More are made in the Library.",
       );
-      await expect(picker).toHaveCount(0);
+      await expect(trigger).toHaveCount(0);
       // Not the "nothing fits" line: something does fit, and it is on the step.
       await expect(skills).not.toContainText(
         "No skills fit this kind of step.",
       );
       await skills.getByRole("button", { name: "Remove Code style" }).click();
-      await expect(picker).toBeVisible();
-      await expect(picker.locator("option", { hasText: "Code style" }))
+      await expect(trigger).toBeVisible();
+      const back = await openPicker(skills);
+      await expect(back.getByRole("button", { name: /Code style/ }))
         .toHaveCount(1);
       await expect(skills).not.toContainText("Every skill that fits this step");
     });
@@ -1632,9 +1660,7 @@ for (
         catalog: [catalogSkill({})],
         saveDelayMs: 1500,
       });
-      await skills.getByLabel("Attach a skill").selectOption({
-        label: "Code style · Version 2",
-      });
+      await pickSkill(skills, "Code style · Version 2");
       // The attach is still being saved when the person takes it off again.
       await expect.poll(() => seen.draftSaves.length).toBe(1);
       await skills.getByRole("button", { name: "Remove Code style" }).click();
