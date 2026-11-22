@@ -75,6 +75,11 @@ export type ResolvedToolPin = Readonly<{
   snapshotId: string;
   snapshotDigest: string;
   tool: string;
+  /**
+   * The read an Admin paired with a reconcilable write, pinned beside it so an
+   * unproven write can be confirmed; null when the tool has none.
+   */
+  pairedRead: string | null;
 }>;
 
 type ConnectionRow = {
@@ -176,12 +181,26 @@ export async function checkToolCallPins(
       refuse(pin, "tool_call_tool_not_enabled");
       continue;
     }
+    // A write the Admin classified as reconcilable, against this snapshot, is
+    // confirmed by its paired read; the step's binding must admit that read.
+    const paired = await transaction.query<{ paired_read_tool: string | null }>(
+      `select paired_read_tool from bakery.mcp_tool_classifications
+        where organization_id = $1 and connection_id = $2 and tool_name = $3
+          and snapshot_digest = $4 and effect_class = 'write_reconcilable'`,
+      [facts.organizationId, row.id, pin.tool, row.snapshot_digest],
+    );
+    const pairedRead = paired.rows[0]?.paired_read_tool ?? null;
+    if (pairedRead !== null && !enabled.includes(pairedRead)) {
+      refuse(pin, "tool_call_paired_read_not_enabled");
+      continue;
+    }
     pins.push(Object.freeze({
       stepKey: pin.stepKey,
       connectionId: row.id,
       snapshotId: row.snapshot_id,
       snapshotDigest: row.snapshot_digest,
       tool: pin.tool,
+      pairedRead,
     }));
   }
   return { issues, pins };
@@ -189,7 +208,7 @@ export async function checkToolCallPins(
 
 /**
  * Writes one binding per resolved pin, owned by the version and the step. The
- * grant is the exact tool name, never a wildcard, and is for any actor of the
+ * grant is the exact tool name (and the read paired with it), never a wildcard, and is for any actor of the
  * organization: who may run the step is the workflow's rule, not the pin's.
  */
 export async function writeToolCallBindings(
@@ -214,7 +233,9 @@ export async function writeToolCallBindings(
         pin.connectionId,
         pin.snapshotId,
         pin.snapshotDigest,
-        JSON.stringify([pin.tool]),
+        JSON.stringify(
+          pin.pairedRead === null ? [pin.tool] : [pin.tool, pin.pairedRead],
+        ),
       ],
     );
   }

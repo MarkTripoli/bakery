@@ -7,7 +7,11 @@ import type {
   ProviderRequestPort,
 } from "../catalog/integration-gate.ts";
 import { invokeIntegration } from "../catalog/integration-invoke.ts";
-import type { EffectExecutorDeps } from "../effects/index.ts";
+import {
+  createEffectExecutor,
+  type EffectExecutorDeps,
+} from "../effects/index.ts";
+import { createMcpEffectPort } from "../mcp/effect-port.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
 import { McpToolCallError } from "../mcp/tool-transport.ts";
 import {
@@ -122,15 +126,31 @@ export function createToolCallStepRunner(
 ): EngineStepRunner {
   const connection = connectionInvokeDeps(deps.registry, deps.providerRequests);
   const kindOf = deps.connectionKind ?? postgresConnectionKind(deps.database);
+  // The ledger that carries a write to an MCP tool: the same executor an
+  // integration write uses, with the MCP port beside the integration registry.
+  const mcpExecutor = deps.mcp === undefined
+    ? undefined
+    : createEffectExecutor({
+      database: deps.database,
+      registry: deps.registry,
+      snapshotsFor: connection.snapshotsFor,
+      providerRequests: deps.providerRequests,
+      mcp: createMcpEffectPort({ database: deps.database, mcp: deps.mcp }),
+      ...deps.effects,
+    });
 
   /**
    * A tool on an MCP connection. The step must have been pinned at publish (the
    * version's binding names the connection, the snapshot digest and this tool);
    * the call goes through the pinned-tool door, which re-checks the grant, the
    * connection and drift, validates the arguments against the pinned schema and
-   * sends through the server's broker. Only a tool an Admin classified as a read,
-   * against the snapshot the step pinned, runs here: a write waits for the ledger
-   * path, and nothing that is not known to be a read is sent.
+   * sends through the server's broker.
+   *
+   * A tool an Admin classified as a read is sent directly. Every other tool is a
+   * write (a tool with no classification runs at most once) and goes through the
+   * effect ledger under the step's one effect key, so a crash or a second look
+   * finds the same effect and never sends it twice. Nothing is sent against a
+   * classification made for another snapshot than the step pinned.
    */
   async function runMcp(
     request: EngineStepRequest,
@@ -162,25 +182,50 @@ export function createToolCallStepRunner(
       );
       const versionId = run.rows[0]?.workflow_version_id ?? null;
       if (versionId === null) return null;
-      const pin = await tx.query<{ digest: string }>(
-        `select mcp_snapshot_digest as digest from bakery.capability_bindings
+      const pin = await tx.query<{ digest: string; allowed: unknown }>(
+        `select mcp_snapshot_digest as digest,
+                allowed_operations as allowed
+           from bakery.capability_bindings
           where organization_id = $1 and workflow_version_id = $2
             and step_key = $3 and mcp_connection_id = $4
           limit 1`,
         [request.organizationId, versionId, stepKey, input.connectionId],
       );
       if (pin.rows[0] === undefined) return null;
-      const effect = await tx.query<{ effect_class: string; digest: string }>(
-        `select effect_class, snapshot_digest as digest
+      const effect = await tx.query<{
+        effect_class: string;
+        effect_key_argument: string | null;
+        paired_read_tool: string | null;
+        digest: string;
+      }>(
+        `select effect_class, effect_key_argument, paired_read_tool,
+                snapshot_digest as digest
            from bakery.mcp_tool_classifications
           where organization_id = $1 and connection_id = $2 and tool_name = $3`,
         [request.organizationId, input.connectionId, input.tool],
       );
+      const step = await tx.query<{ id: string }>(
+        `select id from bakery.run_steps
+          where organization_id = $1 and run_id = $2 and step_key = $3
+            and iteration = $4`,
+        [
+          request.organizationId,
+          request.runId,
+          request.stepKey,
+          request.iteration,
+        ],
+      );
       return {
         versionId,
         pinnedDigest: pin.rows[0].digest,
+        allowed: Array.isArray(pin.rows[0].allowed)
+          ? pin.rows[0].allowed as unknown[]
+          : [],
         effectClass: effect.rows[0]?.effect_class ?? null,
+        keyArgument: effect.rows[0]?.effect_key_argument ?? null,
+        pairedRead: effect.rows[0]?.paired_read_tool ?? null,
         classifiedAgainst: effect.rows[0]?.digest ?? null,
+        runStepId: step.rows[0]?.id ?? null,
       };
     });
     if (facts === null) {
@@ -189,17 +234,26 @@ export function createToolCallStepRunner(
         "This step was not pinned to an MCP tool when its version was published.",
       );
     }
-    if (facts.effectClass !== "read") {
-      return failed(
-        "TOOL_CALL_MCP_WRITE_UNAVAILABLE",
-        "Only a tool classified as a read runs; a write or an unclassified tool is not sent.",
-      );
-    }
-    if (facts.classifiedAgainst !== facts.pinnedDigest) {
+    if (
+      facts.classifiedAgainst !== null &&
+      facts.classifiedAgainst !== facts.pinnedDigest
+    ) {
       return failed(
         "TOOL_CALL_MCP_CLASSIFICATION_STALE",
         "The tool was classified against a different snapshot than the step pinned.",
       );
+    }
+    const asArguments = input.arguments as Record<string, unknown>;
+    if (facts.effectClass !== "read") {
+      return await runMcpWrite(request, input.connectionId, input.tool, {
+        arguments: asArguments,
+        pinnedDigest: facts.pinnedDigest,
+        effectClass: facts.effectClass,
+        keyArgument: facts.keyArgument,
+        pairedRead: facts.pairedRead,
+        allowed: facts.allowed,
+        runStepId: facts.runStepId,
+      });
     }
     try {
       const result = await invokeMcpTool(deps.mcp, {
@@ -208,7 +262,7 @@ export function createToolCallStepRunner(
         connectionId: input.connectionId,
         toolName: input.tool,
         pinnedDigest: facts.pinnedDigest,
-        arguments: input.arguments as Record<string, unknown>,
+        arguments: asArguments,
         hostId: null,
         workflowVersionId: facts.versionId,
         stepKey,
@@ -234,6 +288,108 @@ export function createToolCallStepRunner(
       return failed(
         `TOOL_CALL_MCP_REFUSED_${refusalCode(error).toUpperCase()}`,
         "The call was refused before anything was sent.",
+      );
+    }
+  }
+
+  /**
+   * A write to an MCP tool, through the ledger. The ledger row is the step's one
+   * effect key; what an unproven send means depends on the Admin's class (see
+   * `dispatchMcpEffect`). An unclassified tool is treated as opaque.
+   */
+  async function runMcpWrite(
+    request: EngineStepRequest,
+    connectionId: string,
+    tool: string,
+    write: Readonly<{
+      arguments: Record<string, unknown>;
+      pinnedDigest: string;
+      effectClass: string | null;
+      keyArgument: string | null;
+      pairedRead: string | null;
+      allowed: readonly unknown[];
+      runStepId: string | null;
+    }>,
+  ): Promise<EngineStepResult> {
+    if (mcpExecutor === undefined) {
+      return failed(
+        "TOOL_CALL_MCP_UNAVAILABLE",
+        "This server has no MCP tool broker configured.",
+      );
+    }
+    if (write.runStepId === null) {
+      return failed(
+        "TOOL_CALL_MCP_STEP_UNKNOWN",
+        "The run has no step row for this call, so its write cannot be recorded.",
+      );
+    }
+    // A write that could not be confirmed later is not sent: the binding must
+    // admit the read the Admin paired with it.
+    if (
+      write.effectClass === "write_reconcilable" &&
+      (write.pairedRead === null || !write.allowed.includes(write.pairedRead))
+    ) {
+      return failed(
+        "TOOL_CALL_MCP_RECONCILE_UNPINNED",
+        "The read paired with this write is not pinned to the step, so an unproven write could not be confirmed.",
+      );
+    }
+    const key = toolCallEffectKey(request);
+    // A tool that takes an effect key gets the step's one key unless the
+    // workflow named a value itself: the same key on every look is what makes a
+    // second send safe.
+    const args = write.effectClass === "write_idempotent" &&
+        write.keyArgument !== null &&
+        write.arguments[write.keyArgument] === undefined
+      ? { ...write.arguments, [write.keyArgument]: key }
+      : write.arguments;
+    try {
+      const prepared = await mcpExecutor.prepareMcpEffect({
+        organizationId: request.organizationId,
+        actorRef: request.requestedBy,
+        requestingPrincipalId: request.requestedBy,
+        connectionId,
+        tool,
+        snapshotDigest: write.pinnedDigest,
+        arguments: args,
+        idempotencyKey: key,
+        runStepId: write.runStepId,
+      });
+      const ran = await mcpExecutor.runEffect({
+        organizationId: request.organizationId,
+        effectId: prepared.effectId,
+        requestId: request.traceId,
+        traceId: request.traceId,
+      });
+      switch (ran.outcome) {
+        case "confirmed":
+          return {
+            kind: "completed",
+            output: actionResultSchema().parse({
+              accepted: true,
+              operation: tool,
+              externalEffectId: ran.effect.remoteId,
+              result: ran.effect.safeResult ?? null,
+            }),
+          };
+        case "failed":
+          return failed(
+            "TOOL_CALL_EFFECT_FAILED",
+            `The MCP server did not take the write (${
+              ran.effect.failureCode ?? "refused"
+            }).`,
+          );
+        default:
+          // In flight, uncertain or scheduled for another try: the engine looks
+          // again and the same key reconciles it. An opaque write whose outcome
+          // is unknown stays here until a person settles it.
+          return { kind: "pending" };
+      }
+    } catch (error) {
+      if (!(error instanceof StandardError)) throw error;
+      return failed(
+        `TOOL_CALL_MCP_REFUSED_${refusalCode(error).toUpperCase()}`,
+        "The write was refused before anything was sent.",
       );
     }
   }
