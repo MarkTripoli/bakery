@@ -817,3 +817,8 @@ input.ui-password-input__field {
 .ui-disclosure__body {
   padding-block-start: var(--space-2);
 }
+/* Disclosures that sit side by side share one row; the one that opens takes the
+   whole row, so what it shows has the width of the section. */
+.ui-inline > .ui-disclosure[open] {
+  flex: 1 1 100%;
+}

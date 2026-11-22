@@ -163,6 +163,22 @@ const attempt = {
     usage: null,
   },
 };
+/**
+ * Opens the task page and then the step's Raw output. A step with no agent
+ * session keeps its output under that link, closed until someone opens it.
+ */
+async function gotoRun(page: Page) {
+  await page.goto(`/tasks/${id}`);
+  const summary = page.locator("details > summary", { hasText: "Raw output" })
+    .first();
+  const shown = await summary.waitFor({ state: "visible", timeout: 10_000 })
+    .then(() => true, () => false);
+  if (shown) {
+    const details = summary.locator("..");
+    if ((await details.getAttribute("open")) === null) await summary.click();
+  }
+}
+
 async function prepare(page: Page) {
   await mockAuthenticatedSession(page);
   await page.route(`**/v1/jobs/${stream.jobId}/attempts?*`, (route) => {
@@ -276,31 +292,18 @@ test(
         }
       });
     });
-    await page.goto(`/tasks/${id}`);
+    await gotoRun(page);
     await expect(page.getByText("Saved through sequence 3", { exact: true }))
       .toBeVisible();
     await expect(page.getByRole("link", { name: "Back to Work" }))
       .toBeVisible();
     await expect(page.getByText("Persisted description", { exact: true }))
       .toBeVisible();
-    const outputBox = await page.locator('[data-ui-component="runOutputView"]')
-      .boundingBox();
-    const inspectorBox = await page.locator(
-      '[data-ui-component="artifactPane"]',
-    ).boundingBox();
-    expect(outputBox).not.toBeNull();
-    expect(inspectorBox).not.toBeNull();
-    if (outputBox && inspectorBox) {
-      if ((page.viewportSize()?.width ?? 0) >= 1280) {
-        expect(inspectorBox.x).toBeGreaterThanOrEqual(
-          outputBox.x + outputBox.width,
-        );
-      } else {
-        expect(inspectorBox.y).toBeGreaterThanOrEqual(
-          outputBox.y + outputBox.height,
-        );
-      }
-    }
+    // No artifact yet: the output view is the page and no pane sits beside it.
+    await expect(page.locator('[data-ui-component="runOutputView"]'))
+      .toBeVisible();
+    await expect(page.locator('[data-ui-component="artifactPane"]'))
+      .toHaveCount(0);
     expect(subscriptions[0]?.after).toBeNull();
     expect(subscriptions[1]?.after).toBe("opaque-through-1");
     await expect(page.getByText("second durable line", { exact: true }))
@@ -315,8 +318,8 @@ test(
     await expect(
       page.getByText("first durable line [REDACTED]", { exact: true }),
     ).toBeVisible();
-    // With no commit and no change count known the card is that one sentence:
-    // no "Unknown" badges and no line about badges that are not there.
+    // With no commit and no change count known there is no card at all: no
+    // "Unknown" badges and no sentence about changes that are not there.
     await expect(
       page.getByText(
         "Observed repository state. No review or merge decision recorded.",
@@ -324,7 +327,7 @@ test(
     ).toHaveCount(0);
     await expect(
       page.getByText("Bakery has not recorded any changes for this run yet."),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "Changes" }).locator(
         ".ui-run-card__badge",
@@ -361,7 +364,7 @@ test("manual output reconnect retains the cursor and displayed lines", async ({ 
       }
     });
   });
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect.poll(() => subscriptions.length).toBe(2);
   await expect(page.getByText("retained before retry", { exact: true }))
     .toBeVisible();
@@ -397,7 +400,7 @@ test("expired output remains truthful and never silently resumes a retained tail
         );
       }),
   );
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(
     page.getByRole("heading", { name: "History expired", exact: true }),
   )
@@ -489,7 +492,7 @@ test("expired output downloads exact archived segments and reports byte expiry",
         }));
       }),
   );
-  await page.goto("/tasks/" + id);
+  await gotoRun(page);
   const archive = page.getByRole("button", {
     name: "Download transcript 1 · sequences 1–8",
     exact: true,
@@ -532,7 +535,7 @@ test("capture truncation marker survives and output controls work on phones", as
         );
       }),
   );
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.locator('[data-ui-component="runOutputPanel"]'))
     .toHaveAttribute("data-state", "truncated");
   await expect(page.getByText("Truncated · sequence 1", { exact: true }))
@@ -559,7 +562,7 @@ test("revoked output authority clears previously visible text", async ({ page })
         revoke = () => socket.close({ code: 1008, reason: "revoked" });
       }),
   );
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.getByText("previously authorized output", { exact: true }))
     .toBeVisible();
   revoke?.();
@@ -799,7 +802,7 @@ for (
           }
         }),
     );
-    await page.goto(`/tasks/${id}`);
+    await gotoRun(page);
     await expect(
       page.getByRole("heading", { name: scenario.title, exact: true }),
     ).toBeVisible();
@@ -821,12 +824,12 @@ for (
       await expect(page.getByText(scenario.says, { exact: true }))
         .toBeVisible();
     }
-    await expect(page.getByText("Provider usage: unknown", { exact: true }))
-      .toBeVisible();
-    // Nothing is known of the changes: the card says so in its one sentence.
+    // Usage that is not known is not drawn.
+    await expect(page.getByText(/^Provider usage/)).toHaveCount(0);
+    // Nothing is known of the changes: no card, and no sentence saying so.
     await expect(
       page.getByText("Bakery has not recorded any changes for this run yet."),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 }
 
@@ -847,7 +850,7 @@ for (
         }),
     );
     await page.routeWebSocket("**/v1/events?*", () => {});
-    await page.goto(`/tasks/${id}`);
+    await gotoRun(page);
     const badge = page.getByText(says, { exact: true });
     await expect(badge).toBeVisible();
     // Only an expired lease is a warning here; active and unknown are not.
@@ -865,7 +868,7 @@ test("with no try to name, the identity block says Bakery cannot tell which mach
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
   );
   await page.routeWebSocket("**/v1/events?*", () => {});
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(
     page.getByText("Bakery cannot tell which machine ran this.", {
       exact: true,
@@ -901,7 +904,7 @@ test("three timed-out attempts end on the timeout heading with the history kept"
       }),
   );
   await page.routeWebSocket("**/v1/events?*", () => {});
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(
     page.getByRole("heading", { name: "Run timed out", exact: true }),
   ).toBeVisible();
@@ -941,7 +944,7 @@ test("printed output cannot invent quota or replace trusted worker identity", as
         }
       }),
   );
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.getByText("atlas-01", { exact: true }).first())
     .toBeVisible();
   await expect(
@@ -1263,15 +1266,15 @@ test("aside is empty when only a prior run published a patch", async ({ page }) 
     },
   ]);
   await page.goto(`/tasks/${id}`);
-  const pane = page.getByRole("complementary", {
+  // Nothing of this run to show, so the pane is not drawn at all.
+  await expect(page.getByRole("heading", { name: "Current run" }))
+    .toBeVisible();
+  await expect(page.getByRole("complementary", {
     name: "Artifact",
     exact: true,
-  });
-  await expect(pane).toBeVisible();
-  await expect(pane.getByText("This run has published no artifact yet."))
-    .toBeVisible();
-  await expect(pane.getByText("prior-run.patch")).toHaveCount(0);
-  await expect(pane.getByText("transcript.log")).toHaveCount(0);
+  })).toHaveCount(0);
+  await expect(page.getByText("This run has published no artifact yet."))
+    .toHaveCount(0);
 });
 
 test("current attempt selection returns from historical pages", async ({ page }) => {
@@ -1296,7 +1299,7 @@ test("current attempt selection returns from historical pages", async ({ page })
     });
   });
   await page.routeWebSocket("**/v1/events?*", () => {});
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.getByText("atlas-01", { exact: true }).first())
     .toBeVisible();
   const identity = page.getByRole("region", { name: "Where this ran" });
@@ -1344,6 +1347,8 @@ test("verified provider receipt renders known usage without guessing missing val
   );
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
+  // Usage that is known sits under the run's Details.
+  await page.locator("#run-details > summary").click();
   await expect(
     page.getByText(
       "Provider usage: 128 input tokens · 64 output tokens · USD 0.012",
@@ -1404,7 +1409,7 @@ test("a failed step with no output stream still shows its outcome", async ({ pag
       json: { items: [], nextCursor: null, encodedBytes: 32 },
     }));
   await page.routeWebSocket("**/v1/events?*", () => {});
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   const empty = page.getByText("No output stream recorded for this step.");
   await expect(empty).toBeVisible();
   // Scope to the output panel's notice; the timeline also renders "Failed".
@@ -1432,7 +1437,7 @@ test("a quota-failed step with no stream shows the quota heading", async ({ page
       json: { items: [], nextCursor: null, encodedBytes: 32 },
     }));
   await page.routeWebSocket("**/v1/events?*", () => {});
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.getByText(/Provider quota exceeded/).first()).toBeVisible();
   await expect(page.getByText("sk-secret-free-text")).toHaveCount(0);
 });
@@ -1457,15 +1462,14 @@ test("a run without an admission pin shows the workspace base it started from", 
       json: { items: [], nextCursor: null, encodedBytes: 32 },
     }));
   await page.routeWebSocket("**/v1/events?*", () => {});
-  await page.goto(`/tasks/${id}`);
-  const revision = page.locator('[data-ui-component="revisionSummary"]').filter(
-    {
-      hasText: "Changes",
-    },
-  );
-  await expect(revision).toContainText("ddddddd");
+  await gotoRun(page);
+  // No change is recorded, so there is no Changes card; the commit the run
+  // started from is a line of the run's Details, in its short form.
+  await page.getByText("Details", { exact: true }).first().click();
+  const started = page.getByText(/^Started from commit /);
+  await expect(started).toHaveText("Started from commit ddddddd");
   // Short form only: the full 40-character commit is not the label.
-  await expect(revision).not.toContainText("d".repeat(40));
+  await expect(page.getByText("d".repeat(40))).toHaveCount(0);
 });
 
 const retriedProducers = [
@@ -1513,7 +1517,7 @@ test("a retried job's output names the attempt that wrote each line", async ({ p
         );
       }),
   );
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.getByText("second attempt line", { exact: true }))
     .toBeVisible();
   const rows = await logRows(page);
@@ -1551,7 +1555,7 @@ test("a stream written by one attempt shows no attempt marker", async ({ page })
         sendBatch(socket, frame.requestId, "2", "only line two");
       }),
   );
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.getByText("only line two", { exact: true })).toBeVisible();
   expect(await logRows(page)).toHaveLength(2);
   await expect(page.getByText("Output from this try starts here."))
@@ -1603,7 +1607,7 @@ test("a retry that began after the list loaded reloads the list once and names i
         );
       }),
   );
-  await page.goto(`/tasks/${id}`);
+  await gotoRun(page);
   await expect(page.getByText("line from attempt three", { exact: true }))
     .toBeVisible();
   await expect.poll(async () => (await logRows(page)).join("|"))
