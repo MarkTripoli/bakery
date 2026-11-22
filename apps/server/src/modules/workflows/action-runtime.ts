@@ -134,6 +134,19 @@ function handlerFor(
       });
     };
   }
+  if (action === WorkflowRuntimeImplementedAction.ToolCall) {
+    // The call goes out over a connection as the person who started the run, so
+    // the engine settles it in its admission (workflow-adapter, engine steps) and
+    // this handler only validates: running it here would call with no run behind it.
+    const { input } = WORKFLOW_ACTION_METADATA[action];
+    return (value) => {
+      parser(schemas, input).parse(value);
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_tool_call_settled_by_engine" },
+      });
+    };
+  }
   return workerDispatchHandler(schemas, action);
 }
 

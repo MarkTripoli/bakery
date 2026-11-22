@@ -40,6 +40,16 @@ export {
   type ReconcileResult,
 } from "./reconcile.ts";
 export { computeRequestDigest, type EffectIdentity } from "./digest.ts";
+export {
+  isMcpEffect,
+  type McpEffectPort,
+  mcpEffectTarget,
+  type McpWriteClass,
+  type McpWriteResult,
+  prepareMcpEffect,
+  type PrepareMcpEffectInput,
+  type PrepareMcpEffectResult,
+} from "./mcp.ts";
 export { type PrepareDeps, prepareEffect } from "./prepare.ts";
 export {
   EFFECT_FAILURE_CODES,
