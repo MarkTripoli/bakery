@@ -1396,10 +1396,10 @@ for (
     // Four slots on one step: a lost skill, one its owner stopped, a missing one and an unnamed lost one.
     const fourSlots = () => [
       skill({
-        skillVersionId: null,
+        skillVersionId: uuid(7006),
         skillName: "Gone skill",
-        revision: null,
-        scope: null,
+        revision: 1,
+        scope: "organization",
         status: "unavailable",
       }),
       skill({
@@ -1418,7 +1418,7 @@ for (
         status: "missing",
       }),
       skill({
-        skillVersionId: null,
+        skillVersionId: uuid(7007),
         skillName: null,
         revision: null,
         scope: null,
@@ -1629,6 +1629,56 @@ for (
       expect(savedSkills(seen).skills).toContain(uuid(8103));
       await page.mouse.move(600, 700);
       await still(page, "workflow-editor-skills-codeonly-chosen");
+    });
+
+    test("choosing on a stopped skill leaves the step's missing skill open and asks the server to settle nothing", async ({ page }) => {
+      const items = [
+        skill({
+          skillVersionId: null,
+          skillName: "Brand voice",
+          revision: null,
+          scope: null,
+          status: "missing",
+        }),
+        skill({
+          skillVersionId: uuid(7005),
+          skillName: "Paused skill",
+          revision: 1,
+          scope: "personal",
+          ownerDisplayName: "Dana Lee",
+          status: "stopped",
+        }),
+      ];
+      const { seen, skills } = await openSkills(page, {
+        skills: { items },
+        catalog: [
+          catalogSkill({
+            id: uuid(8003),
+            slug: "house-style",
+            name: "House style",
+            activeVersionId: uuid(8103),
+          }),
+        ],
+      });
+      const stopped = skills.locator("[data-skill-status='stopped']");
+      await stopped.getByRole("button", { name: "Choose a skill…" }).click();
+      await pickerOf(stopped).getByRole("button", {
+        name: "House style · Version 2",
+        exact: true,
+      }).click();
+      // The stopped row is replaced; the missing one is still the person's to settle.
+      await expect(skills.locator("[data-skill-status='stopped']"))
+        .toHaveCount(0);
+      await expect(skills.locator("[data-skill-status='missing']"))
+        .toHaveCount(1);
+      await expect(skills).toContainText("House style");
+      await expect(page.getByTestId("editor-problems")).toHaveText("1 problem");
+      await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
+      const sent = seen.draftSaves.at(-1)!.body as {
+        resolveSkillSlots?: string[];
+      };
+      expect(sent.resolveSkillSlots).toBeUndefined();
+      expect(savedSkills(seen).skills).toEqual([uuid(8103)]);
     });
 
     test("removing a missing skill is at once, says so, and has no Undo", async ({ page }) => {

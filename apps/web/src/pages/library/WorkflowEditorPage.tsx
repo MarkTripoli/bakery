@@ -648,7 +648,11 @@ export function WorkflowEditorPage(
     const kept = replaces?.versionId == null
       ? step.skills
       : step.skills.filter((id) => id !== replaces.versionId);
-    if (replaces !== undefined) resolve(replaces.stepPath);
+    // Only a slot that names no skill is settled by path: the server keeps one such slot
+    // per step. A row that names a version is settled by taking that version out of the step.
+    if (replaces !== undefined && replaces.versionId === null) {
+      resolve(replaces.stepPath);
+    }
     dispatch({
       kind: "skills",
       id: stepId,
