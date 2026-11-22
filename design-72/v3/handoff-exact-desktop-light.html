@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>mock</title><style>:root{--bd:#E3E6EB;--bds:#CBD0D8;--cv:#F5F6F8;--fg:#141A24;--mu:#5D6675;--sf:#FFFFFF;--sub:#EEF0F4;--pri:#141A24;--prif:#FFFFFF;--sel:#0B63C6;--selsf:#ECF1F8;--warn:#8F5A0B;--warnsf:#FBF3E4;--warnbd:#E7CF9C;--ok:#17784B;--oksf:#E8F5EE;--neu:#374151;--neusf:#E5E7EB;--dis:#9AA3B1}
+.dark{--bd:#262E3B;--bds:#3A4353;--cv:#0F141C;--fg:#E8ECF2;--mu:#9AA3B1;--sf:#151B26;--sub:#1D2431;--pri:#E8ECF2;--prif:#141A24;--sel:#6CA8F0;--selsf:#172538;--warn:#E9B45A;--warnsf:#2B2314;--warnbd:#5A4520;--ok:#5CC08F;--oksf:#15291F;--neu:#C5CBD6;--neusf:#262E3B;--dis:#6B7482}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--cv);color:var(--fg);font:400 14px/20px Geist,system-ui,sans-serif}
+.q9shell{display:flex;min-height:100vh}.q9nav{width:224px;flex:none;border-right:1px solid var(--bd);background:var(--sf);padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+.q9nav b{font:600 15px/24px inherit;font-family:inherit;padding:4px 8px 16px}.q9nav a{padding:6px 8px;border-radius:4px;color:var(--mu);font-weight:500}.q9nav a.on{background:var(--sub);color:var(--fg)}
+.q9pg{flex:1;min-width:0;padding:32px 40px;display:flex;flex-direction:column;gap:16px;max-width:1120px}
+h1{font:600 24px/32px inherit;font-family:inherit;letter-spacing:-.02em;margin:0}h2{font:600 16px/24px inherit;font-family:inherit;margin:0}h3{font:600 14px/20px inherit;font-family:inherit;margin:0}
+.q9mu{color:var(--mu)}.q9cap{font-size:12px;line-height:18px;color:var(--mu)}
+.q9crumb{color:var(--mu)}.q9crumb b{color:var(--fg);font-weight:500}
+.q9card{background:var(--sf);border:1px solid var(--bd);border-radius:6px}
+.q9row{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--bd)}.q9row:last-child{border-bottom:0}.q9grow{flex:1;min-width:0}
+.q9btn{font-weight:500;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--bds);background:var(--sf);display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;color:var(--fg)}
+.q9btn.p{background:var(--pri);border-color:var(--pri);color:var(--prif)}.q9btn.s{height:32px;padding:0 12px}
+.q9bdg{font:500 12px/18px inherit;font-family:inherit;padding:1px 8px;border-radius:999px;display:inline-block;white-space:nowrap;background:var(--neusf);color:var(--neu)}
+.q9bdg.ok{background:var(--oksf);color:var(--ok)}.q9bdg.w{background:var(--warnsf);color:var(--warn)}.q9bdg.b{background:var(--selsf);color:var(--sel)}
+.q9dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}.q9dot.n{background:var(--bds)}
+.q9ho{padding:20px;display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--bd)}
+.q9how{border:1px solid var(--bd);border-radius:6px;padding:12px 16px;background:var(--sub);display:flex;flex-direction:column;gap:4px}
+.q9how.w{background:var(--warnsf);border-color:var(--warnbd)}
+dl{margin:0;display:grid;grid-template-columns:168px 1fr;row-gap:12px;column-gap:16px}dt{color:var(--mu)}dd{margin:0;min-width:0}
+dd ul{margin:0;padding-left:18px}dd li{margin:0 0 2px}
+.q9lnk{color:var(--sel);font-weight:500}.q9mono{font:400 13px/20px "Geist Mono",ui-monospace,monospace}
+.q9foot{display:flex;gap:8px;justify-content:flex-end;align-items:center}.q9foot .q9cap{margin-right:auto}
+.q9tabs{display:flex;gap:20px;border-bottom:1px solid var(--bd)}.q9tabs span{padding:8px 0;color:var(--mu);font-weight:500}.q9tabs .on{color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.q9seg{display:inline-flex;border:1px solid var(--bds);border-radius:4px;overflow:hidden}.q9seg span{padding:5px 12px;font-weight:500;background:var(--sf)}.q9seg .on{background:var(--pri);color:var(--prif)}
+.q9srch{height:32px;border:1px solid var(--bds);border-radius:4px;background:var(--sf);padding:0 12px;display:flex;align-items:center;color:var(--mu);width:280px}
+table{width:100%;border-collapse:collapse}th{font-size:12px;line-height:18px;color:var(--mu);text-align:left;font-weight:400;padding:8px 16px;border-bottom:1px solid var(--bd)}
+td{padding:10px 16px;border-bottom:1px solid var(--bd);vertical-align:middle}tr:last-child td{border-bottom:0}td .q9n{font-weight:500;margin-right:8px}
+.q9head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px}.q9acts{display:flex;gap:8px}
+.q9ph .q9nav{display:none}.q9ph .q9pg{padding:16px;gap:12px}.q9ph h1{font-size:20px;line-height:28px}.q9ph .q9btn{height:44px}.q9ph dl{grid-template-columns:1fr;row-gap:2px}.q9ph dd{margin-bottom:10px}
+.q9ph .q9foot{flex-direction:column-reverse;align-items:stretch}.q9ph .q9foot .q9cap{margin:0}.q9ph .q9ho{padding:16px}.q9ph .q9head{flex-direction:column;align-items:stretch}.q9ph .q9acts .q9btn{flex:1}
+.q9ph .q9seg{display:flex}.q9ph .q9seg span{flex:1;text-align:center;padding:11px 4px;font-size:13px}.q9ph .q9srch{width:100%;height:44px}.q9ph .q9tabs{overflow:hidden;gap:16px}.q9ph .q9row{min-height:56px}</style></head><body class=""><div class="q9shell"><div class="q9nav"><b>Bakery</b><a class="on">Work</a><a class="">Issues</a><a class="">Projects</a><a class="">Machines</a><a class="">Library</a><a class="">Files</a><a class="">Settings</a></div><div class="q9pg"><div class="q9crumb">Work / <b>Add partial refunds</b></div><div><h1>Add partial refunds</h1><div class="q9mu" style="margin-top:4px">Issue to pull request · step 3 of 5, Implement</div></div>
+<div class="q9card"><div class="q9row"><span class="q9dot n"></span><div class="q9grow"><b style="font-weight:500">Research</b><div class="q9cap">Finished · 6 min</div></div></div>
+<div class="q9row"><span class="q9dot n"></span><div class="q9grow"><b style="font-weight:500">Plan</b><div class="q9cap">Finished · 3 min</div></div></div>
+<div class="q9row"><span class="q9dot"></span><div class="q9grow"><b style="font-weight:500">Implement</b><div class="q9cap">Running on ci-linux-02 · 14 min</div></div><span class="q9btn s" style="background:var(--sub)">Hand over to a new session</span></div><div class="q9ho"><div><h2>Hand over "Implement" to a new session</h2><div class="q9mu" style="margin-top:4px">The session on ci-linux-02 stops and a new one carries on with this step. Only one session works on a step at a time, so anything the old one sends afterwards is refused.</div></div>
+<div class="q9how"><div><h3 style="display:inline">It will try to pick up exactly where it stopped</h3></div><div>The new session reopens the same conversation with the agent at the point saved 2 minutes ago.</div><div class="q9cap">If Bakery cannot prove that is still safe when the new session starts, it starts fresh from the summary below, and this page says so.</div></div><div><h3 style="margin-bottom:10px">What the new session is given</h3><dl>
+<dt>Asked to do next</dt><dd>Finish the refund amount validation and make the payments tests pass.</dd>
+<dt>Decisions it must keep · 3</dt><dd><ul><li>Refunds round half-up to the smallest currency unit.</li><li>A refund can never exceed what was captured.</li><li>No change to the public API in this task.</li></ul></dd>
+<dt>Documents · 3</dt><dd><span class="q9lnk">plan.md</span> <span class="q9mu">version 3</span> · <span class="q9lnk">research.md</span> <span class="q9mu">version 1</span><div class="q9cap">1 more that you do not have access to.</div></dd>
+<dt>Code</dt><dd>Commit <span class="q9mono">4f2a91c</span> and the changes not committed yet. <span class="q9mu">All saved.</span></dd>
+<dt>Checks so far · 2</dt><dd><span class="q9mono">pnpm test payments</span> <span class="q9bdg ok">Passed</span><br><span class="q9mono">pnpm lint</span> <span class="q9bdg w">Failed</span></dd>
+<dt>Outside actions</dt><dd>None waiting. <span class="q9mu">Everything the session did outside Bakery is confirmed.</span></dd></dl></div>
+<div class="q9foot"><span class="q9cap">The step, its budget and its agent stay the same.</span><span class="q9btn">Keep this session</span><span class="q9btn p">Hand over</span></div></div></div></div></div></body></html>
