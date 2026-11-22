@@ -449,10 +449,11 @@ Deno.test("a rollback the install refuses is recorded as rollback_refused, never
       "rollback_refused",
     ]);
     const after = await installRow(fixture, installId);
-    // The person's move held, then B's own move put B's version on top; #34
-    // refused the move back, so the install is on B's version and the record
-    // says exactly that.
-    assertEquals(after.plugin_version_id, b.events[1].detail.installVersionId);
-    assert(after.plugin_version_id !== a.pluginVersionId);
+    // The person's PATCH moved the install back to the seed version, so #34
+    // refused B's move back to A (the snapshot is not A's). The install ends
+    // on the seed version the person chose, and the record says the rollback
+    // was refused rather than claiming one.
+    assertEquals(after.plugin_version_id, seed.pluginVersionId);
+    assertEquals(b.events[1].detail.installVersionId, seed.pluginVersionId);
   });
 });
