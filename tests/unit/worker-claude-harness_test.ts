@@ -1112,3 +1112,100 @@ Deno.test({
     assertEquals(run.published.length, 0);
   },
 });
+
+Deno.test({
+  name:
+    "Claude freeform materializes the step's pinned inputs before the session starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository(
+      "bakery-claude-freeform-ctx-",
+    );
+    const argsPath = `${scratch.dir}/args.txt`;
+    const promptPath = `${scratch.dir}/prompt.txt`;
+    const fake = await fakeClaude(
+      scratch.dir,
+      `cat > '${promptPath}'
+printf '%s\\n' "$@" > '${argsPath}'
+${[INIT, assistant("done"), resultLine()].join("\n")}`,
+    );
+    const bytes = new TextEncoder().encode("# The brief");
+    const digest = await sha256Hex(bytes);
+    const published: Uint8Array[] = [];
+    const value = {
+      ...freeformAssignment(),
+      contextInputs: [{
+        slot: "brief",
+        path: "brief.md",
+        digest,
+        sizeBytes: bytes.length,
+        mediaType: "text/markdown",
+      }],
+    } as JobAssignment;
+    const executor = createClaudeHarnessExecutor({
+      publishFor: () => async (request) => {
+        published.push(request.bytes);
+        return {
+          artifactId: crypto.randomUUID(),
+          versionId: crypto.randomUUID(),
+          sha256: await sha256Hex(request.bytes),
+        };
+      },
+      repositoryFor: () => scratch.dir,
+      claudeExecutable: fake,
+      stateDir: `${scratch.dir}/worker-state`,
+      authSourceDir: `${scratch.dir}/auth-source`,
+      timeLimitMs: 5_000,
+      readAttemptContext: () =>
+        Promise.resolve([{
+          artifactVersionId: crypto.randomUUID(),
+          artifactId: crypto.randomUUID(),
+          digest,
+          sizeBytes: bytes.length,
+          mediaType: "text/markdown",
+          contentBase64: btoa("# The brief"),
+        }]),
+    });
+    const outcome = await executor.execute(
+      value,
+      new AbortController().signal,
+    );
+    assertEquals(freeformResult(outcome).status, "completed");
+    const prompt = await Deno.readTextFile(promptPath);
+    const args = await Deno.readTextFile(argsPath);
+    assert(prompt.includes("brief.md") && prompt.includes(digest));
+    assert(args.includes("--add-dir\n"), "the context directory is added");
+    // The pins are refused, not ignored, when the bytes differ from the pin.
+    const refused = await createClaudeHarnessExecutor({
+      publishFor: () => () => Promise.reject(new Error("not reached")),
+      repositoryFor: () => scratch.dir,
+      claudeExecutable: fake,
+      stateDir: `${scratch.dir}/worker-state`,
+      authSourceDir: `${scratch.dir}/auth-source`,
+      timeLimitMs: 5_000,
+      readAttemptContext: () =>
+        Promise.resolve([{
+          artifactVersionId: crypto.randomUUID(),
+          artifactId: crypto.randomUUID(),
+          digest,
+          sizeBytes: 5,
+          mediaType: "text/markdown",
+          contentBase64: btoa("other"),
+        }]),
+    }).execute(
+      { ...value, attemptId: crypto.randomUUID() } as JobAssignment,
+      new AbortController().signal,
+    );
+    assertEquals(refused.status, "failed");
+    if (refused.status !== "failed") throw new Error("unreachable");
+    assertEquals(
+      (outcomeResult(refused).fault as Record<string, unknown>).code,
+      "CLAUDE_HARNESS_CONTEXT_UNMATERIALIZABLE",
+    );
+    assertEquals(
+      published.length,
+      1,
+      "nothing published for the refused attempt",
+    );
+  },
+});
