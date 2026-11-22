@@ -16,6 +16,7 @@ import {
   canonicalJson,
   sha256Hex,
 } from "../../apps/server/src/platform/canonical-json.ts";
+import { authTestOrigin } from "../helpers/auth.ts";
 import { openPersonalSkillFixture } from "../helpers/private-skill-fixture.ts";
 
 type Fixture = Awaited<ReturnType<typeof openPersonalSkillFixture>>;
@@ -103,6 +104,41 @@ async function publishVersion(
   return { skillId: skill.id, versionId: version.id, digest };
 }
 
+/** A read that names another organization, as a caller would. */
+async function readIn(
+  fixture: Fixture,
+  cookie: string,
+  organizationId: string,
+  path: string,
+): Promise<Response> {
+  return await fixture.fixture.app.fetch(
+    new Request(`${authTestOrigin}${path}`, {
+      headers: { cookie, "Bakery-Organization-Id": organizationId },
+    }),
+  );
+}
+
+/**
+ * A second organization with the same person as its Admin: a tenant boundary is
+ * a boundary even when the caller is a member somewhere else.
+ */
+async function otherOrganization(fixture: Fixture): Promise<string> {
+  const organizationId = crypto.randomUUID();
+  await fixture.fixture.pgDatabase.query(
+    `insert into bakery.organizations (id, name, slug, created_at, updated_at)
+     values ($1, 'Other Org', $2, now(), now())`,
+    [organizationId, `other-${organizationId}`],
+  );
+  await fixture.fixture.pgDatabase.query(
+    `insert into bakery.organization_memberships (
+       id, organization_id, principal_id, role, status, joined_at,
+       created_at, updated_at
+     ) values ($1, $2, $3, 'admin', 'active', now(), now(), now())`,
+    [crypto.randomUUID(), organizationId, fixture.adminPrincipalId],
+  );
+  return organizationId;
+}
+
 Deno.test("a person reads one version by id, and only a version they may see", async () => {
   const root = await Deno.makeTempDir({ prefix: "bakery-74-reads-" });
   const fixture = await openPersonalSkillFixture({ skillFileRoot: root });
@@ -168,6 +204,21 @@ Deno.test("a person reads one version by id, and only a version they may see", a
         `/v1/skill-versions/${personal.versionId}`,
       )).status,
       200,
+    );
+
+    // Another organization cannot read the version even naming its id: the read
+    // answers not-found, the same way the listing would not show it.
+    const elsewhere = await otherOrganization(fixture);
+    const crossTenant = await readIn(
+      fixture,
+      fixture.adminCookie,
+      elsewhere,
+      `/v1/skill-versions/${shared.versionId}`,
+    );
+    assertEquals(crossTenant.status, 404, await crossTenant.clone().text());
+    assertEquals(
+      (await crossTenant.json() as { code: string }).code,
+      "RESOURCE_NOT_FOUND",
     );
 
     // A reserved draft is not a version yet, and the listing hides it.
@@ -299,6 +350,21 @@ Deno.test("a person reads one file's verified bytes, and nothing they may not", 
     assertEquals(
       (await fixture.read(fixture.ownerCookie, path)).status,
       200,
+    );
+
+    // Another organization gets no bytes either.
+    const elsewhere = await otherOrganization(fixture);
+    const crossTenant = await readIn(
+      fixture,
+      fixture.adminCookie,
+      elsewhere,
+      path,
+    );
+    assertEquals(crossTenant.status, 404, await crossTenant.clone().text());
+    // A problem document, not the file: no bytes leak with the refusal.
+    assertEquals(
+      (await crossTenant.json() as { code: string }).code,
+      "RESOURCE_NOT_FOUND",
     );
 
     // A file of someone else's personal version is not found, and says nothing.
