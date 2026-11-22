@@ -502,6 +502,12 @@ async function executeCodexHarness(
       gitFailurePrefix: "CODEX_HARNESS",
       secrets: [
         assignment.leaseToken,
+        // The session credential is a bearer for this attempt and reaches the
+        // child through a file it can read, so anything it prints must be
+        // redacted exactly as the lease token is.
+        ...(assignment.sessionCredential === undefined
+          ? []
+          : [assignment.sessionCredential]),
         ...(options.redactionSecrets ?? []),
         ...credentialSecrets,
         ...refreshedSecrets,
@@ -763,6 +769,12 @@ async function executeCodexFreeform(
     for (
       const secret of [
         assignment.leaseToken,
+        // The session credential is a bearer for this attempt and reaches the
+        // child through a file it can read, so anything it prints must be
+        // redacted exactly as the lease token is.
+        ...(assignment.sessionCredential === undefined
+          ? []
+          : [assignment.sessionCredential]),
         ...credentialSecrets,
         ...(
           options.redactionSecrets ?? []
