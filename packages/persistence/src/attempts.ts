@@ -2,6 +2,7 @@ import { StandardError } from "@bakery/contracts/http";
 import { COORDINATOR_TURN_ACTION } from "@bakery/contracts/coordinator-turn";
 import { releaseCoordinatorJobReservation } from "./coordinator-jobs.ts";
 import { admitRepositoryExecutionJob } from "./repository-admission.ts";
+import { hostMeetsJobRequirements } from "./job-platform.ts";
 import { appendAudit, appendDomainEvent } from "./event-audit.ts";
 import { persistAssignmentRejectionBudgetEvidence } from "./budget-release.ts";
 import type { PgTransactionClient } from "./postgres.ts";
@@ -952,11 +953,12 @@ export async function rebindLiveClaimAttempt(
         ? identity.host.capabilities
         : [];
       if (
-        requirements.capabilities.some((capability) =>
-          !capabilities.includes(capability)
-        ) ||
-        (requirements.platform !== undefined &&
-          requirements.platform !== identity.host.os)
+        !hostMeetsJobRequirements(requirements, {
+          os: identity.host.os,
+          capabilities: capabilities.filter((value): value is string =>
+            typeof value === "string"
+          ),
+        })
       ) {
         throw new StandardError({ code: "AUTH_FORBIDDEN" });
       }
