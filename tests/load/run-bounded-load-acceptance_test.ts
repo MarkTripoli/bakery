@@ -67,6 +67,9 @@ const { workload, budgets } = reference;
 // in the noisy tenant's 9,000 tasks (180 pages of 50).
 const SAMPLES = 160;
 
+/** Postgres 16's idle stats interval (10 s) plus a margin. */
+const STATS_PUBLISH_WAIT_MS = 11_000;
+
 function p95(samples: number[]): number {
   const sorted = [...samples].sort((left, right) => left - right);
   return sorted[
@@ -83,9 +86,18 @@ function withinBudget(name: string, measured: number, budget: number) {
   );
 }
 
+/**
+ * Sequential-scan counters for the large tables, once every backend has
+ * published them. On Postgres 15 and later a backend sends its table counters
+ * to shared stats at most once a second while busy, and an idle one only after
+ * a ten-second idle interval. The reads under test ran on the server's pooled
+ * connections, not this one, so wait out that interval before reading;
+ * otherwise a seq scan they made would not be counted yet.
+ */
 async function sequentialScans(
   database: { query: (sql: string) => Promise<{ rows: unknown[] }> },
 ): Promise<Record<string, number>> {
+  await new Promise((resolve) => setTimeout(resolve, STATS_PUBLISH_WAIT_MS));
   const result = await database.query(
     `select relname, coalesce(seq_scan, 0)::int as seq_scan
        from pg_stat_user_tables
@@ -216,7 +228,13 @@ Deno.test("AC2/AC3: task lists stay inside their latency budget over the referen
       budgets.taskListDeepPageP95Ms,
     );
     if (!budgets.seqScanOnLargeTablesAllowed) {
-      assertEquals(after, before, "a large table was read by sequential scan");
+      assertEquals(
+        after,
+        before,
+        `a large table was read by sequential scan: ${
+          JSON.stringify({ before, after })
+        }`,
+      );
     }
   }));
 
@@ -492,7 +510,13 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
       `heap grew ${heapGrowthMiB.toFixed(1)} MiB`,
     );
     if (!budgets.seqScanOnLargeTablesAllowed) {
-      assertEquals(after, before, "a large table was read by sequential scan");
+      assertEquals(
+        after,
+        before,
+        `a large table was read by sequential scan: ${
+          JSON.stringify({ before, after })
+        }`,
+      );
     }
   } finally {
     await Promise.all(
