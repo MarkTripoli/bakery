@@ -8,6 +8,13 @@ import { revealShellNavigation } from "./helpers/shell-navigation.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
 import { still } from "./helpers/stills.ts";
+import {
+  cancelRun,
+  chooseRunAction,
+  openRunActions,
+  runAction,
+  runActionsTrigger,
+} from "./helpers/run-actions.ts";
 
 registerPageHealth(test);
 
@@ -1454,12 +1461,7 @@ test("controls recover one uncertain intent and render completion over a replaye
     return route.fulfill({ json: { ...run, status: "running" } });
   });
   await page.goto(`/tasks/${id}`);
-  const cancel = page.getByRole("button", {
-    name: "Request cancellation",
-    exact: true,
-  });
-  await expect(cancel).toBeEnabled();
-  await cancel.click();
+  await cancelRun(page);
   const receipt = page.getByRole("status", { name: "Request sent" });
   await expect(receipt).toContainText("Request outcome unknown.");
   const observedReceipts = timeline(page).locator('[data-scope="control"]');
@@ -1471,17 +1473,19 @@ test("controls recover one uncertain intent and render completion over a replaye
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Completed",
   );
-  await expect(cancel).toBeDisabled();
-  await page.getByRole("button", { name: "Retry same request", exact: true })
-    .click();
+  // The run finished, so the only entry left is the one that confirms what happened.
+  await openRunActions(page);
+  await expect(runAction(page, "Cancel run")).toHaveCount(0);
+  await runAction(page, "Check again").click();
   await expect(receipt).toContainText("Request admitted.");
   await expect(receipt).toContainText("does not confirm what the machine did");
   await expect(observedReceipts).toHaveCount(2);
-  await expect(observedReceipts.last()).toContainText("Request admitted.");
-  await expect(observedReceipts.last()).toContainText(
+  // The list is newest first.
+  await expect(observedReceipts.first()).toContainText("Request admitted.");
+  await expect(observedReceipts.first()).toContainText(
     "does not confirm what the machine did",
   );
-  await expect(observedReceipts.last()).not.toHaveAttribute("data-state");
+  await expect(observedReceipts.first()).not.toHaveAttribute("data-state");
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Completed",
   );
@@ -1489,12 +1493,8 @@ test("controls recover one uncertain intent and render completion over a replaye
   expect(requests[0].key).toMatch(/^[0-9a-f-]{36}$/);
   expect(requests[1]).toEqual(requests[0]);
   expect(requests[0].body).toEqual({ action: "cancel" });
-  await expect(receipt).toContainText(requests[0].key!);
-  await page.getByRole("button", {
-    name: "Start a new control request",
-    exact: true,
-  }).click();
-  await expect(cancel).toBeDisabled();
+  // Answered and the run is over: there is nothing left to ask for.
+  await expect(runActionsTrigger(page)).toHaveCount(0);
   await expect(page.getByRole("status", { name: "Run updates" })).not
     .toContainText("Canceled");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -1523,10 +1523,8 @@ test("controls reject duplicate pending clicks and keep same intent through retr
     return route.fulfill({ json: { ...run, status: "running" } });
   });
   await page.goto(`/tasks/${id}`);
-  const pause = page.getByRole("button", {
-    name: "Request pause",
-    exact: true,
-  });
+  await openRunActions(page);
+  const pause = runAction(page, "Pause run");
   await expect(pause).toBeEnabled();
   // Both clicks occur in one task, before a disabled React render can protect us.
   await pause.evaluate((element: HTMLButtonElement) => {
@@ -1534,15 +1532,12 @@ test("controls reject duplicate pending clicks and keep same intent through retr
     element.click();
   });
   await expect.poll(() => keys.length).toBe(1);
-  await expect(pause).toBeDisabled();
-  await expect(
-    page.getByRole("button", { name: "Request resume", exact: true }),
-  ).toBeDisabled();
+  await expect(page.getByRole("status", { name: "Request sent" }))
+    .toContainText("Request pending.");
   release();
   await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request outcome unknown.");
-  await page.getByRole("button", { name: "Retry same request", exact: true })
-    .click();
+  await chooseRunAction(page, "Check again");
   await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(keys).toHaveLength(2);
@@ -1570,8 +1565,7 @@ for (const status of [403, 409, 422]) {
       });
     });
     await page.goto(`/tasks/${id}`);
-    await page.getByRole("button", { name: "Request interrupt", exact: true })
-      .click();
+    await chooseRunAction(page, "Interrupt the agent");
     const receipt = page.getByRole("status", {
       name: "Request sent",
     });
@@ -1595,20 +1589,21 @@ for (const status of [403, 409, 422]) {
     await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
       "Current run: Completed",
     );
-    await expect(
-      page.getByRole("button", { name: "Retry same request", exact: true }),
-    ).toHaveCount(0);
+    // Answered, and the run is over: no menu, nothing to retry.
+    await expect(runActionsTrigger(page)).toHaveCount(0);
     expect(posts).toBe(1);
   });
 }
 
 test("controls are capability gated, keyboard operable, and offline safe", async ({ page, context }) => {
   let posts = 0;
-  await mockControlReads(page, () => "running");
+  let runStatus = "paused";
+  await mockControlReads(page, () => runStatus);
   await page.route(`**/v1/runs/${runId}/controls`, (route) => {
     if (route.request().method() !== "GET") {
       posts++;
       expect(route.request().postDataJSON()).toEqual({ action: "resume" });
+      runStatus = "running";
       return route.fulfill({ json: { ...run, status: "running" } });
     }
     return route.fulfill({
@@ -1623,15 +1618,14 @@ test("controls are capability gated, keyboard operable, and offline safe", async
     });
   });
   await page.goto(`/tasks/${id}`);
-  const resume = page.getByRole("button", {
-    name: "Request resume",
-    exact: true,
-  });
+  // A paused run shows Resume run as the one primary button; the server
+  // allows nothing else, so there is no menu to open.
+  const resume = page.getByRole("button", { name: "Resume run", exact: true });
   await expect(resume).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Request pause", exact: true }))
-    .toBeDisabled();
+  await expect(runActionsTrigger(page)).toHaveCount(0);
+  // Offline, nothing can be sent, so the button is not offered at all.
   await context.setOffline(true);
-  await expect(resume).toBeDisabled();
+  await expect(resume).toHaveCount(0);
   expect(posts).toBe(0);
   await context.setOffline(false);
   await expect(resume).toBeEnabled();
@@ -1640,12 +1634,10 @@ test("controls are capability gated, keyboard operable, and offline safe", async
   await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(posts).toBe(1);
-  const size = await resume.boundingBox();
-  expect(size!.height).toBeGreaterThanOrEqual(44);
-  expect(size!.width).toBeGreaterThanOrEqual(44);
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Running",
   );
+  await expect(resume).toHaveCount(0);
 });
 
 test("a waiting run offers cancel only and cancels from the run view", async ({ page }) => {
@@ -1675,23 +1667,29 @@ test("a waiting run offers cancel only and cancels from the run view", async ({ 
     });
   });
   await page.goto(`/tasks/${id}`);
-  const cancel = page.getByRole("button", {
-    name: "Request cancellation",
-    exact: true,
-  });
-  await expect(cancel).toBeEnabled();
-  for (const name of ["Request pause", "Request resume", "Request interrupt"]) {
-    await expect(page.getByRole("button", { name, exact: true }))
-      .toBeDisabled();
+  // Only what the server allows is listed: no faded Pause, Resume or Interrupt.
+  await openRunActions(page);
+  await expect(runAction(page, "Cancel run")).toBeEnabled();
+  for (const name of ["Pause run", "Resume run", "Interrupt the agent"]) {
+    await expect(page.getByRole("button", { name, exact: true })).toHaveCount(
+      0,
+    );
   }
-  await cancel.click();
+  await runAction(page, "Cancel run").click();
+  // Cancel asks first; keeping the run sends nothing.
+  await page.getByRole("alertdialog").getByRole("button", {
+    name: "Keep running",
+    exact: true,
+  }).click();
+  expect(posts).toEqual([]);
+  await cancelRun(page);
   await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(posts).toEqual([{ action: "cancel" }]);
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Canceled",
   );
-  await expect(cancel).toBeDisabled();
+  await expect(runActionsTrigger(page)).toHaveCount(0);
 });
 
 test("controls preserve uncertain receipt through a failed parent task refresh", async ({ page }) => {
@@ -1717,23 +1715,19 @@ test("controls preserve uncertain receipt through a failed parent task refresh",
     return route.fulfill({ json: { ...run, status: "running" } });
   });
   await page.goto(`/tasks/${id}`);
-  await page.getByRole("button", { name: "Request cancellation", exact: true })
-    .click();
+  await cancelRun(page);
   await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request outcome unknown.");
-  await expect(
-    page.getByRole("button", { name: "Retry same request", exact: true }),
-  ).toBeDisabled();
+  // While the task could not be refreshed nothing can be sent: no menu.
+  await expect(runActionsTrigger(page)).toHaveCount(0);
   failedTask = false;
   // The refresh of the task failed: the warning notice about it has the retry.
   await page.locator('[data-ui-component="inlineNotice"]', {
     hasText: "This task could not be refreshed.",
   }).getByRole("button", { name: "Try again", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Retry same request", exact: true }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "Retry same request", exact: true })
-    .click();
+  await openRunActions(page);
+  await expect(runAction(page, "Check again")).toBeEnabled();
+  await runAction(page, "Check again").click();
   await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(keys).toHaveLength(2);
@@ -1809,10 +1803,11 @@ const timeline = (page: Page) =>
 test("timeline shows a queued run from the server record only", async ({ page }) => {
   await mockSession(page, { runStatus: "queued", steps: [] });
   await page.goto(`/tasks/${id}`);
-  const items = timeline(page).getByRole("listitem");
-  await expect(items).toHaveCount(1);
-  await expect(items.first()).toContainText("Run queued");
-  await expect(page.getByText("No steps have been recorded.")).toBeVisible();
+  // The run line says it once; a run with no steps draws no empty step list.
+  await expect(timeline(page)).toHaveCount(0);
+  await expect(page.getByText("Waiting for a machine to pick it up."))
+    .toBeVisible();
+  await expect(page.getByText("No steps have been recorded.")).toHaveCount(0);
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Queued",
   );
@@ -1821,18 +1816,19 @@ test("timeline shows a queued run from the server record only", async ({ page })
 test("a blocked run says why, stays blocked and offers no controls", async ({ page }) => {
   await mockSession(page, { runStatus: "blocked", steps: [] });
   await page.goto(`/tasks/${id}`);
-  const items = timeline(page).getByRole("listitem");
-  await expect(items).toHaveCount(1);
-  await expect(items.first()).toContainText("Run blocked");
-  await expect(items.first()).toContainText(
-    "Waiting for a dependency task to finish.",
-  );
+  await expect(timeline(page)).toHaveCount(0);
+  await expect(
+    page.getByText("This run is waiting for another task to finish."),
+  )
+    .toBeVisible();
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Blocked",
   );
-  await expect(page.getByRole("button", { name: /^Request / })).toHaveCount(0);
+  await expect(runActionsTrigger(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Resume run", exact: true }))
+    .toHaveCount(0);
   // It does not turn into a running or terminal row by itself.
-  await expect(timeline(page).getByText(/Run (completed|failed|canceled)/))
+  await expect(page.getByText(/Run (completed|failed|canceled)/))
     .toHaveCount(0);
 });
 
@@ -1845,17 +1841,19 @@ test("a running run shows step progress without a terminal row", async ({ page }
     ],
   });
   await page.goto(`/tasks/${id}`);
+  // Newest first: the step being worked on is the top row.
   const items = timeline(page).getByRole("listitem");
   await expect(items).toHaveCount(3);
+  await expect(items.nth(0)).toContainText("Implement");
+  await expect(items.nth(0)).toContainText("Running");
   await expect(items.nth(1)).toContainText("Write task brief");
   await expect(items.nth(1)).toContainText("Completed");
-  await expect(items.nth(2)).toContainText("Implement");
-  await expect(items.nth(2)).toContainText("Running");
+  await expect(items.nth(2)).toContainText("Run queued");
   await expect(timeline(page).getByText(/Run (completed|failed|canceled)/))
     .toHaveCount(0);
 });
 
-test("a completed run ends with its terminal row and finish time", async ({ page }) => {
+test("a completed run ends with its terminal row on top and says how it went on the run line", async ({ page }) => {
   await mockSession(page, {
     runStatus: "completed",
     finishedAt: "2026-01-01T00:01:00.000Z",
@@ -1863,12 +1861,16 @@ test("a completed run ends with its terminal row and finish time", async ({ page
   });
   await page.goto(`/tasks/${id}`);
   const items = timeline(page).getByRole("listitem");
-  await expect(items).toHaveCount(4);
-  await expect(items.last()).toContainText("Run completed");
-  await expect(items.last().locator("time")).toHaveAttribute(
+  // Newest first: the finish is the top row. Four rows fold, so the oldest
+  // (the queued row) sits under "Earlier steps" and three show.
+  await expect(items).toHaveCount(3);
+  await expect(items.first()).toContainText("Run completed");
+  await expect(items.first().locator("time")).toHaveAttribute(
     "datetime",
     "2026-01-01T00:01:00.000Z",
   );
+  await expect(page.getByText("2 steps in 59 s", { exact: true }))
+    .toBeVisible();
 });
 
 test("a failed implement step shows the honest no-harness copy", async ({ page }) => {
@@ -1882,10 +1884,12 @@ test("a failed implement step shows the honest no-harness copy", async ({ page }
   });
   await page.goto(`/tasks/${id}`);
   const items = timeline(page).getByRole("listitem");
-  await expect(items.nth(2)).toContainText(
+  // Newest first: the run's end, then the failed step with the reason.
+  await expect(items.first()).toContainText("Run failed");
+  await expect(items.nth(1)).toContainText(
     "No coding agent is installed on this machine yet.",
   );
-  await expect(items.last()).toContainText("Run failed");
+  await expect(page.getByText("Send a message to try again.")).toBeVisible();
   await expect(page.getByText("Run completed")).toHaveCount(0);
 });
 
@@ -1899,7 +1903,7 @@ test("a failed step with another fault does not claim the harness is missing", a
     ],
   });
   await page.goto(`/tasks/${id}`);
-  await expect(timeline(page).getByRole("listitem").nth(2)).toContainText(
+  await expect(timeline(page).getByRole("listitem").nth(1)).toContainText(
     "Failed",
   );
   await expect(page.getByText("No coding agent")).toHaveCount(0);
@@ -1920,25 +1924,26 @@ test("a run failed by the budget cap names the reason", async ({ page }) => {
     ],
   });
   await page.goto(`/tasks/${id}`);
-  await expect(timeline(page).getByRole("listitem").nth(2)).toContainText(
+  await expect(timeline(page).getByRole("listitem").nth(1)).toContainText(
     "The run budget cannot cover this step's model reservation. Start a new run with a higher budget limit.",
   );
-  await expect(timeline(page).getByRole("listitem").last()).toContainText(
+  await expect(timeline(page).getByRole("listitem").first()).toContainText(
     "Run failed",
   );
   await expect(page.getByText("No coding agent")).toHaveCount(0);
 });
 
-test("a canceled run shows its canceled terminal row", async ({ page }) => {
+test("a canceled run shows its canceled terminal row on top and says when on the run line", async ({ page }) => {
   await mockSession(page, {
     runStatus: "canceled",
     finishedAt: "2026-01-01T00:01:00.000Z",
     steps: [stepOf("brief", "completed")],
   });
   await page.goto(`/tasks/${id}`);
-  await expect(timeline(page).getByRole("listitem").last()).toContainText(
+  await expect(timeline(page).getByRole("listitem").first()).toContainText(
     "Run canceled",
   );
+  await expect(page.getByText(/^Canceled .+\.$/)).toBeVisible();
 });
 
 test("cancel losing to completion with ALREADY_TERMINAL renders the server winner", async ({ page }) => {
@@ -1969,8 +1974,7 @@ test("cancel losing to completion with ALREADY_TERMINAL renders the server winne
     });
   });
   await page.goto(`/tasks/${id}`);
-  await page.getByRole("button", { name: "Request cancellation", exact: true })
-    .click();
+  await cancelRun(page);
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
     "Current run: Completed",
   );
@@ -1985,9 +1989,7 @@ test("cancel losing to completion with ALREADY_TERMINAL renders the server winne
   await expect(receipt).toContainText("conflicted with current server state");
   await expect(receipt).not.toHaveAttribute("data-state");
   await expect(timeline(page).getByText("Run canceled")).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Retry same request", exact: true }),
-  ).toHaveCount(0);
+  await expect(runActionsTrigger(page)).toHaveCount(0);
   expect(posts).toBe(1);
 });
 

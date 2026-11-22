@@ -788,7 +788,8 @@ test("a run with no changes yet draws no delivery section", async ({ page }) => 
   await mockRun(page);
   await mockDelivery(page, { checks: [] });
   await page.goto(`/tasks/${id}`);
-  await expect(page.getByRole("button", { name: "Pause" }).first())
+  // The run section is drawn (its heading), and it has no Delivery part.
+  await expect(page.getByRole("heading", { name: "Current run" }))
     .toBeVisible();
   await expect(page.getByTestId("delivery-section")).toHaveCount(0);
 });
@@ -2625,6 +2626,15 @@ const ACCEPTED: Scenario = {
   },
 };
 
+/**
+ * The rows of one of the section's tables: table rows on a desktop, and on a
+ * phone the one card per row that the same table draws (`phone` renderer).
+ */
+const rowsOf = (page: Page, within: Locator) =>
+  within.getByRole(
+    (page.viewportSize()?.width ?? 1280) <= 743 ? "listitem" : "row",
+  );
+
 async function openDelivery(page: Page, scenario: Scenario) {
   await mockRun(page);
   await mockDelivery(page, scenario);
@@ -2645,7 +2655,7 @@ test("what needs attention lists each check that did not pass with its reason, a
   const attention = section.getByTestId("delivery-attention");
   await expect(attention).toContainText("Needs attention");
   const row = (name: string) =>
-    attention.getByRole("row").filter({ hasText: name });
+    rowsOf(page, attention).filter({ hasText: name });
   // A failed command always says it ended with an error; its exit code is in Details.
   await expect(row("tests")).toContainText("Ended with an error.");
   await expect(row("tests")).not.toContainText("exit code");
@@ -2674,13 +2684,13 @@ test("what needs attention lists each check that did not pass with its reason, a
   // Details lists every check with its result, time and exit code.
   const details = await openLink(section, "delivery-details");
   const all = details.getByTestId("delivery-checks-rows");
-  await expect(all.getByRole("row").filter({ hasText: "tests" })).toContainText(
+  await expect(rowsOf(page, all).filter({ hasText: "tests" })).toContainText(
     "2 min 14 s",
   );
-  await expect(all.getByRole("row").filter({ hasText: "tests" })).toContainText(
+  await expect(rowsOf(page, all).filter({ hasText: "tests" })).toContainText(
     "2",
   );
-  await expect(all.getByRole("row").filter({ hasText: "lint" })).toContainText(
+  await expect(rowsOf(page, all).filter({ hasText: "lint" })).toContainText(
     "Passed",
   );
 });
@@ -2698,13 +2708,13 @@ test("a check list of more than five rows folds under Show all", async ({ page }
   };
   const section = await openDelivery(page, many);
   const attention = section.getByTestId("delivery-attention");
-  const rows = attention.getByTestId("delivery-attention-rows").getByRole(
-    "row",
-  );
-  // Five rows and the hidden heading row; Show all brings the rest.
-  await expect(rows).toHaveCount(6);
+  const rows = rowsOf(page, attention.getByTestId("delivery-attention-rows"));
+  // A table also has its heading row; a phone's cards do not.
+  const heading = (page.viewportSize()?.width ?? 1280) <= 743 ? 0 : 1;
+  // Five rows; Show all brings the rest.
+  await expect(rows).toHaveCount(5 + heading);
   await attention.getByRole("button", { name: "Show all" }).click();
-  await expect(rows).toHaveCount(8);
+  await expect(rows).toHaveCount(7 + heading);
   await expect(attention.getByRole("button", { name: "Show all" }))
     .toHaveCount(0);
 });
@@ -2714,7 +2724,7 @@ test("what Bakery tried lists every try, newest first, behind one closed link", 
   const tried = section.getByTestId("delivery-tried");
   await expect(tried).not.toHaveAttribute("open");
   await openLink(section, "delivery-tried");
-  const rows = tried.getByTestId("delivery-tried-rows").getByRole("row");
+  const rows = rowsOf(page, tried.getByTestId("delivery-tried-rows"));
   await expect(rows.filter({ hasText: "Try 2" })).toContainText(
     "Asked to fix 2 checks that did not pass (tests and lint).",
   );

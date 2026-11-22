@@ -1273,10 +1273,10 @@ test("unsupported steering is explicit in the run controls while a run is active
   await expect(page.getByText("A run is in progress.")).toBeVisible();
   await expect(page.locator('[data-ui-region="steering-unsupported"]'))
     .toContainText("You cannot redirect this run while it works");
-  await expect(
-    page.getByText("This machine cannot pause a run.")
-      .first(),
-  ).toBeVisible();
+  // The menu leaves out what the machine cannot do; the notice says why, once.
+  await expect(page.getByText("This machine cannot pause a run.")).toHaveCount(
+    0,
+  );
   // Questions to the agent are still accepted and saved to the conversation.
   await page.getByRole("textbox", { name: "Message this task" }).fill(
     "How is it going?",

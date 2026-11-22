@@ -821,8 +821,8 @@ for (
       await expect(page.getByText(scenario.says, { exact: true }))
         .toBeVisible();
     }
-    await expect(page.getByText("Provider usage: unknown", { exact: true }))
-      .toBeVisible();
+    // Usage that is not known is not drawn.
+    await expect(page.getByText(/^Provider usage/)).toHaveCount(0);
     // Nothing is known of the changes: the card says so in its one sentence.
     await expect(
       page.getByText("Bakery has not recorded any changes for this run yet."),
@@ -1344,6 +1344,8 @@ test("verified provider receipt renders known usage without guessing missing val
   );
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
+  // Usage that is known sits under the run's Details.
+  await page.locator("#run-details > summary").click();
   await expect(
     page.getByText(
       "Provider usage: 128 input tokens · 64 output tokens · USD 0.012",

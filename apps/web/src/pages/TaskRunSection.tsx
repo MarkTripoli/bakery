@@ -11,7 +11,11 @@ import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { JobAttemptRead } from "../api/client.ts";
-import { runQueryOptions, runStepsListQueryOptions } from "../api/query.ts";
+import {
+  runControlCapabilitiesQueryOptions,
+  runQueryOptions,
+  runStepsListQueryOptions,
+} from "../api/query.ts";
 import { SessionRunNow, SessionStepThread } from "./SessionStepThread.tsx";
 import { useSessionThread } from "./useSessionThread.ts";
 import { usePublishNowLine } from "./now-line-slot.tsx";
@@ -188,6 +192,15 @@ export function TaskRunSection(
   });
   const validRun = !run.isError && run.data?.taskId === taskId;
   const activeRun = enabled && validRun;
+  // The same read the Run actions menu makes (one cached request): a machine
+  // that cannot steer is told once, since the menu simply leaves those actions out.
+  const capabilities = useQuery({
+    ...runControlCapabilitiesQueryOptions(api, scope, runId),
+    enabled: activeRun && scope.organizationId !== null,
+  });
+  const steeringUnsupported =
+    capabilities.data?.actions.some((item) => item.reason === "unsupported") ===
+      true;
   const steps = useQuery({
     ...runStepsListQueryOptions(api, scope, runId, {
       cursor: cursors.at(-1),
@@ -493,6 +506,14 @@ export function TaskRunSection(
               )
               : null}
           </UI.Inline>
+          {steeringUnsupported && (
+            <UI.InlineNotice
+              tone="information"
+              data-ui-region="steering-unsupported"
+            >
+              {t("tasks.conversation.steering.unsupported")}
+            </UI.InlineNotice>
+          )}
           {validRun && run.data
             ? (
               <RouteWaiting
