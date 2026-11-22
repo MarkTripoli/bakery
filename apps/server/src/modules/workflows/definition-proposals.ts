@@ -234,13 +234,36 @@ async function readProposal(
   return row;
 }
 
+/**
+ * A proposal is read and decided with its conversation: the same scope check
+ * the conversation's own reads and the proposal list run, so a proposal whose
+ * conversation the caller cannot reach answers as an unknown id would.
+ */
+async function requireProposalConversation(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: ProposalRow,
+): Promise<void> {
+  await lockConversationScope(
+    transaction,
+    organizationId,
+    row.conversation_id,
+    "share",
+  );
+}
+
 export async function getWorkflowDefinitionProposal(context: ActionContext) {
   const { transaction, organizationId } = requireWorkTransaction(context);
   const proposalId = context.params.id;
   if (!proposalId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return toProposal(
-    await readProposal(transaction, organizationId, proposalId, false),
+  const row = await readProposal(
+    transaction,
+    organizationId,
+    proposalId,
+    false,
   );
+  await requireProposalConversation(transaction, organizationId, row);
+  return toProposal(row);
 }
 
 /**
@@ -340,12 +363,14 @@ export async function decideWorkflowDefinitionProposal(
   // settles waiting proposals, so a decision racing a publish waits instead
   // of deadlocking. workflow_id only ever moves from null to a definition, by
   // an accept, which the state check below then refuses.
-  const target = (await readProposal(
+  const observed = await readProposal(
     transaction,
     organizationId,
     proposalId,
     false,
-  )).workflow_id;
+  );
+  await requireProposalConversation(transaction, organizationId, observed);
+  const target = observed.workflow_id;
   if (target !== null) {
     await transaction.query(
       `select 1 from bakery.workflow_definitions
