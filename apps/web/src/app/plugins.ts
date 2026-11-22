@@ -69,6 +69,12 @@ export function stateCopyOf(
   };
 }
 
+/** The two refusals that mean the list of new permissions changed or was not allowed. */
+export function isApprovalRefusal(reason: string): boolean {
+  return reason === "plugin_capabilities_not_approved" ||
+    reason === "plugin_capability_approval_mismatch";
+}
+
 /** Reads the recorded failure off an install, or null when there is none or it is malformed. */
 export function updateFailureOf(
   install: Pick<PluginInstall, "lastUpdateFailure"> | undefined,

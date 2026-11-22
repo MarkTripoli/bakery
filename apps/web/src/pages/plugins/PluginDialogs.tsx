@@ -223,7 +223,10 @@ export function VersionChangeDialog(
       readonly pending: boolean;
       readonly failure: ChangeFailure | null;
       readonly onCancel: () => void;
-      readonly onConfirm: () => void;
+      /** Gets exactly the permissions the dialog showed as new, or nothing when none were added. */
+      readonly onConfirm: (
+        approval: readonly PluginCapability[] | undefined,
+      ) => void;
       /** Opens "Where {version} came from" for the version being moved to. */
       readonly onShowOrigin?: () => void;
     },
@@ -245,12 +248,16 @@ export function VersionChangeDialog(
     : translate("settings.plugins.goBack.title", { version: to.versionName });
   const confirmLabel = kind === "update"
     ? difference.added.length > 0
-      ? translate("settings.plugins.update.confirmAllow")
+      ? translate("settings.plugins.update.added.confirm", {
+        count: difference.added.length,
+      })
       : translate("settings.plugins.update.confirm", {
         version: to.versionName,
       })
     : difference.added.length > 0
-    ? translate("settings.plugins.versions.goBackAllow")
+    ? translate("settings.plugins.goBack.allow", {
+      count: difference.added.length,
+    })
     : translate("settings.plugins.versions.goBack");
   return (
     <UI.Dialog
@@ -285,12 +292,26 @@ export function VersionChangeDialog(
           ? (
             <UI.Stack gap="tight">
               {difference.added.length === 0 ? null : (
-                <UI.Text>
-                  {translate("settings.plugins.update.alsoCan", {
-                    version: to.versionName,
-                    list: words.list(difference.added),
-                  })}
-                </UI.Text>
+                <UI.Stack gap="tight">
+                  <UI.Text variant="strong">
+                    {translate("settings.plugins.update.added.label", {
+                      version: to.versionName,
+                    })}
+                  </UI.Text>
+                  <UI.Stack gap="tight" role="list">
+                    {difference.added.map((capability) => (
+                      <UI.Text key={capability} role="listitem">
+                        {words.name(capability)}
+                      </UI.Text>
+                    ))}
+                  </UI.Stack>
+                  <UI.Text variant="caption">
+                    {translate("settings.plugins.update.added.caption", {
+                      kept: capabilitiesOf(to).length - difference.added.length,
+                      version: to.versionName,
+                    })}
+                  </UI.Text>
+                </UI.Stack>
               )}
               {difference.removed.length === 0 ? null : (
                 <UI.Text>
@@ -315,7 +336,15 @@ export function VersionChangeDialog(
                 })}
             </UI.Text>
           )}
-        {failure === null
+        {failure === "changed"
+          ? (
+            <UI.InlineNotice tone="warning" role="alert">
+              {translate("settings.plugins.update.added.changed", {
+                version: to.versionName,
+              })}
+            </UI.InlineNotice>
+          )
+          : failure === null
           ? null
           : kind === "update" && failure === "failed"
           ? (
@@ -349,7 +378,14 @@ export function VersionChangeDialog(
               ? translate("settings.plugins.update.notNow")
               : translate("core.actions.cancel")}
           </UI.Button>
-          <UI.Button variant="primary" disabled={pending} onClick={onConfirm}>
+          <UI.Button
+            variant="primary"
+            disabled={pending}
+            onClick={() =>
+              onConfirm(
+                difference.added.length > 0 ? difference.added : undefined,
+              )}
+          >
             {failure === "failed" && kind === "update"
               ? translate("settings.plugins.update.retry")
               : confirmLabel}

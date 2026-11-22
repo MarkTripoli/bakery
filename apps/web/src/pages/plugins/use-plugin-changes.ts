@@ -6,7 +6,7 @@ import type { PluginApproval } from "../../api/client.ts";
 import type { PluginScope } from "../../app/plugins.ts";
 
 /** What went wrong with a change, in the words the page has for it. */
-export type ChangeFailure = "conflict" | "offline" | "failed";
+export type ChangeFailure = "conflict" | "offline" | "failed" | "changed";
 
 export function changeFailureOf(error: unknown): ChangeFailure {
   if (asyncKindForError(error) === "offline") return "offline";

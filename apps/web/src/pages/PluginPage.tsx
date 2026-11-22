@@ -16,6 +16,7 @@ import {
   installedPlugins,
   mayChangeInstall,
   type PluginActor,
+  type PluginCapability,
   type PluginVersion,
   publishedVersions,
   shortFingerprint,
@@ -154,13 +155,21 @@ export function PluginPage({ installId }: { readonly installId: string }) {
       close();
       void navigate({ to: PLUGINS_PATH });
     }).catch(() => undefined);
-  const moveTo = (version: PluginVersion) =>
+  const moveTo = (
+    version: PluginVersion,
+    approval?: readonly PluginCapability[],
+  ) =>
     void change(
       () =>
         changes.update.mutateAsync({
           id: installId,
           version: row!.installVersion,
-          change: { versionId: version.id },
+          change: {
+            versionId: version.id,
+            ...(approval === undefined
+              ? {}
+              : { approveCapabilities: [...approval] }),
+          },
         }).then((result) => {
           // A refused version comes back as the install with the failure on it.
           if (updateFailureOf(result)?.versionId === version.id) {
@@ -675,7 +684,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
             pending={changes.update.isPending}
             failure={failure}
             onCancel={close}
-            onConfirm={() => moveTo(dialog.version)}
+            onConfirm={(approval) => moveTo(dialog.version, approval)}
             onShowOrigin={() => setOrigin(dialog.version)}
           />
         )}

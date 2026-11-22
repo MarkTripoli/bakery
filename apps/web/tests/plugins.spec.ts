@@ -789,8 +789,15 @@ for (
         .click();
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByText("1.0.0 → 1.1.0")).toBeVisible();
+      await expect(dialog.getByText("New in 1.1.0: it also asks to"))
+        .toBeVisible();
+      await expect(dialog.getByRole("listitem")).toHaveText([
+        "Run on a schedule",
+      ]);
       await expect(
-        dialog.getByText("Version 1.1.0 can also: Run on a schedule."),
+        dialog.getByText(
+          "If 1.1.0 asks for anything else, Bakery does not switch and asks you again.",
+        ),
       ).toBeVisible();
       await expect(
         dialog.getByText("It will no longer: Save its own data."),
@@ -803,11 +810,15 @@ for (
       await shot(page, `plugins-update-${viewport.name}`, [], {
         windowOnly: true,
       });
-      await dialog.getByRole("button", { name: "Update and allow" }).click();
+      await dialog.getByRole("button", { name: "Update and allow 1" }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
       expect(state.writes).toHaveLength(1);
       expect(state.writes[0].method).toBe("PATCH");
-      expect(state.writes[0].body).toEqual({ versionId: NOTES_V2 });
+      // Exactly the permission the dialog showed as new is what is allowed.
+      expect(state.writes[0].body).toEqual({
+        versionId: NOTES_V2,
+        approveCapabilities: ["jobs.schedule"],
+      });
       expect(state.writes[0].ifMatch).toBe('"v3"');
     });
 
@@ -818,7 +829,7 @@ for (
       await page.getByRole("button", { name: "Review update of Notes" })
         .click();
       const dialog = page.getByRole("dialog");
-      await dialog.getByRole("button", { name: "Update and allow" }).click();
+      await dialog.getByRole("button", { name: "Update and allow 1" }).click();
       await expect(dialog.getByText("The update to 1.1.0 did not start."))
         .toBeVisible();
       await expect(
@@ -1018,15 +1029,19 @@ for (
       await shot(page, `plugin-go-back-${viewport.name}`, [], {
         windowOnly: true,
       });
-      await expect(
-        dialog.getByText("Version 1.0.0 can also: Save its own data."),
-      )
+      await expect(dialog.getByText("New in 1.0.0: it also asks to"))
         .toBeVisible();
+      await expect(dialog.getByRole("listitem")).toHaveText([
+        "Save its own data",
+      ]);
       await expect(dialog.getByText("It will no longer: Run on a schedule."))
         .toBeVisible();
       // 1.0.0 can do something 1.1.0 cannot, so the button says it allows it.
-      await dialog.getByRole("button", { name: "Go back and allow" }).click();
-      expect(state.writes[0].body).toEqual({ versionId: NOTES_V1 });
+      await dialog.getByRole("button", { name: "Go back and allow 1" }).click();
+      expect(state.writes[0].body).toEqual({
+        versionId: NOTES_V1,
+        approveCapabilities: ["state.write"],
+      });
     });
   });
 }
