@@ -69,9 +69,11 @@ operation the install is not granted answers {ok: false, denial: "not_granted"}.
 1. Relative POSIX paths only, at most 64 files and 1 MiB in total.
 2. manifest.json must parse and plugin.json's sdkRange must accept the host SDK.
 3. requestedCapabilities must be within what the person authorized.
-4. No Deno., fetch(, XMLHttpRequest, WebSocket, process., eval(, new Function,
+4. No Deno, fetch(, XMLHttpRequest, WebSocket, process., eval, new Function,
    globalThis, Reflect, constructor, require( or import(; imports only of
-   relative files.
+   files in this package, by a relative path that stays inside it. This scan
+   is defense in depth: the sandbox the job runs in (no network, no files, no
+   environment) is the boundary, whatever the source manages to spell.
 5. The package must type-check with deno check, offline.
 6. The job must run in a private preview and return a result.
 

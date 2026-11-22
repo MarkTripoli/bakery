@@ -111,14 +111,15 @@ const SOURCE_FILE = /\.(?:ts|js|mjs|mts|tsx|jsx)$/;
 const FORBIDDEN_TOKENS: readonly Readonly<
   { pattern: RegExp; label: string }
 >[] = [
-  { pattern: /\bDeno\s*\./, label: "Deno." },
-  { pattern: /\bDeno\s*\[/, label: "Deno[" },
+  // Any mention, not just a member access: `const d = Deno` is an alias.
+  { pattern: /\bDeno\b/, label: "Deno" },
   { pattern: /\bfetch\s*\(/, label: "fetch(" },
   { pattern: /\bXMLHttpRequest\b/, label: "XMLHttpRequest" },
   { pattern: /\bWebSocket\b/, label: "WebSocket" },
   { pattern: /\bEventSource\b/, label: "EventSource" },
   { pattern: /\bprocess\s*\./, label: "process." },
-  { pattern: /\beval\s*\(/, label: "eval(" },
+  // Any mention: `(0, eval)("...")` is an indirect call.
+  { pattern: /\beval\b/, label: "eval" },
   { pattern: /\bnew\s+Function\b/, label: "new Function" },
   { pattern: /\bFunction\s*\(/, label: "Function(" },
   { pattern: /\bglobalThis\b/, label: "globalThis" },
@@ -130,8 +131,9 @@ const FORBIDDEN_TOKENS: readonly Readonly<
   { pattern: /\bWorker\b/, label: "Worker" },
 ];
 
+// Whitespace after the keyword is optional: `import{a}from"x"` is valid.
 const IMPORT_SPECIFIER =
-  /(?:\bimport|\bexport)\s+(?:type\s+)?(?:[^"'`;]*?\sfrom\s*)?["'`]([^"'`]*)["'`]/g;
+  /(?:\bimport|\bexport)\s*(?:type\s+)?(?:[^"'`;]*?\bfrom\s*)?["'`]([^"'`]*)["'`]/g;
 
 function diagnostic(
   check: PluginPackageCheckId,
@@ -367,6 +369,25 @@ function withoutComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
 }
 
+/**
+ * The package path a relative specifier names from `importer`, or null when it
+ * climbs above the package root.
+ */
+export function resolveWithinPackage(
+  importer: string,
+  specifier: string,
+): string | null {
+  const segments = importer.split("/").slice(0, -1);
+  for (const part of specifier.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") {
+      if (segments.length === 0) return null;
+      segments.pop();
+    } else segments.push(part);
+  }
+  return segments.join("/");
+}
+
 function checkIsolation(files: PluginPackageFiles): PluginPackageDiagnostic[] {
   const out: PluginPackageDiagnostic[] = [];
   for (const path of Object.keys(files).sort()) {
@@ -392,6 +413,7 @@ function checkIsolation(files: PluginPackageFiles): PluginPackageDiagnostic[] {
     }
     for (const match of source.matchAll(IMPORT_SPECIFIER)) {
       const specifier = match[1];
+      const resolved = resolveWithinPackage(path, specifier);
       if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
         out.push(diagnostic(
           "isolation",
@@ -404,6 +426,20 @@ function checkIsolation(files: PluginPackageFiles): PluginPackageDiagnostic[] {
           "isolation",
           "ISOLATION_VIOLATION",
           `imports ${specifier}, which is not a source file`,
+          path,
+        ));
+      } else if (
+        resolved === null ||
+        (!Object.hasOwn(files, resolved) &&
+          !Object.hasOwn(HOST_OWNED_FILES, resolved))
+      ) {
+        // Resolved against the importer inside the package: a path that
+        // climbs out of it, or names no file in it, would make the host's
+        // typecheck read a file on the server and echo it in diagnostics.
+        out.push(diagnostic(
+          "isolation",
+          "ISOLATION_VIOLATION",
+          `imports ${specifier}, which is not a file in this package`,
           path,
         ));
       }
@@ -542,13 +578,18 @@ export async function checkPluginPackage(
   const manifest = checkManifest(files);
   record("manifest", manifest.diagnostics);
   record("authority", checkAuthority(manifest.manifest, policy));
-  record("isolation", checkIsolation(files));
-  // A package whose paths are unsafe is never written to disk, so its
-  // typecheck is reported as skipped (and so not passed) rather than run.
-  const treeSafe = !tree.some((d) =>
-    d.code === "PATH_UNSAFE" || d.code === "PATH_RESERVED" ||
-    d.code === "TOO_MANY_FILES" || d.code === "TOO_LARGE"
-  );
+  const isolation = checkIsolation(files);
+  record("isolation", isolation);
+  // A package whose paths are unsafe is never written to disk, and one that
+  // imports anything but its own files is never handed to the host's
+  // compiler, which would resolve the import on the server and echo what it
+  // read in its diagnostics. Either way the typecheck is reported as skipped
+  // (and so not passed) rather than run.
+  const treeSafe =
+    !tree.some((d) =>
+      d.code === "PATH_UNSAFE" || d.code === "PATH_RESERVED" ||
+      d.code === "TOO_MANY_FILES" || d.code === "TOO_LARGE"
+    ) && !isolation.some((d) => d.message.startsWith("imports "));
   if (treeSafe) record("typecheck", await checkTypes(files));
   else record("typecheck", [], true);
 

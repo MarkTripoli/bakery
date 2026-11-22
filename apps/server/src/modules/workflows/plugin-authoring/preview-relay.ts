@@ -12,8 +12,10 @@ import { issueStateCasVersion } from "../../catalog/plugin-install-upgrade.ts";
  * A previewed job asks for state.read and state.write exactly as a scheduled
  * one asks the broker, and gets the same answers: the install's grants are read
  * fresh on every call, the namespace must be one the version declares, and a
- * write is compare-and-set on the key's cas version. It runs in the authoring
- * request's transaction, so what a failed preview wrote is rolled back with it.
+ * write is compare-and-set on the key's cas version. Each call is its own short, committed transaction;
+ * nothing rolls a failed preview's writes back on its own. The runner undoes
+ * them explicitly afterwards: a new install is uninstalled, a revised one is
+ * rolled back to the state its previous version left (#34).
  */
 
 export type PreviewCall = Readonly<{

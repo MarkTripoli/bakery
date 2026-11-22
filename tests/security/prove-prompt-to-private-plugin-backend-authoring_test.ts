@@ -257,3 +257,36 @@ Deno.test("a retried POST returns the same run and never pays for a second one",
     assertEquals(generator.inputs.length, 1);
   });
 });
+
+Deno.test("a parent-directory import cannot read a host file back through diagnostics (QA880 P1)", () => {
+  const dir = Deno.makeTempDirSync({ prefix: "bakery-qa880-" });
+  const secretPath = `${dir}/qa880-route-secret.ts`;
+  Deno.writeTextFileSync(
+    secretPath,
+    'export const secret = "TOPSECRET-QA880-ROUTE";\n',
+  );
+  // The check writes the package to a fresh directory beside this one (both
+  // are made in the same temp root), so one level up reaches the secret.
+  const climb = `../${
+    dir.slice(dir.lastIndexOf("/") + 1)
+  }/qa880-route-secret.ts`;
+  const climbs = `import { secret } from "${climb}";\nconst n: "x" = secret;`;
+  const generator = scriptedGenerator([
+    counterPackage({ "job.ts": `${climbs}\n${JOB}` }),
+  ]);
+  const preview = previewRunner(localDenoRuntime());
+  return withAuthoringFixture({ generator, preview }, async ({ fixture }) => {
+    try {
+      const run = await authored(fixture, { maxAttempts: 1 });
+      assertEquals(run.status, "blocked");
+      assertEquals(JSON.stringify(run).includes("TOPSECRET-QA880"), false);
+      assert(
+        run.attempts[0].diagnostics.some((d: { message: string }) =>
+          d.message.includes("not a file in this package")
+        ),
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true }).catch(() => undefined);
+    }
+  });
+});

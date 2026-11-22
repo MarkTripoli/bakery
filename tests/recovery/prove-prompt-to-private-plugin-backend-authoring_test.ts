@@ -1,10 +1,14 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
-import type { AuthoringBoundary } from "../../apps/server/src/modules/workflows/plugin-authoring/runner.ts";
+import type {
+  AuthoringBoundary,
+  PluginGenerator,
+} from "../../apps/server/src/modules/workflows/plugin-authoring/runner.ts";
 import {
   age,
   authored,
   BROKEN_MIGRATE_JOB,
   count,
+  COUNTER_V2_JOB,
   COUNTER_V2_MANIFEST,
   counterPackage,
   CRASHING_JOB,
@@ -317,3 +321,71 @@ Deno.test("a write that fails mid-run leaves nothing published and settles as in
     assertEquals(await count(fixture, "plugin_versions"), before.versions + 1);
   });
 });
+
+/**
+ * QA880 H and H2: revision B is authored against v1, but while its generator
+ * works revision A moves the install. B must not publish onto, or roll back
+ * across, a version it was not checked against: it ends blocked with
+ * install_moved, and the install stays on A.
+ */
+for (
+  const [name, revisionA] of [
+    ["schema bump (H)", {
+      "manifest.json": COUNTER_V2_MANIFEST,
+      "job.ts": COUNTER_V2_JOB,
+    }],
+    ["same schema (H2)", { "job.ts": counterPackage()["job.ts"] + "\n// A\n" }],
+  ] as const
+) {
+  Deno.test(`a revision whose install moved under it is refused, never rolled back across: ${name}`, () => {
+    let releaseB!: () => void;
+    const gate = new Promise<void>((resolve) => (releaseB = resolve));
+    const generator: PluginGenerator = {
+      modelId: "qa880",
+      async generate(input) {
+        if (input.request === "B") {
+          await gate;
+          return {
+            files: counterPackage({ "job.ts": CRASHING_JOB }),
+            usage: { costUsd: 0.01 },
+          };
+        }
+        if (input.request === "A") {
+          return { files: counterPackage(revisionA), usage: { costUsd: 0.01 } };
+        }
+        return { files: counterPackage(), usage: { costUsd: 0.01 } };
+      },
+    };
+    const preview = previewRunner(localDenoRuntime());
+    return withAuthoringFixture({ generator, preview }, async ({ fixture }) => {
+      const seed = await authored(fixture, { request: "seed" });
+      const installId = seed.pluginInstallId;
+      const runs = await count(fixture, "plugin_authoring_runs");
+      const b = startRun(fixture, { request: "B", installId, maxAttempts: 1 });
+      for (let i = 0; i < 200; i++) {
+        if (await count(fixture, "plugin_authoring_runs") > runs) break;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      const a = await authored(fixture, {
+        request: "A",
+        installId,
+        maxAttempts: 1,
+      });
+      assertEquals(a.status, "succeeded", JSON.stringify(a));
+      const versions = await count(fixture, "plugin_versions");
+      releaseB();
+      const bRun = await (await b).json();
+      assertEquals(bRun.status, "blocked", JSON.stringify(bRun));
+      assertEquals(bRun.failure.reason, "install_moved");
+      assertEquals(bRun.failure.expectedVersionId, seed.pluginVersionId);
+      assertEquals(bRun.failure.actualVersionId, a.pluginVersionId);
+      assertEquals(bRun.events.map((e: { kind: string }) => e.kind), [
+        "install_moved",
+      ]);
+      const after = await installRow(fixture, installId);
+      assertEquals(after.plugin_version_id, a.pluginVersionId);
+      assertEquals(after.status, "enabled");
+      assertEquals(await count(fixture, "plugin_versions"), versions);
+    });
+  });
+}

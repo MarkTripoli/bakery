@@ -117018,7 +117018,7 @@ export const clientManifest = {
                   "description": "JSON object value."
                 }
               ],
-              "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure) or run_interrupted (with the phase it stopped in); null otherwise."
+              "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise."
             },
             {
               "type": "null",
@@ -117254,9 +117254,11 @@ export const clientManifest = {
                   "published",
                   "compensated",
                   "rolled_back",
+                  "rollback_refused",
+                  "install_moved",
                   "interrupted"
                 ],
-                "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone."
+                "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published."
               },
               "detail": {
                 "anyOf": [

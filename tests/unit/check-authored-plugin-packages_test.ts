@@ -17,7 +17,7 @@ import {
  */
 
 const KIT_DIGEST_PIN =
-  "f15e1e6bf499803ffddb8f942eac2cc4b2983dac4d71a9481a429a2b7e0abb8a";
+  "1d04447e262b6cd3fe3956d999572922169df292aa0722adff5d91cad6f3eee2";
 
 function example(overrides: Record<string, string | undefined> = {}) {
   const files: Record<string, string> = {
@@ -98,6 +98,13 @@ const ESCAPES: Record<string, string> = {
   globalThis: "const g = globalThis;",
   WebSocket: 'new WebSocket("ws://x");',
   process: "process.exit(1);",
+  "Deno alias": "const d = Deno;",
+  "indirect eval": '(0, eval)("1");',
+  "whitespace-free node import": 'import{readFileSync}from"node:fs";',
+  "parent-directory import": 'import { secret } from "../outside.ts";',
+  "import that climbs out from a subdirectory":
+    'import { x } from "../../x.ts";',
+  "import of a file the package lacks": 'import { x } from "./missing.ts";',
 };
 
 for (const [name, line] of Object.entries(ESCAPES)) {
@@ -194,4 +201,21 @@ Deno.test("the policy is frozen and a generated file cannot widen it", async () 
   assert(
     result.diagnostics.some((d) => d.code === "AUTHORITY_EXCEEDED"),
   );
+});
+
+Deno.test("a relative import of a file in the package, or a host file, is allowed", async () => {
+  const job = 'import { step } from "./lib/step.ts";\n' +
+    PLUGIN_AUTHORING_KIT_FILES["example/job.ts"].replace(
+      "const count = ",
+      "step();\n  const count = ",
+    );
+  const result = await checkPluginPackage(
+    example({
+      "job.ts": job,
+      "lib/step.ts":
+        'import type { PluginHost } from "../sdk.ts";\nexport function step(_?: PluginHost) {}\n',
+    }),
+    POLICY,
+  );
+  assertEquals(result.diagnostics, []);
 });

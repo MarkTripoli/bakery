@@ -37282,13 +37282,13 @@ const transportSchemas = {
         "createdAt"
       ],
       "fieldTypes": {
-        "kind": "enum(published|compensated|rolled_back|interrupted)",
+        "kind": "enum(published|compensated|rolled_back|rollback_refused|install_moved|interrupted)",
         "detail": "json",
         "createdAt": "timestamp"
       },
       "description": "Something an authoring run did to an install besides publishing to it, kept as evidence.",
       "fieldDescriptions": {
-        "kind": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone.",
+        "kind": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published.",
         "detail": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore.",
         "createdAt": "When it was recorded."
       }
@@ -37371,7 +37371,7 @@ const transportSchemas = {
         "pluginPackageId": "The package published to; null unless the run succeeded.",
         "pluginVersionId": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise.",
         "pluginInstallId": "The personal install now running that version; null unless the run succeeded or was unchanged.",
-        "failure": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure) or run_interrupted (with the phase it stopped in); null otherwise.",
+        "failure": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise.",
         "attempts": "Every attempt in order.",
         "events": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption.",
         "createdAt": "When the run started.",

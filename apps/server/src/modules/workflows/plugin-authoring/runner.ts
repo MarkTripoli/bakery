@@ -369,6 +369,16 @@ class MoveRefused extends Error {
   }
 }
 
+/** Thrown inside the publish transaction when the install left the run's base version. */
+class InstallMoved extends Error {
+  constructor(
+    readonly expectedVersionId: string,
+    readonly actualVersionId: string,
+  ) {
+    super("plugin_install_moved");
+  }
+}
+
 /** What a run published and has not yet proven, as the run row records it. */
 type Pending = Readonly<{
   runId: string;
@@ -394,7 +404,7 @@ async function compensate(
   context: ActionContext,
   pending: Pending,
   why: Readonly<{ kind: string; stage: string; reason: string }>,
-): Promise<void> {
+): Promise<{ undone: true } | { undone: false; refusal: unknown }> {
   const { transaction, organizationId } = requireWorkTransaction(context);
   if (pending.firstInstall) {
     await updatePluginInstall(
@@ -417,13 +427,36 @@ async function compensate(
       stage: why.stage,
       reason: why.reason,
     });
-    return;
+    return { undone: true };
   }
   const restored = await rollbackPluginInstall(
     context,
     pending.installId,
     pending.previousVersionId!,
   );
+  if (restored.pluginVersionId !== pending.previousVersionId) {
+    // #34 refused the move back (its lastUpdateFailure says why). The install
+    // is still on the version this run published, and the record says so; it
+    // never claims a rollback that did not happen.
+    const refusal = {
+      action: "rollback_refused",
+      installId: pending.installId,
+      versionId: pending.versionId,
+      previousVersionId: pending.previousVersionId,
+      installVersionId: restored.pluginVersionId,
+      lastUpdateFailure: restored.lastUpdateFailure,
+      stage: why.stage,
+      reason: why.reason,
+    };
+    await recordEvent(
+      transaction,
+      organizationId,
+      pending.runId,
+      "rollback_refused",
+      refusal,
+    );
+    return { undone: false, refusal };
+  }
   await recordEvent(transaction, organizationId, pending.runId, why.kind, {
     action: "rolled_back",
     installId: pending.installId,
@@ -439,6 +472,7 @@ async function compensate(
       pending.installId,
     ),
   });
+  return { undone: true };
 }
 
 /**
@@ -502,11 +536,22 @@ export async function settleInterruptedRun(
           [organizationId, runId],
         )).rows[0].to_version,
     };
-    await compensate(context, pending, {
+    const done = await compensate(context, pending, {
       kind: "interrupted",
       stage: "preview",
       reason: "run_interrupted",
     });
+    if (!done.undone) {
+      await finishRun(transaction, organizationId, runId, {
+        status: "interrupted",
+        failure: {
+          reason: "rollback_refused",
+          phase: row.phase,
+          refusal: done.refusal,
+        },
+      });
+      return true;
+    }
   } else {
     await recordEvent(transaction, organizationId, runId, "interrupted", {
       action: "none",
@@ -784,6 +829,23 @@ export async function runPluginAuthoring(
             return { unchanged: same.rows[0].id };
           }
         }
+        if (base !== null) {
+          // The install is locked for the rest of this transaction and must
+          // still run the version this run was authored against: the package
+          // was written and checked against that one, and a rollback can only
+          // return to the version the move left. Another run or a PATCH that
+          // moved it in the meantime ends this attempt instead.
+          const live = await transaction.query<{ plugin_version_id: string }>(
+            `select plugin_version_id from bakery.plugin_installs
+              where organization_id = $1 and id = $2
+              for update`,
+            [organizationId, base.id],
+          );
+          const actual = live.rows[0]?.plugin_version_id ?? "";
+          if (actual !== base.versionId) {
+            throw new InstallMoved(base.versionId, actual);
+          }
+        }
         const stateBefore = base === null
           ? null
           : await stateDigest(transaction, organizationId, base.id);
@@ -888,6 +950,31 @@ export async function runPluginAuthoring(
         };
       });
     } catch (error) {
+      if (error instanceof InstallMoved) {
+        const moved = {
+          reason: "install_moved",
+          installId: base!.id,
+          expectedVersionId: error.expectedVersionId,
+          actualVersionId: error.actualVersionId,
+        };
+        await tx(async (context) => {
+          await settleAttempt("failed", {})(context);
+          const { transaction } = requireWorkTransaction(context);
+          await recordEvent(
+            transaction,
+            organizationId,
+            runId,
+            "install_moved",
+            moved,
+          );
+          await finishRun(transaction, organizationId, runId, {
+            status: "blocked",
+            spentUsd: usd(spent),
+            failure: moved,
+          });
+        });
+        return runId;
+      }
       if (!(error instanceof MoveRefused)) throw error;
       published = { refused: error.lastUpdateFailure };
     }
@@ -972,14 +1059,23 @@ export async function runPluginAuthoring(
         ),
       ];
       // Transaction: compensate, and the attempt says why it failed.
-      await tx(async (context) => {
-        await compensate(context, pending, {
+      const refused = await tx(async (context) => {
+        const done = await compensate(context, pending, {
           kind: pending.firstInstall ? "compensated" : "rolled_back",
           stage: failed!.stage,
           reason: failed!.outcome.reason,
         });
         await settleAttempt("failed", { diagnostics: found })(context);
         const { transaction } = requireWorkTransaction(context);
+        if (!done.undone) {
+          // Nothing more is attempted on an install that could not be put back.
+          await finishRun(transaction, organizationId, runId, {
+            status: "blocked",
+            spentUsd: usd(spent),
+            failure: { reason: "rollback_refused", refusal: done.refusal },
+          });
+          return true;
+        }
         await transaction.query(
           `update bakery.plugin_authoring_runs
               set phase = 'generating', pending_plugin_version_id = null,
@@ -989,7 +1085,9 @@ export async function runPluginAuthoring(
             where organization_id = $1 and id = $2`,
           [organizationId, runId],
         );
+        return false;
       });
+      if (refused) return runId;
       previous = { files, diagnostics: found };
       continue;
     }
