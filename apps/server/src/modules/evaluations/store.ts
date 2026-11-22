@@ -7,9 +7,15 @@
  */
 
 import type { ActionContext } from "@bakery/contracts/action-registry";
+import {
+  evaluateCheck,
+  type EvaluationCheckSpec,
+} from "@bakery/contracts/evaluation-scoring";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
+import { readBlobBytes } from "../knowledge/reads.ts";
 import {
   type CursorBinding,
   decodeCursor,
@@ -17,18 +23,32 @@ import {
 } from "../../platform/cursor.ts";
 import {
   batchStateOf,
+  budgetReport,
+  checkSpecOf,
   compareBatches,
   compatibility,
+  corpusReport,
   emptyCounts,
   type GateBlocker,
   type GateRule,
   isMeasured,
   judgeGateCounts,
+  LOCAL_RUN_MAX_INPUT_BYTES,
+  LOCAL_RUN_MAX_RESULTS,
+  localRunStep,
+  optionalScorerProblem,
+  pinSpec,
+  type ReportFact,
   RESULT_STATES,
   type ResultFact,
   type ResultState,
   ResultState as State,
+  resultStateOfAttempt,
   type Role,
+  type UsageGroup,
+  usageGroupOf,
+  type UsageMeasurement,
+  validatePin,
 } from "./domain.ts";
 
 /** The most result rows one batch may admit. */
@@ -399,6 +419,8 @@ type ScorerPin = {
   slug: string;
   scorerRevision: number;
   evaluatorType: string;
+  /** False for an optional (sampled) model scorer; absent on a batch admitted before it existed. */
+  required?: boolean;
 };
 
 type BatchRow = {
@@ -410,6 +432,8 @@ type BatchRow = {
   scorers: ScorerPin[];
   gate_rule: GateRule;
   limits: unknown;
+  /** Stored at admission; null for a batch admitted before the column existed. */
+  pin_digest: string | null;
   state: string;
   canceled_at: Date | null;
   canceled_by: string | null;
@@ -454,6 +478,7 @@ export type BatchCreate = {
   candidate: unknown;
   baseline?: unknown;
   scorerIds: string[];
+  optionalScorerIds?: string[];
   requireAllPassed?: boolean;
   minPassRate?: number;
   repetitions?: number;
@@ -467,6 +492,17 @@ export type BatchCreate = {
 export async function createBatch(context: ActionContext, input: BatchCreate) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
+  // A pin names one exact version, so a repeated run measures the same thing.
+  // Hashed and stored as validated, so one version has one spelling and one digest.
+  const checkedCandidate = validatePin(input.candidate);
+  if (!checkedCandidate.ok) unprocessable("candidate", checkedCandidate.reason);
+  const candidatePin = checkedCandidate.pin;
+  let baselinePin: typeof candidatePin | null = null;
+  if (input.baseline !== undefined && input.baseline !== null) {
+    const checkedBaseline = validatePin(input.baseline);
+    if (!checkedBaseline.ok) unprocessable("baseline", checkedBaseline.reason);
+    baselinePin = checkedBaseline.pin;
+  }
   const dataset = await tx.query<DatasetRow>(
     "select * from bakery.evaluation_datasets where organization_id = $1 and id = $2",
     [organizationId, input.datasetId],
@@ -491,12 +527,22 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
   if (scorerRows.rows.some((s) => !s.enabled)) {
     unprocessable("scorerIds", "scorer_disabled");
   }
+  const optionalIds = input.optionalScorerIds ?? [];
+  const problem = optionalScorerProblem(
+    scorerRows.rows.map((s) => ({
+      scorerId: s.id,
+      evaluatorType: s.evaluator_type,
+    })),
+    optionalIds,
+  );
+  if (problem !== null) unprocessable(problem.field, problem.reason);
   const scorers: ScorerPin[] = scorerRows.rows
     .map((s) => ({
       scorerId: s.id,
       slug: s.slug,
       scorerRevision: Number(s.revision),
       evaluatorType: s.evaluator_type,
+      required: !optionalIds.includes(s.id),
     }))
     .sort((a, b) =>
       (a.evaluatorType === "deterministic" ? 0 : 1) -
@@ -504,7 +550,7 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
       input.scorerIds.indexOf(a.scorerId) - input.scorerIds.indexOf(b.scorerId)
     );
   const repetitions = input.repetitions ?? 1;
-  const roles: Role[] = input.baseline === undefined || input.baseline === null
+  const roles: Role[] = baselinePin === null
     ? ["candidate"]
     : ["candidate", "baseline"];
   const cases = dataset.rows[0].cases;
@@ -514,17 +560,28 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
     requireAllPassed: input.requireAllPassed ?? true,
     minPassRate: input.minPassRate ?? null,
   };
+  const pinDigest = await sha256(canonical(pinSpec({
+    datasetDigest: dataset.rows[0].digest,
+    candidate: candidatePin,
+    baseline: baselinePin,
+    scorers: scorers.map((s) => ({
+      scorerId: s.scorerId,
+      scorerRevision: s.scorerRevision,
+      required: s.required ?? true,
+    })),
+    repetitions,
+  })));
   const batch = await tx.query<BatchRow>(
     `insert into bakery.evaluation_batches (organization_id, dataset_id,
        dataset_digest, candidate, baseline, scorers, gate_rule, limits, state,
-       created_by)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', $9) returning *`,
+       created_by, pin_digest)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', $9, $10) returning *`,
     [
       organizationId,
       input.datasetId,
       dataset.rows[0].digest,
-      JSON.stringify(input.candidate),
-      roles.length === 2 ? JSON.stringify(input.baseline) : null,
+      JSON.stringify(candidatePin),
+      baselinePin === null ? null : JSON.stringify(baselinePin),
       JSON.stringify(scorers),
       JSON.stringify(rule),
       JSON.stringify({
@@ -534,6 +591,7 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
           : String(input.budgetLimitUsd),
       }),
       principalId,
+      pinDigest,
     ],
   );
   const id = batch.rows[0].id;
@@ -541,11 +599,12 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
   await tx.query(
     `insert into bakery.evaluation_results (organization_id, batch_id, role,
        case_id, case_revision, ordinal, scorer_id, scorer_revision, repetition,
-       state, reason)
+       state, reason, required)
      select $1, $2, role, (c.value->>'caseId')::uuid,
             (c.value->>'caseRevision')::integer, c.ordinality::integer,
             (s.value->>'scorerId')::uuid, (s.value->>'scorerRevision')::integer,
-            rep, 'missing', 'Not run yet.'
+            rep, 'missing', 'Not run yet.',
+            coalesce((s.value->>'required')::boolean, true)
        from jsonb_array_elements($3::jsonb) with ordinality as c
        cross join jsonb_array_elements($4::jsonb) as s
        cross join unnest($5::text[]) as role
@@ -618,6 +677,102 @@ async function viewOf(
     "select name from bakery.evaluation_datasets where organization_id = $1 and id = $2",
     [organizationId, row.dataset_id],
   );
+  // The corpus report: each candidate result's history, grouped, so a batch of
+  // thousands is one read. A result is interrupted if any attempt at it was.
+  const history = await tx.query<
+    {
+      required: boolean;
+      state: ResultState;
+      attempted: boolean;
+      interrupted: boolean;
+      n: string;
+    }
+  >(
+    `select r.required, r.state, r.attempt_count > 0 as attempted,
+            exists (select 1 from bakery.evaluation_attempts a
+                     where a.organization_id = r.organization_id
+                       and a.result_id = r.id and a.state = 'interrupted') as interrupted,
+            count(*)::text as n
+       from bakery.evaluation_results r
+      where r.organization_id = $1 and r.batch_id = $2 and r.role = 'candidate'
+      group by 1, 2, 3, 4`,
+    [organizationId, row.id],
+  );
+  const factsOf = (required: boolean): ReportFact[] =>
+    history.rows.filter((h) => h.required === required).map((h) => ({
+      state: h.state,
+      attempts: h.attempted ? 1 : 0,
+      interrupted: h.interrupted,
+      count: Number(h.n),
+    }));
+  const optionalFacts = factsOf(false);
+  // What the model attempts cost, from the usage ledger: each attempt's
+  // worker attempt id is its delivery key, which the ledger rows carry too.
+  const spent = await tx.query<
+    {
+      evaluator_type: string;
+      measurement: UsageMeasurement | null;
+      n: string;
+      cost: string | null;
+      since: string;
+    }
+  >(
+    `select d.evaluator_type, u.measurement, count(*)::text as n,
+            sum(u.cost)::text as cost,
+            to_char(min(a.created_at) at time zone 'UTC', ${TS}) as since
+       from bakery.evaluation_attempts a
+       join bakery.evaluation_results r
+         on r.organization_id = a.organization_id and r.id = a.result_id
+       join bakery.evaluation_definitions d
+         on d.organization_id = r.organization_id and d.id = r.scorer_id
+       left join lateral (
+         select case when count(*) = 0 then null
+                     when bool_or(x.measurement = 'unknown') then 'unknown'
+                     when bool_or(x.measurement = 'estimated') then 'estimated'
+                     else 'reported' end as measurement,
+                sum(x.cost_usd) as cost
+           from bakery.usage_records x
+          where x.organization_id = a.organization_id
+            and x.attempt_id::text = a.delivery_key
+       ) u on true
+      where a.organization_id = $1 and r.batch_id = $2
+      group by 1, 2`,
+    [organizationId, row.id],
+  );
+  const usageGroups: UsageGroup[] = [];
+  for (const g of spent.rows) {
+    const group = usageGroupOf(
+      g.evaluator_type,
+      g.measurement === null
+        ? null
+        : { measurement: g.measurement, costUsd: g.cost },
+    );
+    if (group !== null) {
+      usageGroups.push({
+        ...group,
+        count: Number(g.n),
+        costUsd: group.costUsd,
+        since: g.since,
+      });
+    }
+  }
+  const limitUsd = (row.limits as { budgetLimitUsd?: unknown } | null)
+    ?.budgetLimitUsd;
+  const scorers = row.scorers.map((s) => ({
+    ...s,
+    required: s.required ?? true,
+  }));
+  const repetitions = Number(
+    (row.limits as { repetitions?: unknown } | null)?.repetitions ?? 1,
+  );
+  // Stored at admission; read from the pins for a batch admitted before that.
+  const pinDigest = row.pin_digest ?? await sha256(canonical(pinSpec({
+    datasetDigest: row.dataset_digest,
+    candidate: row.candidate,
+    baseline: row.baseline,
+    scorers,
+    repetitions,
+  })));
   return {
     id: row.id,
     datasetId: row.dataset_id,
@@ -629,11 +784,20 @@ async function viewOf(
     baselineDefinition: row.baseline === null
       ? null
       : await pinDefinition(tx, organizationId, row.baseline),
-    scorers: row.scorers,
+    scorers,
+    pinDigest,
     state,
     requiredCount: required,
     measuredCount: counts.passed + counts.failed,
     counts,
+    budget: budgetReport(
+      typeof limitUsd === "string" ? limitUsd : null,
+      usageGroups,
+    ),
+    report: corpusReport(factsOf(true)),
+    optionalReport: optionalFacts.length === 0
+      ? null
+      : corpusReport(optionalFacts),
     gate: judgeGateCounts(
       { required, counts, blockers: blockers.rows },
       row.gate_rule,
@@ -659,17 +823,20 @@ export async function getBatch(context: ActionContext) {
 export function createBatchLister(secret: string) {
   return async (
     context: ActionContext,
-    input: { cursor?: string; limit?: number },
+    input: { cursor?: string; limit?: number; pinDigest?: string },
   ) => {
     const { transaction: tx, organizationId, principalId } =
       requireWorkTransaction(context);
     const limit = pageLimit(input.limit);
+    if (
+      input.pinDigest !== undefined && !/^[0-9a-f]{64}$/.test(input.pinDigest)
+    ) unprocessable("pinDigest", "pin_digest_invalid");
     const binding: CursorBinding = {
       action: "evaluationBatches.list",
       principalId,
       organizationId,
       ordering: "createdAt:desc,id:desc",
-      filters: "{}",
+      filters: JSON.stringify({ pinDigest: input.pinDigest ?? null }),
       schemaVersion: 1,
     };
     const position = await decodeCursor(secret, input.cursor, binding);
@@ -678,12 +845,14 @@ export function createBatchLister(secret: string) {
          from bakery.evaluation_batches
         where organization_id = $1
           and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
+          and ($5::text is null or pin_digest = $5)
         order by created_at desc, id desc limit $4`,
       [
         organizationId,
         position?.createdAt ?? null,
         position?.id ?? null,
         limit + 1,
+        input.pinDigest ?? null,
       ],
     );
     const visible = found.rows.slice(0, limit);
@@ -792,7 +961,12 @@ const resultOut = (row: ListedResultRow) => ({
 export function createResultLister(secret: string) {
   return async (
     context: ActionContext,
-    input: { state?: ResultState; cursor?: string; limit?: number },
+    input: {
+      state?: ResultState;
+      required?: boolean;
+      cursor?: string;
+      limit?: number;
+    },
   ) => {
     const { transaction: tx, organizationId, principalId } =
       requireWorkTransaction(context);
@@ -808,7 +982,11 @@ export function createResultLister(secret: string) {
       principalId,
       organizationId,
       ordering: "position:asc,iteration:asc,id:asc",
-      filters: JSON.stringify({ batchId, state: input.state ?? null }),
+      filters: JSON.stringify({
+        batchId,
+        state: input.state ?? null,
+        required: input.required ?? null,
+      }),
       schemaVersion: 1,
     };
     const position = await decodeCursor(secret, input.cursor, binding);
@@ -819,6 +997,7 @@ export function createResultLister(secret: string) {
         where r.organization_id = $1 and r.batch_id = $2
           and ($3::text is null or r.state = $3)
           and ($4::integer is null or (r.ordinal, r.id) > ($4, $5::uuid))
+          and ($7::boolean is null or r.required = $7)
         order by r.ordinal, r.id limit $6`,
       [
         organizationId,
@@ -827,6 +1006,7 @@ export function createResultLister(secret: string) {
         position?.position ?? null,
         position?.id ?? null,
         limit + 1,
+        input.required ?? null,
       ],
     );
     const visible = found.rows.slice(0, limit);
@@ -848,13 +1028,16 @@ type AttemptRow = {
   id: string;
   result_id: string;
   attempt_no: number;
-  state: ResultState;
+  state: ResultState | "interrupted";
   reason: string | null;
   score: string | null;
   started_at: Date | null;
   ended_at: Date | null;
   trace_ref: string | null;
   created_at: Date;
+  evaluator_type: string;
+  usage_measurement: UsageMeasurement | null;
+  usage_cost: string | null;
 };
 
 export function createAttemptLister(secret: string) {
@@ -881,10 +1064,26 @@ export function createAttemptLister(secret: string) {
     };
     const position = await decodeCursor(secret, input.cursor, binding);
     const found = await tx.query<AttemptRow>(
-      `select * from bakery.evaluation_attempts
-        where organization_id = $1 and result_id = $2
-          and ($3::integer is null or attempt_no > $3)
-        order by attempt_no limit $4`,
+      `select a.*, d.evaluator_type, u.measurement as usage_measurement,
+              u.cost as usage_cost
+         from bakery.evaluation_attempts a
+         join bakery.evaluation_results r
+           on r.organization_id = a.organization_id and r.id = a.result_id
+         join bakery.evaluation_definitions d
+           on d.organization_id = r.organization_id and d.id = r.scorer_id
+         left join lateral (
+           select case when count(*) = 0 then null
+                       when bool_or(x.measurement = 'unknown') then 'unknown'
+                       when bool_or(x.measurement = 'estimated') then 'estimated'
+                       else 'reported' end as measurement,
+                  sum(x.cost_usd)::text as cost
+             from bakery.usage_records x
+            where x.organization_id = a.organization_id
+              and x.attempt_id::text = a.delivery_key
+         ) u on true
+        where a.organization_id = $1 and a.result_id = $2
+          and ($3::integer is null or a.attempt_no > $3)
+        order by a.attempt_no limit $4`,
       [organizationId, resultId, position?.position ?? null, limit + 1],
     );
     const visible = found.rows.slice(0, limit);
@@ -900,6 +1099,12 @@ export function createAttemptLister(secret: string) {
         startedAt: row.started_at ? iso(row.started_at) : null,
         endedAt: row.ended_at ? iso(row.ended_at) : null,
         traceRef: row.trace_ref,
+        usage: usageGroupOf(
+          row.evaluator_type,
+          row.usage_measurement === null
+            ? null
+            : { measurement: row.usage_measurement, costUsd: row.usage_cost },
+        ),
         createdAt: iso(row.created_at),
       })),
       nextCursor: found.rows.length > limit && last
@@ -915,7 +1120,8 @@ export function createAttemptLister(secret: string) {
 
 export type AttemptRecord = Readonly<{
   deliveryKey: string;
-  state: Exclude<ResultState, "missing">;
+  /** "interrupted": the attempt ended before it measured anything; its result is an error with the reason. */
+  state: Exclude<ResultState, "missing"> | "interrupted";
   reason: string | null;
   score: number | null;
   startedAt: Date | null;
@@ -937,8 +1143,10 @@ export async function recordAttempt(
   organizationId: string,
   resultId: string,
   attempt: AttemptRecord,
+  /** A caller that records many attempts settles the batch's state itself, once. */
+  options: { settleBatch?: boolean } = {},
 ): Promise<"recorded" | "duplicate" | "canceled"> {
-  const measured = isMeasured(attempt.state);
+  const measured = attempt.state !== "interrupted" && isMeasured(attempt.state);
   if (measured !== (attempt.score !== null)) {
     unprocessable("score", measured ? "score_required" : "score_not_allowed");
   }
@@ -1003,30 +1211,251 @@ export async function recordAttempt(
     [
       organizationId,
       resultId,
-      attempt.state,
+      resultStateOfAttempt(attempt.state),
       attempt.reason,
       attempt.score,
       attempt.outputArtifactVersionId ?? null,
     ],
   );
-  const view = await batchView(tx, organizationId, row.batch_id);
+  if (options.settleBatch !== false) {
+    await settleBatchState(tx, organizationId, row.batch_id);
+  }
+  return "recorded";
+}
+
+/**
+ * Moves a batch's stored state to what its results say: completed or
+ * completed_with_errors once nothing is still to run, running once something
+ * has been attempted. The one place that decides it, for an attempt and for a
+ * skip alike.
+ */
+async function settleBatchState(
+  tx: PgTransactionClient,
+  organizationId: string,
+  batchId: string,
+) {
+  const view = await batchView(tx, organizationId, batchId);
   if (view.state === "completed" || view.state === "completed_with_errors") {
     await tx.query(
       `update bakery.evaluation_batches
           set state = $3, completed_at = coalesce(completed_at, now()),
               updated_at = now(), version = version + 1
         where organization_id = $1 and id = $2 and state <> $3`,
-      [organizationId, row.batch_id, view.state],
+      [organizationId, batchId, view.state],
     );
   } else if (view.state === "running") {
     await tx.query(
       `update bakery.evaluation_batches set state = 'running', updated_at = now(),
               version = version + 1
         where organization_id = $1 and id = $2 and state = 'queued'`,
-      [organizationId, row.batch_id],
+      [organizationId, batchId],
     );
   }
-  return "recorded";
+}
+
+// ------------------------------------------------------- the local corpus run
+
+type RunRow = {
+  id: string;
+  role: Role;
+  case_id: string;
+  input_artifact_version_id: string | null;
+  evaluator_type: string;
+  config: unknown;
+};
+
+/**
+ * Settles the missing results of a batch that a local run can settle (issue
+ * #41). It scores each case's recorded output, the artifact version the case
+ * names, with the scorer's deterministic check, in this process: the same
+ * pins and the same bytes give the same verdict. The artifact version is kept
+ * on the result as the input evidence. A model scorer and the baseline side
+ * are skipped with a reason and stay not attempted. At most
+ * LOCAL_RUN_MAX_RESULTS results are settled per call; call again to continue.
+ * A result that is no longer missing is left alone, so a repeat or a
+ * concurrent call settles each result once.
+ */
+export async function runLocalCorpus(
+  context: ActionContext,
+  blobStore?: OrganizationBlobStore,
+) {
+  const { transaction: tx, organizationId } = requireWorkTransaction(context);
+  const batchId = context.params.id;
+  if (!batchId) notFound();
+  const batch = await tx.query<{ canceled_at: Date | null }>(
+    `select canceled_at from bakery.evaluation_batches
+      where organization_id = $1 and id = $2 for update`,
+    [organizationId, batchId],
+  );
+  if (!batch.rows[0]) notFound();
+  if (batch.rows[0].canceled_at !== null) conflict("batch_canceled");
+  const pending = await tx.query<RunRow>(
+    `select r.id, r.role, r.case_id, c.input_artifact_version_id,
+            d.evaluator_type, d.config
+       from bakery.evaluation_results r
+       join bakery.evaluation_cases c
+         on c.organization_id = r.organization_id and c.id = r.case_id
+       join bakery.evaluation_definitions d
+         on d.organization_id = r.organization_id and d.id = r.scorer_id
+      where r.organization_id = $1 and r.batch_id = $2 and r.state = 'missing'
+      order by r.ordinal, r.id limit $3`,
+    [organizationId, batchId, LOCAL_RUN_MAX_RESULTS],
+  );
+  // The recorded outputs, read once each and only up to the size a check reads.
+  const wanted = [
+    ...new Set(
+      pending.rows
+        .filter((r) =>
+          localRunStep({ role: r.role, evaluatorType: r.evaluator_type })
+              .action === "check" && r.input_artifact_version_id !== null
+        )
+        .map((r) => r.input_artifact_version_id as string),
+    ),
+  ];
+  const outputs = new Map<string, RecordedOutput>();
+  if (wanted.length > 0) {
+    // A version holds its bytes inline or names a blob in the object store;
+    // retention can also have removed both. Each shape is read its own way, and
+    // each way that cannot give bytes says why.
+    const found = await tx.query<RecordedVersionRow>(
+      `select id, size_bytes::text, sha256, blob_id, purged_at,
+              case when blob_id is null and size_bytes <= $3
+                   then content end as content
+         from bakery.artifact_versions
+        where organization_id = $1 and id = any($2::uuid[])`,
+      [organizationId, wanted, LOCAL_RUN_MAX_INPUT_BYTES],
+    );
+    for (const v of found.rows) {
+      outputs.set(v.id, await readRecordedOutput(v, organizationId, blobStore));
+    }
+  }
+  const now = () => new Date();
+  for (const result of pending.rows) {
+    const step = localRunStep({
+      role: result.role,
+      evaluatorType: result.evaluator_type,
+    });
+    if (step.action === "skip") {
+      await tx.query(
+        `update bakery.evaluation_results
+            set state = 'skipped', reason = $3, updated_at = now(),
+                version = version + 1
+          where organization_id = $1 and id = $2 and state = 'missing'`,
+        [organizationId, result.id, step.reason],
+      );
+      continue;
+    }
+    const attempt = (
+      verdict: {
+        state: "passed" | "failed" | "error";
+        score: number | null;
+        reason: string | null;
+      },
+    ) =>
+      recordAttempt(tx, organizationId, result.id, {
+        ...verdict,
+        deliveryKey: "local-corpus:" + result.id,
+        startedAt: now(),
+        endedAt: now(),
+        outputArtifactVersionId: result.input_artifact_version_id,
+      }, { settleBatch: false });
+    const spec = checkSpecOf(result.config);
+    if (!spec.ok) {
+      await attempt({ state: "error", score: null, reason: spec.reason });
+      continue;
+    }
+    const output = result.input_artifact_version_id === null
+      ? undefined
+      : outputs.get(result.input_artifact_version_id);
+    if (output === undefined) {
+      await attempt({
+        state: "error",
+        score: null,
+        reason: "The case has no recorded output to check.",
+      });
+      continue;
+    }
+    if (output.bytes === null) {
+      await attempt({ state: "error", score: null, reason: output.reason });
+      continue;
+    }
+    await attempt(
+      evaluateCheck(spec.spec as EvaluationCheckSpec, output.bytes),
+    );
+  }
+  await settleBatchState(tx, organizationId, batchId);
+  return await batchView(tx, organizationId, batchId);
+}
+
+/** A recorded output's bytes, or the plain reason a local check cannot read them. */
+type RecordedOutput =
+  | { bytes: Uint8Array; reason?: undefined }
+  | { bytes: null; reason: string };
+
+interface RecordedVersionRow {
+  id: string;
+  size_bytes: string;
+  sha256: string;
+  blob_id: string | null;
+  purged_at: Date | null;
+  content: Uint8Array | null;
+}
+
+/**
+ * One recorded output, read within the cap a local check reads.
+ *
+ * The three shapes a version can have each get their own answer: inline bytes
+ * are returned, a blob is read through the object store (verified against the
+ * version's digest and size), and a version retention has removed says so
+ * instead of being reported as too large.
+ */
+async function readRecordedOutput(
+  version: RecordedVersionRow,
+  organizationId: string,
+  blobStore: OrganizationBlobStore | undefined,
+): Promise<RecordedOutput> {
+  if (version.purged_at !== null) {
+    return {
+      bytes: null,
+      reason:
+        "The recorded output was removed by retention, so it cannot be checked.",
+    };
+  }
+  const size = Number(version.size_bytes);
+  if (size > LOCAL_RUN_MAX_INPUT_BYTES) {
+    return {
+      bytes: null,
+      reason: "The recorded output is " + size + " bytes, over the " +
+        LOCAL_RUN_MAX_INPUT_BYTES + " a local check reads.",
+    };
+  }
+  if (version.blob_id !== null) {
+    if (blobStore === undefined) {
+      return {
+        bytes: null,
+        reason:
+          "This server has no object store to read the recorded output from.",
+      };
+    }
+    try {
+      return {
+        bytes: await readBlobBytes(blobStore, organizationId, {
+          size_bytes: size,
+          sha256: version.sha256,
+        }),
+      };
+    } catch {
+      return {
+        bytes: null,
+        reason:
+          "The recorded output could not be read back from the object store.",
+      };
+    }
+  }
+  if (version.content === null) {
+    return { bytes: null, reason: "The recorded output has no stored bytes." };
+  }
+  return { bytes: new Uint8Array(version.content) };
 }
 
 // -------------------------------------------------------------- comparison

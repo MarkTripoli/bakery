@@ -6828,10 +6828,16 @@ const transportSchemas = {
           "type": "enum(installation_admins|any_user)",
           "required": true,
           "description": "Installation administrators only, or any authenticated human, may create organizations."
+        },
+        {
+          "name": "updateFailurePolicy",
+          "type": "enum(go_back|ask)",
+          "required": false,
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
         }
       ],
       "rules": [
-        "If-Match and Idempotency-Key required; both policy fields must be present."
+        "If-Match and Idempotency-Key required; registrationMode and organizationCreationPolicy must be present. updateFailurePolicy may be left out to keep the current choice."
       ],
       "description": "Complete installation policy update by a live installation administrator; stale versions fail without writing."
     },
@@ -14104,7 +14110,7 @@ const transportSchemas = {
           "name": "candidate",
           "type": "json",
           "required": true,
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -14113,7 +14119,7 @@ const transportSchemas = {
           "name": "baseline",
           "type": "json",
           "required": false,
-          "description": "Optional pin of what the candidate is compared with, in the same shape.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -14125,6 +14131,15 @@ const transportSchemas = {
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers.",
           "bounds": {
             "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        {
+          "name": "optionalScorerIds",
+          "type": "uuid[]",
+          "required": false,
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away.",
+          "bounds": {
             "maxItems": 50
           }
         },
@@ -14167,6 +14182,48 @@ const transportSchemas = {
       ],
       "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent."
     },
+    "EvaluationBatchListQuery": {
+      "fields": [
+        {
+          "name": "pinDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 64
+          },
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
+    },
+    "EvaluationBatchRun": {
+      "fields": [],
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "fields": [],
       "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."
@@ -14200,6 +14257,12 @@ const transportSchemas = {
           ]
         },
         {
+          "name": "required",
+          "type": "boolean",
+          "required": false,
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -14224,7 +14287,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "fields": [
@@ -14825,6 +14888,61 @@ const transportSchemas = {
         "Admin (worker:manage); Idempotency-Key required; a request is decided once."
       ],
       "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
+    },
+    "PluginAuthoringRunCreate": {
+      "fields": [
+        {
+          "name": "request",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 8000,
+            "pattern": "^(?!\\s)(?=.*\\S)"
+          },
+          "description": "What the backend plugin should do, in the requester's own words. The generator reads it with the pinned authoring kit; its SHA-256 is kept as the version's source evidence."
+        },
+        {
+          "name": "authorizedCapabilities",
+          "type": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 7
+          },
+          "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list."
+        },
+        {
+          "name": "budgetUsd",
+          "type": "decimal",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 200
+          },
+          "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted."
+        },
+        {
+          "name": "maxAttempts",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3
+          },
+          "description": "How many packages the generator may write, 1 to 3. Each failed attempt is handed back with every diagnostic; when the last one fails the run ends blocked and nothing is published."
+        },
+        {
+          "name": "installId",
+          "type": "uuid",
+          "required": false,
+          "description": "The caller's own personal install of an authored plugin to revise. Omitted for a new plugin, which is installed privately for the caller. A revision moves that install to the new version only after its preview passes, approving exactly the added capabilities, and puts it back as it was when the preview or state migration fails."
+        }
+      ],
+      "rules": [
+        "maxAttempts is 1 to 3. The checks run in the same order on every attempt: file_tree, manifest, authority, isolation, typecheck, build, then a private preview. Without a configured generator and preview runtime the request is DEPENDENCY_UNAVAILABLE rather than a pretend success.",
+        "Idempotency-Key is required (PRECONDITION_REQUIRED without it). A repeat with the same key and the same body answers with the run the key started instead of starting and paying for another; the same key with another body is IDEMPOTENCY_PAYLOAD_MISMATCH, and a repeat while that run is still working is IDEMPOTENCY_IN_FLIGHT."
+      ],
+      "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     }
   },
   "projections": {
@@ -21434,7 +21552,8 @@ const transportSchemas = {
         "finishedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "handoffManifest"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21449,13 +21568,15 @@ const transportSchemas = {
         "finishedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "handoffManifest": "RunStepHandoffManifest|null"
       },
       "nullableFields": [
         "output",
         "error",
         "startedAt",
-        "finishedAt"
+        "finishedAt",
+        "handoffManifest"
       ],
       "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body.",
       "fieldDescriptions": {
@@ -21471,8 +21592,27 @@ const transportSchemas = {
         "finishedAt": "UTC timestamp when processing finished.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "handoffManifest": "The newest handoff manifest an attempt of this step saved, so a reader can tell the step has somewhere to continue from; null until one is saved. Read the whole manifest with GET /v1/handoff-manifests/{id}."
       }
+    },
+    "RunStepHandoffManifest": {
+      "fields": [
+        "id",
+        "status",
+        "savedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "status": "enum(pending|continued|blocked)",
+        "savedAt": "timestamp"
+      },
+      "fieldDescriptions": {
+        "id": "Stable UUID of the stored manifest, the id GET /v1/handoff-manifests/{id} reads.",
+        "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
+        "savedAt": "UTC timestamp when the source attempt saved the manifest."
+      },
+      "description": "Summary of the newest handoff manifest saved for a run step: which manifest, its continuation status and when it was saved. It is a record to be re-verified, never the authority for run state."
     },
     "CheckRun": {
       "projection": "check_runs",
@@ -26465,18 +26605,21 @@ const transportSchemas = {
       "fields": [
         "bootstrapped",
         "restoreHeld",
-        "updatePaused"
+        "updatePaused",
+        "release"
       ],
       "fieldTypes": {
         "bootstrapped": "boolean",
         "restoreHeld": "boolean",
-        "updatePaused": "boolean"
+        "updatePaused": "boolean",
+        "release": "string"
       },
-      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity.",
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity.",
       "fieldDescriptions": {
         "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
         "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action.",
-        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
+        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes.",
+        "release": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
       }
     },
     "BrowserSession": {
@@ -29311,6 +29454,7 @@ const transportSchemas = {
       "fields": [
         "registrationMode",
         "organizationCreationPolicy",
+        "updateFailurePolicy",
         "version",
         "updatedByPrincipalId",
         "updatedAt"
@@ -29318,6 +29462,7 @@ const transportSchemas = {
       "fieldTypes": {
         "registrationMode": "enum(closed|invitation)",
         "organizationCreationPolicy": "enum(installation_admins|any_user)",
+        "updateFailurePolicy": "enum(go_back|ask)",
         "version": "integer",
         "updatedByPrincipalId": "uuid|null",
         "updatedAt": "timestamp"
@@ -29329,6 +29474,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "registrationMode": "Closed refuses new accounts; invitation requires a live organization invitation.",
         "organizationCreationPolicy": "Installation administrators only, or any authenticated human, may create organizations.",
+        "updateFailurePolicy": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
         "version": "Monotonic settings revision; submit the current value as If-Match when updating.",
         "updatedByPrincipalId": "Principal who last changed policy, or null for initial defaults.",
         "updatedAt": "Timestamp of the last installation policy update."
@@ -36047,20 +36193,122 @@ const transportSchemas = {
         "scorerId",
         "slug",
         "scorerRevision",
-        "evaluatorType"
+        "evaluatorType",
+        "required"
       ],
       "fieldTypes": {
         "scorerId": "uuid",
         "slug": "string",
         "scorerRevision": "integer",
-        "evaluatorType": "enum(deterministic|model)"
+        "evaluatorType": "enum(deterministic|model)",
+        "required": "boolean"
       },
       "description": "One scorer revision a batch pinned.",
       "fieldDescriptions": {
         "scorerId": "The scorer definition, for linking to it.",
         "slug": "Its name.",
         "scorerRevision": "Its revision.",
-        "evaluatorType": "Deterministic check or model rubric."
+        "evaluatorType": "Deterministic check or model rubric.",
+        "required": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
+      }
+    },
+    "EvaluationBudget": {
+      "fields": [
+        "limitUsd",
+        "settledUsd",
+        "estimatedUsd",
+        "unknownCount",
+        "status",
+        "blocksNewAttempts",
+        "oldestUnknownAt"
+      ],
+      "fieldTypes": {
+        "limitUsd": "decimal|null",
+        "settledUsd": "decimal",
+        "estimatedUsd": "decimal",
+        "unknownCount": "integer",
+        "status": "enum(none|within|exhausted|unsettled)",
+        "blocksNewAttempts": "boolean",
+        "oldestUnknownAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "limitUsd",
+        "oldestUnknownAt"
+      ],
+      "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount.",
+      "fieldDescriptions": {
+        "limitUsd": "The most the batch may spend, in USD; null when it was admitted without a limit.",
+        "settledUsd": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero.",
+        "estimatedUsd": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill.",
+        "unknownCount": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt.",
+        "status": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within.",
+        "blocksNewAttempts": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet.",
+        "oldestUnknownAt": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+      }
+    },
+    "EvaluationAttemptUsage": {
+      "fields": [
+        "measurement",
+        "costUsd"
+      ],
+      "fieldTypes": {
+        "measurement": "enum(reported|estimated|unknown)",
+        "costUsd": "decimal|null"
+      },
+      "nullableFields": [
+        "costUsd"
+      ],
+      "description": "What one model attempt cost, as the usage ledger records it.",
+      "fieldDescriptions": {
+        "measurement": "reported by the provider, estimated by Bakery, or unknown.",
+        "costUsd": "Cost in USD; null when unknown. Never zero for an unknown cost."
+      }
+    },
+    "EvaluationCorpusReport": {
+      "fields": [
+        "total",
+        "attempted",
+        "passed",
+        "failed",
+        "unknown",
+        "unrun",
+        "interrupted",
+        "recovered",
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "fieldTypes": {
+        "total": "integer",
+        "attempted": "integer",
+        "passed": "integer",
+        "failed": "integer",
+        "unknown": "integer",
+        "unrun": "integer",
+        "interrupted": "integer",
+        "recovered": "integer",
+        "passedOfAttempted": "number|null",
+        "failedOfAttempted": "number|null",
+        "recoveredOfInterrupted": "number|null"
+      },
+      "nullableFields": [
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero. passed + failed + unknown + unrun is total, which for the report is the batch's requiredCount. Against the six state counts: passed and failed are the same; unknown is error plus unscored (each comes from an attempt); unrun is missing plus canceled plus skipped (none of them has an attempt).",
+      "fieldDescriptions": {
+        "total": "Results in the set.",
+        "attempted": "Results with at least one attempt.",
+        "passed": "Attempted, and the latest attempt measured a pass.",
+        "failed": "Attempted, and the latest attempt measured a fail.",
+        "unknown": "Attempted, but the latest attempt measured nothing, so the outcome is not known.",
+        "unrun": "Never attempted: neither a pass nor a failure.",
+        "interrupted": "Results with at least one attempt that was interrupted before it measured anything.",
+        "recovered": "Of those, results whose latest attempt measured a pass or a fail.",
+        "passedOfAttempted": "passed divided by attempted; null when nothing was attempted.",
+        "failedOfAttempted": "failed divided by attempted; null when nothing was attempted.",
+        "recoveredOfInterrupted": "recovered divided by interrupted; null when nothing was interrupted."
       }
     },
     "EvaluationStateCounts": {
@@ -36158,10 +36406,14 @@ const transportSchemas = {
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -36181,10 +36433,14 @@ const transportSchemas = {
         "baseline": "json|null",
         "baselineDefinition": "EvaluationPinDefinition|null",
         "scorers": "EvaluationScorerPin[]",
+        "pinDigest": "string",
         "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
         "requiredCount": "integer",
         "measuredCount": "integer",
         "counts": "EvaluationStateCounts",
+        "report": "EvaluationCorpusReport",
+        "optionalReport": "EvaluationCorpusReport|null",
+        "budget": "EvaluationBudget",
         "gate": "EvaluationGate",
         "hiddenCount": "integer",
         "canceledAt": "timestamp|null",
@@ -36198,6 +36454,7 @@ const transportSchemas = {
         "candidateDefinition",
         "baseline",
         "baselineDefinition",
+        "optionalReport",
         "canceledAt",
         "canceledBy",
         "completedAt"
@@ -36212,11 +36469,15 @@ const transportSchemas = {
         "candidateDefinition": "The definition the candidate pin names and its current name, for display; null when the pin names no definition.",
         "baseline": "What it is compared with, as pinned; null without a baseline.",
         "baselineDefinition": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition.",
-        "scorers": "The scorer revisions pinned.",
+        "scorers": "The scorer revisions pinned, each with whether the gate requires it.",
+        "pinDigest": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it.",
         "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
         "requiredCount": "Required candidate results.",
         "measuredCount": "Of those, how many were measured (passed or failed).",
         "counts": "Required candidate results per state.",
+        "report": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those.",
+        "optionalReport": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer.",
+        "budget": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it.",
         "gate": "The gate's answer.",
         "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
         "canceledAt": "When it was canceled.",
@@ -36284,7 +36545,7 @@ const transportSchemas = {
         "scorerId": "The scorer, for linking to it.",
         "scorerRevision": "The scorer revision used.",
         "repetition": "Which repetition, from 1.",
-        "required": "Whether the gate needs it.",
+        "required": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate.",
         "state": "passed, failed, error, unscored, canceled, skipped or missing.",
         "reason": "A short sentence: which stage failed, the policy that skipped it, who stopped it; null when passed.",
         "score": "The measurement, 0 to 1; null unless passed or failed.",
@@ -36308,18 +36569,20 @@ const transportSchemas = {
         "startedAt",
         "endedAt",
         "traceRef",
+        "usage",
         "createdAt"
       ],
       "fieldTypes": {
         "id": "uuid",
         "resultId": "uuid",
         "attemptNo": "integer",
-        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing|interrupted)",
         "reason": "string|null",
         "score": "number|null",
         "startedAt": "timestamp|null",
         "endedAt": "timestamp|null",
         "traceRef": "string|null",
+        "usage": "EvaluationAttemptUsage|null",
         "createdAt": "timestamp"
       },
       "nullableFields": [
@@ -36327,19 +36590,21 @@ const transportSchemas = {
         "score",
         "startedAt",
         "endedAt",
-        "traceRef"
+        "traceRef",
+        "usage"
       ],
       "description": "One append-only attempt at a result.",
       "fieldDescriptions": {
         "id": "Attempt id.",
         "resultId": "Its result.",
         "attemptNo": "Order, from 1.",
-        "state": "The attempt's outcome state.",
+        "state": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered.",
         "reason": "Why, as a sentence; null when passed.",
         "score": "Its measurement; null unless passed or failed.",
         "startedAt": "When it started.",
         "endedAt": "When it ended.",
         "traceRef": "Link to the trace; null when none.",
+        "usage": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free.",
         "createdAt": "When it was recorded."
       }
     },
@@ -36966,6 +37231,83 @@ const transportSchemas = {
         "total": "How many actions are uncertain in all, counting kinds beyond the ones listed."
       }
     },
+    "InstallationUpdateEvent": {
+      "fields": [
+        "id",
+        "kind",
+        "at",
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "enum(installed|updated|rolled_back|went_back|refused|decided_go_back|decided_stay|interrupted)",
+        "at": "timestamp",
+        "by": "string|null",
+        "fromRelease": "string|null",
+        "toRelease": "string|null",
+        "detail": "string|null",
+        "dismissedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only.",
+      "fieldDescriptions": {
+        "id": "The event's id, made by the launcher so a resent event is recorded once.",
+        "kind": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back.",
+        "at": "When it happened, on the server's clock.",
+        "by": "The operating-system user at the server's terminal, or null when Bakery did it by itself.",
+        "fromRelease": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply.",
+        "toRelease": "The release id the event moved to or kept, or null when it does not apply.",
+        "detail": "The launcher's first line for a refusal, in words; null for every other kind.",
+        "dismissedAt": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+      }
+    },
+    "InstallationUpdateStatus": {
+      "fields": [
+        "runningRelease",
+        "runningSince",
+        "healthy",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "fieldTypes": {
+        "runningRelease": "string",
+        "runningSince": "timestamp|null",
+        "healthy": "boolean",
+        "previousRelease": "string|null",
+        "previousRanFrom": "timestamp|null",
+        "previousRanUntil": "timestamp|null",
+        "lastFailure": "InstallationUpdateEvent|null"
+      },
+      "nullableFields": [
+        "runningSince",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only.",
+      "fieldDescriptions": {
+        "runningRelease": "The release id this server is running now.",
+        "runningSince": "When the launcher made this release the running one, or null when the history does not say.",
+        "healthy": "Whether this server's own health check passes: its database and configuration answer.",
+        "previousRelease": "The release the launcher keeps so it can go back, or null when none is kept.",
+        "previousRanFrom": "When the kept release became the running one, or null when the history does not say.",
+        "previousRanUntil": "When the kept release stopped running, which is when the current one took over, or null when none is kept.",
+        "lastFailure": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
+      }
+    },
     "BackupDrill": {
       "fields": [
         "id",
@@ -37020,6 +37362,10 @@ const transportSchemas = {
     "Page<BackupDrill>": {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "Page<InstallationUpdateEvent>": {
+      "pageOf": "InstallationUpdateEvent",
+      "description": "Cursor page of the update history returned by `GET /v1/installation/updates`, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "WorkerHostCleanup": {
       "projection": "worker_hosts",
@@ -37177,6 +37523,152 @@ const transportSchemas = {
     "WorkerLinkPackageBytes": {
       "body": "bytes",
       "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes."
+    },
+    "PluginAuthoringAttempt": {
+      "fields": [
+        "attemptNumber",
+        "outcome",
+        "filesDigest",
+        "checkReport",
+        "diagnostics",
+        "costUsd",
+        "pluginVersionId",
+        "previewResult",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "attemptNumber": "integer",
+        "outcome": "enum(checked|passed|failed)",
+        "filesDigest": "string|null",
+        "checkReport": "json|null",
+        "diagnostics": "json[]",
+        "costUsd": "decimal",
+        "pluginVersionId": "uuid|null",
+        "previewResult": "json|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "filesDigest",
+        "checkReport",
+        "pluginVersionId",
+        "previewResult"
+      ],
+      "description": "One package the generator wrote for an authoring run and what the checks and preview said about it.",
+      "fieldDescriptions": {
+        "attemptNumber": "The attempt's position in the run, from 1.",
+        "outcome": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise.",
+        "filesDigest": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing.",
+        "checkReport": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing.",
+        "diagnostics": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt.",
+        "costUsd": "What the generator reported this attempt cost.",
+        "pluginVersionId": "The private version published from this attempt; null unless it passed.",
+        "previewResult": "The value the job returned in its private preview; null unless the attempt passed.",
+        "createdAt": "When the attempt was recorded."
+      }
+    },
+    "PluginAuthoringEvent": {
+      "fields": [
+        "kind",
+        "detail",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(published|compensated|rolled_back|rollback_refused|install_moved|interrupted)",
+        "detail": "json",
+        "createdAt": "timestamp"
+      },
+      "description": "Something an authoring run did to an install besides publishing to it, kept as evidence.",
+      "fieldDescriptions": {
+        "kind": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published.",
+        "detail": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore.",
+        "createdAt": "When it was recorded."
+      }
+    },
+    "PluginAuthoringRun": {
+      "fields": [
+        "id",
+        "organizationId",
+        "actorPrincipalId",
+        "status",
+        "request",
+        "requestDigest",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "spentUsd",
+        "maxAttempts",
+        "kitDigest",
+        "sdkVersion",
+        "modelId",
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "attempts",
+        "events",
+        "createdAt",
+        "updatedAt",
+        "finishedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "actorPrincipalId": "uuid",
+        "status": "enum(running|succeeded|unchanged|blocked|budget_exhausted|interrupted)",
+        "request": "string",
+        "requestDigest": "string",
+        "authorizedCapabilities": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
+        "budgetUsd": "decimal",
+        "spentUsd": "decimal",
+        "maxAttempts": "integer",
+        "kitDigest": "string",
+        "sdkVersion": "string",
+        "modelId": "string",
+        "basePluginInstallId": "uuid|null",
+        "pluginPackageId": "uuid|null",
+        "pluginVersionId": "uuid|null",
+        "pluginInstallId": "uuid|null",
+        "failure": "json|null",
+        "attempts": "PluginAuthoringAttempt[]",
+        "events": "PluginAuthoringEvent[]",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "finishedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "finishedAt"
+      ],
+      "description": "One request to author a private backend plugin: what was asked and authorized, the kit, SDK and model it ran with, every attempt, and where it ended.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this authoring run.",
+        "organizationId": "UUID of the organization that owns this run.",
+        "actorPrincipalId": "The person who asked for the plugin; only they can read the run.",
+        "status": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone.",
+        "request": "The request text as sent.",
+        "requestDigest": "SHA-256 of the request text, the published version's source evidence.",
+        "authorizedCapabilities": "The capabilities the request allowed, the only ones a package could ask for.",
+        "budgetUsd": "The budget the request set, in USD.",
+        "spentUsd": "What the attempts cost in total, in USD.",
+        "maxAttempts": "The attempt cap the request set.",
+        "kitDigest": "SHA-256 of the pinned authoring kit the generator was shown.",
+        "sdkVersion": "The plugin SDK version the host checked against.",
+        "modelId": "The generator's model id.",
+        "basePluginInstallId": "The install a revision started from; null for a new plugin.",
+        "pluginPackageId": "The package published to; null unless the run succeeded.",
+        "pluginVersionId": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise.",
+        "pluginInstallId": "The personal install now running that version; null unless the run succeeded or was unchanged.",
+        "failure": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise.",
+        "attempts": "Every attempt in order.",
+        "events": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption.",
+        "createdAt": "When the run started.",
+        "updatedAt": "When the run last changed.",
+        "finishedAt": "When the run reached its outcome; null while running."
+      }
     }
   },
   "pageEnvelope": {

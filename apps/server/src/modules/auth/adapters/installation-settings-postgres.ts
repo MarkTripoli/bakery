@@ -17,6 +17,7 @@ type SettingsRow = {
   id: boolean;
   registrationMode: string;
   organizationCreationPolicy: string;
+  updateFailurePolicy: string;
   version: number;
   updatedByPrincipalId: string | null;
   updatedAt: Date;
@@ -29,6 +30,7 @@ export async function readInstallationSettings(
   const result = await database.query<SettingsRow>(
     `select id, registration_mode as "registrationMode",
       organization_creation_policy as "organizationCreationPolicy",
+      update_failure_policy as "updateFailurePolicy",
       version, updated_by_principal_id as "updatedByPrincipalId",
       updated_at as "updatedAt"
     from bakery.installation_settings order by id ${
@@ -82,11 +84,13 @@ export async function updateInstallationSettings(
   const updated = await transaction.query(
     `update bakery.installation_settings
      set registration_mode = $1, organization_creation_policy = $2,
-       version = version + 1, updated_by_principal_id = $3, updated_at = $4
-     where id = true and version = $5 returning id`,
+       update_failure_policy = $3,
+       version = version + 1, updated_by_principal_id = $4, updated_at = $5
+     where id = true and version = $6 returning id`,
     [
       values.registrationMode,
       values.organizationCreationPolicy,
+      values.updateFailurePolicy ?? current.updateFailurePolicy,
       updater,
       new Date(),
       expectedVersion,
