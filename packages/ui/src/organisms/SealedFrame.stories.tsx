@@ -10,7 +10,7 @@ export default meta;
 /** An inline page of the plugin's own, so the story makes no network request. */
 const page = "data:text/html;charset=utf-8," +
   encodeURIComponent(
-    "<!doctype html><title>Release checklist</title><body style='font-family:sans-serif;margin:16px'><h1>Release checklist</h1><p>This page runs sealed off.</p></body>",
+    "<!doctype html><title>Release checklist</title><body style='font-family:sans-serif;margin:16px'><main><h1>Release checklist</h1><p>This page runs sealed off.</p></main></body>",
   );
 
 /** The frame at the size it fills, with its accessible name. */

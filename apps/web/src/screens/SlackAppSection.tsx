@@ -276,7 +276,13 @@ export function SlackAppSection(
               {configured
                 ? (
                   <>
-                    <UI.Text>{translate(key("setUp"))}</UI.Text>
+                    {
+                      /* A refused pair is the top line's news: the block is not
+                        set up, whatever the stored row still says. */
+                    }
+                    <UI.Text>
+                      {translate(key(signInFaulted ? "notAccepted" : "setUp"))}
+                    </UI.Text>
                     <UI.DescriptionList>
                       <UI.DescriptionItem
                         description={saved.appId ?? ""}
@@ -363,7 +369,10 @@ export function SlackAppSection(
                   </>
                 )}
               {failureKey(status) === null ||
-                  failureKey(status)?.endsWith("Stale") === true
+                  failureKey(status)?.endsWith("Stale") === true ||
+                  // The refusal is already the block's top line; a second red
+                  // line under it would say the same thing twice.
+                  (failureKey(status) === "checkFailed" && signInFaulted)
                 ? null
                 : (
                   <UI.AlertBanner tone="error">

@@ -2820,6 +2820,12 @@ button.ui-activity-line__row:hover {
 .ui-access-offer[data-state="busy"] {
   opacity: 0.8;
 }
+/* The busy state dims the whole block, which takes the muted detail with it:
+   #5D6675 over the warning surface lands at 3.49:1 there. The detail keeps the
+   full-strength ink while busy, so the dimmed block still reads. */
+.ui-access-offer[data-state="busy"] .ui-access-offer__detail {
+  color: var(--color-fg);
+}
 
 /* Where the browser cannot size the field to its text, it starts three lines
    tall, so a long draft is never cut to one line. */

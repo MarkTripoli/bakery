@@ -6182,5 +6182,6 @@
   "integrations.slack.credentials.removeFailed": "The Slack app details could not be removed. Nothing changed. Try again.",
   "integrations.slack.credentials.removeStale": "These details changed since this page loaded. Nothing was removed. Check the current details, then remove again.",
   "integrations.slack.credentials.checkFailed": "The check could not be run. Nothing changed. Try again.",
-  "integrations.slack.credentials.checkStale": "These details changed since this page loaded. The check did not run. Press Check now again."
+  "integrations.slack.credentials.checkStale": "These details changed since this page loaded. The check did not run. Press Check now again.",
+  "integrations.slack.credentials.notAccepted": "Slack does not accept these details."
 }

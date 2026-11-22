@@ -46,6 +46,9 @@ export type SlackReceiptClaim = Readonly<{
  * `on conflict do nothing` rather than an upsert: a duplicate must change nothing
  * about the receipt, because the first answer is the record of what happened.
  */
+/** The signature this table keys on: 64 lowercase hex characters, nothing else. */
+const REPLAY_KEY = /^[0-9a-f]{64}$/;
+
 export async function claimSlackRequest(
   database: Pick<PgTransactionClient, "query">,
   input: {
@@ -55,6 +58,12 @@ export async function claimSlackRequest(
     readonly teamId: string | null;
   },
 ): Promise<SlackReceiptClaim> {
+  // A key that is not the MAC's own output would never collide with a replay of
+  // the real request, so the receipt it wrote would protect nothing. The table
+  // states structure, not this rule, so the claim is where it is kept.
+  if (!REPLAY_KEY.test(input.replayKey)) {
+    throw new Error("slack_replay_key_not_a_signature");
+  }
   const inserted = await database.query<{ id: string }>(
     `insert into bakery.slack_request_receipts
        (replay_key, body_digest, requested_at, team_id)
