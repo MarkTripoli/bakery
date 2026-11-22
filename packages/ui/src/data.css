@@ -2162,14 +2162,6 @@
   color: var(--color-fg-muted);
   font: var(--type-row-title);
 }
-
-/* A help tip's target is taller than the label line, on a coarse pointer more
-   so. It hangs out of the line by exactly its excess, so a tile with help keeps
-   the height of one without and the figures side by side share a line. */
-.ui-stat-tile__label .ui-help-tip {
-  margin-block: calc((var(--target-min) - 1lh) / -2);
-}
-
 .ui-stat-tile__value {
   /* Section heading, not hero: the figure is one of three, and a page heading
      size would make an unknown count look like the point of the page. */

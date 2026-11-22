@@ -472,6 +472,10 @@ export async function evaluationsFixture(
         }),
         run(IDS.sampled, 15, {
           scorers: [SCORERS[0], { ...SCORERS[1], required: false }],
+          // Only the required scorer's five results count toward the run.
+          requiredCount: 5,
+          measuredCount: 5,
+          counts: { ...ZERO, passed: 5 },
           budget: {
             limitUsd: "20.00",
             settledUsd: "1.60",
@@ -631,24 +635,48 @@ export async function evaluationsFixture(
       const found = runs.find((entry) => entry.id === id);
       if (found === undefined) return problem(route, 404, "RESOURCE_NOT_FOUND");
       const states = statesOf(found.counts);
-      // A sampled scorer's rows follow the run's own sampled report, so the
-      // numbers above them and the rows agree.
+      const scorers = found.scorers as typeof SCORERS;
+      // A run with a sampled scorer counts only its required results; the
+      // sampled ones follow the run's own sampled report, so the numbers and
+      // the rows agree. Without one, every pinned scorer is required.
       const sampledReport = found.optionalReport as
         | ReturnType<typeof reportOf>
         | null;
-      const sampledStates = sampledReport === null ? null : [
-        ...Array<State>(sampledReport.passed).fill("passed"),
-        ...Array<State>(sampledReport.failed).fill("failed"),
-        ...Array<State>(sampledReport.unknown).fill("error"),
-        ...Array<State>(sampledReport.unrun).fill("missing"),
-      ];
-      const rows = states.map((countedState, index) => {
-        const scorers = found.scorers as typeof SCORERS;
-        const caseIndex = Math.floor(index / scorers.length);
-        const scorer = scorers[index % scorers.length];
-        const state: State = !scorer.required && sampledStates !== null
-          ? sampledStates[caseIndex] ?? "passed"
-          : countedState;
+      const requiredPins = scorers.filter((scorer) => scorer.required);
+      const sampledPins = scorers.filter((scorer) => !scorer.required);
+      type Entry = {
+        state: State;
+        caseIndex: number;
+        scorer: (typeof SCORERS)[number];
+        index: number;
+      };
+      const entries: Entry[] = sampledReport === null
+        ? states.map((state, index) => ({
+          state,
+          caseIndex: Math.floor(index / scorers.length),
+          scorer: scorers[index % scorers.length],
+          index,
+        }))
+        : [
+          ...states.map((state, index) => ({
+            state,
+            caseIndex: Math.floor(index / requiredPins.length),
+            scorer: requiredPins[index % requiredPins.length],
+            index,
+          })),
+          ...[
+            ...Array<State>(sampledReport.passed).fill("passed"),
+            ...Array<State>(sampledReport.failed).fill("failed"),
+            ...Array<State>(sampledReport.unknown).fill("error"),
+            ...Array<State>(sampledReport.unrun).fill("missing"),
+          ].map((state, caseIndex) => ({
+            state,
+            caseIndex,
+            scorer: sampledPins[0],
+            index: 500 + caseIndex,
+          })),
+        ];
+      const rows = entries.map(({ state, caseIndex, scorer, index }) => {
         const measured = state === "passed" || state === "failed";
         return {
           id: uuid(5000 + index),
@@ -676,10 +704,12 @@ export async function evaluationsFixture(
           updatedAt: STAMP,
         };
       });
+      const requiredFilter = url.searchParams.get("required");
       const wanted = url.searchParams.get("state");
-      const filtered = wanted === null
-        ? rows
-        : rows.filter((row) => row.state === wanted);
+      const filtered = rows.filter((row) =>
+        (wanted === null || row.state === wanted) &&
+        (requiredFilter === null || String(row.required) === requiredFilter)
+      );
       return json(route, pageOf(filtered, url));
     },
   );
