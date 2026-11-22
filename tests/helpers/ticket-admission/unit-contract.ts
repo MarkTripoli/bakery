@@ -373,33 +373,39 @@ Deno.test("issue 82 contract: the ticket_requests projection names the migration
   );
 });
 
-Deno.test("issue 82 contract: the policy and the preset pin accept only the literal fixed-coding", () => {
+Deno.test("issue 61 contract: the policy and the preset pin accept exactly the built-in workflows", () => {
   for (
     const schema of [TicketSourcePolicySchema, TicketSourcePolicyInputSchema]
   ) {
     const preset =
       (z.toJSONSchema(schema) as { properties: Record<string, object> })
-        .properties.preset;
-    assertEquals(
-      { const: (preset as { const?: string }).const, enum: "enum" in preset },
-      { const: "fixed-coding", enum: false },
-      "the preset is a literal, so a catalog preset added later cannot widen it",
-    );
-    assertEquals(
-      schema.safeParse({ ...validPolicy(), preset: "fixed-coding-reviewed" })
-        .success,
-      false,
-    );
+        .properties.preset as { enum?: string[] };
+    assertEquals(preset.enum, ["fixed-coding", "fixed-coding-reviewed"]);
+    for (const id of ["fixed-coding", "fixed-coding-reviewed"]) {
+      assertEquals(
+        schema.safeParse({ ...validPolicy(), preset: id }).success,
+        true,
+        id,
+      );
+    }
+    // A name outside the code-owned set, or a workflow id, is refused.
+    for (const id of ["other-preset", crypto.randomUUID(), ""]) {
+      assertEquals(
+        schema.safeParse({ ...validPolicy(), preset: id }).success,
+        false,
+        id,
+      );
+    }
   }
   const pin = (id: string) =>
     TicketPresetPinSchema.safeParse({ id, revision: 1, digest: SHA }).success;
   assertEquals(pin("fixed-coding"), true);
-  assertEquals(pin("fixed-coding-reviewed"), false);
+  assertEquals(pin("fixed-coding-reviewed"), true);
+  assertEquals(pin("other-preset"), false);
   const pinId = (z.toJSONSchema(TicketPresetPinSchema) as {
-    properties: Record<string, { const?: string } & object>;
+    properties: Record<string, { enum?: string[] } & object>;
   }).properties.id;
-  assertEquals(pinId.const, "fixed-coding");
-  assertFalse("enum" in pinId);
+  assertEquals(pinId.enum, ["fixed-coding", "fixed-coding-reviewed"]);
 });
 
 Deno.test("issue 82 contract: the migration's one-nonterminal predicate lists exactly the nonterminal dispositions", async () => {

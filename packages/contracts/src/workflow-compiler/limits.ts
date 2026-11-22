@@ -14,18 +14,20 @@ export const WORKFLOW_COMPILER_LIMITS = Object.freeze({
   jsonValues: 20_000,
   /** Maximum characters in one JSON number token. */
   numberTokenChars: 64,
-  /** Maximum node nesting depth (sequence, branch arm, repeat body, lane). */
+  /** Maximum node nesting depth (sequence, branch arm, repeat or forEach body, lane). */
   nodeDepth: 8,
   /** Maximum number of authored nodes. */
   authoredNodes: 200,
   /** Maximum items in a value list that holds a reference. */
   valueListItems: 1_000,
-  /** Maximum expanded step count after repeat and parallel expansion. */
+  /** Maximum expanded step count after repeat, forEach and parallel expansion. */
   expandedSteps: 1000,
   /** Compiler ceiling for the worst-case attempt count. */
   worstCaseAttempts: 1000,
   /** Maximum `repeat.max`. */
   repeatMax: 8,
+  /** Maximum `forEach.max`: the most items one sequential forEach accepts. */
+  forEachMax: 12,
   /** Maximum lanes in one parallel group. */
   lanes: 8,
   /** Smallest accepted action timeout, wait and wall-clock duration. */
