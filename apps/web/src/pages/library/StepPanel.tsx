@@ -233,6 +233,8 @@ function Skills(
       `library.workflow.editor.skills.${key}` as never,
       values as never,
     );
+  const nothingOnOffer = attach !== null && attach.state === "ready" &&
+    attach.offered === 0;
   return (
     <UI.Stack data-testid="step-skills" gap="compact">
       <UI.Inline gap="compact">
@@ -260,7 +262,10 @@ function Skills(
           </UI.InlineNotice>
         )
         : skills.rows.length === 0
-        ? <UI.Text variant="muted">{t("empty")}</UI.Text>
+        // With nothing on offer the picker's own line says so: one empty line, not two.
+        ? (nothingOnOffer
+          ? null
+          : <UI.Text variant="muted">{t("empty")}</UI.Text>)
         : (
           <UI.Stack gap="comfortable" role="list">
             {skills.rows.map((row) => (
@@ -272,9 +277,13 @@ function Skills(
             ))}
           </UI.Stack>
         )}
-      {attach === null || skills.kind !== "ready"
-        ? null
-        : <AttachSkill attach={attach} t={t} />}
+      {attach === null || skills.kind !== "ready" ? null : (
+        <AttachSkill
+          attach={attach}
+          hasRows={skills.rows.length > 0}
+          t={t}
+        />
+      )}
     </UI.Stack>
   );
 }
@@ -288,7 +297,12 @@ type Say = (key: string, values?: Record<string, string | number>) => string;
  * group carry their slug so they can be told apart.
  */
 function AttachSkill(
-  { attach, t }: { readonly attach: StepAttach; readonly t: Say },
+  { attach, hasRows, t }: {
+    readonly attach: StepAttach;
+    /** Whether the step already shows a skill row. */
+    readonly hasRows: boolean;
+    readonly t: Say;
+  },
 ) {
   const { translate } = useI18n();
   const [open, setOpen] = useState(false);
@@ -309,10 +323,12 @@ function AttachSkill(
     );
   }
   if (attach.state === "ready" && attach.choices.length === 0) {
-    // Nothing fits this kind of step, or everything that fits is already on it.
+    // Nothing fits and nothing is shown: say so once. Otherwise the step already shows
+    // what it has, and one short line says nothing more can be attached.
+    const none = attach.offered === 0 && !hasRows;
     return (
-      <UI.Text variant={attach.offered === 0 ? "muted" : "caption"}>
-        {t(attach.offered === 0 ? "picker.empty" : "picker.allAttached")}
+      <UI.Text variant={none ? "muted" : "caption"}>
+        {t(none ? "picker.empty" : "picker.allAttached")}
       </UI.Text>
     );
   }

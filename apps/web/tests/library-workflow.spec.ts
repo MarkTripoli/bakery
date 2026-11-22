@@ -1677,10 +1677,27 @@ for (
       await expect(skills).toContainText(
         "No skills fit this kind of step. Skills are made in the Library.",
       );
+      // One empty line, not two.
+      await expect(skills).not.toContainText("No skills attached.");
+    });
+
+    test("a step that shows skills and has none left to offer says nothing more can be attached", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: { items: [skill({})] },
+        catalog: [],
+      });
+      await expect(skills).toContainText("Code style");
+      await expect(skills).toContainText("No more skills to attach.");
+      await expect(skills).not.toContainText(
+        "No skills fit this kind of step.",
+      );
     });
 
     test("a step with no skills says the agent uses only its own", async ({ page }) => {
-      const { skills } = await openSkills(page, { skills: { items: [] } });
+      const { skills } = await openSkills(page, {
+        skills: { items: [] },
+        catalog: [catalogSkill({})],
+      });
       await expect(skills).toContainText(
         "No skills attached. The agent uses only its own.",
       );
