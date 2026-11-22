@@ -16,7 +16,7 @@ import {
   canonicalJson,
   sha256Hex,
 } from "../../apps/server/src/platform/canonical-json.ts";
-import { authTestOrigin } from "../helpers/auth.ts";
+import { authTestOrigin, signSessionCookie } from "../helpers/auth.ts";
 import { openPersonalSkillFixture } from "../helpers/private-skill-fixture.ts";
 
 type Fixture = Awaited<ReturnType<typeof openPersonalSkillFixture>>;
@@ -47,16 +47,25 @@ async function publishVersion(
   cookie: string,
   slug: string,
   story: string,
+  options: {
+    skillId?: string;
+    revision?: number;
+    markdown?: Uint8Array;
+  } = {},
 ): Promise<{ skillId: string; versionId: string; digest: string }> {
-  const createSkill = await fixture.post(
-    cookie,
-    "/v1/skills",
-    { slug, name: story },
-    crypto.randomUUID(),
-  );
-  assertEquals(createSkill.status, 201, await createSkill.clone().text());
-  const skill = await createSkill.json() as { id: string };
-  const markdownDigest = await sha256(markdown);
+  const entry = options.markdown ?? markdown;
+  const skillId = options.skillId ?? await (async () => {
+    const createSkill = await fixture.post(
+      cookie,
+      "/v1/skills",
+      { slug, name: story },
+      crypto.randomUUID(),
+    );
+    assertEquals(createSkill.status, 201, await createSkill.clone().text());
+    return (await createSkill.json() as { id: string }).id;
+  })();
+  const skill = { id: skillId };
+  const markdownDigest = await sha256(entry);
   const scriptDigest = await sha256(script);
   const manifest = {
     schemaVersion: 1,
@@ -81,7 +90,7 @@ async function publishVersion(
     cookie,
     `/v1/skills/${skill.id}/versions`,
     {
-      revision: 1,
+      revision: options.revision ?? 1,
       digest,
       entryPath: "SKILL.md",
       manifest,
@@ -89,7 +98,7 @@ async function publishVersion(
         path: "SKILL.md",
         mediaType: "text/markdown",
         isExecutable: false,
-        contentBase64: base64(markdown),
+        contentBase64: base64(entry),
       }, {
         path: "scripts/ready.sh",
         mediaType: "text/x-shellscript",
@@ -139,7 +148,50 @@ async function otherOrganization(fixture: Fixture): Promise<string> {
   return organizationId;
 }
 
-Deno.test("a person reads one version by id, and only a version they may see", async () => {
+/**
+ * A Viewer of the same organization: a role that may read a lot, but not these
+ * two, and the same answer from both is what keeps the fence honest.
+ */
+async function addViewer(fixture: Fixture): Promise<string> {
+  const userId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const token = `skill-viewer-${crypto.randomUUID()}`;
+  const now = new Date();
+  await fixture.fixture.pgDatabase.query(
+    `insert into public."user" (
+       id, name, email, "emailVerified", "createdAt", "updatedAt"
+     ) values ($1, 'Viewer', $2, true, $3, $3)`,
+    [userId, `viewer-${userId}@example.test`, now],
+  );
+  await fixture.fixture.pgDatabase.query(
+    `insert into bakery.principals (
+       id, provider_user_id, display_name, principal_type
+     ) values ($1, $2, 'Viewer', 'human')`,
+    [principalId, userId],
+  );
+  await fixture.fixture.pgDatabase.query(
+    `insert into bakery.organization_memberships (
+       id, organization_id, principal_id, role, status, joined_at,
+       created_at, updated_at, version
+     ) values ($1, $2, $3, 'viewer', 'active', $4, $4, $4, 1)`,
+    [crypto.randomUUID(), fixture.organizationId, principalId, now],
+  );
+  await fixture.fixture.pgDatabase.query(
+    `insert into public.session (
+       id, token, "userId", "expiresAt", "createdAt", "updatedAt"
+     ) values ($1, $2, $3, $4, $5, $5)`,
+    [
+      crypto.randomUUID(),
+      token,
+      userId,
+      new Date(now.getTime() + 3_600_000),
+      now,
+    ],
+  );
+  return await signSessionCookie(token, fixture.fixture.config.auth!.secret);
+}
+
+Deno.test("a person reads one version and one file, and nothing they may not", async () => {
   const root = await Deno.makeTempDir({ prefix: "bakery-74-reads-" });
   const fixture = await openPersonalSkillFixture({ skillFileRoot: root });
   try {
@@ -170,6 +222,26 @@ Deno.test("a person reads one version by id, and only a version they may see", a
     assertEquals(version.entryPath, "SKILL.md");
     // The same projection the list returns, not a narrower one.
     assertEquals(Object.keys(version).sort(), Object.keys(listed).sort());
+
+    // Both reads carry the same role fence: a Viewer who may not read the
+    // record does not read its bytes either, and says so the same way.
+    const viewer = await addViewer(fixture);
+    const viewerVersion = await fixture.read(
+      viewer,
+      `/v1/skill-versions/${shared.versionId}`,
+    );
+    const viewerFile = await fixture.read(
+      viewer,
+      `/v1/skill-versions/${shared.versionId}/files/SKILL.md`,
+    );
+    // The version read answers not-found to a Viewer; the bytes must answer
+    // the same, or the fence is only as strong as the weaker read.
+    assertEquals(viewerVersion.status, 404, await viewerVersion.clone().text());
+    assertEquals(viewerFile.status, 404, await viewerFile.clone().text());
+    assertEquals(
+      (await viewerVersion.json() as { code: string }).code,
+      (await viewerFile.json() as { code: string }).code,
+    );
 
     // Another Admin of the organization reads the organization's skill too.
     const adminRead = await fixture.read(
@@ -244,6 +316,26 @@ Deno.test("a person reads one version by id, and only a version they may see", a
       )).status,
       404,
     );
+    // The draft's own file row exists and points at real bytes, so the read
+    // that refuses it is refusing the draft, not the missing row.
+    await fixture.fixture.pgDatabase.query(
+      `insert into bakery.skill_files (
+         organization_id, skill_version_id, path, media_type, object_key,
+         size_bytes, sha256, is_executable
+       )
+       select $1, $2, path, media_type, object_key, size_bytes, sha256,
+              is_executable
+         from bakery.skill_files
+        where organization_id = $1 and skill_version_id = $3 and path = 'SKILL.md'`,
+      [fixture.organizationId, draftId, shared.versionId],
+    );
+    assertEquals(
+      (await fixture.read(
+        fixture.ownerCookie,
+        `/v1/skill-versions/${draftId}/files/SKILL.md`,
+      )).status,
+      404,
+    );
     assertEquals(
       (await fixture.read(
         fixture.ownerCookie,
@@ -251,23 +343,14 @@ Deno.test("a person reads one version by id, and only a version they may see", a
       )).status,
       404,
     );
-  } finally {
-    await fixture.close();
-    await Deno.remove(root, { recursive: true });
-  }
-});
-
-Deno.test("a person reads one file's verified bytes, and nothing they may not", async () => {
-  const root = await Deno.makeTempDir({ prefix: "bakery-74-files-" });
-  const fixture = await openPersonalSkillFixture({ skillFileRoot: root });
-  try {
-    const shared = await publishVersion(
+    // --- the same person reads one file's verified bytes ---
+    const files = await publishVersion(
       fixture,
       fixture.ownerCookie,
       "readable-files",
       "Readable files",
     );
-    const path = `/v1/skill-versions/${shared.versionId}/files/SKILL.md`;
+    const path = `/v1/skill-versions/${files.versionId}/files/SKILL.md`;
     const file = await fixture.read(fixture.ownerCookie, path);
     assertEquals(file.status, 200, await file.clone().text());
     // The headers describe the stored file, and the body is the published bytes.
@@ -287,7 +370,7 @@ Deno.test("a person reads one file's verified bytes, and nothing they may not", 
     // A nested path is a path, not a query.
     const nested = await fixture.read(
       fixture.ownerCookie,
-      `/v1/skill-versions/${shared.versionId}/files/scripts/ready.sh`,
+      `/v1/skill-versions/${files.versionId}/files/scripts/ready.sh`,
     );
     assertEquals(nested.status, 200, await nested.clone().text());
     assertEquals(nested.headers.get("content-type"), "text/x-shellscript");
@@ -297,7 +380,7 @@ Deno.test("a person reads one file's verified bytes, and nothing they may not", 
     assertEquals(
       (await fixture.read(
         fixture.ownerCookie,
-        `/v1/skill-versions/${shared.versionId}/files/SECRET.md`,
+        `/v1/skill-versions/${files.versionId}/files/SECRET.md`,
       )).status,
       404,
     );
@@ -306,7 +389,7 @@ Deno.test("a person reads one file's verified bytes, and nothing they may not", 
     assertEquals(
       (await fixture.read(
         fixture.ownerCookie,
-        `/v1/skill-versions/${shared.versionId}/files/..%2F..%2Fetc%2Fpasswd`,
+        `/v1/skill-versions/${files.versionId}/files/..%2F..%2Fetc%2Fpasswd`,
       )).status,
       400,
     );
@@ -319,7 +402,7 @@ Deno.test("a person reads one file's verified bytes, and nothing they may not", 
     }>(
       `select object_key, sha256, size_bytes from bakery.skill_files
         where organization_id = $1 and skill_version_id = $2 and path = 'SKILL.md'`,
-      [fixture.organizationId, shared.versionId],
+      [fixture.organizationId, files.versionId],
     );
     const object = stored.rows[0];
     // Same length, different bytes: the digest is the only thing wrong.
@@ -352,23 +435,53 @@ Deno.test("a person reads one file's verified bytes, and nothing they may not", 
       200,
     );
 
+    // The same path in a later version is that version's own bytes: the read
+    // is keyed to the version in the URL, not to the path alone.
+    const later = new TextEncoder().encode(
+      new TextDecoder().decode(markdown).replace("skill", "SKILL"),
+    );
+    assertEquals(later.byteLength, markdown.byteLength);
+    const second = await publishVersion(
+      fixture,
+      fixture.ownerCookie,
+      "readable-files",
+      "Readable files",
+      { skillId: files.skillId, revision: 2, markdown: later },
+    );
+    const firstRead = await fixture.read(fixture.ownerCookie, path);
+    const secondRead = await fixture.read(
+      fixture.ownerCookie,
+      `/v1/skill-versions/${second.versionId}/files/SKILL.md`,
+    );
+    assertEquals(firstRead.status, 200);
+    assertEquals(secondRead.status, 200, await secondRead.clone().text());
+    assertEquals(await firstRead.text(), new TextDecoder().decode(markdown));
+    assertEquals(await secondRead.text(), new TextDecoder().decode(later));
+    assertEquals(
+      secondRead.headers.get("etag"),
+      `"${await sha256(later)}"`,
+    );
+
     // Another organization gets no bytes either.
-    const elsewhere = await otherOrganization(fixture);
-    const crossTenant = await readIn(
+    const filesCrossTenant = await readIn(
       fixture,
       fixture.adminCookie,
-      elsewhere,
+      await otherOrganization(fixture),
       path,
     );
-    assertEquals(crossTenant.status, 404, await crossTenant.clone().text());
+    assertEquals(
+      filesCrossTenant.status,
+      404,
+      await filesCrossTenant.clone().text(),
+    );
     // A problem document, not the file: no bytes leak with the refusal.
     assertEquals(
-      (await crossTenant.json() as { code: string }).code,
+      (await filesCrossTenant.json() as { code: string }).code,
       "RESOURCE_NOT_FOUND",
     );
 
     // A file of someone else's personal version is not found, and says nothing.
-    const personal = await publishVersion(
+    const personalFiles = await publishVersion(
       fixture,
       fixture.ownerCookie,
       "readable-personal-files",
@@ -376,13 +489,13 @@ Deno.test("a person reads one file's verified bytes, and nothing they may not", 
     );
     await fixture.fixture.pgDatabase.query(
       "update bakery.skills set scope = 'personal', owner_principal_id = $2 where id = $1",
-      [personal.skillId, fixture.ownerPrincipalId],
+      [personalFiles.skillId, fixture.ownerPrincipalId],
     );
-    const hidden = await fixture.read(
+    const hiddenFile = await fixture.read(
       fixture.adminCookie,
       `/v1/skill-versions/${personal.versionId}/files/SKILL.md`,
     );
-    assertEquals(hidden.status, 404, await hidden.clone().text());
+    assertEquals(hiddenFile.status, 404, await hiddenFile.clone().text());
   } finally {
     await fixture.close();
     await Deno.remove(root, { recursive: true });

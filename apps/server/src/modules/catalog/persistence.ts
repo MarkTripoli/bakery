@@ -1370,16 +1370,15 @@ export function createCatalogHandlers(
       if (options.skillFileStore === undefined) {
         throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
       }
+      // The same fence the version read uses, so a caller who may see the
+      // record may read its bytes and one who may not gets the same answer.
       const version = await transaction.query<{ id: string }>(
-        `select version.id
-           from bakery.skill_versions as version
-           join bakery.skills as skill
-             on skill.organization_id = version.organization_id
-            and skill.id = version.skill_id
-          where version.organization_id = $1 and version.id = $2
-            and version.status <> 'draft'
-            and (skill.scope <> 'personal'
-              or skill.owner_principal_id = $3::uuid)`,
+        `select id from bakery.skill_versions
+          where organization_id = $1 and id = $2 and status <> 'draft'
+            and skill_id in (
+              select id from bakery.skills
+               where organization_id = $1 and ${SKILL_VISIBLE_TO("$3")}
+            )`,
         [organizationId, versionId, principalId],
       );
       if (version.rows.length === 0) {

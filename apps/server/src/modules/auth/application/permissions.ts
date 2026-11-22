@@ -98,6 +98,8 @@ export const viewerPermissionExclusions = Object.freeze(
     "secret:read": "Secret reads expose credential metadata.",
     "session:read":
       "Agent sessions expose execution-resumption and harness metadata.",
+    "skillFile:read":
+      "Skill file bytes are the skill itself, and the version record beside them already needs a developer.",
     "sync:read": "Sync snapshots expose broad organization state.",
     "ticketSource:read":
       "A ticket source policy exposes which principal Bakery acts as and which GitHub actors may trigger it.",
