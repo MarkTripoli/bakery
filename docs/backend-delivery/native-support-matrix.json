@@ -56,11 +56,21 @@
       "proof": "Mac supervisor and keychain boundary need a Mac."
     },
     {
+      "id": "ios-job-platform-claim-rule",
+      "kind": "capability",
+      "status": "verified",
+      "evidence": [
+        "tests/security/verify-native-worker-platforms-and-real-browser-authentication_test.ts",
+        "tests/unit/job-platform-requirement_test.ts"
+      ],
+      "proof": "AC2 claim rule: a job whose requirements.platform is macos is never claimed by a Linux host with free capacity; it stays queued with no attempt until a macOS host claims it."
+    },
+    {
       "id": "ios-build-queue-xcode",
       "kind": "capability",
       "status": "deferred",
       "evidence": [],
-      "proof": "iOS-only job routing evidence and Xcode builds need a Mac; the claim rule (AC2) needs a migration and is a later slice."
+      "proof": "Mac build evidence (a real iOS job built with Xcode on a Mac worker) needs a Mac (owner hardware)."
     },
     {
       "id": "passkey-chromium",

@@ -15,6 +15,17 @@ import {
   type SoftwareAuthenticator,
 } from "../helpers/webauthn.ts";
 import type { PgDatabase } from "../../apps/server/src/platform/database.ts";
+import {
+  readExecutionState,
+  registeredWorker,
+  workerFixtureCapabilities,
+} from "../helpers/worker-execution.ts";
+import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
+import {
+  claimAssignment,
+  withWorkerFixture,
+} from "../helpers/worker-execution/scenarios.ts";
+import { rawClaim } from "../helpers/coordinator-turn-jobs-worker.ts";
 
 type AppFixture = Awaited<ReturnType<typeof openAuthFixture>>;
 
@@ -174,5 +185,60 @@ Deno.test("client data from a sibling port on the same host is a different origi
     assertEquals(refused.status, 400);
     assertEquals((await refused.json()).code, "AUTHENTICATION_FAILED");
     assertEquals(await state(fixture.pgDatabase, userId), before);
+  });
+});
+
+// #52 (B15.06) AC2: a job that must run on a Mac (an iOS build) is never
+// claimed by a Linux host, however much free capacity it has. With no Mac
+// online the job stays queued with no attempt; once a Mac host claims, it gets
+// exactly that job. The rule is the job's stored `requirements.platform`
+// matched against the host's enrolled OS, in the claim query and again in the
+// claim's admission recheck.
+Deno.test("an iOS-only job stays queued while only a Linux host with free capacity claims, and a Mac host gets it", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // Admitted through the production path, then pinned to macOS the way an
+    // iOS build step's stored requirements name it.
+    const job = await seedFundedModelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.jobs
+          set requirements = requirements || '{"platform":"macos"}'::jsonb
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, job.jobId],
+    );
+    const linux = await registeredWorker(fixture, { slots: 4 });
+
+    const refused = await rawClaim(fixture, linux, {
+      capabilities: workerFixtureCapabilities,
+    });
+    assertEquals(refused.status, 204);
+    const queued = await readExecutionState(fixture.pgDatabase, job.jobId);
+    assertEquals(queued.job.status, "queued");
+    assertEquals(queued.attempts, []);
+
+    const mac = await registeredWorker(fixture, {
+      os: "macos",
+      architecture: "arm64",
+    });
+    const assignment = await claimAssignment(fixture, mac);
+    assertEquals(assignment.jobId, job.jobId);
+    assertEquals(assignment.workerHostId, mac.registration.workerHostId);
+    assertEquals(
+      (assignment.requirements as { platform?: string }).platform,
+      "macos",
+    );
+
+    // Control: the same Linux host claims the same kind of job when no
+    // platform is required, so its refusal above was the platform rule.
+    const anywhere = await seedFundedModelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const linuxAssignment = await claimAssignment(fixture, linux);
+    assertEquals(linuxAssignment.jobId, anywhere.jobId);
   });
 });
