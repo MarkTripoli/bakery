@@ -191,8 +191,13 @@ async function observedRepository(
  * active observed profile it published, the way a worker-backed onboarding
  * does. Runs against this profile pass the real observation admission.
  */
-async function onboardObserved(
-  fixture: Fixture,
+export async function onboardObserved(
+  fixture: Readonly<{
+    pgDatabase: PgDatabase;
+    runtimePgDatabase: PgDatabase;
+    organizationId: string;
+    principalId: string;
+  }>,
   bindings: Bindings,
   allowedEffects: readonly string[] = ALL_EFFECTS,
 ) {

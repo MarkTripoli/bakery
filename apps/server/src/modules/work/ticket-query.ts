@@ -249,6 +249,36 @@ async function linkedTasksFor(
   );
 }
 
+/**
+ * Open questions on the task of each ticket's nonterminal request (#61), by
+ * ticket id: questions (not approvals) that are open and not past their
+ * expiry, as `questions.list` reads an expired one. One statement per page,
+ * scoped to the organization; a ticket with no nonterminal request has none.
+ */
+async function openQuestionsFor(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  requests: ReadonlyMap<string, TicketRequest>,
+): Promise<Map<string, number>> {
+  const ticketOfTask = new Map<string, string>();
+  for (const [ticketId, request] of requests) {
+    ticketOfTask.set(request.taskId, ticketId);
+  }
+  if (ticketOfTask.size === 0) return new Map();
+  const result = await transaction.query<{ task_id: string; open: number }>(
+    `select task_id, count(*)::integer as open
+       from bakery.questions
+      where organization_id = $1 and task_id = any($2::uuid[])
+        and kind = 'question' and status = 'open'
+        and (expires_at is null or expires_at > now())
+      group by task_id`,
+    [organizationId, [...ticketOfTask.keys()]],
+  );
+  return new Map(
+    result.rows.map((row) => [ticketOfTask.get(row.task_id)!, row.open]),
+  );
+}
+
 /** The ticket rows with the newest report and the nonterminal request each owns. */
 async function projectTickets(
   transaction: PgTransactionClient,
@@ -263,6 +293,11 @@ async function projectTickets(
     ids,
   );
   const links = await linkedTasksFor(transaction, organizationId, ids);
+  const questions = await openQuestionsFor(
+    transaction,
+    organizationId,
+    requests,
+  );
   return rows.map((row) => {
     const stored = reports.get(row.id);
     const linked = links.get(row.id);
@@ -294,6 +329,7 @@ async function projectTickets(
       activeRequest: activeRequestOf(requests.get(row.id)),
       linkedTaskIds: linked?.ids ?? [],
       linkedTaskCount: linked?.count ?? 0,
+      openQuestionCount: questions.get(row.id) ?? 0,
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
       version: row.version,
