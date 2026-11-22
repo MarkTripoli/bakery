@@ -50,6 +50,12 @@ import {
   writeBlobProbe,
 } from "./blob-probes.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { withPgTransaction } from "@bakery/persistence";
+import {
+  hasStagedVersions,
+  settlesStagedVersion,
+  settleStagedVersions,
+} from "./staged-versions.ts";
 import {
   type ArtifactProbeOptions,
   probeArtifactAttempt,
@@ -145,13 +151,24 @@ export async function enqueueProbeSubject(
       | { entryId: string; revision: number }
       | { artifactVersionId: string }
     ),
+  options: {
+    /**
+     * Ask again even when a terminal request is on record. A staged version
+     * (O29) waits on an answer, so a subject the runner gave up on before it
+     * was staged has to be retried rather than left undecided for ever.
+     */
+    readonly reopen?: boolean;
+  } = {},
 ): Promise<void> {
+  const onConflict = options.reopen === true
+    ? "do update set attempts = 0, last_error = null"
+    : "do nothing";
   if ("blobId" in input) {
     await database.query(
       `insert into bakery.probe_requests (organization_id, blob_id)
        values ($1, $2)
        on conflict (organization_id, blob_id) where blob_id is not null
-       do nothing`,
+       ${onConflict}`,
       [input.organizationId, input.blobId],
     );
     return;
@@ -162,7 +179,7 @@ export async function enqueueProbeSubject(
        values ($1, $2)
        on conflict (organization_id, artifact_version_id)
          where artifact_version_id is not null
-       do nothing`,
+       ${onConflict}`,
       [input.organizationId, input.artifactVersionId],
     );
     return;
@@ -538,7 +555,23 @@ async function probeOne(
     organizationId: request.organization_id,
     ...subject,
   });
-  if (existing !== null) return "answered";
+  if (existing !== null) {
+    // The answer is already on record -- the bytes were probed for an earlier
+    // version that shares them -- so a version staged since is settled on it.
+    if (
+      !await hasStagedVersions(database, request.organization_id, subject)
+    ) return "answered";
+    await withPgTransaction(
+      database,
+      (transaction) =>
+        settleStagedVersions(transaction, {
+          organizationId: request.organization_id,
+          subject,
+          result: existing.result,
+        }),
+    );
+    return "answered";
+  }
   const attempt = await probeArtifactAttempt({
     readBytes: () => Promise.resolve(bytes.bytes),
     sizeBytes: bytes.sizeBytes,
@@ -546,10 +579,45 @@ async function probeOne(
   // The only unstorable answer is a refusal about the host: the sandbox is not
   // there. That is not this request's fault and must not count against it.
   if (!isStorable(attempt.result)) return "host-gone";
-  await writeBlobProbe(database, {
-    organizationId: request.organization_id,
-    ...subject,
-    result: attempt.result,
+  // A host-side answer (a launcher that failed, a timeout) or a memory cap is a
+  // limit of this host's probe, not a verdict on the file. Stored, it would complete the request and leave a staged version
+  // undecided for ever; so while a staged version waits on it, nothing is stored
+  // and the attempt counts against the request's ceiling instead.
+  const waiting = await hasStagedVersions(
+    database,
+    request.organization_id,
+    subject,
+  );
+  if (
+    waiting &&
+    (attempt.about === "host" || !settlesStagedVersion(attempt.result))
+  ) {
+    throw new ProbeHostFault(attempt.result);
+  }
+  if (!waiting) {
+    // Nothing waits on this answer. A version staged after this check reopens
+    // the request (enqueueProbeSubject reopen) and is settled on the stored
+    // answer by the next tick.
+    await writeBlobProbe(database, {
+      organizationId: request.organization_id,
+      ...subject,
+      result: attempt.result,
+    });
+    return "answered";
+  }
+  // The answer and the staged versions it decides commit together, so an answer
+  // can never be on record while the version it settles is still staged.
+  await withPgTransaction(database, async (transaction) => {
+    await writeBlobProbe(transaction, {
+      organizationId: request.organization_id,
+      ...subject,
+      result: attempt.result,
+    });
+    await settleStagedVersions(transaction, {
+      organizationId: request.organization_id,
+      subject,
+      result: attempt.result,
+    });
   });
   return "answered";
 }
@@ -570,6 +638,15 @@ function subjectOf(request: RequestRow): ProbeSubject {
     entryId: request.entry_id as string,
     revision: Number(request.revision),
   };
+}
+
+/** A host limit hit while a staged version waits: retried, never stored. */
+class ProbeHostFault extends Error {
+  constructor(result: ArtifactProbeResult) {
+    super(
+      result.status === "refused" ? `probe-${result.code}` : "probe-host",
+    );
+  }
 }
 
 /** A result about the host is not an answer, and `about` is what says so. */

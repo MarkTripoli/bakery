@@ -106,6 +106,10 @@ type VersionRow = {
   sha256: string;
   created_at: Date | string;
   version: number;
+  publication_status: "current" | "staged" | "refused";
+  refused_kind_version_id: string | null;
+  refused_rule_type: string | null;
+  refused_reason: string | null;
 };
 type VersionCursorRow = VersionRow & {
   cursor_created_at: string;
@@ -198,6 +202,10 @@ function version(row: VersionRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.created_at),
     version: Number(row.version ?? 1),
+    publicationStatus: row.publication_status,
+    refusedKindVersionId: row.refused_kind_version_id,
+    refusedRuleType: row.refused_rule_type,
+    refusedReason: row.refused_reason,
   };
 }
 
@@ -554,6 +562,7 @@ export function createArtifactReadHandlers(
         `select v.id,v.artifact_id,v.task_id,v.run_step_id,v.author_id,v.revision,
                 v.subject_head_sha,v.subject_base_sha,v.metadata,v.media_type,
                 v.size_bytes,v.sha256,v.created_at,v.retention_class,v.expires_at,v.purged_at,1 as version,
+                v.publication_status,v.refused_kind_version_id,v.refused_rule_type,v.refused_reason,
                 to_char(
                   v.created_at at time zone 'UTC',
                   'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
@@ -568,6 +577,9 @@ export function createArtifactReadHandlers(
           where v.organization_id=$1
             and v.artifact_id=$2
             and v.task_id=$3
+            -- A staged version waits for its probe and a refused one failed it
+            -- (O29): neither is a version of the artifact a list shows.
+            and v.publication_status='current'
             and (
               v.run_step_id is null or exists (
                 select 1
