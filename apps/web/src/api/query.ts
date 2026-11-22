@@ -2740,11 +2740,6 @@ export function agentQueryOptions(
 }
 
 /**
- * The skills the steps of one workflow version name (#431), read for the
- * version being edited. The digest is in the key so a saved change to the
- * draft reads the skills again.
- */
-/**
  * The skills a person may attach to a step (#431): every enabled skill with an
  * active version, read across a few pages. A skill with no active version, or
  * switched off, cannot be attached and is left out.
@@ -2783,6 +2778,11 @@ export function attachableSkillsQueryOptions(
   });
 }
 
+/**
+ * The skills the steps of one workflow version name (#431), read for the
+ * version being edited. The digest is in the key so a saved change to the
+ * draft reads the skills again.
+ */
 export function workflowVersionSkillsQueryOptions(
   client: Pick<BakeryApiClient, "listWorkflowVersionSkills">,
   scope: ApiScope,

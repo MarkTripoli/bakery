@@ -1563,6 +1563,34 @@ for (
       await expect.poll(() => savedSkills(seen).skills).toEqual([uuid(7000)]);
     });
 
+    test("removing someone else's private skill that a published version uses says so", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: {
+          items: [
+            skill({
+              skillVersionId: uuid(7002),
+              skillName: "Security review",
+              revision: 1,
+              scope: "personal",
+              ownerDisplayName: "Dana Lee",
+              publishedVersionUsesIt: true,
+            }),
+          ],
+        },
+      });
+      await skills.getByRole("button", { name: "Remove Security review" })
+        .click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Remove",
+        exact: true,
+      }).click();
+      await expect(
+        page.getByText(
+          "Removed Security review from this step. A published version of this workflow still uses it.",
+        ),
+      ).toBeVisible();
+    });
+
     test("removing someone else's private skill asks first", async ({ page }) => {
       const { skills } = await openSkills(page, {
         skills: {

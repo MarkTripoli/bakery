@@ -188,6 +188,8 @@ export function WorkflowEditorPage(
       readonly versionId: string;
       readonly name: string;
       readonly owner: string;
+      /** Whether a published version of the workflow still uses the skill. */
+      readonly published: boolean;
     } | null
   >(null);
   const [skillToast, setSkillToast] = useState<
@@ -638,6 +640,7 @@ export function WorkflowEditorPage(
                 versionId: row.versionId,
                 name: row.name,
                 owner: row.owner,
+                published: row.published,
               });
             } else {
               removeNow(step.id, row.versionId, row.name, row.published);
@@ -1078,7 +1081,7 @@ export function WorkflowEditorPage(
                   removingOther.stepId,
                   removingOther.versionId,
                   removingOther.name,
-                  false,
+                  removingOther.published,
                 );
                 setRemovingOther(null);
               }}
