@@ -44,6 +44,34 @@ export const pluginBundleReferences = [
       return result.rows.length > 0;
     },
   },
+  {
+    kind: "install-snapshot",
+    table: "plugin_install_snapshots",
+    constraint: "plugin_install_snapshots_version_fk",
+    protection: "active",
+    async protects(
+      transaction: PgTransactionClient,
+      organizationId: string,
+      versionId: string,
+    ): Promise<boolean> {
+      // A snapshot is the way back to the version it was taken from: a rollback
+      // restores its state and pins that version again, which needs the bytes.
+      // An uninstalled install cannot be moved, so its snapshot no longer wants
+      // them.
+      const result = await transaction.query(
+        `select 1
+           from bakery.plugin_install_snapshots s
+           join bakery.plugin_installs i
+             on i.organization_id = s.organization_id
+            and i.id = s.plugin_install_id
+          where s.organization_id = $1 and s.from_plugin_version_id = $2
+            and i.status <> 'uninstalled'
+          limit 1`,
+        [organizationId, versionId],
+      );
+      return result.rows.length > 0;
+    },
+  },
 ] as const;
 
 /** Tables whose rows can never keep a bundle alive, named so a reader sees them. */
@@ -63,6 +91,14 @@ export const pluginBundleNeutralReferences = [
     protection: "none",
     note:
       "State rows reference the install, never the version, so retained state cannot outlive the bytes by pointing at them.",
+  },
+  {
+    kind: "install-snapshot-state",
+    table: "plugin_install_snapshot_state",
+    constraint: "plugin_install_snapshot_state_snapshot_fk",
+    protection: "none",
+    note:
+      "Snapshot state rows reference their snapshot, which carries the version; they never name a version themselves.",
   },
 ] as const;
 

@@ -1,7 +1,10 @@
 import { WorkerRequestError } from "./client.ts";
 import type { SupervisorState } from "./supervisor-state.ts";
 import { machineChecks } from "./machine-checks.ts";
-import type { WorkerInventoryCheck } from "./types.ts";
+import type {
+  WorkerInventoryCheck,
+  WorkerInventoryComponent,
+} from "./types.ts";
 
 /**
  * Report refresh interval: half of the server's five-minute check expiry, so
@@ -147,7 +150,13 @@ export async function refreshReadiness(
   if (revision === null || hostGeneration === undefined) return;
   let capabilityChecks: WorkerInventoryCheck[];
   let checks: WorkerInventoryCheck[];
+  let components: WorkerInventoryComponent[];
   try {
+    // Managed components travel with every report so an Admin can target
+    // them for maintenance.
+    components = await state.maintenance?.inventoryComponents?.(
+      new Date().toISOString(),
+    ) ?? [];
     capabilityChecks = configuredCapabilityChecks(
       state,
       await readinessChecks.call(state.executor),
@@ -176,6 +185,12 @@ export async function refreshReadiness(
     ]),
   );
   const statuses = statusesOf(checks);
+  for (const component of components) {
+    statuses.set(
+      `component:${component.componentKey}`,
+      `${component.actualDigest ?? ""}@${component.actualVersion}`,
+    );
+  }
   const now = state.monotonicNow();
   const due = readiness.reportedRevision !== revision ||
     !sameStatuses(readiness.reportedStatuses, statuses) ||
@@ -187,7 +202,7 @@ export async function refreshReadiness(
       reportId: crypto.randomUUID(),
       expectedInventoryRevision: revision,
       hostGeneration,
-      components: [],
+      components,
       checks,
     }, signal);
     const accepted = response.value.inventoryRevision;
