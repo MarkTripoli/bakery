@@ -740,6 +740,8 @@ export async function enrollWorker(
     slots?: number;
     idempotencyKey?: string;
     scope?: WorkerScope;
+    os?: string;
+    architecture?: string;
   } = {},
 ): Promise<Response> {
   return await adminRequest(
@@ -747,8 +749,8 @@ export async function enrollWorker(
     "/v1/worker-enrollments",
     {
       name: options.name ?? `issue39-host-${crypto.randomUUID()}`,
-      os: "linux",
-      architecture: "x64",
+      os: options.os ?? "linux",
+      architecture: options.architecture ?? "x64",
       capabilities: options.capabilities ?? ["git"],
       slots: options.slots ?? 1,
     },
@@ -769,6 +771,8 @@ export async function registerWorker(
     slots?: number;
     idempotencyKey?: string;
     protocolVersion?: number;
+    os?: string;
+    architecture?: string;
   } = {},
 ): Promise<Response> {
   const headers = jsonHeaders({
@@ -785,8 +789,8 @@ export async function registerWorker(
         enrollmentToken,
         workerCredential: credential,
         name: options.name ?? `issue39-worker-${crypto.randomUUID()}`,
-        os: "linux",
-        architecture: "x64",
+        os: options.os ?? "linux",
+        architecture: options.architecture ?? "x64",
         capabilities: options.capabilities ?? ["git"],
         toolchainVersions: { deno: "2.x" },
         slots: options.slots ?? 1,
@@ -804,6 +808,9 @@ export async function registeredWorker(
     enrollmentIdempotencyKey?: string;
     registrationIdempotencyKey?: string;
     scope?: WorkerScope;
+    /** Enrolled and registered OS; linux unless a test needs another host. */
+    os?: string;
+    architecture?: string;
   } = {},
 ): Promise<{
   enrollment: WorkerEnrollment;
@@ -818,6 +825,8 @@ export async function registeredWorker(
     slots: options.slots,
     idempotencyKey: options.enrollmentIdempotencyKey,
     scope: options.scope,
+    os: options.os,
+    architecture: options.architecture,
   });
   assertEquals(enrollmentResponse.status, 201);
   const enrollment = await enrollmentResponse.json() as WorkerEnrollment;
@@ -832,6 +841,8 @@ export async function registeredWorker(
       slots: options.slots,
       idempotencyKey: options.registrationIdempotencyKey,
       protocolVersion: 2,
+      os: options.os,
+      architecture: options.architecture,
     },
   );
   assertEquals(registrationResponse.status, 200);

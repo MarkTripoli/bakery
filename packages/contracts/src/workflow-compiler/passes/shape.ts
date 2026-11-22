@@ -16,6 +16,7 @@ import { WORKFLOW_ACTION_REGISTRY_VERSION } from "../../workflow-action-registry
 import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
 import {
   DEFAULT_STEP_FILES,
+  OMITTED_STEP_FILES_WRITE,
   SEALED_STEP_FILES,
   sealedByDefault,
   WORKFLOW_FILE_READ_AREAS,
@@ -467,7 +468,7 @@ function readStepFiles(
       WORKFLOW_FILE_WRITE_AREAS,
       new Set(WORKFLOW_FILE_READ_AREAS),
     )
-    : [...DEFAULT_STEP_FILES.write];
+    : [...OMITTED_STEP_FILES_WRITE];
   if (read === null || write === null) return null;
   return { read, write };
 }
