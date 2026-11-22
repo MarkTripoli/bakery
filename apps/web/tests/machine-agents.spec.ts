@@ -400,6 +400,34 @@ test.describe("the Coding agents rows", () => {
     await shot(page, "machine-agents-not-heard");
   });
 
+  test("a second agent Bakery has not heard from has no Sign in, while the banner's agent keeps its one", async ({ page }) => {
+    // Codex is on the machine's list but has reported nothing, so it cannot be
+    // signed in yet; Claude Code is reported and is the banner's agent.
+    await open(
+      page,
+      world({
+        capabilities: ["git", "shell", "web", "model", "claude", "codex"],
+        components: ["harness.claude"],
+      }),
+    );
+    await expect(banner(page)).toContainText(
+      "Claude Code is not signed in yet.",
+    );
+    await expect(
+      banner(page).getByRole("button", { name: "Sign in", exact: true }),
+    ).toBeVisible();
+    // The banner's own row repeats nothing; the other row says why, and has no button, faded or not.
+    await expect(row(page, "claude").getByRole("button")).toHaveCount(0);
+    await expect(row(page, "codex")).toContainText("Not signed in");
+    await expect(row(page, "codex")).toContainText(
+      "Bakery has not heard from Codex on this machine yet.",
+    );
+    await expect(row(page, "codex").getByRole("button")).toHaveCount(0);
+    // The only Sign in on the page is the banner's.
+    await expect(page.getByRole("button", { name: "Sign in", exact: true }))
+      .toHaveCount(1);
+  });
+
   test("ready, not checked and signed out each have their badge and the buttons beside it", async ({ page }) => {
     const w = threeStates();
     await open(page, w);
