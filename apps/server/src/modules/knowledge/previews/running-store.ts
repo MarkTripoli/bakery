@@ -172,6 +172,8 @@ async function announcePreview(
     runId: string;
     version: number;
     eventType: "preview.ready" | "preview.stopped";
+    /** The trace of the request that caused the change, so the event joins it. */
+    traceId: string;
   },
 ): Promise<void> {
   const run = await transaction.query<{ task_id: string }>(
@@ -188,7 +190,7 @@ async function announcePreview(
     aggregateId: input.previewId,
     aggregateVersion: input.version,
     payload: { resourceId: input.previewId, resourceVersion: input.version },
-    traceId: crypto.randomUUID(),
+    traceId: input.traceId,
   });
 }
 
@@ -198,6 +200,8 @@ export type RegisterPreviewInput = {
   routeKey: string;
   upstreamPort: number;
   headSha: string;
+  /** Trace of the registering request; the preview.ready event carries it. */
+  traceId: string;
 };
 
 export type RegisteredPreview =
@@ -297,6 +301,7 @@ export async function registerPreview(
     runId: found.run_id,
     version: preview.version,
     eventType: "preview.ready",
+    traceId: input.traceId,
   });
   return { kind: "created", preview };
 }
@@ -379,6 +384,7 @@ export async function stopPreview(
   organizationId: string,
   principalId: string,
   previewId: string,
+  traceId: string,
 ): Promise<StopOutcome> {
   const locked = await transaction.query<{ status: string }>(
     `select status from bakery.previews
@@ -407,6 +413,7 @@ export async function stopPreview(
     runId: after.runId,
     version: after.version,
     eventType: "preview.stopped",
+    traceId,
   });
   return { kind: "stopped", preview: after };
 }

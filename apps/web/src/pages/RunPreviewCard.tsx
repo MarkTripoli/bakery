@@ -352,7 +352,10 @@ export function RunPreviewCard(
   const [stopping, setStopping] = useState(false);
   const [stopFailed, setStopFailed] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const controller = useRef<AbortController | null>(null);
+  // One controller per action: stopping must never cancel opening, nor the
+  // other way round, or the cancelled one never clears its own state.
+  const prepareController = useRef<AbortController | null>(null);
+  const stopController = useRef<AbortController | null>(null);
   const preview = useQuery(runPreviewQueryOptions(api, scope, runId));
   const record = preview.data ?? null;
   const availability = useQuery({
@@ -365,7 +368,10 @@ export function RunPreviewCard(
   const pullRequests = useQuery({
     ...pullRequestsQueryOptions(api, scope, taskId),
     enabled: scope.organizationId !== null && state?.kind === "running",
-    refetchInterval: 5000,
+    // No task event says that a pull request moved, so the card asks. A slow
+    // cadence is enough: "Behind" only has to appear within the minute, and a
+    // hidden tab does not poll at all.
+    refetchInterval: 30_000,
   });
   const newer = record === null ? null : newerHeadSha(
     state,
@@ -373,7 +379,10 @@ export function RunPreviewCard(
     choosePullRequest(pullRequests.data?.items ?? [], runId),
   );
 
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => () => {
+    prepareController.current?.abort();
+    stopController.current?.abort();
+  }, []);
 
   // The 30 second grant window is the only countdown; it drops the secret when
   // the server would refuse it.
@@ -433,9 +442,9 @@ export function RunPreviewCard(
 
   const prepare = async () => {
     if (open.kind === "preparing") return;
-    controller.current?.abort();
+    prepareController.current?.abort();
     const abort = new AbortController();
-    controller.current = abort;
+    prepareController.current = abort;
     setStopFailed(false);
     setOpen({ kind: "preparing" });
     const result = await api.previews.access({
@@ -463,14 +472,17 @@ export function RunPreviewCard(
 
   const stop = async () => {
     if (stopping) return;
-    controller.current?.abort();
+    // A preview that is being stopped is not opened: drop an open in flight.
+    prepareController.current?.abort();
     const abort = new AbortController();
-    controller.current = abort;
+    stopController.current = abort;
     setStopping(true);
     setStopFailed(false);
-    // One error at a time: a new stop clears an older open error.
+    // One error at a time: a new stop clears an older open error, and an open
+    // that was just dropped must not stay "preparing".
     setOpen((current) =>
-      current.kind === "failed" || current.kind === "linkExpired"
+      current.kind === "failed" || current.kind === "linkExpired" ||
+        current.kind === "preparing"
         ? { kind: "idle" }
         : current
     );
@@ -480,6 +492,7 @@ export function RunPreviewCard(
       idempotencyKey: crypto.randomUUID(),
       signal: abort.signal,
     });
+    // Only leaving the page cancels a stop.
     if (abort.signal.aborted) return;
     setStopping(false);
     if (!result.ok) {

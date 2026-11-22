@@ -136,6 +136,8 @@ type World = {
   stopped: number;
   accessCalls: number;
   stopStatus: number;
+  /** When set, the stop answers only after this settles. */
+  stopHold: Promise<void> | null;
 };
 
 async function prepare(page: Page, initial: Partial<World> = {}) {
@@ -147,6 +149,7 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
     stopped: 0,
     accessCalls: 0,
     stopStatus: 201,
+    stopHold: null,
     ...initial,
   };
   await page.route(
@@ -227,8 +230,9 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
       },
     });
   });
-  await page.route(`**/v1/previews/${previewId}/stop`, (route) => {
+  await page.route(`**/v1/previews/${previewId}/stop`, async (route) => {
     world.stopped += 1;
+    await world.stopHold;
     if (world.stopStatus !== 201) {
       return route.fulfill({
         status: world.stopStatus,
@@ -587,6 +591,31 @@ test("a stop that fails says so, keeps the preview running and can be tried agai
   await card(page).getByRole("button", { name: "Stop preview" }).click();
   await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible();
   await expect(card(page).getByRole("alert")).toHaveCount(0);
+});
+
+test("opening while a stop is still answering does not leave the card stopping", async ({ page }) => {
+  let answer!: () => void;
+  const world = await prepare(page, {
+    stopHold: new Promise<void>((resolve) => {
+      answer = resolve;
+    }),
+  });
+  await page.goto(`/tasks/${taskId}`);
+  await openDetails(page);
+  await card(page).getByRole("button", { name: "Stop preview" }).click();
+  await expect(card(page).getByRole("button", { name: "Stopping preview" }))
+    .toBeVisible();
+  // The face still offers Prepare while the stop is out; using it must not
+  // cancel the stop's own bookkeeping.
+  await card(page).getByRole("button", { name: "Prepare preview" }).click();
+  await expect.poll(() => world.accessCalls).toBe(1);
+  answer();
+  await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible();
+  await expect(card(page).getByRole("button", { name: "Stopping preview" }))
+    .toHaveCount(0);
+  await expect(card(page).getByRole("button", { name: "Open preview" }))
+    .toHaveCount(0);
+  expect(world.stopped).toBe(1);
 });
 
 test("a grant that is not used in its 30 seconds is dropped and the card says to prepare again", async ({ page }) => {
