@@ -28,7 +28,12 @@ export type VersionRow = {
   workflowId: string;
   revision: number;
   status: "draft" | "published" | "retired";
-  steps: { id: string; uses: string; agentVersionId?: string }[];
+  steps: {
+    id: string;
+    uses: string;
+    agentVersionId?: string;
+    skills?: string[];
+  }[];
   /** The definition's own `steps` value, when a test needs nodes beyond plain actions. */
   spec?: unknown;
   /** The workflow's agent bindings by action. */
@@ -92,6 +97,8 @@ export type Options = {
   endless?: boolean;
   /** What the skills read answers for any version: its items, or "fail" for a read that cannot be answered. */
   skills?: { items: unknown[] } | "fail";
+  /** The skills the picker may offer (the skills list read): the skills, or "fail". Empty by default. */
+  catalog?: unknown[] | "fail";
 };
 
 const json = (body: unknown, status = 200) => ({
@@ -225,6 +232,9 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     /** Reads of a version's skills, and what the next one answers (a test may change it). */
     skillReads: 0,
     skillsAnswer: options.skills as Options["skills"],
+    /** Reads of the skills catalog, and what the next one answers. */
+    catalogReads: 0,
+    catalogAnswer: options.catalog as Options["catalog"],
     failing: options.failing ?? null as Options["failing"] | null,
   };
   await page.route(
@@ -326,6 +336,18 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         target.version = (target.version ?? 1) + 1;
       }
       return route.fulfill(json(workflowBody(target)));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/skills",
+    (route) => {
+      seen.catalogReads += 1;
+      if (seen.catalogAnswer === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      return route.fulfill(
+        json({ items: seen.catalogAnswer ?? [], nextCursor: null }),
+      );
     },
   );
   await page.route(

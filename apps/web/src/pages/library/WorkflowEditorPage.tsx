@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import {
+  attachableSkillsQueryOptions,
   effectiveAccessQueryOptions,
   workflowQueryOptions,
   workflowVersionSkillsQueryOptions,
@@ -17,11 +18,12 @@ import { ShellSlot } from "../../shell/shell-slots.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import {
   type PanelTarget,
+  type SkillChoice,
   StepPanel,
   type StepSkillRow,
   type StepSkills,
 } from "./StepPanel.tsx";
-import type { WorkflowVersionSkills } from "../../api/client.ts";
+import type { SkillResponse, WorkflowVersionSkills } from "../../api/client.ts";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import {
@@ -173,6 +175,24 @@ export function WorkflowEditorPage(
       draft?.digest ?? "",
     ),
   );
+  // The skills a person may attach, and what is in flight (#431, design-ux).
+  const catalog = useQuery(attachableSkillsQueryOptions(api, scope));
+  // Personal skill versions the owner confirmed this session; the draft save names them.
+  const confirmed = useRef<Set<string>>(new Set());
+  const [attaching, setAttaching] = useState<
+    { readonly stepId: string; readonly choice: SkillChoice } | null
+  >(null);
+  const [removingOther, setRemovingOther] = useState<
+    {
+      readonly stepId: string;
+      readonly versionId: string;
+      readonly name: string;
+      readonly owner: string;
+    } | null
+  >(null);
+  const [skillToast, setSkillToast] = useState<
+    { readonly text: string; readonly undo?: () => void } | null
+  >(null);
   const stepPaths = useMemo(() => {
     const spec = record(draft?.normalizedSpec);
     const steps = Array.isArray(spec.steps) ? spec.steps : [];
@@ -234,6 +254,16 @@ export function WorkflowEditorPage(
             record(draft.normalizedSpec),
             steps,
           ) as never,
+          // The owner's confirmation for each private skill still attached, so the save is not refused.
+          ...(() => {
+            const attached = new Set(steps.flatMap((step) => step.skills));
+            const confirmedHere = [...confirmed.current].filter((id) =>
+              attached.has(id)
+            ).slice(0, 32);
+            return confirmedHere.length === 0
+              ? {}
+              : { confirmPersonalSkillUse: confirmedHere };
+          })(),
         },
         idempotencyKey: crypto.randomUUID(),
       });
@@ -502,6 +532,53 @@ export function WorkflowEditorPage(
       count: String(problemCount),
     });
 
+  // Attaching and removing a skill is one change to a step's skills, so undo and redo work.
+  const say = (key: string, values: Record<string, string>) =>
+    translate(
+      `library.workflow.editor.skills.${key}` as never,
+      values as never,
+    );
+  const attachNow = (stepId: string, choice: SkillChoice) => {
+    const step = editor.steps.find((held) => held.id === stepId);
+    if (step === undefined || step.skills.includes(choice.value)) return;
+    if (choice.group === "private") confirmed.current.add(choice.value);
+    dispatch({
+      kind: "skills",
+      id: stepId,
+      skills: [...step.skills, choice.value],
+    });
+    // An organization skill attaches at once; a private one says what it now allows.
+    if (choice.group === "private") {
+      setSkillToast({
+        text: say("toast.attached", {
+          skill: choice.name,
+          version: String(choice.revision),
+        }),
+      });
+    }
+  };
+  const removeNow = (
+    stepId: string,
+    versionId: string,
+    name: string,
+    published: boolean,
+  ) => {
+    const step = editor.steps.find((held) => held.id === stepId);
+    if (step === undefined) return;
+    const before = step.skills;
+    dispatch({
+      kind: "skills",
+      id: stepId,
+      skills: before.filter((id) => id !== versionId),
+    });
+    setSkillToast({
+      text: say(published ? "toast.removedPublished" : "toast.removed", {
+        skill: name,
+      }),
+      undo: () => dispatch({ kind: "skills", id: stepId, skills: before }),
+    });
+  };
+
   // What the panel shows for what is selected: the start card, a part written
   // in code (a group, or a step only changeable in code), or a step.
   const panelTarget = useMemo<PanelTarget | null>(() => {
@@ -541,7 +618,65 @@ export function WorkflowEditorPage(
         live?.agentVersionId != null,
         stepPaths.get(step.id),
         skillsRead,
+        live?.skills ?? [],
+        catalog.data ?? [],
+        editable
+          ? (row) => () => {
+            // Someone else's private skill asks first: only its owner can attach it again.
+            if (row.theirs) {
+              setRemovingOther({
+                stepId: step.id,
+                versionId: row.versionId,
+                name: row.name,
+                owner: row.owner,
+              });
+            } else {
+              removeNow(step.id, row.versionId, row.name, row.published);
+            }
+          }
+          : null,
       ),
+      attach: editable && live?.agentVersionId != null
+        ? {
+          state: catalog.isError
+            ? "failed"
+            : catalog.isPending
+            ? "loading"
+            : "ready",
+          choices: (catalog.data ?? [])
+            .filter((skill) =>
+              !(live.skills ?? []).includes(skill.activeVersionId as string)
+            )
+            .map((skill) => ({
+              value: skill.activeVersionId as string,
+              name: skill.name,
+              slug: skill.slug,
+              revision: skill.activeRevision as number,
+              group: skill.scope === "personal"
+                ? "private" as const
+                : "organization" as const,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+          onRetry: () => void catalog.refetch(),
+          onChoose: (value: string) => {
+            const picked = (catalog.data ?? []).find((skill) =>
+              skill.activeVersionId === value
+            );
+            if (picked === undefined) return;
+            const choice: SkillChoice = {
+              value,
+              name: picked.name,
+              slug: picked.slug,
+              revision: picked.activeRevision as number,
+              group: picked.scope === "personal" ? "private" : "organization",
+            };
+            // A private skill asks first: the owner confirms what is shared.
+            if (choice.group === "private") {
+              setAttaching({ stepId: step.id, choice });
+            } else attachNow(step.id, choice);
+          },
+        }
+        : null,
       canMoveUp: index > 0,
       canMoveDown: index >= 0 && index < steps.length - 1,
       disabled: !editable || index < 0,
@@ -572,6 +707,8 @@ export function WorkflowEditorPage(
     skillsRead.data,
     skillsRead.status,
     skillsRead.fetchStatus,
+    catalog.data,
+    catalog.status,
   ]);
 
   const breadcrumbs = (
@@ -822,6 +959,115 @@ export function WorkflowEditorPage(
           })}
         </UI.Toast>
       )}
+      {skillToast === null ? null : (
+        <UI.Toast
+          tone="success"
+          {...(skillToast.undo === undefined ? {} : {
+            action: (
+              <UI.Button
+                variant="secondary"
+                onClick={() => {
+                  skillToast.undo?.();
+                  setSkillToast(null);
+                }}
+              >
+                {say("toast.undo", {})}
+              </UI.Button>
+            ),
+          })}
+          onDismiss={() => setSkillToast(null)}
+        >
+          {skillToast.text}
+        </UI.Toast>
+      )}
+      {attaching === null ? null : (
+        <UI.AlertDialog
+          open
+          title={say("confirm.title", {})}
+          onOpenChange={(open) => {
+            if (!open) setAttaching(null);
+          }}
+          cancelAction={
+            <UI.Button
+              variant="secondary"
+              onClick={() => setAttaching(null)}
+            >
+              {translate("core.actions.cancel" as never)}
+            </UI.Button>
+          }
+          confirmAction={
+            <UI.Button
+              variant="primary"
+              onClick={() => {
+                attachNow(attaching.stepId, attaching.choice);
+                setAttaching(null);
+              }}
+            >
+              {say("confirm.action", {})}
+            </UI.Button>
+          }
+        >
+          <UI.Stack gap="compact">
+            <UI.Text>
+              {say("confirm.lead", {
+                workflow: workflow.data?.name ?? "",
+                skill: attaching.choice.name,
+                version: String(attaching.choice.revision),
+              })}
+            </UI.Text>
+            <UI.Text>{say("confirm.see", {})}</UI.Text>
+            <UI.Text>{say("confirm.files", {})}</UI.Text>
+            <UI.Text>{say("confirm.quote", {})}</UI.Text>
+            <UI.Text>
+              {say("confirm.version", {
+                version: String(attaching.choice.revision),
+              })}
+            </UI.Text>
+            <UI.Text variant="muted">{say("confirm.stop", {})}</UI.Text>
+          </UI.Stack>
+        </UI.AlertDialog>
+      )}
+      {removingOther === null ? null : (
+        <UI.AlertDialog
+          open
+          title={removingOther.owner === ""
+            ? say("removeOther.titleUnnamed", {})
+            : say("removeOther.title", { owner: removingOther.owner })}
+          onOpenChange={(open) => {
+            if (!open) setRemovingOther(null);
+          }}
+          cancelAction={
+            <UI.Button
+              variant="secondary"
+              onClick={() => setRemovingOther(null)}
+            >
+              {translate("core.actions.cancel" as never)}
+            </UI.Button>
+          }
+          confirmAction={
+            <UI.Button
+              variant="primary"
+              onClick={() => {
+                removeNow(
+                  removingOther.stepId,
+                  removingOther.versionId,
+                  removingOther.name,
+                  false,
+                );
+                setRemovingOther(null);
+              }}
+            >
+              {say("remove.action", {})}
+            </UI.Button>
+          }
+        >
+          <UI.Text>
+            {removingOther.owner === ""
+              ? say("removeOther.bodyUnnamed", {})
+              : say("removeOther.body", { owner: removingOther.owner })}
+          </UI.Text>
+        </UI.AlertDialog>
+      )}
       {problemsOpen
         ? (
           <UI.Dialog
@@ -931,8 +1177,10 @@ export function WorkflowEditorPage(
 /**
  * What a step's Skills list shows (#431): only a step with an agent has one.
  * The rows are the skills the server names for the step's place in the draft,
- * in the order it gives them; while the read is on its way, or when it failed,
- * the list says so instead of looking empty.
+ * in the order it gives them, bent to the edit not yet saved: a skill just
+ * attached shows at once (from the catalog), one just removed is gone. While
+ * the read is on its way, or when it failed, the list says so instead of
+ * looking empty.
  */
 function skillsOf(
   hasAgent: boolean,
@@ -944,6 +1192,17 @@ function skillsOf(
     readonly data: WorkflowVersionSkills | undefined;
     readonly refetch: () => unknown;
   },
+  held: readonly string[],
+  catalog: readonly SkillResponse[],
+  removable:
+    | ((row: {
+      readonly versionId: string;
+      readonly name: string;
+      readonly owner: string;
+      readonly theirs: boolean;
+      readonly published: boolean;
+    }) => () => void)
+    | null,
 ): StepSkills {
   if (!hasAgent || stepPath === undefined) return { kind: "hidden" };
   // No saved draft to read skills for (the read is switched off): nothing to show.
@@ -952,8 +1211,12 @@ function skillsOf(
     return { kind: "failed", onRetry: () => void read.refetch() };
   }
   if (read.data === undefined) return { kind: "loading" };
-  const rows: StepSkillRow[] = read.data.items
-    .filter((item) => item.stepPath === stepPath)
+  const here = read.data.items.filter((item) => item.stepPath === stepPath);
+  // A skill the person removed is gone at once, a slot stays until it is dealt with.
+  const rows: StepSkillRow[] = here
+    .filter((item) =>
+      item.skillVersionId === null || held.includes(item.skillVersionId)
+    )
     .map((item, index) => ({
       key: `${item.stepPath}#${index}`,
       name: item.skillName,
@@ -962,7 +1225,44 @@ function skillsOf(
       owner: item.ownerDisplayName,
       mine: item.mine,
       status: item.status,
+      ...(removable === null || item.skillVersionId === null ||
+          item.status !== "available"
+        ? {}
+        : {
+          onRemove: removable({
+            versionId: item.skillVersionId,
+            name: item.skillName ?? "",
+            owner: item.ownerDisplayName ?? "",
+            theirs: item.scope === "personal" && !item.mine,
+            published: item.publishedVersionUsesIt,
+          }),
+        }),
     }));
+  // A skill just attached is not in the saved draft yet: it shows from the catalog.
+  const shown = new Set(here.map((item) => item.skillVersionId));
+  for (const id of held) {
+    if (shown.has(id)) continue;
+    const skill = catalog.find((one) => one.activeVersionId === id);
+    if (skill === undefined) continue;
+    rows.push({
+      key: `${stepPath}#new-${id}`,
+      name: skill.name,
+      revision: skill.activeRevision,
+      scope: skill.scope,
+      owner: null,
+      mine: skill.scope === "personal",
+      status: "available",
+      ...(removable === null ? {} : {
+        onRemove: removable({
+          versionId: id,
+          name: skill.name,
+          owner: "",
+          theirs: false,
+          published: false,
+        }),
+      }),
+    });
+  }
   return { kind: "ready", rows };
 }
 

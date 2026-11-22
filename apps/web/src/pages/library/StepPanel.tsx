@@ -33,6 +33,27 @@ export type StepSkillRow = {
   readonly mine: boolean;
   /** Whether the skill can be used at this step now, or why it cannot. */
   readonly status: "available" | "stopped" | "unavailable" | "missing";
+  /** Takes the skill off the step; absent when the page cannot edit or the row is a slot. */
+  readonly onRemove?: () => void;
+};
+
+/** One skill the picker offers: the active version people attach (#431). */
+export type SkillChoice = {
+  /** The skill's active version id: what the step names. */
+  readonly value: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly revision: number;
+  /** Your organization's skills come first; the caller's own private ones after. */
+  readonly group: "organization" | "private";
+};
+
+/** What the picker shows: while it reads, when it failed, or the skills to choose from. */
+export type StepAttach = {
+  readonly state: "loading" | "failed" | "ready";
+  readonly choices: readonly SkillChoice[];
+  readonly onRetry: () => void;
+  readonly onChoose: (value: string) => void;
 };
 
 /** What the Skills list of a step shows: not at all, while it reads, when it failed, or the rows. */
@@ -63,6 +84,8 @@ export type PanelTarget =
     readonly problem: string | undefined;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
+    /** The picker that attaches a skill; null when the page cannot edit. */
+    readonly attach: StepAttach | null;
     readonly canMoveUp: boolean;
     readonly canMoveDown: boolean;
     readonly disabled: boolean;
@@ -184,7 +207,7 @@ export function StepPanel(
         )}
         {target.skills.kind === "hidden"
           ? null
-          : <Skills skills={target.skills} />}
+          : <Skills attach={target.attach} skills={target.skills} />}
       </UI.Stack>
     </UI.InspectorPanel>
   );
@@ -196,8 +219,9 @@ export function StepPanel(
  * text on its row, with who let the workflow use it.
  */
 function Skills(
-  { skills }: {
+  { skills, attach }: {
     readonly skills: Exclude<StepSkills, { readonly kind: "hidden" }>;
+    readonly attach: StepAttach | null;
   },
 ) {
   const { translate } = useI18n();
@@ -245,7 +269,97 @@ function Skills(
             ))}
           </UI.Stack>
         )}
+      {attach === null || skills.kind !== "ready"
+        ? null
+        : <AttachSkill attach={attach} t={t} />}
     </UI.Stack>
+  );
+}
+
+type Say = (key: string, values?: Record<string, string | number>) => string;
+
+/**
+ * The picker that attaches a skill (#431, design-ux): the organization's skills
+ * first, then the caller's own private ones, with the group line that says
+ * attaching one shares its use, not its files. Two skills of one name in one
+ * group carry their slug so they can be told apart.
+ */
+function AttachSkill(
+  { attach, t }: { readonly attach: StepAttach; readonly t: Say },
+) {
+  const { translate } = useI18n();
+  if (attach.state === "failed") {
+    return (
+      <UI.InlineNotice
+        action={
+          <UI.Button onClick={attach.onRetry} variant="secondary">
+            {translate("core.actions.retry" as never)}
+          </UI.Button>
+        }
+        role="status"
+        tone="error"
+      >
+        {t("picker.failed")}
+      </UI.InlineNotice>
+    );
+  }
+  if (attach.state === "ready" && attach.choices.length === 0) {
+    return <UI.Text variant="muted">{t("picker.empty")}</UI.Text>;
+  }
+  const optionsOf = (group: SkillChoice["group"]) => {
+    const inGroup = attach.choices.filter((choice) => choice.group === group);
+    return inGroup.map((choice) => {
+      const same = inGroup.filter((other) => other.name === choice.name).length;
+      const label = t(
+        group === "private" ? "picker.optionPrivate" : "picker.option",
+        { name: choice.name, version: choice.revision },
+      );
+      return {
+        value: choice.value,
+        label: same > 1
+          ? t("picker.withSlug", { label, slug: choice.slug })
+          : label,
+      };
+    });
+  };
+  const organization = optionsOf("organization");
+  const personal = optionsOf("private");
+  return (
+    <UI.Combobox
+      disabled={attach.state === "loading"}
+      label={t("picker.label")}
+      onChange={(event) => {
+        const chosen = event.currentTarget.value;
+        event.currentTarget.value = "";
+        if (chosen !== "") attach.onChoose(chosen);
+      }}
+      options={[
+        { value: "", label: t("picker.placeholder") },
+        ...(organization.length === 0 ? [] : [
+          {
+            value: "group-organization",
+            label: t("picker.groupOrganization"),
+            disabled: true,
+          },
+          ...organization,
+        ]),
+        ...(personal.length === 0 ? [] : [
+          {
+            value: "group-private",
+            label: t("picker.groupPrivate"),
+            disabled: true,
+          },
+          {
+            value: "group-private-note",
+            label: t("picker.groupPrivateNote"),
+            disabled: true,
+          },
+          ...personal,
+        ]),
+      ]}
+      state={attach.state === "loading" ? "loading" : undefined}
+      value=""
+    />
   );
 }
 
@@ -309,6 +423,17 @@ function SkillRow(
             version,
           })}
       </UI.Text>
+      {row.onRemove === undefined ? null : (
+        <UI.Inline>
+          <UI.Button
+            aria-label={t("remove.label", { name })}
+            onClick={row.onRemove}
+            variant="text"
+          >
+            {t("remove.action")}
+          </UI.Button>
+        </UI.Inline>
+      )}
     </UI.Stack>
   );
 }
