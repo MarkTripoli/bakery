@@ -68,6 +68,13 @@ export type ActionDispatch = Readonly<{
    */
   effectKey?: string;
   agentVersionId?: string;
+  /**
+   * The step's declared input slots in authored order, each with the value its
+   * `from` resolved to (normally an artifact reference). Present only when the
+   * step declares slots, so a dispatch of a step without them is unchanged.
+   * The host pins what each value names at admission.
+   */
+  inputs?: readonly Readonly<{ slot: string; value: JsonValue }>[];
   requires: readonly string[];
   timeoutMs: number;
   retry: WorkflowActionNode["retry"];
@@ -418,6 +425,12 @@ class Run {
         ...(node.agentVersionId === undefined
           ? {}
           : { agentVersionId: node.agentVersionId }),
+        ...(node.inputs === undefined || node.inputs.length === 0 ? {} : {
+          inputs: node.inputs.map((slot) => ({
+            slot: slot.name,
+            value: evaluateValue(slot.from, read),
+          })),
+        }),
         requires: node.requires,
         timeoutMs: node.timeoutMs,
         retry: node.retry,
