@@ -345,3 +345,29 @@ body {
 .panel--dialog {
   inline-size: min(460px, calc(100% - var(--space-8)));
 }
+
+/* A link's dialog buttons: side by side at the end of the line on a wide window, the secondary first and
+   the primary last; stacked on a narrow one, the primary on top (design-ux, #77 slice 5, section 3). */
+.buttons--dialog {
+  flex-direction: row;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.buttons--dialog .btn {
+  inline-size: auto;
+  min-inline-size: 8rem;
+}
+
+@media (max-width: 479px) {
+  .buttons--dialog {
+    flex-direction: column-reverse;
+    justify-content: flex-start;
+  }
+
+  .buttons--dialog .btn {
+    inline-size: 100%;
+    min-block-size: 44px;
+  }
+}

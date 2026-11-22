@@ -86,7 +86,6 @@ pub struct Shell {
     /// handoff has been attempted for this sign-in, so a refusal is not asked again in a loop.
     window_page: Mutex<WindowPage>,
     /// Made when the app starts: a notice's buttons carry it, so a page cannot ask for an action.
-    action_nonce: String,
     toasts: Mutex<std::collections::HashMap<u64, ToastTarget>>,
     downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
     next_toast: std::sync::atomic::AtomicU64,
@@ -110,6 +109,13 @@ struct DownloadState {
 struct WindowPage {
     on_server: bool,
     tried: bool,
+}
+
+/// The one value this run's private addresses carry (`bakery-action://` and `bakery-link://`): made
+/// once, when first asked for.
+pub fn run_nonce() -> &'static str {
+    static NONCE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NONCE.get_or_init(random_nonce)
 }
 
 /// A value a page cannot guess: the hasher's random seed is new for every process.
@@ -216,7 +222,6 @@ impl Shell {
             pending_open: Mutex::new(None),
             menu: Mutex::new(None),
             window_page: Mutex::new(WindowPage::default()),
-            action_nonce: random_nonce(),
             toasts: Mutex::new(Default::default()),
             downloads: Mutex::new(Default::default()),
             next_toast: std::sync::atomic::AtomicU64::new(1),
@@ -315,8 +320,27 @@ impl Shell {
         st.facts.link_dialog.as_ref().map(|d| d.full().to_string())
     }
 
+    /// What a Bakery menu entry does. The menu and the harness's `menu-<entry>` command both come here.
+    pub fn menu_action(self: &Arc<Self>, entry: &str) {
+        let shell = Arc::clone(self);
+        match entry {
+            "use_different_server" => {
+                tauri::async_runtime::spawn(async move {
+                    shell.dispatch(Event::UseDifferentServer).await
+                });
+            }
+            "sign_out" => {
+                tauri::async_runtime::spawn(
+                    async move { shell.dispatch(Event::SignOutPressed).await },
+                );
+            }
+            "quit" => self.app.exit(0),
+            _ => {}
+        }
+    }
+
     pub fn action_nonce(&self) -> &str {
-        &self.action_nonce
+        run_nonce()
     }
 
     pub fn next_id(&self) -> u64 {
@@ -330,7 +354,7 @@ impl Shell {
 
     /// Draws a notice in the page the window shows.
     fn show_toast(&self, toast: Toast) {
-        let script = toast::show_script(&toast, &self.action_nonce);
+        let script = toast::show_script(&toast, run_nonce());
         let shown = self
             .app
             .get_webview_window("main")
@@ -407,6 +431,9 @@ impl Shell {
     /// The webview finished, or gave up on, a file. The file came in to a private folder of the app's
     /// own; only now is the person asked where to keep it, and nothing is written anywhere else.
     pub fn download_finished(self: &Arc<Self>, url: &str, success: bool) {
+        // Harness only: a download that arrived whole is treated as one that stopped half way, so the
+        // failure path runs against a real part file.
+        let success = success && std::env::var("BAKERY_DESKTOP_DOWNLOAD_FAIL").is_err();
         let (id, name, temp) = {
             let mut downloads = self.downloads.lock().unwrap();
             match downloads.get_mut(url) {
@@ -1052,6 +1079,13 @@ impl Shell {
                                 })
                                 .await;
                         }
+                        continue;
+                    }
+                    // `menu-<entry>`: the same as choosing that entry of the Bakery menu. Harness only.
+                    if let Some(item) = name.strip_prefix("menu-") {
+                        let _ = std::fs::remove_file(entry.path());
+                        shell.report("command", json!({ "menu": item }));
+                        shell.menu_action(item);
                         continue;
                     }
                     // `toast-saving` or `toast-failed`: shows that notice with sample words, for the

@@ -722,6 +722,34 @@ def phase_web_pages():
           and [e["data"]["button"] for e in reports(p) if e["event"] == "system_dialog_answer"][-1] == "copy_link")
     check("[web] nothing was drawn in the window for it",
           all(e["data"].get("link_dialog") is None for e in reports(p) if e["event"] == "view" and e["data"]["window"].get("kind") == "app"))
+    # A page's new-tab and window.open requests are judged like any other link (QA, #860): another web
+    # address goes to the browser, a page of this server opens in this window, anything else says so.
+    def count(event, **match):
+        return sum(1 for e in reports(p) if e["event"] == event
+                   and all(e["data"].get(k) == v for k, v in match.items()))
+
+    before = count("link_to_browser")
+    eval_in_window(p, "window.open('https://example.org/docs', '_blank')")
+    check("[web] window.open to another site goes to the system browser",
+          wait_until(lambda: count("link_to_browser") > before, timeout=20))
+    before = count("link_to_browser")
+    eval_in_window(p, "const a = document.createElement('a'); a.href = 'https://example.org/other'; "
+                      "a.target = '_blank'; document.body.appendChild(a); a.click()")
+    check("[web] a link that asks for a new tab goes to the system browser",
+          wait_until(lambda: count("link_to_browser") > before, timeout=20))
+    check("[web] a browser that cannot open says so in the system's dialog",
+          wait_until(lambda: count("system_dialog", kind="browser_did_not_open") >= 2, timeout=20))
+    before = len([1 for h, pth in page_loads(p) if pth == "/issues"])
+    eval_in_window(p, "window.open('/issues?from=popup', '_blank')")
+    check("[web] window.open to a page of this server opens it in this window",
+          wait_until(lambda: len([1 for h, pth in page_loads(p) if pth == "/issues"]) > before, timeout=30))
+    before = count("system_dialog", kind="not_web")
+    eval_in_window(p, "const f = document.createElement('a'); f.href = 'file:///etc/hostname'; "
+                      "document.body.appendChild(f); f.click()")
+    eval_in_window(p, "window.open('file:///etc/hostname', '_blank')")
+    check("[web] a link to a local file is refused with a dialog, never followed",
+          wait_until(lambda: count("system_dialog", kind="not_web") > before, timeout=20),
+          str([e["data"] for e in reports(p) if e["event"] in ("link_refused", "system_dialog")][-4:]))
     # The web's own Sign out: a full navigation to the web's sign-out page, as its link does.
     eval_in_window(p, "location.assign('/sign-out')")
     check("[web] signing out in the web ends the app's sign-in and returns to the sign-in panel",
@@ -746,8 +774,9 @@ def phase_web_download():
              "document.body.appendChild(a);a.click()")
     for label, extra in (("[download] with a folder chosen", {"BAKERY_DESKTOP_DOWNLOAD_TO": drop}),
                          ("[download] with the dialog cancelled", {"BAKERY_DESKTOP_DOWNLOAD_TO": "-"}),
+                         ("[download] that stops half way", {"BAKERY_DESKTOP_DOWNLOAD_FAIL": "1", "BAKERY_DESKTOP_DOWNLOAD_TO": drop}),
                          ("[download] with the dialog", {})):
-        p = os.path.join(OUT, "n-download-" + label.split("with ")[1].replace(" ", "-"))
+        p = os.path.join(OUT, "n-download-" + re.sub(r"[^a-z]+", "-", label.lower().replace("[download]", "")).strip("-"))
         clear_store(web)
         if os.path.exists(os.path.join(drop, "bakery-probe.svg")):
             os.remove(os.path.join(drop, "bakery-probe.svg"))
@@ -763,7 +792,7 @@ def phase_web_download():
         time.sleep(3)
         eval_in_window(p, probe)
         incoming = os.path.join("/tmp", f"bakery-incoming-{app.pid}")
-        if extra.get("BAKERY_DESKTOP_DOWNLOAD_TO") == drop:
+        if extra.get("BAKERY_DESKTOP_DOWNLOAD_TO") == drop and "BAKERY_DESKTOP_DOWNLOAD_FAIL" not in extra:
             check(label + ": the file is saved there", wait_until(lambda: os.path.exists(os.path.join(drop, "bakery-probe.svg")), timeout=20))
             check(label + ": the app reports the save", wait_report(p, "download_saved", 1, timeout=20))
             check(label + ": a notice says where it was saved",
@@ -784,6 +813,18 @@ def phase_web_download():
             check(label + ": an action address without the nonce is refused",
                   sum(1 for e in reports(p) if e["event"] == "toast_action") == 1
                   and not any(e["event"] == "view" and e["data"].get("link_dialog") for e in reports(p)))
+        elif "BAKERY_DESKTOP_DOWNLOAD_FAIL" in extra:
+            check(label + ": the part file is deleted",
+                  wait_report(p, "partial_file", 1, timeout=20)
+                  and [e["data"]["removed"] for e in reports(p) if e["event"] == "partial_file"][-1] is True)
+            time.sleep(1)
+            check(label + ": nothing was kept, not even where the file came in",
+                  not os.path.exists(os.path.join(drop, "bakery-probe.svg"))
+                  and (not os.path.isdir(incoming) or not os.listdir(incoming)),
+                  str(os.listdir(incoming)) if os.path.isdir(incoming) else "no incoming folder")
+            check(label + ": an error notice with the reason and Try again is shown",
+                  wait_report(p, "toast", 1, timeout=20)
+                  and [e["data"]["text"] for e in reports(p) if e["event"] == "toast"][-1] == "bakery-probe.svg could not be saved.")
         elif extra:
             check(label + ": the app reports it cancelled", wait_report(p, "download_cancelled", 1, timeout=20))
             time.sleep(1)
@@ -804,6 +845,54 @@ def phase_web_download():
                   os.path.isdir(incoming) and any(f.endswith("bakery-probe.svg") for f in os.listdir(incoming)),
                   str(os.listdir(incoming)) if os.path.isdir(incoming) else "no incoming folder")
         stop_app()
+
+
+def phase_menu():
+    """The Bakery menu: each of its entries does what the design says. A run cannot press a native menu,
+    so each entry is chosen through the same function the menu calls."""
+    p = os.path.join(OUT, "p-menu")
+    clear_store()
+    start_app(p)
+    check("[menu] the app signs in", sign_in_to_app(p, "[menu]"))
+    open(os.path.join(p, "cmd", "menu-use_different_server"), "w").close()
+    check("[menu] Use a different server opens the chooser", wait_window(p, "choose", timeout=30) is not None)
+    stop_app()
+    clear_store()
+    p = os.path.join(OUT, "p-menu-out")
+    start_app(p)
+    check("[menu] the app signs in again", sign_in_to_app(p, "[menu out]"))
+    open(os.path.join(p, "cmd", "menu-sign_out"), "w").close()
+    check("[menu] Sign out signs out and says the server ended it",
+          wait_window(p, "signed_out", timeout=30) is not None)
+    check("[menu] the saved sign-in is gone", wait_until(lambda: stored() == ""))
+    open(os.path.join(p, "cmd", "menu-quit"), "w").close()
+    check("[menu] Quit ends the app", wait_until(lambda: app is not None and app.poll() is not None, timeout=20))
+    stop_app()
+
+
+def x_click(x, y):
+    """A real pointer click at a place on the screen, through the X test extension, so a native menu
+    opens as a person's click would open it. No input tool is installed, so the library is called directly."""
+    import ctypes
+    x11 = ctypes.CDLL("libX11.so.6")
+    xtst = ctypes.CDLL("libXtst.so.6")
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    display = x11.XOpenDisplay(os.environ.get("DISPLAY", ":99").encode())
+    if not display:
+        return False
+    xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+    xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
+    x11.XFlush(display)
+    time.sleep(0.3)
+    xtst.XTestFakeButtonEvent(display, 1, 1, 0)
+    x11.XFlush(display)
+    time.sleep(0.2)
+    xtst.XTestFakeButtonEvent(display, 1, 0, 0)
+    x11.XFlush(display)
+    return True
 
 
 def shot(name):
@@ -856,6 +945,7 @@ def phase_web_shots():
             ("dialog-not-web", env, "file"),
             ("dialog-other-server", env, "bakery://open?path=%2Ftasks&server=https%3A%2F%2Fother.example"),
             ("dialog-browser-did-not-open", env, "browser"),
+            ("menu-open", env, "menu"),
         ]
         for name, case_env, how in cases:
             if os.environ.get("E2E_SHOT_ONLY") and os.environ["E2E_SHOT_ONLY"] not in name:
@@ -889,6 +979,10 @@ def phase_web_shots():
                 eval_in_window(p, "location.href = 'file:///etc/hostname'")
                 wait_report(p, "system_dialog", 1, timeout=20)
                 time.sleep(2)
+            elif how == "menu":
+                # The Bakery menu, opened by a click on its name in the menu bar.
+                x_click(30, 12)
+                time.sleep(2)
             elif how == "browser":
                 eval_in_window(p, "location.href = 'https://example.org/docs'")
                 wait_report(p, "system_dialog", 1, timeout=20)
@@ -903,7 +997,7 @@ def main():
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_web_pages, phase_web_download, phase_web_shots):
+                  phase_open_links, phase_menu, phase_web_pages, phase_web_download, phase_web_shots):
         if only and not any(s in phase.__name__ for s in only):
             continue
         try:

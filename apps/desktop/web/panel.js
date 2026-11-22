@@ -226,7 +226,7 @@ function linkDialogNode(dialog) {
   }
   box.append(el("span", "detail__value detail__value--address", dialog.shown));
   node.append(box);
-  const row = el("div", "buttons");
+  const row = el("div", "buttons buttons--dialog");
   for (const button of dialog.buttons) {
     const b = el(
       "button",

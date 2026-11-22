@@ -77,6 +77,35 @@ pub fn toast_action(raw: &str, nonce: &str) -> Option<(String, u64)> {
     parts.next().is_none().then(|| (action.to_string(), id))
 }
 
+/// The scheme a page's own script uses to hand the app a link the web view would otherwise drop: a link
+/// that asks for a new tab, or one to a local file. The app judges the link like any other.
+pub const LINK_SCHEME: &str = "bakery-link";
+
+/// The link a page handed over, as `bakery-link://<nonce>/?l=<the link, percent-encoded>`, when the nonce is
+/// this run's. Anything else, or a link over 4096 characters, hands over nothing.
+pub fn page_link(raw: &str, nonce: &str) -> Option<String> {
+    if nonce.is_empty() {
+        return None;
+    }
+    let url = Url::parse(raw).ok()?;
+    if url.scheme() != LINK_SCHEME
+        || url.host_str() != Some(nonce)
+        || url.port().is_some()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+        || !matches!(url.path(), "" | "/")
+    {
+        return None;
+    }
+    let mut pairs = url.query_pairs();
+    let (key, value) = pairs.next()?;
+    if key != "l" || pairs.next().is_some() || value.is_empty() || value.len() > 4096 {
+        return None;
+    }
+    Some(value.into_owned())
+}
+
 /// The longest page address an `open` link may carry.
 const MAX_PATH: usize = 2048;
 
@@ -496,6 +525,41 @@ mod tests {
         }
         // A run with no nonce answers nothing at all.
         assert_eq!(toast_action("bakery-action:///show/7", ""), None);
+    }
+
+    #[test]
+    fn a_page_hands_over_a_link_with_this_runs_nonce() {
+        assert_eq!(
+            page_link("bakery-link://a1b2/?l=file%3A%2F%2F%2Fetc%2Fhostname", "a1b2"),
+            Some("file:///etc/hostname".to_string())
+        );
+        assert_eq!(
+            page_link("bakery-link://a1b2?l=https%3A%2F%2Fexample.org%2Fa%3Fb%3D1", "a1b2"),
+            Some("https://example.org/a?b=1".to_string())
+        );
+    }
+
+    #[test]
+    fn a_link_handed_over_without_the_nonce_or_in_another_shape_is_ignored() {
+        for raw in [
+            "bakery-link://wrong/?l=file%3A%2F%2F%2Fx",
+            "bakery-link:///?l=x",
+            "bakery-link://a1b2@evil.test/?l=x",
+            "bakery-link://a1b2:80/?l=x",
+            "bakery-link://a1b2/extra?l=x",
+            "bakery-link://a1b2/?l=",
+            "bakery-link://a1b2/?l=x&l=y",
+            "bakery-link://a1b2/?m=x",
+            "bakery-link://a1b2/?l=x#frag",
+            "bakery-link://a1b2/",
+            "https://a1b2/?l=x",
+            "not a url",
+        ] {
+            assert_eq!(page_link(raw, "a1b2"), None, "{raw}");
+        }
+        assert_eq!(page_link("bakery-link:///?l=x", ""), None);
+        let long = format!("bakery-link://a1b2/?l={}", "a".repeat(4097));
+        assert_eq!(page_link(&long, "a1b2"), None);
     }
 
     #[test]
