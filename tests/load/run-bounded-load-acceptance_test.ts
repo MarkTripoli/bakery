@@ -67,6 +67,11 @@ const { workload, budgets } = reference;
 // in the noisy tenant's 9,000 tasks (180 pages of 50).
 const SAMPLES = 160;
 
+/** The tables whose sequential scans the lane forbids, when a test made them large. */
+type LargeTable = "tasks" | "domain_events";
+/** Fewer rows than the smallest reference table is not a large table. */
+const LARGE_TABLE_ROWS = 1_000;
+
 /** Postgres 16's idle stats interval (10 s) plus a margin. */
 const STATS_PUBLISH_WAIT_MS = 11_000;
 
@@ -95,20 +100,55 @@ function withinBudget(name: string, measured: number, budget: number) {
  * otherwise a seq scan they made would not be counted yet.
  */
 async function sequentialScans(
-  database: { query: (sql: string) => Promise<{ rows: unknown[] }> },
+  database: {
+    query: (sql: string, values?: unknown[]) => Promise<{ rows: unknown[] }>;
+  },
+  tables: readonly LargeTable[],
 ): Promise<Record<string, number>> {
-  await new Promise((resolve) => setTimeout(resolve, STATS_PUBLISH_WAIT_MS));
-  const result = await database.query(
-    `select relname, coalesce(seq_scan, 0)::int as seq_scan
-       from pg_stat_user_tables
-      where schemaname = 'bakery' and relname in ('tasks', 'domain_events')`,
+  // Only a table the test made large is checked: on a table of a few rows a
+  // sequential scan is the planner's right choice, so counting it would fail
+  // the lane whenever autovacuum happened to re-analyze a table that an earlier
+  // test emptied. Each checked table must really hold the reference rows.
+  const sizes = await database.query(
+    `select relname, count_rows from (
+       select 'tasks' as relname, (select count(*) from bakery.tasks)::int as count_rows
+       union all
+       select 'domain_events', (select count(*) from bakery.domain_events)::int
+     ) sizes where relname = any($1)`,
+    [tables],
   );
-  return Object.fromEntries(
-    (result.rows as { relname: string; seq_scan: number }[]).map((row) => [
-      row.relname,
-      row.seq_scan,
-    ]),
-  );
+  for (const row of sizes.rows as { relname: string; count_rows: number }[]) {
+    assert(
+      row.count_rows >= LARGE_TABLE_ROWS,
+      `${row.relname} holds ${row.count_rows} rows, not a large table`,
+    );
+  }
+  const read = async () => {
+    const result = await database.query(
+      `select relname, coalesce(seq_scan, 0)::int as seq_scan
+         from pg_stat_user_tables
+        where schemaname = 'bakery' and relname = any($1)`,
+      [tables],
+    );
+    return Object.fromEntries(
+      (result.rows as { relname: string; seq_scan: number }[]).map((row) => [
+        row.relname,
+        row.seq_scan,
+      ]),
+    );
+  };
+  // Settled means two reads a full publish interval apart agree: on a busy
+  // host a backend's counters can arrive later than the interval, and a late
+  // arrival from setup must land in "before", never between the two reads
+  // that bracket the measured requests.
+  let previous = await read();
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, STATS_PUBLISH_WAIT_MS));
+    const current = await read();
+    if (JSON.stringify(current) === JSON.stringify(previous)) return current;
+    previous = current;
+  }
+  throw new Error("sequential-scan counters never settled");
 }
 
 Deno.test("AC2/AC3: task lists stay inside their latency budget over the reference workload, by index", () =>
@@ -179,7 +219,7 @@ Deno.test("AC2/AC3: task lists stay inside their latency budget over the referen
     await database.query("vacuum analyze bakery.tasks");
     await database.query("vacuum analyze bakery.domain_events");
 
-    const before = await sequentialScans(database);
+    const before = await sequentialScans(database, ["tasks", "domain_events"]);
     const firstPage: number[] = [];
     const deepPage: number[] = [];
     // The quiet tenant reads while the noisy one holds nine tenths of the rows.
@@ -215,7 +255,7 @@ Deno.test("AC2/AC3: task lists stay inside their latency budget over the referen
       cursor = page.nextCursor;
       assert(cursor, "the noisy tenant's list ended early");
     }
-    const after = await sequentialScans(database);
+    const after = await sequentialScans(database, ["tasks", "domain_events"]);
 
     withinBudget(
       "task list first page p95",
@@ -351,7 +391,7 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
     );
     await database.query("vacuum analyze bakery.domain_events");
     const heapBefore = settledHeap();
-    const before = await sequentialScans(database);
+    const before = await sequentialScans(database, ["domain_events"]);
 
     const frame = async (client: WsClient, timeoutMs = 10_000) => {
       const value = await client.next(timeoutMs);
@@ -410,9 +450,12 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
         scopes,
         after: "0",
       }));
-      // A cursor frame left from the previous subscription may still be queued.
+      // A cursor frame left from the previous subscription, or a keep-alive
+      // ping, may arrive before the replay page.
       let first = await frame(connected);
-      while (first.type === "cursor") first = await frame(connected);
+      while (first.type === "cursor" || first.type === "ping") {
+        first = await frame(connected);
+      }
       replay.push(performance.now() - started);
       assertEquals(first.type, "events");
       assert((first.events?.length ?? 0) > 0);
@@ -440,9 +483,9 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
       highwater = hello.highwater ?? highwater;
       await replayOnce(connected);
     }
-    // Two more replays per client with all fifty connected, so the p95 rests
-    // on 150 samples rather than being the third-worst of fifty.
-    for (let round = 0; round < 2; round++) {
+    // Four more replays per client with all fifty connected, so the p95 rests
+    // on 250 samples rather than being the third-worst of fifty.
+    for (let round = 0; round < 4; round++) {
       for (const client of clients) await replayOnce(client);
     }
 
@@ -484,7 +527,7 @@ Deno.test("AC2/AC3: fifty event clients replay and receive live events inside bu
     }
     clients.push(...own);
     assertEquals(refused, 429, "one person's sockets were not capped");
-    const after = await sequentialScans(database);
+    const after = await sequentialScans(database, ["domain_events"]);
     // Measured with every socket still open, so the growth is what the server
     // retains for them, not garbage V8 has not collected yet.
     const heapGrowthMiB = (settledHeap() - heapBefore) /

@@ -2666,8 +2666,31 @@ jobs:
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - name: Log every query plan
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          # A failed sequential-scan check must name the plan that scanned, so
+          # every new session logs its plans (auto_explain) to the server log.
+          # LOAD first: ALTER SYSTEM accepts auto_explain settings only once the
+          # module is loaded in the same session.
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres \
+            --command "LOAD 'auto_explain'" \
+            --command "ALTER SYSTEM SET session_preload_libraries = 'auto_explain'" \
+            --command "ALTER SYSTEM SET auto_explain.log_min_duration = 0" \
+            --command "ALTER SYSTEM SET auto_explain.log_nested_statements = on"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "SELECT pg_reload_conf()"
       - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
       - run: pnpm test:load
+      - name: Keep the query plans of a failed run
+        if: ${{ failure() }}
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          docker logs "$POSTGRES_CONTAINER" > "$EVIDENCE_DIR/postgres-plans.log" 2>&1
+          echo "full server log with every plan: $EVIDENCE_DIR/postgres-plans.log"
+          grep -B8 -A4 'Seq Scan on' "$EVIDENCE_DIR/postgres-plans.log" || echo "no sequential scan in any logged plan"
   docs_validation:
     name: docs / validation
     needs: [changes, git_diff_check, semantic_metadata]
