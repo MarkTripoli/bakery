@@ -2802,8 +2802,8 @@ export const clientManifest = {
       "method": "POST",
       "path": "/v1/skill-imports",
       "action": "skills.import",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
       "input": "SkillImport",
       "output": "Run",
       "event": "skill.import.requested",
@@ -2821,6 +2821,28 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "INSTALLATION_QUIESCED",
         "INSTALLATION_RESTORING"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-imports/{id}",
+      "action": "skillImports.get",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "IdPath",
+      "output": "SkillImportResult",
+      "event": "",
+      "mcp": "bakery_skillImports_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -3005,6 +3027,33 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/active-version",
+      "action": "skills.setActiveVersion",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillActiveVersionSet",
+      "output": "Skill",
+      "event": "skills.updated",
+      "mcp": "bakery_skills_setActiveVersion",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft",
       "action": "skillDrafts.open",
       "access": "Owner for personal; Admin for organization",
@@ -3131,6 +3180,34 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/source-update/take",
+      "action": "skills.takeSourceUpdate",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillSourceUpdateTake",
+      "output": "Run",
+      "event": "skill.import.requested",
+      "mcp": "bakery_skills_takeSourceUpdate",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/check",
       "action": "skillDrafts.check",
       "access": "Owner for personal; Admin for organization",
@@ -3208,6 +3285,34 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/files/rename",
+      "action": "skillDraftFiles.rename",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFileRename",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "bakery_skillDraftFiles_rename",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -3307,6 +3412,29 @@ export const clientManifest = {
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/versions",
+      "action": "skillVersions.list",
+      "access": "Developer",
+      "permission": "skillVersion:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillVersion>",
+      "event": "",
+      "mcp": "bakery_skillVersions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -7926,6 +8054,29 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/workflow-definition-proposals",
+      "action": "workflowDefinitionProposals.list",
+      "access": "Developer",
+      "permission": "conversation:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkflowDefinitionProposal>",
+      "event": "",
+      "mcp": "bakery_workflowDefinitionProposals_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -19236,6 +19387,7 @@ export const clientManifest = {
             "skillSources.create",
             "skillSources.update",
             "skills.import",
+            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -19243,14 +19395,17 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
+            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
+            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -19481,6 +19636,7 @@ export const clientManifest = {
             "conversations.mentionCandidates",
             "conversationAccess.list",
             "conversationAccess.sharers",
+            "workflowDefinitionProposals.list",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -20034,8 +20190,14 @@ export const clientManifest = {
             "personal"
           ]
         },
+        "q": {
+          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "cursor": {
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
@@ -20048,7 +20210,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -21514,20 +21676,32 @@ export const clientManifest = {
           "description": "Skill source to import from; determines which locator and permitted-origin policy governs the fetch."
         },
         "revision": {
+          "description": "Upstream revision to import, pinned so the imported version is reproducible: a Git commit, tag or branch for a Git source; for a web-address archive either a strong ETag or a content digest (sha256:<hex>). A web-address archive may omit it: Bakery fetches the archive once and pins its content digest, so importing unchanged content again is the same import and changed content is a new version. A Git source must name one. SkillImport.revision must contain at most 255 characters.",
           "type": "string",
-          "maxLength": 255,
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head. SkillImport.revision must contain at most 255 characters."
+          "maxLength": 255
         },
         "path": {
           "description": "Path within the source's repository or archive that the skill's manifest and files live under, for a source that bundles more than the skill at its root; omit to import from the source's root. SkillImport.path must contain at most 500 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 500
+        },
+        "label": {
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. A repeat of an earlier import (same source, revision, folder, scope and owner) returns that earlier run and keeps its first label; a different label here does not rename it. SkillImport.label must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "scope": {
+          "description": "Who the imported skill is for: organization (the default; visible to everyone in the organization, and importing into it needs the Admin role) or personal (shown as Private, owned by the person importing, who must be a person rather than an agent or a token).",
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ]
         }
       },
       "required": [
-        "sourceId",
-        "revision"
+        "sourceId"
       ],
       "additionalProperties": false,
       "description": "Creates a durable import run that fetches a skill from a registered skill source at a pinned revision, and optional path, and publishes it as a new skill version."
@@ -33969,6 +34143,84 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     },
+    "SkillActiveVersionSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+        }
+      },
+      "required": [
+        "id",
+        "versionId"
+      ],
+      "additionalProperties": false,
+      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+    },
+    "SkillSourceUpdateTake": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill to update from its source; supplied via the request's {id} path segment. The source and folder come from the skill's own import, so they are not sent again."
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The latest revision the update check reported (latestRevision). The update is refused if the source has moved past it since, so what is installed is exactly what was reviewed. SkillSourceUpdateTake.revision must contain at most 200 characters."
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "Takes a reviewed update of an imported skill: imports the exact revision the update check showed, from the skill's own source and folder, as the skill's next version."
+    },
+    "SkillDraftFileRename": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Current relative path of the file in the draft. SkillDraftFileRename.path must contain at most 500 characters."
+        },
+        "newPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Relative path the file moves to. Refused when the draft already has a file there, including one that differs only in capitals. SkillDraftFileRename.newPath must contain at most 500 characters."
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "newPath"
+      ],
+      "additionalProperties": false,
+      "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -45172,6 +45424,20 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID identifying the skill source record."
               },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillSource.name may be null in this transport value."
+              },
               "sourceType": {
                 "type": "string",
                 "enum": [
@@ -45254,6 +45520,7 @@ export const clientManifest = {
             },
             "required": [
               "id",
+              "name",
               "sourceType",
               "locator",
               "publisher",
@@ -45361,6 +45628,20 @@ export const clientManifest = {
                 "type": "string",
                 "maxLength": 65536,
                 "description": "Human-readable name displayed for the record."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.description may be null in this transport value."
               },
               "activeVersionId": {
                 "anyOf": [
@@ -45474,6 +45755,7 @@ export const clientManifest = {
               "sourceId",
               "slug",
               "name",
+              "description",
               "activeVersionId",
               "activeRevision",
               "enabled",
@@ -45541,6 +45823,337 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of Skill."
+    },
+    "Page<SkillVersion>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the skill version record."
+              },
+              "skillId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related skill entity."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision number used to order updates to the record."
+              },
+              "sourceRevision": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Revision of the external source used for this version."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Content digest used to verify the record."
+              },
+              "entryPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Relative path of the entry file within the source."
+              },
+              "manifest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Structured manifest describing the package."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published",
+                  "retired"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "createdBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal who created the record."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "publishedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillVersion.publishedAt may be null in this transport value."
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillVersion.label may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "skillId",
+              "revision",
+              "sourceRevision",
+              "digest",
+              "entryPath",
+              "manifest",
+              "status",
+              "createdBy",
+              "createdAt",
+              "updatedAt",
+              "version",
+              "publishedAt",
+              "label"
+            ],
+            "additionalProperties": false,
+            "description": "One revision of a skill, draft or published: its source revision and entry path, plus a manifest digest that must match the exact file inventory. A draft cannot become a skill's active version until publish verifies every file was durably written."
+          },
+          "description": "SkillVersion items in this cursor page. Page<SkillVersion>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillVersion>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillVersion>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillVersion>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillVersion.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<IntegrationConnection>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -47561,6 +48174,7 @@ export const clientManifest = {
                   "skillSources.create",
                   "skillSources.update",
                   "skills.import",
+                  "skillImports.get",
                   "skills.create",
                   "skills.copy",
                   "skills.list",
@@ -47568,14 +48182,17 @@ export const clientManifest = {
                   "skills.get",
                   "skills.update",
                   "skills.usedBy",
+                  "skills.setActiveVersion",
                   "skillDrafts.open",
                   "skillDrafts.get",
                   "skillDrafts.update",
                   "skillDrafts.discard",
                   "skills.sourceUpdate",
+                  "skills.takeSourceUpdate",
                   "skillDrafts.check",
                   "skillDrafts.publish",
                   "skillDraftFiles.save",
+                  "skillDraftFiles.rename",
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
@@ -47806,6 +48423,7 @@ export const clientManifest = {
                   "conversations.mentionCandidates",
                   "conversationAccess.list",
                   "conversationAccess.sharers",
+                  "workflowDefinitionProposals.list",
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
@@ -61032,6 +61650,388 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
     },
+    "Page<WorkflowDefinitionProposal>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the proposal."
+              },
+              "conversationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Conversation whose coordinator made the proposal."
+              },
+              "turnId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Coordinator turn that emitted the definitionProposal effect."
+              },
+              "workflowId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Unlisted definition the proposal edits, or that accepting it created; null for a new-definition proposal not yet accepted."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.workflowId may be null in this transport value."
+              },
+              "baseDraftVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Draft version the proposal was made against; accepting refuses with PRECONDITION_FAILED when the draft has moved on. Null when the target had no draft."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.baseDraftVersion may be null in this transport value."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Plain-language name the coordinator gave the proposed workflow."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Complete proposed workflow definition document, stored as canonical JSON."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 of the canonical proposed definition."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "waiting",
+                  "accepted",
+                  "rejected",
+                  "superseded"
+                ],
+                "description": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled."
+              },
+              "decidedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Person who decided the proposal; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedBy may be null in this transport value."
+              },
+              "decidedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedByName may be null in this transport value."
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the proposal was decided or superseded; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
+              },
+              "supersededByVersionId": {
+                "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the proposal was recorded."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the proposal last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version a decision must name in If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "conversationId",
+              "turnId",
+              "workflowId",
+              "baseDraftVersion",
+              "name",
+              "definition",
+              "digest",
+              "state",
+              "decidedBy",
+              "decidedByName",
+              "decidedAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates."
+          },
+          "description": "WorkflowDefinitionProposal items in this cursor page. Page<WorkflowDefinitionProposal>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<WorkflowDefinitionProposal>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkflowDefinitionProposal>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<WorkflowDefinitionProposal>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<WorkflowDefinitionProposal>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of WorkflowDefinitionProposal.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "WorkflowDefinitionProposal": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -61158,6 +62158,20 @@ export const clientManifest = {
           ],
           "description": "WorkflowDefinitionProposal.decidedBy may be null in this transport value."
         },
+        "decidedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowDefinitionProposal.decidedByName may be null in this transport value."
+        },
         "decidedAt": {
           "anyOf": [
             {
@@ -61218,6 +62232,7 @@ export const clientManifest = {
         "digest",
         "state",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "createdAt",
         "updatedAt",
@@ -66459,6 +67474,20 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID identifying the skill source record."
         },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Name a person gave the source, shown wherever sources are listed; null when none was given."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSource.name may be null in this transport value."
+        },
         "sourceType": {
           "type": "string",
           "enum": [
@@ -66541,6 +67570,7 @@ export const clientManifest = {
       },
       "required": [
         "id",
+        "name",
         "sourceType",
         "locator",
         "publisher",
@@ -66588,6 +67618,20 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 65536,
           "description": "Human-readable name displayed for the record."
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.description may be null in this transport value."
         },
         "activeVersionId": {
           "anyOf": [
@@ -66701,6 +67745,7 @@ export const clientManifest = {
         "sourceId",
         "slug",
         "name",
+        "description",
         "activeVersionId",
         "activeRevision",
         "enabled",
@@ -66823,6 +67868,35 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "publishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillVersion.publishedAt may be null in this transport value."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillVersion.label may be null in this transport value."
         }
       },
       "required": [
@@ -66837,7 +67911,9 @@ export const clientManifest = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "publishedAt",
+        "label"
       ],
       "additionalProperties": false,
       "description": "One revision of a skill, draft or published: its source revision and entry path, plus a manifest digest that must match the exact file inventory. A draft cannot become a skill's active version until publish verifies every file was durably written.",
@@ -68945,6 +70021,7 @@ export const clientManifest = {
             "skillSources.create",
             "skillSources.update",
             "skills.import",
+            "skillImports.get",
             "skills.create",
             "skills.copy",
             "skills.list",
@@ -68952,14 +70029,17 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
             "skills.sourceUpdate",
+            "skills.takeSourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
+            "skillDraftFiles.rename",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
@@ -69190,6 +70270,7 @@ export const clientManifest = {
             "conversations.mentionCandidates",
             "conversationAccess.list",
             "conversationAccess.sharers",
+            "workflowDefinitionProposals.list",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -79176,7 +80257,6 @@ export const clientManifest = {
               "automationFiring:read",
               "skillSource:read",
               "skillSource:manage",
-              "skill:manage",
               "skill:author",
               "skill:read",
               "library:read",
@@ -119408,6 +120488,83 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "SkillImportResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the import run, as skills.import returned it."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "resolved",
+            "reserved",
+            "stored",
+            "completed",
+            "failed"
+          ],
+          "description": "Where the import is: queued, resolved, reserved and stored while it runs, then completed or failed."
+        },
+        "skillId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.skillId may be null in this transport value."
+        },
+        "versionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.versionId may be null in this transport value."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillImportResult.failureCode may be null in this transport value."
+        }
+      },
+      "required": [
+        "runId",
+        "state",
+        "skillId",
+        "versionId",
+        "failureCode"
+      ],
+      "additionalProperties": false,
+      "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
     }
   }
 } as const;
