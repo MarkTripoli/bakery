@@ -907,6 +907,228 @@ Deno.test({
   },
 });
 
+// #528: agent.freeform on the Pi harness.
+
+const FREEFORM_INPUT = {
+  prompt: "Summarise the files you were given.",
+  maxTurns: 3,
+  timeout: "30s",
+  maxCostUsd: 1,
+  allowedTools: ["Read"],
+};
+
+async function freeformRun(
+  body: string,
+  input: Record<string, unknown> = {},
+  timeLimitMs = 5_000,
+) {
+  const scratch = await prepareScratchRepository("bakery-pi-freeform-");
+  const argsPath = `${scratch.dir}/pi-args.txt`;
+  const promptPath = `${scratch.dir}/pi-prompt.txt`;
+  const executable = `${scratch.dir}/fake-pi`;
+  await Deno.writeTextFile(
+    executable,
+    `#!/bin/sh
+set -eu
+if [ "\${1:-}" = "--version" ]; then printf '%s\\n' 'pi 0.8.0-fake'; exit 0; fi
+printf '%s\\n' "$@" > '${argsPath}'
+session_dir=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--session-dir" ]; then session_dir="$2"; shift 2; else shift; fi
+done
+mkdir -p "$session_dir"
+printf '%s\\n' '{"type":"session","id":"${SESSION_ID}"}' > "$session_dir/session.jsonl"
+while IFS= read -r line; do
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":"\\([^"]*\\)".*/\\1/p')
+  case "$line" in
+    *'"type":"get_state"'*)
+      printf '%s\\n' '{"id":"'"$id"'","type":"response","command":"get_state","success":true,"data":{"sessionId":"${SESSION_ID}","sessionFile":"session.jsonl","model":{"provider":"p","id":"m"}}}'
+      ;;
+    *'"type":"prompt"'*)
+      printf '%s\\n' "$line" >> '${promptPath}'
+      printf '%s\\n' '{"id":"'"$id"'","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}'
+      printf '%s\\n' '{"type":"agent_start"}'
+${body}
+      ;;
+  esac
+done
+`,
+  );
+  await Deno.chmod(executable, 0o755);
+  const published: Uint8Array[] = [];
+  const value = {
+    ...localAssignment(),
+    action: "agent.freeform",
+    agentSessionId: crypto.randomUUID(),
+    input: { ...FREEFORM_INPUT, ...input },
+  } as JobAssignment;
+  const outcome = await createPiHarnessExecutor({
+    publishFor: () => async (request) => {
+      published.push(request.bytes);
+      return {
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: await sha256Hex(request.bytes),
+      };
+    },
+    repositoryFor: () => scratch.dir,
+    piExecutable: executable,
+    stateDir: `${scratch.dir}/worker-state`,
+    piAgentSourceDir: syntheticAuthSource("auth.json"),
+    capabilities: ["stream"],
+    timeLimitMs,
+  }).execute(value, new AbortController().signal);
+  const read = async (path: string) =>
+    await Deno.readTextFile(path).catch(() => "");
+  return {
+    outcome,
+    value,
+    published: published.map((bytes) => new TextDecoder().decode(bytes)),
+    args: await read(argsPath),
+    prompt: await read(promptPath),
+  };
+}
+
+const turn = (text: string, usage = '{"totalTokens":10}') =>
+  [
+    `printf '%s\\n' '{"type":"turn_start"}'`,
+    `printf '%s\\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"${text}"}],"stopReason":"stop","usage":${usage}}}'`,
+    `printf '%s\\n' '{"type":"turn_end","message":{"role":"assistant","stopReason":"stop"},"toolResults":[]}'`,
+  ].join("\n");
+const settled = `printf '%s\\n' '{"type":"agent_settled","aborted":false}'`;
+
+function freeformResult(
+  outcome: Awaited<ReturnType<typeof freeformRun>>["outcome"],
+) {
+  assertEquals(outcome.status, "completed");
+  if (outcome.status !== "completed") throw new Error("unreachable");
+  return outcome.result as { sessionId: string; status: string };
+}
+
+Deno.test({
+  name:
+    "Pi freeform answers with only the tools it asked for and publishes the last message",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [turn("thinking"), turn("the final answer"), settled].join("\n"),
+    );
+    const result = freeformResult(run.outcome);
+    assertEquals(result.status, "completed");
+    assertEquals(result.sessionId, run.value.agentSessionId);
+    assertEquals(run.published, ["the final answer"]);
+    assertStringIncludes(run.prompt, FREEFORM_INPUT.prompt);
+    assertStringIncludes(run.args, "--tools\nread\n");
+    assertFalse(run.args.includes("edit"));
+    assertFalse(run.args.includes("bash"));
+  },
+});
+
+Deno.test({
+  name:
+    "Pi freeform maps Glob and Grep to find and grep, and no tools to --no-tools",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const some = await freeformRun([turn("ok"), settled].join("\n"), {
+      allowedTools: ["Glob", "Grep"],
+    });
+    assertEquals(freeformResult(some.outcome).status, "completed");
+    assertStringIncludes(some.args, "--tools\nfind,grep\n");
+    const none = await freeformRun([turn("ok"), settled].join("\n"), {
+      allowedTools: [],
+    });
+    assertEquals(freeformResult(none.outcome).status, "completed");
+    assertStringIncludes(none.args, "--no-tools\n");
+    assertFalse(none.args.includes("--tools"));
+  },
+});
+
+Deno.test({
+  name: "Pi freeform stops a session that starts one turn too many",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(
+      [turn("one"), turn("two"), turn("three"), turn("four"), "sleep 60"].join(
+        "\n",
+      ),
+      { maxTurns: 3 },
+      20_000,
+    );
+    assertEquals(freeformResult(run.outcome).status, "failed");
+    assertStringIncludes(run.published[0], "limit of 3 turns");
+    assertStringIncludes(run.published[0], "one");
+  },
+});
+
+Deno.test({
+  name: "Pi freeform stops a session over its cost limit, priced or by tokens",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const priced = await freeformRun(
+      [turn("costly", '{"cost":{"total":2}}'), "sleep 60"].join("\n"),
+      { maxCostUsd: 1 },
+      20_000,
+    );
+    assertEquals(freeformResult(priced.outcome).status, "failed");
+    assertStringIncludes(priced.published[0], "limit of 1 USD");
+    const unpriced = await freeformRun(
+      [turn("tokens", '{"totalTokens":1000000}'), "sleep 60"].join("\n"),
+      { maxCostUsd: 1 },
+      20_000,
+    );
+    assertEquals(freeformResult(unpriced.outcome).status, "failed");
+    assertStringIncludes(unpriced.published[0], "limit of 1 USD");
+  },
+});
+
+Deno.test({
+  name: "Pi freeform reports a session that runs out of time as timed out",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun([turn("slow start"), "sleep 60"].join("\n"), {
+      timeout: "1s",
+    });
+    assertEquals(freeformResult(run.outcome).status, "timed_out");
+    assertStringIncludes(run.published[0], "slow start");
+  },
+});
+
+Deno.test({
+  name:
+    "Pi freeform refuses a tool it does not offer and an unbounded timeout before any process starts",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    for (
+      const [input, code] of [
+        [
+          { allowedTools: ["Read", "Bash"] },
+          "PI_HARNESS_FREEFORM_TOOL_REFUSED",
+        ],
+        [{ timeout: "forever" }, "PI_HARNESS_INPUT_INVALID"],
+      ] as const
+    ) {
+      const run = await freeformRun(settled, { ...input });
+      assertEquals(run.outcome.status, "failed");
+      if (run.outcome.status !== "failed") throw new Error("unreachable");
+      assertEquals(
+        (outcomeResult(run.outcome).fault as Record<string, unknown>).code,
+        code,
+      );
+      assertEquals(run.args, "", "no process was started");
+    }
+  },
+});
+
+Deno.test({
+  name: "Pi freeform does not trust a run that settled without a message",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const run = await freeformRun(settled);
+    assertEquals(run.outcome.status, "failed");
+    assertEquals(run.published.length, 0);
+  },
+});
+
 Deno.test({
   name: "Pi gets a step's pinned inputs as files and an index in the prompt",
   ...RUN_PERMISSIONS,
