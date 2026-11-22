@@ -965,6 +965,11 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      // The same store the artifact routes read, so a blob-backed recorded
+      // output is readable by a local run.
+      ...(skillFileStore
+        ? { blobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
     }),
   );
   app.route(
