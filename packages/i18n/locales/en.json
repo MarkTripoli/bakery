@@ -4692,7 +4692,7 @@
   "library.workflow.versions.fingerprint": "Fingerprint",
   "library.workflow.versions.fingerprintHelp": "A short code that changes if the version's content changes.",
   "library.workflow.noneInUse": "No version is in use, so this workflow cannot be chosen for new tasks.",
-  "library.workflow.draftOnly": "Not used yet. Publish it in the editor.",
+  "library.workflow.draftOnly": "To use this workflow, publish a version in the editor.",
   "library.workflow.off": "Turned off",
   "library.workflow.use.title": "Use version {version}?",
   "library.workflow.use.body": "New tasks will use version {version}. Tasks already running keep the version they started with.",
