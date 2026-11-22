@@ -9,6 +9,7 @@ import {
 } from "./helpers/library-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 /**
  * The editor's save state, in the page's own status line. The shell adds an
@@ -475,6 +476,94 @@ for (
       for await (const chunk of stream) text += chunk.toString();
       expect(text).toContain("version 3");
       expect(text).toContain("id: review");
+    });
+
+    test("Export says how many private skills the file leaves out and for which step", async ({ page }) => {
+      await open(page, {
+        ...WORLD,
+        skills: {
+          items: [
+            {
+              stepPath: "/steps/1",
+              skillVersionId: uuid(7001),
+              skillName: "Brand voice",
+              revision: 1,
+              scope: "personal",
+              ownerDisplayName: null,
+              mine: true,
+              status: "available",
+              publishedVersionUsesIt: false,
+            },
+            {
+              stepPath: "/steps/1",
+              skillVersionId: uuid(7002),
+              skillName: "Code style",
+              revision: 2,
+              scope: "global",
+              ownerDisplayName: null,
+              mine: false,
+              status: "available",
+              publishedVersionUsesIt: false,
+            },
+          ],
+        },
+      });
+      await more(page).click();
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Export", exact: true }).click();
+      await download;
+      await expect(page.getByText(
+        "Exported without 1 private skill. Whoever imports it is asked to choose a skill for Implement.",
+      )).toBeVisible();
+    });
+
+    test("Export counts the steps when private skills sit on more than one", async ({ page }) => {
+      await open(page, {
+        ...WORLD,
+        skills: {
+          items: [
+            {
+              stepPath: "/steps/1",
+              skillVersionId: uuid(7001),
+              skillName: "Brand voice",
+              revision: 1,
+              scope: "personal",
+              ownerDisplayName: null,
+              mine: true,
+              status: "available",
+              publishedVersionUsesIt: false,
+            },
+            {
+              stepPath: "/steps/2",
+              skillVersionId: uuid(7003),
+              skillName: "Brand voice",
+              revision: 1,
+              scope: "personal",
+              ownerDisplayName: null,
+              mine: true,
+              status: "available",
+              publishedVersionUsesIt: false,
+            },
+          ],
+        },
+      });
+      await more(page).click();
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Export", exact: true }).click();
+      await download;
+      await expect(page.getByText(
+        "Exported without 2 private skills. Whoever imports it is asked to choose a skill for 2 steps.",
+      )).toBeVisible();
+    });
+
+    test("Export of a version with no private skill says nothing more", async ({ page }) => {
+      const seen = await open(page);
+      await more(page).click();
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Export", exact: true }).click();
+      await download;
+      await expect.poll(() => seen.skillReads).toBeGreaterThan(0);
+      await expect(page.getByText(/Exported without/)).toHaveCount(0);
     });
 
     test("with no version in use, the page says so and offers the newest published one", async ({ page }) => {
@@ -1285,7 +1374,8 @@ for (
       // While the list is read only, no slot tells the person to use a control that is not there.
       await expect(skills).not.toContainText("Choose");
       await expect(skills).not.toContainText("remove it");
-      await expect(skills).toContainText("Needs attention");
+      // No separate badge: the row has its own actions.
+      await expect(skills).not.toContainText("Needs attention");
       await expect(skills).not.toContainText("Not here");
       await expect(skills.getByRole("link")).toHaveCount(0);
       // A help tip does not make its row taller: the name-to-version distance is the same with and without one.
@@ -1303,25 +1393,298 @@ for (
       await shot(page, "workflow-editor-skills");
     });
 
+    // Four slots on one step: a lost skill, one its owner stopped, a missing one and an unnamed lost one.
+    const fourSlots = () => [
+      skill({
+        skillVersionId: uuid(7006),
+        skillName: "Gone skill",
+        revision: 1,
+        scope: "organization",
+        status: "unavailable",
+      }),
+      skill({
+        skillVersionId: uuid(7005),
+        skillName: "Paused skill",
+        revision: 1,
+        scope: "personal",
+        ownerDisplayName: "Dana Lee",
+        status: "stopped",
+      }),
+      skill({
+        skillVersionId: null,
+        skillName: null,
+        revision: null,
+        scope: null,
+        status: "missing",
+      }),
+      skill({
+        skillVersionId: uuid(7007),
+        skillName: null,
+        revision: null,
+        scope: null,
+        status: "unavailable",
+      }),
+    ];
+
     test("a skill that cannot be used says what happened, and names no control that is not there", async ({ page }) => {
       const { skills } = await openSkills(page, {
+        skills: { items: fourSlots() },
+      });
+      await expect(skills).toContainText("Gone skill is no longer available");
+      await expect(skills).toContainText(
+        "It was removed or switched off, or its owner left.",
+      );
+      await expect(skills).toContainText("Paused skill cannot be used here");
+      await expect(skills).toContainText(
+        "Its owner does not allow this workflow to use it. Only its owner can allow it.",
+      );
+      await expect(skills).toContainText(
+        "This workflow was made with a private skill, which did not come with it.",
+      );
+      await expect(skills).toContainText("A skill is no longer available");
+      await expect(skills.locator("[data-skill-status]")).toHaveCount(4);
+      // No badge; each row has Remove, and no Choose while nothing is on offer.
+      await expect(skills.getByText("Needs attention")).toHaveCount(0);
+      await expect(skills).not.toContainText("Choose a skill");
+      await expect(skills.getByRole("button", { name: /^Remove/ }))
+        .toHaveCount(4);
+      await expect(skills.getByRole("link")).toHaveCount(0);
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-skills-slots");
+    });
+
+    test("with skills on offer every slot row has Choose a skill… beside Remove", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: { items: fourSlots() },
+        catalog: [catalogSkill({})],
+      });
+      await expect(skills.locator("[data-skill-status]")).toHaveCount(4);
+      await expect(skills.getByRole("button", { name: "Choose a skill…" }))
+        .toHaveCount(4);
+      await expect(skills.getByRole("button", { name: /^Remove/ }))
+        .toHaveCount(4);
+      await page.mouse.move(600, 700);
+      await still(page, "workflow-editor-skills-slots-choose");
+    });
+
+    test("a missing skill is chosen in place from its own row, and the save settles the slot", async ({ page }) => {
+      const { seen, skills } = await openSkills(page, {
         skills: {
           items: [
+            skill({}),
             skill({
               skillVersionId: null,
-              skillName: "Gone skill",
+              skillName: "Brand voice",
               revision: null,
               scope: null,
-              status: "unavailable",
+              status: "missing",
             }),
-            skill({
-              skillVersionId: uuid(7005),
-              skillName: "Paused skill",
-              revision: 1,
-              scope: "personal",
-              ownerDisplayName: "Dana Lee",
-              status: "stopped",
-            }),
+          ],
+        },
+        catalog: [
+          catalogSkill({
+            id: uuid(8003),
+            slug: "house-style",
+            name: "House style",
+            activeVersionId: uuid(8103),
+          }),
+        ],
+      });
+      // The row that needs a choice comes first, then the skills that work.
+      const rows = skills.getByRole("listitem");
+      await expect(rows.first()).toContainText("A skill is missing");
+      // The slot is the step's one problem: the count, the card and the list each say so once.
+      const chip = page.getByTestId("editor-problems");
+      await expect(chip).toHaveText("1 problem");
+      await expect(page.locator("[data-card]").filter({ hasText: "Implement" }))
+        .toContainText("Needs setup");
+      await chip.click();
+      await expect(page.getByTestId("editor-problem-list")).toContainText(
+        "A skill on this step needs a choice.",
+      );
+      await page.keyboard.press("Escape");
+      const slot = skills.locator("[data-skill-status='missing']");
+      await expect(slot.getByRole("button", { name: "Remove" })).toBeVisible();
+      await slot.getByRole("button", { name: "Choose a skill…" }).click();
+      await pickerOf(slot).getByRole("button", {
+        name: "House style · Version 2",
+        exact: true,
+      }).click();
+      await expect(skills.locator("[data-skill-status='missing']"))
+        .toHaveCount(0);
+      await expect(skills).toContainText("House style");
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      await expect(page.locator("[data-card]").filter({ hasText: "Implement" }))
+        .not.toContainText("Needs setup");
+      await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
+      const sent = seen.draftSaves.at(-1)!.body as {
+        resolveSkillSlots?: string[];
+      };
+      expect(sent.resolveSkillSlots).toEqual(["/steps/1"]);
+      expect(savedSkills(seen).skills).toContain(uuid(8103));
+    });
+
+    // A step that waits for another is written in code; its skills are still the panel's to change.
+    const writtenInCode = (items: unknown[]) => {
+      const world = skillsWorld({ items });
+      return {
+        ...world,
+        versions: world.versions!.map((row) =>
+          row.status === "draft"
+            ? {
+              ...row,
+              steps: row.steps.map((step) =>
+                step.id === "implement" ? { ...step, needs: ["brief"] } : step
+              ),
+            }
+            : row
+        ),
+      };
+    };
+
+    test("an agent step written in code shows its Skills first, and a missing skill is chosen there", async ({ page }) => {
+      const items = [
+        skill({}),
+        skill({
+          skillVersionId: null,
+          skillName: "Brand voice",
+          revision: null,
+          scope: null,
+          status: "missing",
+        }),
+      ];
+      const { seen, skills } = await openSkills(page, {
+        skills: { items },
+        catalog: [
+          catalogSkill({
+            id: uuid(8003),
+            slug: "house-style",
+            name: "House style",
+            activeVersionId: uuid(8103),
+          }),
+        ],
+        versions: writtenInCode(items).versions,
+      });
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      // The slot is the step's one problem, counted and on its card, and the notice above it is not drawn.
+      await expect(page.getByTestId("editor-problems")).toHaveText("1 problem");
+      await expect(page.locator("[data-card]").filter({ hasText: "Implement" }))
+        .toContainText("Needs setup");
+      await expect(panel).not.toContainText(
+        "A skill on this step needs a choice.",
+      );
+      // Skills first, then the sentence about the rest, then View as code.
+      await expect(panel).toContainText(
+        "The rest of this step is written in code.",
+      );
+      await expect(panel).not.toContainText("You cannot change it here");
+      const skillsBox = (await skills.boundingBox())!;
+      const restBox = (await panel.getByText(
+        "The rest of this step is written in code.",
+      ).boundingBox())!;
+      const codeBox = (await panel.getByRole("button", { name: "View as code" })
+        .boundingBox())!;
+      expect(skillsBox.y).toBeLessThan(restBox.y);
+      expect(restBox.y).toBeLessThan(codeBox.y);
+      const slot = skills.locator("[data-skill-status='missing']");
+      await expect(slot.getByRole("button", { name: "Choose a skill…" }))
+        .toBeVisible();
+      await expect(slot.getByRole("button", { name: "Remove" })).toBeVisible();
+      await expect(skills.getByRole("button", { name: "Attach a skill…" }))
+        .toBeVisible();
+      await page.mouse.move(600, 700);
+      await still(page, "workflow-editor-skills-codeonly-slot");
+      const readsBefore = seen.skillReads;
+      await slot.getByRole("button", { name: "Choose a skill…" }).click();
+      await pickerOf(slot).getByRole("button", {
+        name: "House style · Version 2",
+        exact: true,
+      }).click();
+      await expect(skills.locator("[data-skill-status='missing']"))
+        .toHaveCount(0);
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
+      // The skills are read again after the save, and the settled slot does not come back.
+      await expect.poll(() => seen.skillReads).toBeGreaterThan(readsBefore);
+      await expect(skills.locator("[data-skill-status='missing']"))
+        .toHaveCount(0);
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      const sent = seen.draftSaves.at(-1)!.body as {
+        resolveSkillSlots?: string[];
+        definition?: { steps?: { id: string; needs?: string[] }[] };
+      };
+      expect(sent.resolveSkillSlots).toEqual(["/steps/1"]);
+      // What the panel cannot show is kept as it was.
+      expect(
+        sent.definition?.steps?.find((step) => step.id === "implement")?.needs,
+      ).toEqual(["brief"]);
+      expect(savedSkills(seen).skills).toContain(uuid(8103));
+      await page.mouse.move(600, 700);
+      await still(page, "workflow-editor-skills-codeonly-chosen");
+    });
+
+    test("choosing on a stopped skill leaves the step's missing skill open and asks the server to settle nothing", async ({ page }) => {
+      const items = [
+        skill({
+          skillVersionId: null,
+          skillName: "Brand voice",
+          revision: null,
+          scope: null,
+          status: "missing",
+        }),
+        skill({
+          skillVersionId: uuid(7005),
+          skillName: "Paused skill",
+          revision: 1,
+          scope: "personal",
+          ownerDisplayName: "Dana Lee",
+          status: "stopped",
+        }),
+      ];
+      const { seen, skills } = await openSkills(page, {
+        skills: { items },
+        catalog: [
+          catalogSkill({
+            id: uuid(8003),
+            slug: "house-style",
+            name: "House style",
+            activeVersionId: uuid(8103),
+          }),
+        ],
+      });
+      const stopped = skills.locator("[data-skill-status='stopped']");
+      await stopped.getByRole("button", { name: "Choose a skill…" }).click();
+      await pickerOf(stopped).getByRole("button", {
+        name: "House style · Version 2",
+        exact: true,
+      }).click();
+      // The stopped row is replaced; the missing one is still the person's to settle.
+      await expect(skills.locator("[data-skill-status='stopped']"))
+        .toHaveCount(0);
+      await expect(skills.locator("[data-skill-status='missing']"))
+        .toHaveCount(1);
+      await expect(skills).toContainText("House style");
+      await expect(page.getByTestId("editor-problems")).toHaveText("1 problem");
+      await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
+      const sent = seen.draftSaves.at(-1)!.body as {
+        resolveSkillSlots?: string[];
+      };
+      expect(sent.resolveSkillSlots).toBeUndefined();
+      expect(savedSkills(seen).skills).toEqual([uuid(8103)]);
+    });
+
+    test("removing a missing skill is at once, says so, and has no Undo", async ({ page }) => {
+      const { seen, skills } = await openSkills(page, {
+        skills: {
+          items: [
             skill({
               skillVersionId: null,
               skillName: null,
@@ -1329,35 +1692,24 @@ for (
               scope: null,
               status: "missing",
             }),
-            skill({
-              skillVersionId: null,
-              skillName: null,
-              revision: null,
-              scope: null,
-              status: "unavailable",
-            }),
           ],
         },
+        catalog: [catalogSkill({})],
       });
-      await expect(skills).toContainText("Gone skill is no longer available.");
-      await expect(skills).toContainText(
-        "It was removed or switched off, or its owner left.",
+      await skills.getByRole("button", { name: "Remove the missing skill" })
+        .click();
+      await expect(skills.locator("[data-skill-status]")).toHaveCount(0);
+      await expect(page.getByText("Removed the missing skill from Implement."))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
       );
-      await expect(skills).toContainText("Paused skill cannot be used here.");
-      await expect(skills).toContainText(
-        "Its owner does not allow this workflow to use it. Only its owner can allow it.",
-      );
-      await expect(skills).toContainText(
-        "This workflow was made with a private skill, which did not come with it.",
-      );
-      await expect(skills).toContainText("A skill is no longer available.");
-      await expect(skills.locator("[data-skill-status]")).toHaveCount(4);
-      await expect(skills.getByText("Needs attention")).toHaveCount(4);
-      await expect(skills).not.toContainText("Choose");
-      await expect(skills).not.toContainText("Remove");
-      await expect(skills.getByRole("link")).toHaveCount(0);
-      await page.mouse.move(600, 700);
-      await shot(page, "workflow-editor-skills-slots");
+      await expect.poll(() => seen.draftSaves.length).toBeGreaterThan(0);
+      expect(
+        (seen.draftSaves.at(-1)!.body as { resolveSkillSlots?: string[] })
+          .resolveSkillSlots,
+      ).toEqual(["/steps/1"]);
     });
 
     test("someone else's private skill with no owner name never reads \"'s\"", async ({ page }) => {
@@ -1416,6 +1768,7 @@ for (
       ownerPrincipalId: null,
       copiedFromSkillId: null,
       copiedFromVersionId: null,
+      description: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
       version: 1,

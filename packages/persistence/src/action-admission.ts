@@ -129,8 +129,12 @@ export function executionActionCapabilities(
   if (
     declared === null || !Array.isArray(additional) ||
     additional.length > 100 ||
+    // A capability the registry itself declares for the action is valid even
+    // where no worker vocabulary lists it (an engine-settled action such as
+    // delivery.deploy declares "delivery"); anything else must be a worker one.
     additional.some((value) =>
-      typeof value !== "string" || !capabilities.has(value)
+      typeof value !== "string" ||
+      (!capabilities.has(value) && !registered.includes(value))
     ) ||
     new Set(additional).size !== additional.length
   ) unavailable("workflow_action_requirements_invalid");

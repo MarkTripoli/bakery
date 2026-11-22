@@ -105,6 +105,8 @@ export type ClaimableJob = {
   currentCheckpoints: unknown;
   agentConfig: unknown;
   skillRefs: unknown;
+  /** Input slots pinned when the job was admitted; `[]` for a step with none. */
+  contextInputs: unknown;
   agentVersionId: string | null;
   billing: unknown;
   installationReservationId: string | null;
@@ -397,8 +399,8 @@ export function createClaimsRepository(
       await transaction.query(
         `declare claim_candidates no scroll cursor for
        select id, action, requirements, input,
-          current_checkpoints, agent_config, skill_refs, agent_version_id,
-          billing, installation_reservation_id, current_fence,
+          current_checkpoints, agent_config, skill_refs, context_inputs,
+          agent_version_id, billing, installation_reservation_id, current_fence,
           ${assignedAgentSessionSql("jobs")} as agent_session_id,
           (
             select candidate_run.requested_by
@@ -529,6 +531,7 @@ export function createClaimsRepository(
           current_checkpoints: unknown;
           agent_config: unknown;
           skill_refs: unknown;
+          context_inputs: unknown;
           agent_version_id: string | null;
           billing: unknown;
           installation_reservation_id: string | null;
@@ -666,6 +669,7 @@ export function createClaimsRepository(
           currentCheckpoints: row.current_checkpoints,
           agentConfig: row.agent_config,
           skillRefs: row.skill_refs,
+          contextInputs: row.context_inputs,
           agentVersionId: row.agent_version_id,
           billing: row.billing,
           installationReservationId: row.installation_reservation_id,
