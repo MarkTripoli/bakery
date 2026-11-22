@@ -106,6 +106,15 @@ export function openDatabase(url: string, max = 4): Database {
   });
 }
 
+/**
+ * Connections the API server's pool may hold. Every request runs in one
+ * transaction, so the pool bounds how many run at once; with 4, a burst of
+ * eight worker claims queued behind each other and, past the 5 s connect
+ * timeout, answered 503 (#48 bounded load). Postgres allows 100 connections;
+ * the server's other processes keep their small pools.
+ */
+export const SERVER_POOL_MAX = 16;
+
 export function openPgDatabase(url: string, max = 4): PgDatabase {
   return new Pool({
     connectionString: url,
