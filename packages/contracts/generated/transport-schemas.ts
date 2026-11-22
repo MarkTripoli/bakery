@@ -6255,6 +6255,15 @@ const transportSchemas = {
             "maxItems": 64
           },
           "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored."
+        },
+        {
+          "name": "starts",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 32000
+          },
+          "description": "The draft's whole list of starts, at most 16: each an identifier and either an event matcher (a provider-neutral event kind with equality filters) or a schedule (a five-field cron expression with an IANA timezone). Replaces the stored list; omit it to keep the stored list. A list the contract refuses fails with UNPROCESSABLE start_invalid, and a schedule that cannot be read fails with VALIDATION_FAILED naming the start. A start is data kept beside the definition and outside its digest, and it is switched on only when a person uses the published version."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."
@@ -23347,7 +23356,8 @@ const transportSchemas = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "starts"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23360,7 +23370,8 @@ const transportSchemas = {
         "createdBy": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "starts": "json"
       },
       "nullableFields": [],
       "description": "A draft (mutable, with a compare-and-set version) or a published or retired revision (immutable content) of a workflow's executable definition: the author-submitted sourceYaml, its normalizedSpec and content digest, and a draft/published/retired lifecycle status. Publishing validates registered actions, step structure, and agent and skill bindings, and the content cannot change again once published.",
@@ -23375,7 +23386,8 @@ const transportSchemas = {
         "createdBy": "Principal who created the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Draft compare-and-set counter bumped on each save; 1 for published rows."
+        "version": "Draft compare-and-set counter bumped on each save; 1 for published rows.",
+        "starts": "The version's starts, an empty list when it has none: event matchers and schedules authored with the version and kept outside its digest. A start runs only once a person uses this version."
       }
     },
     "AgentDefinition": {
@@ -38205,6 +38217,24 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "A firing could not start a run and was marked failed with a stable code. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "workflow.start_firing_started": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A workflow start answered an event and started a run. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflow.start_firing_failed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A workflow start answered an event but could not start a run and was marked failed with a stable code, for example actor_unavailable when the principal who used the version has lost access. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
     "automations.created": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -39485,6 +39515,14 @@ const transportSchemas = {
       "capabilities": [
         "model",
         "paper"
+      ]
+    },
+    "rpi.plan": {
+      "inputSchema": "PlanInput",
+      "outputSchema": "ArtifactOutput",
+      "schemaSource": "06-workflows-delivery-and-acceptance.md action schema registry",
+      "capabilities": [
+        "model"
       ]
     },
     "harness.implement": {

@@ -7,7 +7,10 @@ import {
   progressReason,
   questionRow,
   startedBy,
+  stoppableRunId,
+  stopsBeforeStart,
   waitsOnAnswer,
+  workFinished,
 } from "../../apps/web/src/pages/issues/work-model.ts";
 
 /**
@@ -26,8 +29,9 @@ Deno.test("every progress value has the design's one next step", () => {
   assertEquals(progressNext("active"), "openTask");
   assertEquals(progressNext("completed"), "openTask");
   assertEquals(progressNext("failed"), "openTask");
-  assertEquals(progressNext("canceled"), "startWork");
-  assertEquals(progressNext("rejected"), "startWork");
+  // Start work is the status card's button, so the row has no next step.
+  assertEquals(progressNext("canceled"), "none");
+  assertEquals(progressNext("rejected"), "none");
 });
 
 Deno.test("only waiting, paused and not-started lines quote the reason", () => {
@@ -285,4 +289,83 @@ Deno.test("the badge says Needs an answer only while work is under way and a que
     ),
     false,
   );
+});
+
+Deno.test("a run can be stopped only while it is starting, working or paused", () => {
+  const RUN = "0195f000-0000-7000-8000-0000000000c1";
+  for (const progress of ["admitted", "active", "suspended"] as const) {
+    assertEquals(stoppableRunId({ progress, workflowRunId: RUN }), RUN);
+  }
+  for (
+    const progress of [
+      "pending",
+      "waiting",
+      "completed",
+      "failed",
+      "canceled",
+      "rejected",
+    ] as const
+  ) {
+    assertEquals(stoppableRunId({ progress, workflowRunId: RUN }), null);
+  }
+});
+
+Deno.test("a request with no run has nothing to stop yet", () => {
+  for (const progress of ["admitted", "active", "suspended"] as const) {
+    assertEquals(stoppableRunId({ progress, workflowRunId: null }), null);
+  }
+});
+
+Deno.test("work started from a label with no run yet says how to stop it on GitHub", () => {
+  for (const origin of ["webhook", "poll"] as const) {
+    for (
+      const progress of ["pending", "waiting", "admitted", "suspended"] as const
+    ) {
+      assertEquals(
+        stopsBeforeStart({ origin, progress, workflowRunId: null }),
+        true,
+      );
+    }
+  }
+});
+
+Deno.test("the label sentence is not shown for a person's start, a started run or finished work", () => {
+  const RUN = "0195f000-0000-7000-8000-0000000000c1";
+  for (const origin of ["manual", "adoption"] as const) {
+    assertEquals(
+      stopsBeforeStart({ origin, progress: "waiting", workflowRunId: null }),
+      false,
+    );
+  }
+  assertEquals(
+    stopsBeforeStart({
+      origin: "webhook",
+      progress: "active",
+      workflowRunId: RUN,
+    }),
+    false,
+  );
+  for (
+    const progress of ["completed", "failed", "canceled", "rejected"] as const
+  ) {
+    assertEquals(
+      stopsBeforeStart({ origin: "poll", progress, workflowRunId: null }),
+      false,
+    );
+  }
+});
+
+Deno.test("work is finished once it completed, failed, was stopped or was not started", () => {
+  for (
+    const progress of ["completed", "failed", "canceled", "rejected"] as const
+  ) assertEquals(workFinished(progress), true);
+  for (
+    const progress of [
+      "pending",
+      "waiting",
+      "admitted",
+      "active",
+      "suspended",
+    ] as const
+  ) assertEquals(workFinished(progress), false);
 });

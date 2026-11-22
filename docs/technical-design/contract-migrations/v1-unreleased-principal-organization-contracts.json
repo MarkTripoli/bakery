@@ -1,34 +1,33 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a95682400986046e90fbcdb68f4b73b31f54fbb5"
+    "1905d2af6760f58cb4524134d52bfcee9510ef93"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:4499cdb8be52ec6e2fdd95ca84f15fc8ce3d727a01748ac8cf4f4071b9ba5620",
-  "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main a95682400986046e90fbcdb68f4b73b31f54fbb5: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it.",
+  "targetCompatibilityDigest": "sha256:51ed41d30d35ff3ce2ce1292459ddb9539b4b7974ad1d2b0fbd548e2a4e3aca2",
+  "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 1905d2af6760f58cb4524134d52bfcee9510ef93: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
-        "041d3deb72c80b50eba4ef0369bd37a86a1e89d4",
-        "b66186a951505668b12ef1774d43a12b9b680158",
-        "bf7a7885ed28afeb65f8234eea4e3c9a8c7d58c1"
+        "fb86250aba2f328ad26671377a9ad2008aedf496"
       ],
       "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:c76c357c013c89599a608f0293ca6edef5f2c57e80dc9506dd87176ea7504a45",
-      "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 041d3deb72c80b50eba4ef0369bd37a86a1e89d4: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it."
+      "targetCompatibilityDigest": "sha256:770002e627c102f3452a904db4196bd79dcc9f44933000d6814e1067193e04ca",
+      "reason": "Displaced by the #74 skill reads rebind onto main 1905d2af6: #24 bounded RPI actions by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main fb86250aba2f328ad26671377a9ad2008aedf496: rpi.plan joins the worker action table (it was an unavailable server handler with no worker contract), so the worker job input union gains its PlanInput variant and the variants after it move one place; nothing could claim or send an rpi.plan job before. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
-        "9d3cc811ffa70b2ec8263a5d206b1a6339737edc"
+        "d47335a48d070ccf7b8461b375b110984b6c1985",
+        "dc0a1e6289030dfbd544136bc23d0e0bcaff10fd"
       ],
       "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:b8cb3600d0baadf38dedc62a2f370eecea808356d7ff4aaf53eff229faa1fe0e",
-      "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 9d3cc811ffa70b2ec8263a5d206b1a6339737edc: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it."
+      "targetCompatibilityDigest": "sha256:d39302ddce6dc9fda8e6a4a80f4b854b604e12c2f749a38b7252831a291f58ea",
+      "reason": "Displaced by the #24 rpi.plan rebind onto main fb86250ab: main's own approval, kept unchanged. #406 one start mechanism by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main dc0a1e6289030dfbd544136bc23d0e0bcaff10fd: a workflow version carries its starts, so WorkflowVersion gains a required starts list (empty when it has none) and WorkflowDraftUpdate gains an optional starts list; no client or handler read or wrote starts before. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -38,7 +37,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:3428fc0daed512dc4b5b86a3b937270ba7a3740191e24b1e2b90ff6cc2f49765",
-      "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 4bc760431e6b489d6ed1647b18ea222f0952ee5d: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below."
+      "reason": "Displaced by the #406 workflow starts rebind onto main dc0a1e628: main's own approval, kept unchanged. #19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 4bc760431e6b489d6ed1647b18ea222f0952ee5d: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -1691,6 +1690,38 @@
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
       "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId (the owner of a personal skill, null otherwise), and skills.create takes an optional scope. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a95682400986046e90fbcdb68f4b73b31f54fbb5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4499cdb8be52ec6e2fdd95ca84f15fc8ce3d727a01748ac8cf4f4071b9ba5620",
+      "reason": "Displaced by the #74 skill reads rebind onto main 1905d2af6: #74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main a95682400986046e90fbcdb68f4b73b31f54fbb5: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "041d3deb72c80b50eba4ef0369bd37a86a1e89d4",
+        "b66186a951505668b12ef1774d43a12b9b680158",
+        "bf7a7885ed28afeb65f8234eea4e3c9a8c7d58c1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c76c357c013c89599a608f0293ca6edef5f2c57e80dc9506dd87176ea7504a45",
+      "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 041d3deb72c80b50eba4ef0369bd37a86a1e89d4: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "9d3cc811ffa70b2ec8263a5d206b1a6339737edc"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b8cb3600d0baadf38dedc62a2f370eecea808356d7ff4aaf53eff229faa1fe0e",
+      "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 9d3cc811ffa70b2ec8263a5d206b1a6339737edc: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it."
     }
   ]
 }

@@ -884,20 +884,19 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "a95682400986046e90fbcdb68f4b73b31f54fbb5",
+    "1905d2af6760f58cb4524134d52bfcee9510ef93",
   ];
   const approvedDigest =
-    "sha256:4499cdb8be52ec6e2fdd95ca84f15fc8ce3d727a01748ac8cf4f4071b9ba5620";
+    "sha256:51ed41d30d35ff3ce2ce1292459ddb9539b4b7974ad1d2b0fbd548e2a4e3aca2";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #74 skill reads rebind onto main a95682400: the approval
-    // in force before it, which authorised the same delta on the earlier mains.
-    "sha256:c76c357c013c89599a608f0293ca6edef5f2c57e80dc9506dd87176ea7504a45",
-    "sha256:b8cb3600d0baadf38dedc62a2f370eecea808356d7ff4aaf53eff229faa1fe0e",
-    // Displaced by the #74 skill reads rebind onto main 9d3cc811f: the #39
-    // proposals read approval in force before it.
+    // Displaced by the #74 skill reads rebind onto main 1905d2af6: main's own #24 rpi.plan approval, kept unchanged.
+    "sha256:770002e627c102f3452a904db4196bd79dcc9f44933000d6814e1067193e04ca",
+    // Displaced by the #24 rpi.plan rebind onto main fb86250ab: main's own #406 approval, kept unchanged.
+    "sha256:d39302ddce6dc9fda8e6a4a80f4b854b604e12c2f749a38b7252831a291f58ea",
+    // Displaced by the #406 workflow starts rebind onto main dc0a1e628: main's own #19 approval, kept unchanged.
     "sha256:3428fc0daed512dc4b5b86a3b937270ba7a3740191e24b1e2b90ff6cc2f49765",
     // Displaced by the #19 preview rebind onto main 4bc760431: main's own #892 approval, kept unchanged.
     "sha256:b7783aa18b7e646a6a052a3735b601fac76c9523d0b4b3eabc3509250d7a6250",
@@ -967,6 +966,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
     // Displaced by the #70 slice 2 re-bind onto main 064ca6fd: main's own approval, then this PR's previous one, kept unchanged.
     "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b",
+    // #70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8.
     "sha256:4c7ce0ae4caa534c2ceec4f5b125ffe45a2e213b8f9d484be0365ab13c20c517",
     // Displaced by the #739 cursor wording fix: this PR's previous approval, kept unchanged.
     "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
@@ -996,12 +996,14 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:f204f40485b2c391f018f947955664f5e1d9315c7dd5838cd8785bd12ead618d",
     // Displaced by the #46 development metrics re-bind onto main 2dcf89040: main's own approval, then this PR's previous one, kept unchanged.
     "sha256:7173fd9bec99984de1ef3b84f3b010c1fd28eb98a6776b08fbc4e19bc22908a3",
+    // #46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main b6307002a2978e.
     "sha256:69c0243b9bd49da8b9278b63702507e0bdaac7fd701731cd4ec39ed1372ab67a",
     // Displaced by the #19 private previews re-bind onto main 0aceacbe: main's own
     // approval, kept unchanged.
     "sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e",
     // Displaced by the #400 S2 plan admission re-bind onto main c0afffaa2 (#741 merged): main's own approval, then this PR's previous approval, kept unchanged.
     "sha256:e57de0de36c4f5a4aea4e34f5c1bffcd3c9ab0ea5823cd8137a28bafb2f24154",
+    // #400 S2 plan admission re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938.
     "sha256:8f13900a664e97c69caa28ca9c2d4855d57374d7e8db6a0c5d37721d9603a819",
     // Displaced when main moved again (#737 merged): the digest follows the tree.
     "sha256:68f8ed103f00f5939c295ca6fcdff4841ce299aa7adcbd10581d3a765d89d59a",
@@ -1010,9 +1012,13 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     // Displaced by the #72 live updates re-bind onto main a1df1217 (#740 and #742 merged): main's own
     // approval, then this PR's earlier approvals, newest first.
     "sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276",
+    // #72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 82208cd19ee685a73f12f.
     "sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e",
+    // #72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 82208cd19ee685a73f12f.
     "sha256:52694c6c5c85601fc23bab0a2989c1d8cb4d422e0d44a7a73af72447e6c1ee70",
+    // #72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 04c3fa8ffeccac98872c7.
     "sha256:28b92c05eb6628790f55b608b89bda867f863b3476c3acf0e11e6aa5c9793eb2",
+    // #72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 3e05900f14f8c07bb50f2.
     "sha256:4bbd1def5f3a695bbb5f56ab36ef532ae64f6e9b501575f15d5f89167ccd0c9f",
     // Displaced by the #42 skill copy re-bind onto main 04c3fa8ff: main's own approval, kept unchanged.
     "sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96",
@@ -1025,6 +1031,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     // fields on earlier mains (#731 and #735, then #726 and #729, changed other
     // contracts).
     "sha256:0fb3b25cf12e177a1109c01437a66d54d4b52f7353c5b5bfa3715e2950ffef89",
+    // #72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main.
     "sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b",
     // Displaced when main moved again (#735 and #731 merged): the digest follows the
     // tree, so the earlier one no longer authorises it.
@@ -1348,6 +1355,12 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     // Displaced by the #431 private skills re-bind onto main a83b7ec57 (access
     // and the skill:author permission follow the personal/organization split).
     "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
+    // Displaced by the #74 skill reads rebind onto main 1905d2af6: my previous #74 approval on main a95682400.
+    "sha256:4499cdb8be52ec6e2fdd95ca84f15fc8ce3d727a01748ac8cf4f4071b9ba5620",
+    // #74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 041d3deb72c80b50eba4ef0369bd37a86.
+    "sha256:c76c357c013c89599a608f0293ca6edef5f2c57e80dc9506dd87176ea7504a45",
+    // #74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 9d3cc811ffa70b2ec8263a5d206b1a633.
+    "sha256:b8cb3600d0baadf38dedc62a2f370eecea808356d7ff4aaf53eff229faa1fe0e",
   ];
   const options = {
     baseRef: approvedBases[0],

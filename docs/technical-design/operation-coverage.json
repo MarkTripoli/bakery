@@ -1073,6 +1073,10 @@
       "workflow_skill_slots": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0256_workflow_skill_slots.sql"
+      },
+      "workflow_start_firings": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0331_workflow_start_firings.sql"
       }
     }
   },
