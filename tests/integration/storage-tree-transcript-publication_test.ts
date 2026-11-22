@@ -89,3 +89,60 @@ Deno.test("AC: a session transcript published on close appears in the tree under
     });
     assertEquals(resolved?.id, entry.id);
   }));
+
+Deno.test("#448 S8a: a transcript version names the session its attempt was handed, not a newer session on the step", () =>
+  withWorkerFixture(async (fixture) => {
+    const own = await setup(fixture);
+    const handed = own.assignment.agentSessionId;
+    assert(handed, "the claim hands the attempt a session");
+    // A second, newer session is open on the step when the transcript is
+    // published; the old provenance read named it as "the step's newest".
+    const newer = (await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.agent_sessions (organization_id, run_step_id,
+         conversation_id, agent_version_id, harness, status, created_at)
+       select organization_id, run_step_id, conversation_id,
+              agent_version_id, harness, 'active', now() + interval '1 hour'
+         from bakery.agent_sessions where organization_id = $1 and id = $2
+       returning id`,
+      [fixture.organizationId, handed],
+    )).rows[0];
+    assert(newer.id !== handed);
+    const output = await batch(own.binding, "transcript for provenance");
+    await own.client.postEvents(own.assignment.attemptId, {
+      ...own.open,
+      events: [{
+        eventId: crypto.randomUUID(),
+        localSeq: "1",
+        eventType: "job.output",
+        payload: output,
+      }],
+    });
+    await own.client.closeOutput(
+      own.assignment.attemptId,
+      {
+        ...own.open,
+        sessionId: own.binding.sessionId,
+        writerGeneration: own.binding.writerGeneration,
+        capture: "complete",
+        reason: "clean-end",
+      },
+      crypto.randomUUID(),
+    );
+    const versions = await fixture.pgDatabase.query<
+      { attemptId: string | null; agentSessionId: string | null }
+    >(
+      `select version.attempt_id as "attemptId",
+              version.agent_session_id as "agentSessionId"
+         from bakery.artifact_versions version
+         join bakery.artifacts artifact
+           on artifact.organization_id = version.organization_id
+          and artifact.id = version.artifact_id
+        where artifact.organization_id = $1 and artifact.task_id = $2`,
+      [fixture.organizationId, own.job.taskId],
+    );
+    assert(versions.rows.length >= 1, "the close wrote transcript versions");
+    for (const version of versions.rows) {
+      assertEquals(version.attemptId, own.assignment.attemptId);
+      assertEquals(version.agentSessionId, handed);
+    }
+  }));

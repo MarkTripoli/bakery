@@ -1,4 +1,5 @@
 import { assert, assertEquals, assertMatch } from "@std/assert";
+import { authTestOrigin } from "../helpers/auth.ts";
 import {
   type InstallationFixture,
   openInstallationFixture,
@@ -6,6 +7,7 @@ import {
 import {
   answerDesktopPage,
   bearerGet,
+  bearerPost,
   cleanupDesktopSignIns,
   codeFromDonePage,
   DESKTOP_REDIRECT,
@@ -365,5 +367,95 @@ Deno.test("only loopback or app-link redirect addresses can open a request", asy
       );
       assertEquals(response.status, 422, redirectUri);
     }
+  });
+});
+
+Deno.test("the app ends its own sign-in with that sign-in alone, and nothing else", async () => {
+  await withFixture(async (f) => {
+    const mine = await signInDesktop(f, f.developerCookie);
+    const other = await signInDesktop(f, f.developerCookie);
+
+    const ended = await f.app.fetch(
+      bearerPost("/v1/me/sessions/revoke-current", mine.credential),
+    );
+    assertEquals(ended.status, 200, await ended.clone().text());
+    assertEquals(await ended.json(), { revoked: true, current: true });
+
+    // The credential is dead at once, on the server.
+    const afterwards = await f.app.fetch(bearerGet("/v1/me", mine.credential));
+    assertEquals(afterwards.status, 401);
+    const rows = await f.pgDatabase.query(
+      `select id from public.session where id = any($1)`,
+      [[mine.sessionId, other.sessionId]],
+    );
+    assertEquals(
+      rows.rows.map((r: { id: string }) => r.id),
+      [other.sessionId],
+    );
+
+    // Another app's sign-in and the person's browser session are untouched.
+    assertEquals(
+      (await f.app.fetch(bearerGet("/v1/me", other.credential))).status,
+      200,
+    );
+    const listed = await f.app.fetch(
+      new Request(`${authTestOrigin}/v1/me/sessions`, {
+        headers: { cookie: f.developerCookie },
+      }),
+    );
+    assertEquals(listed.status, 200);
+    const ids = ((await listed.json()).items as { id: string }[]).map((i) =>
+      i.id
+    );
+    assert(ids.includes(other.sessionId) && !ids.includes(mine.sessionId));
+
+    // Ending it again is refused as unauthenticated: the app reads that as "already ended".
+    const again = await f.app.fetch(
+      bearerPost("/v1/me/sessions/revoke-current", mine.credential),
+    );
+    assertEquals(again.status, 401);
+
+    // One audit row names the session, and never the credential.
+    const audit = await f.pgDatabase.query<
+      { operation: string; details: unknown }
+    >(
+      `select operation, details from bakery.audit_events
+       where resource_type = 'browser_session' and resource_id = $1`,
+      [mine.sessionId],
+    );
+    assertEquals(audit.rows.map((r) => r.operation), [
+      "browserSessions.revokeCurrent",
+    ]);
+    assert(!JSON.stringify(audit.rows).includes(mine.credential));
+  });
+});
+
+Deno.test("ending a sign-in needs a sign-in: a call with none is refused and ends nothing", async () => {
+  await withFixture(async (f) => {
+    const kept = await signInDesktop(f, f.developerCookie);
+    const send = (headers: Record<string, string>) =>
+      f.app.fetch(
+        new Request(`${authTestOrigin}/v1/me/sessions/revoke-current`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: "{}",
+        }),
+      );
+    // No origin and no credential: the origin check turns it away first.
+    assertEquals((await send({})).status, 403);
+    // A trusted origin but no sign-in: unauthenticated.
+    assertEquals((await send({ origin: authTestOrigin })).status, 401);
+    // A credential that is not a sign-in at all.
+    assertEquals(
+      (await f.app.fetch(
+        bearerPost("/v1/me/sessions/revoke-current", `bkd_${"A".repeat(43)}`),
+      )).status,
+      401,
+    );
+    // Nothing ended: the app's own sign-in still works.
+    assertEquals(
+      (await f.app.fetch(bearerGet("/v1/me", kept.credential))).status,
+      200,
+    );
   });
 });

@@ -174,6 +174,7 @@ export async function stat(
       ["Type", item.mediaType ?? "-"],
       ["Size", formatSize(item.sizeBytes)],
     );
+    lines.push(["Pinned", item.pinned ? "yes" : "no"]);
     if (item.contentRemoved) {
       lines.push(["Contents", "removed (the history still lists)"]);
     }
@@ -213,7 +214,7 @@ export async function history(
       String(version.revision),
       version.createdAt.slice(0, 19).replace("T", " "),
       formatSize(version.sizeBytes),
-      version.makerName ?? version.makerKind,
+      madeBy(version),
       version.sha256 === null ? "-" : version.sha256.slice(0, 12),
       [
         version.isCurrent ? "current" : "",
@@ -222,6 +223,15 @@ export async function history(
         .filter((word) => word !== "").join(" "),
     ]),
   ]);
+}
+
+/** Who a version is by: an agent's version names the agent and the person. */
+export function madeBy(version: StorageVersion): string {
+  if (version.makerKind !== "agent") {
+    return version.makerName ?? version.makerKind;
+  }
+  const agent = version.agentName ? `agent ${version.agentName}` : "an agent";
+  return `${agent} for ${version.makerName ?? "unknown"}`;
 }
 
 /** `uses <path>`: the runs that pinned a version of this file as an input. */
@@ -346,4 +356,40 @@ export async function get(
     },
   );
   out.text(`Saved ${target} (${formatSize(response.content.byteLength)})`);
+}
+
+/**
+ * `pin <path>` and `unpin <path>`: set or clear an administrator pin, which
+ * stops retention from collecting the file's versions. Needs a token with the
+ * artifact:manage permission; a working-area file has no pin and is refused
+ * here before the server is asked.
+ */
+export async function setPin(
+  api: FilesApi,
+  argument: string,
+  pinned: boolean,
+  options: FileOptions,
+  out: Output,
+): Promise<void> {
+  const ref = parseRef(argument);
+  if (ref.kind === "version" || ref.revision !== null) {
+    throw new CommandError(
+      "A pin is on the file, not on one revision: give a path without @.",
+    );
+  }
+  const file = fileFor(await entryFor(api, ref));
+  if (file.artifactId === null) {
+    throw new CommandError(
+      `${file.path} is a working-area file; only a file kept as a record can be pinned.`,
+    );
+  }
+  const result = await api.pin(file.id, pinned);
+  if (options.json) return printJson(out, { path: file.path, ...result });
+  out.text(
+    `${result.pinned ? "Pinned" : "Unpinned"} ${file.path}${
+      !result.pinned && result.unpinEligible
+        ? " (an expired version may now be collected)"
+        : ""
+    }`,
+  );
 }

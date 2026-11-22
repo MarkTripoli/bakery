@@ -370,6 +370,10 @@ Deno.test("each registered attribute kind admits exactly its own shape", () => {
     "bakery.retry.count": 3,
     "bakery.logical_attempt": 2,
     "bakery.lease.lost": false,
+    "bakery.usage.input_tokens": 1_500_000,
+    "bakery.usage.output_tokens": 0,
+    "bakery.usage.measurement": "estimated",
+    "bakery.usage.route": "subscription",
   };
   const result = redact(input);
   assertEquals(result.attributes, input);
@@ -395,6 +399,10 @@ Deno.test("every registered name is covered by the shape test above", () => {
       "bakery.run.id",
       "bakery.step.key",
       "bakery.task.id",
+      "bakery.usage.input_tokens",
+      "bakery.usage.measurement",
+      "bakery.usage.output_tokens",
+      "bakery.usage.route",
     ],
   );
 });
@@ -407,6 +415,10 @@ Deno.test("a registered name with the wrong value is rejected and reported by na
     "bakery.lease.lost": "false",
     "bakery.outcome": "lower_case",
     "bakery.actor.hash": "a".repeat(63),
+    "bakery.usage.input_tokens": -1,
+    "bakery.usage.output_tokens": 1.5,
+    "bakery.usage.measurement": "sk-live-canary",
+    "bakery.usage.route": "whatever",
     "bakery.task.id": uuid,
   });
   assertEquals(result.attributes, { "bakery.task.id": uuid });
@@ -419,6 +431,10 @@ Deno.test("a registered name with the wrong value is rejected and reported by na
       "bakery.outcome",
       "bakery.retry.count",
       "bakery.run.id",
+      "bakery.usage.input_tokens",
+      "bakery.usage.measurement",
+      "bakery.usage.output_tokens",
+      "bakery.usage.route",
     ],
   );
   assert(!JSON.stringify(result).includes("not-a-uuid"));

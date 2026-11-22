@@ -52,6 +52,25 @@ export type DestinationRuntimeState = Readonly<{
   droppedSince: number | null;
 }>;
 
+/** Why a report of lost records was made. */
+export type DestinationDropReason = "queue_full" | "send_failed" | "shutdown";
+
+/**
+ * One report of records Bakery could not deliver to a destination. The records
+ * themselves are never kept, only how many were lost, when and why.
+ */
+export type DestinationDropReport = Readonly<{
+  /** Counts up from 1 for this destination since the server started. */
+  id: number;
+  /** Milliseconds since the epoch. */
+  at: number;
+  reason: DestinationDropReason;
+  count: number;
+}>;
+
+/** The most drop reports kept for one destination; the oldest go first. */
+export const DROP_REPORTS_KEPT = 200;
+
 /** The bounds of each destination's own queue. */
 export type DestinationQueueBounds = Readonly<{
   capacity: number;
@@ -94,6 +113,8 @@ export type DestinationFanout = Readonly<{
   /** Replaces the set of destinations; unchanged ones keep their queue. */
   configure(destinations: readonly ConfiguredDestination[]): void;
   states(): ReadonlyMap<string, DestinationRuntimeState>;
+  /** The destination's kept drop reports, oldest first; empty for an unknown one. */
+  drops(id: string): readonly DestinationDropReport[];
   /** Flushes what it can until the deadline, then abandons the rest. */
   close(deadlineMs: number): Promise<void>;
 }>;
@@ -108,6 +129,9 @@ type Entry = {
   dropped: number;
   droppedSince: number | null;
   lastOverflowAt: number | null;
+  /** The last {@link DROP_REPORTS_KEPT} loss reports, oldest first. */
+  readonly drops: DestinationDropReport[];
+  nextDropId: number;
   lastState: DestinationState;
   /** Why the kind cannot run, when it cannot. */
   unavailable: string | null;
@@ -182,6 +206,8 @@ export function createDestinationFanout(
       dropped: 0,
       droppedSince: null,
       lastOverflowAt: null,
+      drops: [],
+      nextDropId: 1,
       lastState: destination.enabled ? "not_tested_yet" : "off",
       unavailable: provider === undefined
         ? "This kind of destination is not installed."
@@ -216,6 +242,18 @@ export function createDestinationFanout(
       entry.dropped += loss.count;
       entry.droppedSince ??= now();
       if (loss.reason === "queue-full") entry.lastOverflowAt = now();
+      entry.drops.push(Object.freeze({
+        id: entry.nextDropId,
+        at: now(),
+        reason: loss.reason === "queue-full"
+          ? "queue_full"
+          : loss.reason === "send-failed"
+          ? "send_failed"
+          : "shutdown",
+        count: loss.count,
+      }));
+      entry.nextDropId += 1;
+      if (entry.drops.length > DROP_REPORTS_KEPT) entry.drops.shift();
       settle(entry);
     };
     return Object.assign(entry, {
@@ -264,6 +302,10 @@ export function createDestinationFanout(
       return new Map(
         [...entries].map(([id, entry]) => [id, snapshot(entry)] as const),
       );
+    },
+
+    drops(id) {
+      return [...(entries.get(id)?.drops ?? [])];
     },
 
     async close(deadlineMs) {

@@ -164,4 +164,5 @@
   <entry file="a-default-that-means-two-things.xml" scope="project" />
   <entry file="the-thing-exists-and-nothing-calls-it.xml" scope="project" />
   <entry file="wiring-needs-a-request.xml" scope="project" />
+  <entry file="never-dead-end-the-user.xml" scope="project" />
 </learnings>

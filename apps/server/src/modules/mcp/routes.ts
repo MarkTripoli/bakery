@@ -222,7 +222,8 @@ export function createMcpActionRegistry(
     path: "/v1/mcp-connections/:id/use-grants",
     input: contractSchemas.McpUseGrantCreate,
     output: contractSchemas.McpUseGrant,
-    policy: ownerOrAdmin,
+    // Consent binds a person's identity (O51): a signed-in session only.
+    policy: { ...ownerOrAdmin, sessionOnly: true },
     handler: createMcpUseGrant,
   }).register({
     name: ConnectionAction.McpUseGrantsRevoke,
@@ -230,7 +231,7 @@ export function createMcpActionRegistry(
     path: "/v1/mcp-connections/:id/use-grants/:grantId/revocation",
     input: contractSchemas.Empty,
     output: contractSchemas.McpUseGrant,
-    policy: ownerOrAdmin,
+    policy: { ...ownerOrAdmin, sessionOnly: true },
     handler: revokeMcpUseGrant,
   });
   assertRegisteredActions(registry);

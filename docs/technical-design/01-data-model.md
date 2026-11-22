@@ -1476,8 +1476,9 @@ Fenced execution lease and recovery truth.
 | `result` | `jsonb?` | yes | none |
 | `started_at` | `timestamp?` | yes | none |
 | `ended_at` | `timestamp?` | yes | none |
+| `traceparent` | `text?` | yes | none |
 
-**Integrity:** UNIQUE(job_id,attempt_no); UNIQUE(job_id,fence); one live attempt per job; completion requires current fence, active lease and matching host. worker_session_id and worker_session_generation preserve the process session that claimed the attempt while allowing a replacement process to report it after restart with the current server-issued session fence. started_at records the first accepted execution start; last_event_seq defaults to 0; first accepted event is 1; all event/result submissions share one contiguous journal ingestion transaction. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+**Integrity:** UNIQUE(job_id,attempt_no); UNIQUE(job_id,fence); one live attempt per job; completion requires current fence, active lease and matching host. worker_session_id and worker_session_generation preserve the process session that claimed the attempt while allowing a replacement process to report it after restart with the current server-issued session fence. started_at records the first accepted execution start; last_event_seq defaults to 0; first accepted event is 1; traceparent is the attempt's W3C span context (a child of the run's span, identifiers and a sampling flag only) kept at claim so later events join the run's trace and a retry can link to its first attempt, null before it was kept; all event/result submissions share one contiguous journal ingestion transaction. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
 
 #### `prepared_operations`
 

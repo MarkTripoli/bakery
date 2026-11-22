@@ -248,6 +248,8 @@ export type PollRunOutcome = {
   candidates: number;
   admitted: number;
   rechecked: number;
+  /** The status-note sync after the step; present only when a note writer is wired. */
+  progress?: { posted: number; failed: number; skipped: number };
   errorName?: string;
   candidateNumber?: number;
 };

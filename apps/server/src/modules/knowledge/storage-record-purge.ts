@@ -6,6 +6,7 @@ import {
 import { appendAudit } from "@bakery/persistence/event-audit";
 import { StandardError } from "@bakery/contracts/http";
 import { appendMemorySourceChanged } from "./memory-source-state.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 
 /**
  * Completes queued Admin purges of record-area files (chapter 25 section
@@ -139,6 +140,8 @@ export async function completeStoragePurgeRequests(
     throw new Error("STORAGE_PURGE_LIMIT_INVALID");
   }
   const pending = await withPgTransaction(ownerDatabase, async (tx) => {
+    // A backup holds the installation: nothing is purged until it lets go.
+    await assertNotQuiesced(tx, "dispatch");
     // Fail closed before reading anything as a role that is not the owner.
     await requireOwner(tx);
     return (await tx.query<{ id: string }>(
@@ -151,7 +154,11 @@ export async function completeStoragePurgeRequests(
   for (const { id } of pending) {
     const versions = await withPgTransaction(
       ownerDatabase,
-      (tx) => completeRequest(tx, id),
+      async (tx) => {
+        // The hold may begin between requests: each one checks again.
+        await assertNotQuiesced(tx, "dispatch");
+        return await completeRequest(tx, id);
+      },
     );
     if (versions === undefined) continue;
     result.completed += 1;

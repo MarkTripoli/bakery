@@ -1,3 +1,4 @@
+import { StandardError } from "@bakery/contracts/http";
 import { closePgDatabase, openPgDatabase } from "./database.ts";
 import {
   completeStoragePurgeRequests,
@@ -20,6 +21,16 @@ export async function runStoragePurgesTask(
   const database = openPgDatabase(ownerDatabaseUrl, 1);
   try {
     return await completeStoragePurgeRequests(database);
+  } catch (error) {
+    // A backup or a restore holds the installation: skip this round quietly.
+    // The timer runs again in ten minutes and a failed exit here would only
+    // raise an alarm.
+    if (
+      error instanceof StandardError &&
+      (error.code === "INSTALLATION_QUIESCED" ||
+        error.code === "INSTALLATION_RESTORING")
+    ) return { completed: 0, versionsPurged: 0 };
+    throw error;
   } finally {
     await closePgDatabase(database);
   }

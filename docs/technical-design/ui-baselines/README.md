@@ -27,8 +27,8 @@ inputs to token generation.
 Approved component specimen provenance is recorded separately in
 `paper-specimens.json`. Every record requires its Paper file/page/frame
 identity; newly approved records may additionally record an export content
-hash/token, approval link, and source representation. Candidate PNGs are
-never source inputs.
+hash/token, approval link, and source representation. Candidate PNGs are never
+source inputs.
 
 Run `pnpm ui:tokens:generate` to regenerate the typed token export and CSS. Run
 `pnpm ui:tokens:check` to validate source metadata and fail on generated drift
@@ -62,10 +62,10 @@ linked to Paper baselines.
 
 A runtime case with `paperBaselineId` may narrow the semantic assertions for
 that Paper-linked specimen with `semanticCoverage`. When present, both
-`variants` and `states` must be non-empty arrays and each value must be a
-member of the catalog required case's canonical variants or states.
-`semanticCoverage` is rejected on cases without `paperBaselineId`; it cannot
-weaken ordinary runtime coverage or use values outside the canonical case.
+`variants` and `states` must be non-empty arrays and each value must be a member
+of the catalog required case's canonical variants or states. `semanticCoverage`
+is rejected on cases without `paperBaselineId`; it cannot weaken ordinary
+runtime coverage or use values outside the canonical case.
 
 The runtime manifest uses schema version 2. Its `coverage` object reports the
 expected catalog size, selected cases, observed records, passed cases, failed
@@ -127,32 +127,32 @@ was exported from — at the exact viewport, theme and device
 `paper-manifest.json` records for that screen and state. They are not exports of
 the Paper file and not compositions approximating it:
 `pnpm --dir packages/ui render:paper -- --write` (or `render:paper:v0` for the
-unpinned V-0 cases alone) renders every declared case in
-headless Chromium on `linux-x64` with the pinned Geist fonts,
-`reduced-motion: reduce`, and the `reference.hidden`/ `reference.overrides` CSS
-the manifest declares (hiding prototype-only marks, overriding tokens), then
-writes the PNG, its `imageSha256` and its measured `image` dimensions back into
-`paper-baselines.json`. `--check` pins the committed PNG by `imageSha256`, then
-re-renders every design case and fails unless the fresh render scores at least
-0.95 against it (the same content-registration scorer and threshold as the gate:
-a fresh render on another machine differs from the committed pixels by glyph
-rasterisation alone - the CI runner scores 0.984-0.995 against
-workstation-rendered references - while a 6px shift of one heading scores 0.93).
-A committed reference is therefore an honest output of the pinned source: an
-edit without a new digest fails the pin, an edit with one fails the re-render by
-more than the gate itself tolerates. `compare:paper` re-verifies this on every
-run - it recomputes `source.digest` from the exact bytes of `source.inputs` and
-re-renders every design reference before comparing any candidate, so a stale or
-edited reference blocks the whole run as a `manifest` result rather than
-silently scoring against a lie. One economy: given `BAKERY_CAPTURE_BASE_SHA` (a
-pull request's base), the re-render is skipped when the diff against that base
-touches none of the reference inputs - `source.inputs`, the manifest, the
-reference PNGs, `render-paper-references.mjs`, `image-score.mjs` - because the
-base's own run re-rendered exactly these references; every main push (no base)
-re-renders, and a reference can only reach main through a pull request that
-changed one of those paths. The report records which it did
-(`Design
-references:` line; `designReferences.provedAt` in `comparison.json`).
+unpinned V-0 cases alone) renders every declared case in headless Chromium on
+`linux-x64` with the pinned Geist fonts, `reduced-motion: reduce`, and the
+`reference.hidden`/ `reference.overrides` CSS the manifest declares (hiding
+prototype-only marks, overriding tokens), then writes the PNG, its `imageSha256`
+and its measured `image` dimensions back into `paper-baselines.json`. `--check`
+pins the committed PNG by `imageSha256`, then re-renders every design case and
+fails unless the fresh render scores at least 0.95 against it (the same
+content-registration scorer and threshold as the gate: a fresh render on another
+machine differs from the committed pixels by glyph rasterisation alone - the CI
+runner scores 0.984-0.995 against workstation-rendered references - while a 6px
+shift of one heading scores 0.93). A committed reference is therefore an honest
+output of the pinned source: an edit without a new digest fails the pin, an edit
+with one fails the re-render by more than the gate itself tolerates.
+`compare:paper` re-verifies this on every run - it recomputes `source.digest`
+from the exact bytes of `source.inputs` and re-renders every design reference
+before comparing any candidate, so a stale or edited reference blocks the whole
+run as a `manifest` result rather than silently scoring against a lie. One
+economy: given `BAKERY_CAPTURE_BASE_SHA` (a pull request's base), the re-render
+is skipped when the diff against that base touches none of the reference
+inputs - `source.inputs`, the manifest, the reference PNGs,
+`render-paper-references.mjs`, `image-score.mjs` - because the base's own run
+re-rendered exactly these references; every main push (no base) re-renders, and
+a reference can only reach main through a pull request that changed one of those
+paths. The report records which it did (`Design
+references:` line;
+`designReferences.provedAt` in `comparison.json`).
 
 `reference.capabilities: "core"` renders every artboard through the design
 source's own `?caps=core` switch: the design as a core installation ships it —
@@ -226,12 +226,13 @@ a misleading score. Specimen reference images come from the `ui-capture`
 artifact of the UI workflow, which is why they declare `linux-x64`; to refresh
 one after a reviewed component change, download `ui-capture-<sha>` from that
 workflow run, copy the case image over the file in `paper/`, and update
-`imageSha256`. Design reference images are refreshed whenever the auth-mocks source or
-`paper-manifest.json` changes: `pnpm --dir packages/ui render:paper:v0`
-(`render-v0-references.mjs`) re-renders only the unpinned V-0 cases and restamps
-`source`; `render:paper -- --add <screen> <state>` adds new ones. K-0 cases are
-pinned and never refilled; `--write` refuses them. Either kind of refresh is a reviewed commit, and
-the image diff is the evidence.
+`imageSha256`. Design reference images are refreshed whenever the auth-mocks
+source or `paper-manifest.json` changes:
+`pnpm --dir packages/ui render:paper:v0` (`render-v0-references.mjs`) re-renders
+only the unpinned V-0 cases and restamps `source`;
+`render:paper -- --add <screen> <state>` adds new ones. K-0 cases are pinned and
+never refilled; `--write` refuses them. Either kind of refresh is a reviewed
+commit, and the image diff is the evidence.
 
 ### Refreshing after a sanctioned redesign
 
@@ -250,12 +251,12 @@ ux-ruling:<issue>#<comment-id>; app:<sanctioned-head-sha>
 It licenses exactly one refresh per branch, on the same term as a re-export: the
 re-anchored baselines carry the new identity and drift-detect from then on, so
 nothing is waived. It is also verified rather than asserted, by
-`uxRulingRefreshIssue` in `compare-paper.mjs`, which trusts nothing the
-declarer wrote:
+`uxRulingRefreshIssue` in `compare-paper.mjs`, which trusts nothing the declarer
+wrote:
 
 - every refreshed case carries `designRuling`, and all of them name the same
-  `<issue>#<comment>` that `source.revision` names, so a case the ruling does not
-  cover cannot ride the refresh;
+  `<issue>#<comment>` that `source.revision` names, so a case the ruling does
+  not cover cannot ride the refresh;
 - the ruling's own comment body is **vendored into the repository** by
   `reanchor-design-references.mjs` (which fetches it once from the GitHub API)
   and pinned by `source.rulingBodySha256`; the gate re-hashes those bytes and
@@ -263,9 +264,9 @@ declarer wrote:
   chose, so any comment id could licence any redesign;
 - `source.inputs` is hashed into the digest, not merely required. Requiring
   evidence and then ignoring it is the same self-attestation one field over;
-- `app:<sha>` must name a real commit that is **at or before the merge base**, so
-  an invented sha, or one borrowed from a future branch, cannot stand in for a
-  reviewed head;
+- `app:<sha>` must name a real commit that is **at or before the merge base**,
+  so an invented sha, or one borrowed from a future branch, cannot stand in for
+  a reviewed head;
 - `source.digest` covers the ruling citation, its body digest, the app commit,
   every pinned input's bytes and each refreshed case's id, path and image
   digest - so neither the refreshed set nor the evidence can be widened without
@@ -277,15 +278,16 @@ the refresh commit records which comment licensed it, and the image diff is what
 a reviewer checks against that comment.
 
 Each source identity licenses exactly one such refresh on a branch. The
-comparison takes its predecessor
-from the first branch commit carrying the current manifest's exact
-`source.revision` and `source.digest` pair, provided both fields differ from the
-merge base. A revision-only or digest-only change is not a refresh: it remains
-compared with the merge-base manifest and cannot self-license its metadata edits.
-A source identity has one immutable boundary on a branch: its first qualifying
-commit; later metadata edits under that identity block with `metadata changed
-without refreshed immutable Paper source identity`. A new source identity is
-required only when the pinned Paper source itself is re-exported.
+comparison takes its predecessor from the first branch commit carrying the
+current manifest's exact `source.revision` and `source.digest` pair, provided
+both fields differ from the merge base. A revision-only or digest-only change is
+not a refresh: it remains compared with the merge-base manifest and cannot
+self-license its metadata edits. A source identity has one immutable boundary on
+a branch: its first qualifying commit; later metadata edits under that identity
+block with `metadata changed
+without refreshed immutable Paper source identity`.
+A new source identity is required only when the pinned Paper source itself is
+re-exported.
 
 The comparison also reports how much provenance it could check. When the merge
 base carries no `paper-baselines.json`, the manifest result is `introduced`
@@ -304,21 +306,21 @@ Paper source is re-exported.
 
 Each `components.json` entry carries machine-checked guidance beyond its proof
 obligations. The whole file is validated by `packages/ui/catalog/schema.ts`
-(Zod, strict, every field described); `pnpm --dir packages/ui check:exports`
-and `pnpm ui:stories:check` both parse it through the schema, and
+(Zod, strict, every field described); `pnpm --dir packages/ui check:exports` and
+`pnpm ui:stories:check` both parse it through the schema, and
 `pnpm ui:architecture:test` runs `tests/rails/ui-catalog.node.mjs`.
 
-| Field                     | Meaning                                                                                                          |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `paper`                   | Paper specimen frames `{ fileId, pageId, frameId, name, variant? }`; empty only with `paperAbsentReason` naming what was searched. Matched mechanically from artboard names on pages 14-0, 15-0, 16-0 (catalog id in the name) and from `paper-baselines.json` frame ids. |
-| `usage.alternatives`      | `{ when, use }` pairs: a situation where another catalog component (`use`, must exist) fits better.              |
-| `usage.replacesElements`  | Raw intrinsic tags that app code should not write because this component renders them (`ui.button` replaces `button`). Only where the mapping is real. |
-| `usage.allowedLevels`     | Consumer levels (`atom` to `app`) that may import it; derived from the atomic-direction rule, never below the component's own level. |
-| `a11y`                    | `{ role?, accessibleName, keyboard[], targetSize?, notes? }` read from the component source in `packages/ui/src`. |
-| `tokens`                  | CSS custom properties the component's CSS rules use, derived from the class names in its source and the matching rules in `packages/ui/src/**/*.css`. |
-| `requiredCaseCoverage`    | `partitioned` when each `requiredCases` item proves only its own `variants`/`states` subset (worker-readiness templates). Optional.                |
-| `requiredCases[].wholeArtboardCapture` | `{ contractVersion, targetSelector, qualificationSelector }` registering a K-0 paired whole-artboard capture. Optional.            |
-| `compositions` (top level)| `{ id, description, appliesTo, requires[{ anyOf }], forbids, paper[] }`: which components a screen pattern must (and must not) combine. `appliesTo` holds catalog ids or app module globs. Seeded with `work-queue` and `auth-entry`. |
+| Field                                  | Meaning                                                                                                                                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `paper`                                | Paper specimen frames `{ fileId, pageId, frameId, name, variant? }`; empty only with `paperAbsentReason` naming what was searched. Matched mechanically from artboard names on pages 14-0, 15-0, 16-0 (catalog id in the name) and from `paper-baselines.json` frame ids. |
+| `usage.alternatives`                   | `{ when, use }` pairs: a situation where another catalog component (`use`, must exist) fits better.                                                                                                                                                                       |
+| `usage.replacesElements`               | Raw intrinsic tags that app code should not write because this component renders them (`ui.button` replaces `button`). Only where the mapping is real.                                                                                                                    |
+| `usage.allowedLevels`                  | Consumer levels (`atom` to `app`) that may import it; derived from the atomic-direction rule, never below the component's own level.                                                                                                                                      |
+| `a11y`                                 | `{ role?, accessibleName, keyboard[], targetSize?, notes? }` read from the component source in `packages/ui/src`.                                                                                                                                                         |
+| `tokens`                               | CSS custom properties the component's CSS rules use, derived from the class names in its source and the matching rules in `packages/ui/src/**/*.css`.                                                                                                                     |
+| `requiredCaseCoverage`                 | `partitioned` when each `requiredCases` item proves only its own `variants`/`states` subset (worker-readiness templates). Optional.                                                                                                                                       |
+| `requiredCases[].wholeArtboardCapture` | `{ contractVersion, targetSelector, qualificationSelector }` registering a K-0 paired whole-artboard capture. Optional.                                                                                                                                                   |
+| `compositions` (top level)             | `{ id, description, appliesTo, requires[{ anyOf }], forbids, paper[] }`: which components a screen pattern must (and must not) combine. `appliesTo` holds catalog ids or app module globs. Seeded with `work-queue` and `auth-entry`.                                     |
 
 Read the catalog through `packages/ui/catalog/index.ts`: `loadCatalog()`,
 `findComponents(need)` (by raw `element`, `query`, `level`, `consumerLevel`,
@@ -334,88 +336,92 @@ frame ids must be unique inside an entry.
 `scripts/check-ui-architecture.mjs` reads `components.json` and enforces it on
 apps/web; nothing is hard-coded, so editing the catalog changes the rules.
 
-| Rule                              | Fires when                                                                                                             |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Rule                              | Fires when                                                                                                                                                                                                                                                                                                                        |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ui/raw-element-in-app`           | An intrinsic JSX element listed in any entry's `usage.replacesElements` appears in `apps/web/src`. The message lists every catalog component replacing that tag. `*.test.*`, `*.spec.*`, `*.stories.*`, `__tests__` and `__mocks__` are exempt; fixture routes under `apps/web/src/fixtures` are production-rendered and checked. |
-| `ui/composition-missing-required` | A module a composition applies to renders none of one `requires[].anyOf` group. One diagnostic per module names every missing group. |
-| `ui/composition-forbidden`        | A module a composition applies to renders a `forbids` component. Reported at the use.                                  |
+| `ui/composition-missing-required` | A module a composition applies to renders none of one `requires[].anyOf` group. One diagnostic per module names every missing group.                                                                                                                                                                                              |
+| `ui/composition-forbidden`        | A module a composition applies to renders a `forbids` component. Reported at the use.                                                                                                                                                                                                                                             |
 
-Compositions target the module that owns the pattern (the screen that renders the heading and button), not wrapper pages that only delegate to it.
+Compositions target the module that owns the pattern (the screen that renders
+the heading and button), not wrapper pages that only delegate to it.
 
 A module is "applied" when it matches an `appliesTo` glob (`*` stays in a path
 segment, `**` crosses; globs with no file are fine) or, for a catalog id such as
 `template.authEntry`, renders that component. "Renders" means a JSX tag that
-resolves, through the public `@bakery/ui` exports, to the component the id names;
-other uses (passing a component as a value) are not seen. `usage.allowedLevels`
-is not enforced separately: every entry already allows `app`, and the
-atomic-direction rule covers imports inside `packages/ui`.
+resolves, through the public `@bakery/ui` exports, to the component the id
+names; other uses (passing a component as a value) are not seen.
+`usage.allowedLevels` is not enforced separately: every entry already allows
+`app`, and the atomic-direction rule covers imports inside `packages/ui`.
 
 Findings that predate a rule live in `guardrail-baseline.json`, keyed by rule,
 module and subject (element tag or composition id) with a count. A module may
 not exceed its count, a count above what remains fails as stale (lower it), and
 `pnpm ui:architecture:check` fails when a count grows or a record appears
-compared with the merge base. Fix the code, then lower the count; never raise it.
-Weakening a catalog rule against the merge base (dropping a `replacesElements`
-tag, a composition, a `requires` group, a `forbids` id or an `appliesTo` entry)
-needs a `coverage-removals.json` record of kind `catalog-rule`, identity
-`replaces:<entry>:<tag>`, `composition:<id>`, `requires:<id>:<sorted anyOf joined by |>`,
-`forbids:<id>:<entry>` or `applies:<id>:<pattern>`; narrowing a group or adding rules needs none.
+compared with the merge base. Fix the code, then lower the count; never raise
+it. Weakening a catalog rule against the merge base (dropping a
+`replacesElements` tag, a composition, a `requires` group, a `forbids` id or an
+`appliesTo` entry) needs a `coverage-removals.json` record of kind
+`catalog-rule`, identity `replaces:<entry>:<tag>`, `composition:<id>`,
+`requires:<id>:<sorted anyOf joined by |>`, `forbids:<id>:<entry>` or
+`applies:<id>:<pattern>`; narrowing a group or adding rules needs none.
 `guardrail-baseline.json` is a verify-run gate path.
 
 `checkFile(path, { root })` and `describeFile` are exported from the checker and
 run the same whole-workspace analysis as `checkUiArchitecture`, filtered to one
-module (the merge-base contraction check is not part of a single-file answer).
-A path the analyzer never parsed (directory, non-source file, outside the
-analyzed packages) throws `NotAnalyzedModuleError`; `ui_check_file` returns it as
-an `isError` "not an analyzed UI module", never `clean: true`.
+module (the merge-base contraction check is not part of a single-file answer). A
+path the analyzer never parsed (directory, non-source file, outside the analyzed
+packages) throws `NotAnalyzedModuleError`; `ui_check_file` returns it as an
+`isError` "not an analyzed UI module", never `clean: true`.
 
-`scripts/ui-catalog-mcp.mjs` is a dependency-free stdio MCP server (JSON-RPC 2.0,
-protocol 2025-06-18, one message per line) registered as `bakery-ui` in
+`scripts/ui-catalog-mcp.mjs` is a dependency-free stdio MCP server (JSON-RPC
+2.0, protocol 2025-06-18, one message per line) registered as `bakery-ui` in
 `.mcp.json`, `.cursor/mcp.json` and `opencode.json`. Tools are read-only and
 their input schemas come from Zod via `z.toJSONSchema`:
 
-| Tool                 | Answers                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------- |
-| `ui_find_component`  | Ranked entries for `need`, `element`, `level` or `role` (uses `findComponents`).                  |
-| `ui_component`       | Full entry by `id`: usage, alternatives, a11y, tokens, story title, Paper frames with page URLs.  |
-| `ui_composition`     | Compositions by `id`, those applied to a `file`, or all.                                          |
-| `ui_route_reference` | Ledger entry for a route `path`, its manifest cases and reference PNG paths.                      |
-| `ui_check_file`      | `checkFile` diagnostics for a repo-relative `path`; the same function CI runs.                    |
+| Tool                 | Answers                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `ui_find_component`  | Ranked entries for `need`, `element`, `level` or `role` (uses `findComponents`).                 |
+| `ui_component`       | Full entry by `id`: usage, alternatives, a11y, tokens, story title, Paper frames with page URLs. |
+| `ui_composition`     | Compositions by `id`, those applied to a `file`, or all.                                         |
+| `ui_route_reference` | Ledger entry for a route `path`, its manifest cases and reference PNG paths.                     |
+| `ui_check_file`      | `checkFile` diagnostics for a repo-relative `path`; the same function CI runs.                   |
 
-Paper page URLs use the documented `https://app.paper.design/file/<fileId>/<pageId>`
-form; frame ids are returned beside them because no node deep link is documented.
-Paths are confined to the repository (traversal and symlink escapes are tool
-errors). `tests/rails/ui-catalog-mcp.node.mjs` spawns the server and asserts
+Paper page URLs use the documented
+`https://app.paper.design/file/<fileId>/<pageId>` form; frame ids are returned
+beside them because no node deep link is documented. Paths are confined to the
+repository (traversal and symlink escapes are tool errors).
+`tests/rails/ui-catalog-mcp.node.mjs` spawns the server and asserts
 `ui_check_file` equals `checkFile`, so the MCP cannot drift from CI.
 
 ## Route references
 
 `route-references.json` is the ledger that ties each production route in
 `routeCoverage` (`apps/web/src/router.tsx`) to the approved Paper frames and
-golden cases that judge it. The schema is `packages/ui/catalog/route-references.ts`
-(Zod, every field described). `pnpm ui:architecture:check` validates it; no
-production route can ship without an entry.
+golden cases that judge it. The schema is
+`packages/ui/catalog/route-references.ts` (Zod, every field described).
+`pnpm ui:architecture:check` validates it; no production route can ship without
+an entry.
 
 One entry per route: `routeId`, `path`, `status`, `frames`, and as the status
 requires `rationale`, `manifest`, `cases`, `absentVariants`.
 
-| Status      | Meaning                                                                                                                                   |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Status      | Meaning                                                                                                                                                                                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `baselined` | Every frame has a listed case in the named manifest (`auth` is `paper-baselines.json`, `enterprise` is `enterprise-baselines.json`, `settings` is `settings-baselines.json`, `entitlements` is `entitlements-baselines.json`) with the same `frameId` and a `candidate.route` that matches a fixture route. |
-| `planned`   | Route is not in `routeCoverage` yet. References exist; manifest cases are not required to exist here. Illegal once the route ships.       |
-| `no-mock`   | Paper has no frame. `rationale` names what was searched. No frames, cases or manifest.                                                    |
-| `debt`      | Paper has a frame, no golden yet. Contraction-only: debt may shrink, never grow.                                                          |
+| `planned`   | Route is not in `routeCoverage` yet. References exist; manifest cases are not required to exist here. Illegal once the route ships.                                                                                                                                                                         |
+| `no-mock`   | Paper has no frame. `rationale` names what was searched. No frames, cases or manifest.                                                                                                                                                                                                                      |
+| `debt`      | Paper has a frame, no golden yet. Contraction-only: debt may shrink, never grow.                                                                                                                                                                                                                            |
 
 Diagnostics (kind `route-reference`):
 
-| Code                                  | Fails when                                                                                   |
-| ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ui/route-reference-missing`          | a production route has no ledger entry                                                       |
-| `ui/route-reference-unbaselined`      | a `baselined` frame lacks a matching manifest case, or the case lacks a fixture `candidate.route` |
-| `ui/route-reference-planned-present`  | a `planned` entry names a route now in `routeCoverage`                                       |
-| `ui/route-reference-stale`            | a non-`planned` entry names a route absent from `routeCoverage`, or its path differs         |
-| `ui/route-reference-invalid`          | the ledger is not valid JSON or fails the Zod schema (a `planned` entry on the auth or settings manifest fails it; only enterprise and entitlements may be `planned`), a `planned` case is absent from its manifest, or two entries claim one case |
-| `ui/route-reference-debt-grew`        | a route is `debt` now and was not `debt` at the merge base (contraction failure)             |
+| Code                                 | Fails when                                                                                                                                                                                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui/route-reference-missing`         | a production route has no ledger entry                                                                                                                                                                                                             |
+| `ui/route-reference-unbaselined`     | a `baselined` frame lacks a matching manifest case, or the case lacks a fixture `candidate.route`                                                                                                                                                  |
+| `ui/route-reference-planned-present` | a `planned` entry names a route now in `routeCoverage`                                                                                                                                                                                             |
+| `ui/route-reference-stale`           | a non-`planned` entry names a route absent from `routeCoverage`, or its path differs                                                                                                                                                               |
+| `ui/route-reference-invalid`         | the ledger is not valid JSON or fails the Zod schema (a `planned` entry on the auth or settings manifest fails it; only enterprise and entitlements may be `planned`), a `planned` case is absent from its manifest, or two entries claim one case |
+| `ui/route-reference-debt-grew`       | a route is `debt` now and was not `debt` at the merge base (contraction failure)                                                                                                                                                                   |
 
 Debt growth compares the ledger with the merge-base ledger. The branch that
 introduces the ledger has no base ledger and is not measured against itself.
@@ -463,12 +469,12 @@ Semantics:
 
 `top` is derived, not authored. The renderer measures the status bar (the first
 child of the frame root: 21px padding + 22px line + 19px padding = 62) in the
-rendered enterprise site, `render:paper:enterprise -- --write` re-records it, and
-`--check` fails when the recorded `top` differs from the measured height. The
-schema also rejects a missing or blank `reason`, a non-positive, fractional or
-`>= H` `top`, a `deviceChrome` on a desktop case, and a `source.frameId` that is
-not the case's `frameId`. Desktop cases never carry it. Auth and K-0 cases never
-get it: `compare:paper` refuses `deviceChrome` in any manifest that is not
+rendered enterprise site, `render:paper:enterprise -- --write` re-records it,
+and `--check` fails when the recorded `top` differs from the measured height.
+The schema also rejects a missing or blank `reason`, a non-positive, fractional
+or `>= H` `top`, a `deviceChrome` on a desktop case, and a `source.frameId` that
+is not the case's `frameId`. Desktop cases never carry it. Auth and K-0 cases
+never get it: `compare:paper` refuses `deviceChrome` in any manifest that is not
 site-rendered (`deviceChromeIssues`). Settings is site-rendered, so the check
 allows it there; the renderer measurement above is enterprise-only today.
 
@@ -480,24 +486,26 @@ Both run Chromium under `packages/ui/scripts/fontconfig/fonts.conf`.
 
 ## First introduction of an additional Paper profile
 
-The legacy whole-manifest rule above remains for manifests without profiles.
-For an additional profile, the comparator resolves the trusted Git merge base
-and complete branch history itself. Caller-supplied absence cannot license a
+The legacy whole-manifest rule above remains for manifests without profiles. For
+an additional profile, the comparator resolves the trusted Git merge base and
+complete branch history itself. Caller-supplied absence cannot license a
 profile. Missing, shallow, unreadable, malformed or ambiguous history blocks.
 
 The earliest declaration **or case reference** binds the profile, regardless of
-revision or digest. Its full original identity is `(Paper file ID, page ID,
-export-manifest SHA256)`, read from that historical commit. The current candidate
-is the first snapshot only when no committed appearance exists. Original
-PNG/React-CSS bytes, frame IDs, dimensions, fonts, render bindings and composite
-source digest must agree. These are integrity checks, not authentication of
-human design approval; branch reviewers remain responsible for that judgment.
+revision or digest. Its full original identity is
+`(Paper file ID, page ID,
+export-manifest SHA256)`, read from that historical
+commit. The current candidate is the first snapshot only when no committed
+appearance exists. Original PNG/React-CSS bytes, frame IDs, dimensions, fonts,
+render bindings and composite source digest must agree. These are integrity
+checks, not authentication of human design approval; branch reviewers remain
+responsible for that judgment.
 
 That first snapshot freezes the profile declaration and complete case inventory.
 Later addition, removal, metadata change, reassignment, export-identity change
-(including A→B→A), or disappearance/reappearance blocks. Revision or implementation
-digest churn cannot renew the allowance. Existing-profile refresh is outside
-this narrow introduction path.
+(including A→B→A), or disappearance/reappearance blocks. Revision or
+implementation digest churn cannot renew the allowance. Existing-profile refresh
+is outside this narrow introduction path.
 
 One profile owns each `(file ID, page ID)` throughout the checked history. An
 alias cannot obtain a second allowance with either the same or a changed export
@@ -508,8 +516,8 @@ exception: once per branch, V0 may change from the first commit whose V0
 identity is a genuine refresh. The provenance walk recomputes the V0
 `source.digest` from that snapshot's own `source.inputs` bytes (SHA-256 over
 `<path>\0<sha256(bytes)>\n` per input, the V0 renderer's function, no browser
-launch options). The recomputed digest must equal the declared digest and
-differ from the merge base, and `source.revision` must read
+launch options). The recomputed digest must equal the declared digest and differ
+from the merge base, and `source.revision` must read
 `paper:<sha8>; mock:<digest8>; rendered:<date>` with `paper:` the first eight
 hex of `sha256(source.manifestPath bytes)` and `mock:` the recomputed digest
 prefix. Unverifiable, self-declared, revision-only or digest-only identities
@@ -522,21 +530,21 @@ refresh still cannot bypass a profile failure. Tests live in
 
 An unchanged V0 remains `passed`; a new K0 remains `introduced` throughout its
 introducing branch, even after its first commit. Only a later trusted merge base
-containing that profile permits `passed`. Any profile failure blocks the aggregate.
-`introduced` proves neither visual parity nor human approval. Source validation,
-original-image checks, reference re-rendering, compatibility, complete coverage
-and the **0.95** threshold still apply. Prefix-filtered development comparisons
-check full provenance too, but remain partial, not delivery evidence. Old capture
-identity must be revalidated after tooling changes; never rewrite stamps to make
-old screenshots appear current.
+containing that profile permits `passed`. Any profile failure blocks the
+aggregate. `introduced` proves neither visual parity nor human approval. Source
+validation, original-image checks, reference re-rendering, compatibility,
+complete coverage and the **0.95** threshold still apply. Prefix-filtered
+development comparisons check full provenance too, but remain partial, not
+delivery evidence. Old capture identity must be revalidated after tooling
+changes; never rewrite stamps to make old screenshots appear current.
 
 ## Settings (O-0) manifest
 
 The `settings` manifest follows the enterprise precedent (E-0): references are
-renders of Paper JSX, not Paper's own PNGs. `docs/technical-design/settings-mocks/`
-holds the read-only Paper desktop MCP exports of page O-0 (`get_jsx`, computed
-styles, tokens, in `source/`, described and sha256-pinned by
-`source-manifest.json`) and the generated static `site/`
+renders of Paper JSX, not Paper's own PNGs.
+`docs/technical-design/settings-mocks/` holds the read-only Paper desktop MCP
+exports of page O-0 (`get_jsx`, computed styles, tokens, in `source/`, described
+and sha256-pinned by `source-manifest.json`) and the generated static `site/`
 (`paper-jsx-to-html.mjs --site settings`). Fonts are the pinned Geist files of
 `enterprise-mocks/fonts`, rendered under the same hermetic fontconfig.
 
@@ -549,76 +557,76 @@ render under `ui-baselines/paper/settings/`, which `--write` produced once.
 Case-level checks join when `settings-baselines.json` appears with the first
 settings cases. The render's score against Paper's own PNG export (the
 2026-09-08 exports, sha256-matched to `settings-mocks/paper-manifest.json`) is
-recorded per frame as `paperExportScore` and shown as side-by-side composites
-in `artifacts/ui-baseline/settings-provenance/`; it is a diagnostic, not a
-gate, because layout matches and only Paper's glyph rasterization differs.
-`planned` and `debt` ledger statuses stay enterprise-only, except that the
-entitlements manifest may also hold `planned` entries (E16 routes ship across
-phases). Its 84 reference renders live under `ui-baselines/paper/entitlements/`;
+recorded per frame as `paperExportScore` and shown as side-by-side composites in
+`artifacts/ui-baseline/settings-provenance/`; it is a diagnostic, not a gate,
+because layout matches and only Paper's glyph rasterization differs. `planned`
+and `debt` ledger statuses stay enterprise-only, except that the entitlements
+manifest may also hold `planned` entries (E16 routes ship across phases). Its 84
+reference renders live under `ui-baselines/paper/entitlements/`;
 `entitlements-baselines.json` holds one case per frame, each owned by one
 `planned` entry in the ledger until its route ships.
 
 ## Worker dark (derived) manifest
 
 Paper K-0 has no dark Machines detail phone frame. The `worker-dark` manifest
-scores that design against a reference **derived** from approved K-0 sources;
-no Paper export is claimed (`fileId` `bakery-repo-worker-dark`, page
+scores that design against a reference **derived** from approved K-0 sources; no
+Paper export is claimed (`fileId` `bakery-repo-worker-dark`, page
 `worker-dark-derived`, frame `derived-90D-0-dark`).
 
 Derivation (`packages/ui/scripts/derive-worker-dark-source.mjs`): the approved
 light/dark list pairs 8SE-0/AD7-0 (phone) and 8SD-0/A8Y-0 (desktop) are aligned
 token by token (`var(--…)` references and hex colours, in source order). Both
 pairs have equal token counts and every light token maps to exactly one dark
-token; the run fails otherwise, or when the light detail phone export 90D-0
-uses a colour token the map does not cover. Fonts, radii, text sizes and
-transparent are theme-invariant. The map is substituted into the bytes of
-90D-0; the output carries a header naming every input with its SHA-256 and the
-map. With the map applied, each light list export equals its dark export except
-for the frame URL comment and two status-bar battery glyph attributes, which is
-the evidence that the pairs differ by colour token only.
+token; the run fails otherwise, or when the light detail phone export 90D-0 uses
+a colour token the map does not cover. Fonts, radii, text sizes and transparent
+are theme-invariant. The map is substituted into the bytes of 90D-0; the output
+carries a header naming every input with its SHA-256 and the map. With the map
+applied, each light list export equals its dark export except for the frame URL
+comment and two status-bar battery glyph attributes, which is the evidence that
+the pairs differ by colour token only.
 
 `docs/technical-design/worker-dark-mocks/` holds the generated derived source,
 `paper-manifest.json` (renderer inputs), `source-manifest.json` (provenance:
 inputs, map, method), `runtime-context.json` (the one `runtime-cases.json`
 context the renderer reads, so a new runtime case never moves the digest), a
-byte copy of K-0 `theme-values.json` and a static
-`site/` whose fragment is the pinned K-0 JSX renderer's output
-(`workerReadinessMarkup`, imported, never edited) with fonts served from
-`enterprise-mocks/fonts` (byte-identical to the K-0 fonts).
-`pnpm --dir packages/ui render:paper:worker-dark -- --write` regenerates all of
-it plus `worker-dark-baselines.json` and `paper/worker-dark/*.png`; `--check`
-re-derives every byte and re-renders the reference against the committed PNG
-at the 0.95 floor.
+byte copy of K-0 `theme-values.json` and a static `site/` whose fragment is the
+pinned K-0 JSX renderer's output (`workerReadinessMarkup`, imported, never
+edited) with fonts served from `enterprise-mocks/fonts` (byte-identical to the
+K-0 fonts). `pnpm --dir packages/ui render:paper:worker-dark -- --write`
+regenerates all of it plus `worker-dark-baselines.json` and
+`paper/worker-dark/*.png`; `--check` re-derives every byte and re-renders the
+reference against the committed PNG at the 0.95 floor.
 
 The candidate is the story the K-0 light phone case scores,
 `bakery-templates-workerreadonlydetail--contract` with `state: ready`, in dark
 at the same 390x1483 viewport, coarse pointer and reduced-motion setting. A
-site-rendered design case may name such a story candidate
-(`candidate.storyId`, `args`, `reducedMotion`, `wholeArtboard`;
-`StoryCandidateSchema` in `packages/ui/catalog/design-cases.ts`).
-`pnpm --dir packages/ui capture:worker-dark -- --all` (`capture-site-stories.mjs`)
-serves the built Storybook, runs the registered runtime case's assertions
-(`wr.detail.ready.phone-dark-coarse`: axe, containment, target size) before and
-after, checks the whole-artboard observation with the pinned K-0 helpers
-(qualification visible and above the artwork, natural 390x1483 size), records
-the complete UI as a native viewport bundle, then screenshots only the
-artboard element at the viewport origin. The K-0 Paper-export raster offset is
-not applied: the reference is a Chromium render, not Paper's PNG. No device
-chrome is excluded, as for the light K-0 case. `compare:paper -- --manifest
-worker-dark` admits story candidates only in site-rendered manifests and scores
-the artboard image with the unchanged scorer and 0.95 threshold. The
-`machine-detail` ledger route stays `no-mock`: the production route is not
-scored against this synthetic artwork.
+site-rendered design case may name such a story candidate (`candidate.storyId`,
+`args`, `reducedMotion`, `wholeArtboard`; `StoryCandidateSchema` in
+`packages/ui/catalog/design-cases.ts`).
+`pnpm --dir packages/ui capture:worker-dark -- --all`
+(`capture-site-stories.mjs`) serves the built Storybook, runs the registered
+runtime case's assertions (`wr.detail.ready.phone-dark-coarse`: axe,
+containment, target size) before and after, checks the whole-artboard
+observation with the pinned K-0 helpers (qualification visible and above the
+artwork, natural 390x1483 size), records the complete UI as a native viewport
+bundle, then screenshots only the artboard element at the viewport origin. The
+K-0 Paper-export raster offset is not applied: the reference is a Chromium
+render, not Paper's PNG. No device chrome is excluded, as for the light K-0
+case. `compare:paper -- --manifest
+worker-dark` admits story candidates only in
+site-rendered manifests and scores the artboard image with the unchanged scorer
+and 0.95 threshold. The `machine-detail` ledger route stays `no-mock`: the
+production route is not scored against this synthetic artwork.
 
 ## Coverage contractions
 
 `pnpm ui:architecture:check` compares catalog IDs, catalog required-case pairs,
 runtime case/context edges, runtime context IDs, viewport profiles,
 visual-baseline IDs, section-route identities, route reference ledger entries,
-and workspace UI-consumer package identities against the exact merge base. The base reference resolves from an
-explicit `--base` argument, then the pull request base ref, then `origin/main`,
-and the merge base is computed with Git. The check fails closed when a required
-base cannot be resolved.
+and workspace UI-consumer package identities against the exact merge base. The
+base reference resolves from an explicit `--base` argument, then the pull
+request base ref, then `origin/main`, and the merge base is computed with Git.
+The check fails closed when a required base cannot be resolved.
 
 Every base identity missing from the candidate fails the check unless the branch
 adds `docs/technical-design/ui-baselines/coverage-removals.json` authorizing the
@@ -642,18 +650,18 @@ removal:
 Each record names the exact merge-base SHA, a `kind` (`catalog-id`,
 `required-case`, `runtime-case-context-edge`, `runtime-context`,
 `viewport-profile`, `visual-baseline`, `section-route`, `ui-consumer`,
-`app-route`, `route-state`, or `route-reference`), one exact identity, a nonblank rationale, and
-exactly one of `replacement` or `retired: true`. Wildcard identities, duplicate
-records, stale base SHAs, records for identities still present in the candidate,
-and records for identities absent from the merge base are rejected. The file is
-optional and must not be created empty: when it is absent, no contractions are
-authorized.
+`app-route`, `route-state`, or `route-reference`), one exact identity, a
+nonblank rationale, and exactly one of `replacement` or `retired: true`.
+Wildcard identities, duplicate records, stale base SHAs, records for identities
+still present in the candidate, and records for identities absent from the merge
+base are rejected. The file is optional and must not be created empty: when it
+is absent, no contractions are authorized.
 
-Because each record names one exact merge-base SHA, the file is a per-pull-request
-authorization, not a permanent register. Delete it once its contraction has
-landed: the merge base then already holds the replacement, so the record has
-nothing left to authorize, and its SHA no longer matches, which the check rejects
-as stale. Deleting is a rule to follow, not a safety net that retires records for
-you — a record whose SHA still happened to match a later base would be honoured.
-It is also the fail-closed direction: an absent file permits no contractions at
-all.
+Because each record names one exact merge-base SHA, the file is a
+per-pull-request authorization, not a permanent register. Delete it once its
+contraction has landed: the merge base then already holds the replacement, so
+the record has nothing left to authorize, and its SHA no longer matches, which
+the check rejects as stale. Deleting is a rule to follow, not a safety net that
+retires records for you — a record whose SHA still happened to match a later
+base would be honoured. It is also the fail-closed direction: an absent file
+permits no contractions at all.

@@ -125,7 +125,7 @@ export const OPEN: Seed[] = [
   },
   {
     number: 204,
-    title: "Fix rounding on totals",
+    title: "Fix rounding on order totals when a gift card pays part",
     verdict: "ready",
     checks: ready,
     request: { disposition: "active" },
@@ -177,9 +177,26 @@ export type WorkSeed = {
   };
   /** Tasks that only mention the issue. */
   mentioned?: { title: string; status: string }[];
+  /** The questions the work's own task has raised (served from the questions read). */
+  questions?: {
+    status: "open" | "answered" | "expired";
+    prompt: string;
+    /** How long ago it was asked; 25 minutes by default. */
+    minutesAgo?: number;
+    kind?: "question" | "approval";
+  }[];
+  /** Questions cannot be read (the read answers an error). */
+  questionsFail?: boolean;
 };
 
 export type Options = {
+  /**
+   * The batches the server lists (as `batch()` of batches-fixture builds them);
+   * giving any also gives the person `batch:read`, which the notice needs.
+   */
+  batches?: readonly { repositoryId: string }[];
+  /** A second repository that is taking issues (acme/api, repository uuid(913)), with no issues of its own. */
+  secondSource?: boolean;
   work?: WorkSeed;
   /** The work that exists once somebody else's start has been refused (start: "alreadyRunning"). */
   workWhenRunning?: WorkSeed;
@@ -188,7 +205,7 @@ export type Options = {
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
   pageSize?: number;
   /** The person's role in the organization; an administrator by default. */
-  role?: "admin" | "developer";
+  role?: "admin" | "developer" | "viewer";
   /** What starting work answers: ok (default), or a refusal. */
   start?:
     | "ok"
@@ -234,9 +251,27 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
           role: options.role ?? "admin",
-          capabilities: [],
+          capabilities: options.batches === undefined ? [] : ["batch:read"],
         }),
       }),
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/batches",
+    (route) => {
+      const repository = new URL(route.request().url()).searchParams.get(
+        "repositoryId",
+      );
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: (options.batches ?? []).filter((batch) =>
+            repository === null || batch.repositoryId === repository
+          ),
+          nextCursor: null,
+        }),
+      });
+    },
   );
   const sourcesMode = options.sources ?? "healthy";
   await page.route(
@@ -246,30 +281,52 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          items: sourcesMode === "none" ? [] : [{
-            id: SOURCE_ID,
-            organizationId: MOCK_ORGANIZATION_ID,
-            integrationConnectionId: uuid(901),
-            integrationResourceId: uuid(902),
-            applicationId: uuid(904),
-            repositoryId: uuid(903),
-            externalContainerId: "acme/web",
-            enabled: true,
-            policy: {},
-            policyRevision: 1,
-            syncHealth: sourcesMode === "degraded"
-              ? "degraded"
-              : sourcesMode === "authRequired"
-              ? "auth_required"
-              : sourcesMode === "unknown"
-              ? "unknown"
-              : "healthy",
-            lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-            lastProblemCode: null,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-            version: 1,
-          }],
+          items: sourcesMode === "none" ? [] : [
+            ...(options.secondSource
+              ? [{
+                id: uuid(910),
+                organizationId: MOCK_ORGANIZATION_ID,
+                integrationConnectionId: uuid(901),
+                integrationResourceId: uuid(911),
+                applicationId: uuid(904),
+                repositoryId: uuid(913),
+                externalContainerId: "acme/api",
+                enabled: true,
+                policy: {},
+                policyRevision: 1,
+                syncHealth: "healthy",
+                lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+                lastProblemCode: null,
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+                version: 1,
+              }]
+              : []),
+            {
+              id: SOURCE_ID,
+              organizationId: MOCK_ORGANIZATION_ID,
+              integrationConnectionId: uuid(901),
+              integrationResourceId: uuid(902),
+              applicationId: uuid(904),
+              repositoryId: uuid(903),
+              externalContainerId: "acme/web",
+              enabled: true,
+              policy: {},
+              policyRevision: 1,
+              syncHealth: sourcesMode === "degraded"
+                ? "degraded"
+                : sourcesMode === "authRequired"
+                ? "auth_required"
+                : sourcesMode === "unknown"
+                ? "unknown"
+                : "healthy",
+              lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+              lastProblemCode: null,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              version: 1,
+            },
+          ],
           nextCursor: null,
         }),
       }),
@@ -678,11 +735,68 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         updatedAt: stamp,
         version: 1,
         runId: null,
+        mayMerge: false,
+        mergeMethod: "squash",
+        targetBranch: "main",
       }));
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: page_(items),
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/questions",
+    (route) => {
+      if (work?.questionsFail) {
+        return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
+      }
+      const params = new URL(route.request().url()).searchParams;
+      const asked = params.get("taskId");
+      const all = asked === taskId
+        ? (work?.questions ?? []).map((question, index) => ({
+          id: uuid(8950 + index),
+          kind: question.kind ?? "question",
+          conversationId: uuid(8400),
+          taskId,
+          runId: null,
+          turnId: null,
+          generation: 1,
+          prompt: question.prompt,
+          options: null,
+          allowFreeText: true,
+          audience: { type: "task_participants" },
+          expiresAt: null,
+          status: question.status,
+          answer: null,
+          answeredBy: null,
+          answeredAt: null,
+          createdAt: new Date(
+            Date.now() - (question.minutesAgo ?? 25) * 60_000,
+          ).toISOString(),
+          updatedAt: stamp,
+          version: 1,
+          responseSchema: null,
+        }))
+        : [];
+      // As the server answers: newest first, filtered by status, one page at a
+      // time (25 unless asked, at most 100), with a cursor to the next page.
+      const status = params.get("status");
+      const matching = all
+        .filter((question) => status === null || question.status === status)
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      const limit = Math.min(Number(params.get("limit") ?? 25), 100);
+      const start = Number(params.get("cursor") ?? 0);
+      const items = matching.slice(start, start + limit);
+      const end = start + items.length;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items,
+          nextCursor: end < matching.length ? String(end) : null,
+        }),
       });
     },
   );

@@ -19,7 +19,7 @@
  * blob never change: the same digest is the same object, so the second answer
  * for it is the same answer.
  */
-import type { PgDatabase } from "../../platform/database.ts";
+import type { PgTransactionClient } from "../../platform/database.ts";
 import type {
   ArtifactProbeFailureCode,
   ArtifactProbeKind,
@@ -102,25 +102,63 @@ export function isStorableProbe(result: ArtifactProbeResult): boolean {
     result.code === "sandbox-unavailable");
 }
 
-/** Reads the probe for one blob, or null when none has run. */
+/**
+ * What a probe answer can be about.
+ *
+ * Three shapes and no fourth: bytes deduplicated as a blob, which every version
+ * sharing them shares; one storage version's own inline bytes; or one artifact
+ * version's own inline bytes. The two inline shapes exist because a write below
+ * the inline limit puts the bytes in the version row, and an artifact's inline
+ * bytes are not a storage entry. The database holds the same rule as a CHECK, so
+ * a subject that carried two keys or none could not be constructed here and
+ * stored there.
+ */
+export type ProbeSubject =
+  | Readonly<{ blobId: string }>
+  | Readonly<{ entryId: string; revision: number }>
+  | Readonly<{ artifactVersionId: string }>;
+
+function subjectClause(subject: ProbeSubject): {
+  readonly match: string;
+  readonly values: readonly unknown[];
+} {
+  if ("blobId" in subject) {
+    return { match: "blob_id = $2", values: [subject.blobId] };
+  }
+  if ("artifactVersionId" in subject) {
+    return {
+      match: "artifact_version_id = $2",
+      values: [subject.artifactVersionId],
+    };
+  }
+  return {
+    match: "entry_id = $2 and revision = $3",
+    values: [subject.entryId, subject.revision],
+  };
+}
+
+/** Reads the probe for one subject, or null when none has run. */
 export async function readBlobProbe(
-  database: Pick<PgDatabase, "query">,
-  input: { organizationId: string; blobId: string },
+  // The narrow shape both a pool and a request's transaction client satisfy: a
+  // read inside a transaction sees the row that same request just wrote.
+  database: Pick<PgTransactionClient, "query">,
+  input: { organizationId: string } & ProbeSubject,
 ): Promise<StoredBlobProbe | null> {
+  const clause = subjectClause(input);
   const { rows } = await database.query<ProbeRow>(
     `select status, kind, media_type, byte_length, width, height,
             duration_ms, line_count, utf8, failure_code, failure_limit,
             probed_at
        from bakery.blob_probes
-      where organization_id = $1 and blob_id = $2`,
-    [input.organizationId, input.blobId],
+      where organization_id = $1 and ${clause.match}`,
+    [input.organizationId, ...clause.values],
   );
   const row = rows[0];
   return row === undefined ? null : probeFromRow(row);
 }
 
 /**
- * Records the probe's answer for a blob.
+ * Records the probe's answer for a subject.
  *
  * An update on conflict rather than an insert-if-absent: the same bytes give
  * the same answer, so a second write is a re-run of the same question, and
@@ -128,23 +166,60 @@ export async function readBlobProbe(
  * asked rather than claiming the first answer for ever.
  */
 export async function writeBlobProbe(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   input: {
     organizationId: string;
-    blobId: string;
     result: ArtifactProbeResult;
-  },
+  } & ProbeSubject,
 ): Promise<void> {
   if (!isStorableProbe(input.result)) return;
-  const { organizationId, blobId, result } = input;
+  const { organizationId, result } = input;
   const described = result.status === "described";
+  // Each subject has its own partial unique, so each needs its own conflict
+  // target and predicate; one statement cannot name three.
+  const subject = "blobId" in input
+    ? {
+      insert: "organization_id, blob_id",
+      values: [input.blobId],
+      conflict:
+        "on conflict (organization_id, blob_id) where blob_id is not null",
+    }
+    : "artifactVersionId" in input
+    ? {
+      insert: "organization_id, artifact_version_id",
+      values: [input.artifactVersionId],
+      conflict:
+        "on conflict (organization_id, artifact_version_id) where artifact_version_id is not null",
+    }
+    : {
+      insert: "organization_id, entry_id, revision",
+      values: [input.entryId, input.revision],
+      conflict:
+        "on conflict (organization_id, entry_id, revision) where entry_id is not null",
+    };
+  const placeholders = subject.values.map((_, index) => `$${index + 2}`);
+  const first = placeholders.length + 2;
+  const columns = [
+    "status",
+    "kind",
+    "media_type",
+    "byte_length",
+    "width",
+    "height",
+    "duration_ms",
+    "line_count",
+    "utf8",
+    "failure_code",
+    "failure_limit",
+  ].join(", ");
+  const numbers = columns.split(", ").map((_, index) => `$${first + index}`);
   await database.query(
     `insert into bakery.blob_probes (
-       organization_id, blob_id, status, kind, media_type, byte_length,
-       width, height, duration_ms, line_count, utf8, failure_code,
-       failure_limit, probed_at
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
-     on conflict (organization_id, blob_id) do update set
+       ${subject.insert}, ${columns}, probed_at
+     ) values (
+       $1, ${placeholders.join(", ")}, ${numbers.join(", ")}, now()
+     )
+     ${subject.conflict} do update set
        status = excluded.status,
        kind = excluded.kind,
        media_type = excluded.media_type,
@@ -159,7 +234,7 @@ export async function writeBlobProbe(
        probed_at = now()`,
     [
       organizationId,
-      blobId,
+      ...subject.values,
       result.status,
       described ? result.kind : null,
       described ? result.mediaType : null,

@@ -894,6 +894,11 @@
 .ui-task-queue--list .ui-task-queue__application {
   color: var(--color-fg-muted);
 }
+/* A total row: the line a table adds up to, marked by the row rather than by
+   the table, so a table with no total is unchanged. */
+.ui-data-table tbody tr[data-total="true"] td {
+  font-weight: var(--weight-semibold);
+}
 /* Toolbar filter (Paper 5J-0 "Status"): a 36px secondary frame drawn by
    ::before, while the native select keeps the 44px task-surface hit area by
    overhanging the frame equally above and below. */
@@ -1518,6 +1523,11 @@
   margin-block: calc((var(--space-5) - var(--target-coarse)) / 2);
   min-block-size: var(--target-coarse);
 }
+/* A title that may wrap: no touch frame with negative margins, which would pull the next line up under it. */
+.ui-stacked-row[data-title-lines="wrap"] .ui-link {
+  margin-block: var(--space-0);
+  min-block-size: var(--space-0);
+}
 .ui-stacked-row .ui-link,
 .ui-data-table--ruled .ui-link {
   text-decoration: none;
@@ -1752,6 +1762,9 @@
 .ui-data-table--ruled[data-inset="edge"] td:last-child {
   padding-inline-end: var(--space-6);
 }
+/* The row itself is tinted too, so on a phone, where the cells stack inside
+   the row's inset, the highlight spans the row as wide as its rule. */
+.ui-data-table--ruled tr[data-selected="true"],
 .ui-data-table--ruled tr[data-selected="true"] td {
   background: var(--color-surface-subtle);
 }
@@ -1787,6 +1800,10 @@
 }
 .ui-data-table__select > * {
   display: block;
+}
+/* A mark beside a name inside the row control stays a row. */
+.ui-data-table__select > .ui-inline {
+  display: flex;
 }
 
 @media (max-width: 743px) {
@@ -2125,6 +2142,164 @@
   }
 }
 
+/*
+ * One figure with its label (Usage page). A row on a wide screen, stacked on a
+ * phone: `flex-wrap` plus a min width means three tiles read across a desktop
+ * and as three lines on 390px without a separate phone rule.
+ */
+.ui-stat-tile {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-stat-tile__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-fg-muted);
+  font: var(--type-row-title);
+}
+
+.ui-stat-tile__value {
+  /* Section heading, not hero: the figure is one of three, and a page heading
+     size would make an unknown count look like the point of the page. */
+  font: var(--type-heading-section);
+  font-variant-numeric: tabular-nums;
+  /* Long sums wrap rather than overflow: the figure is the content, so it may
+     break; every figure is money or a count, both of which wrap at a space. */
+  overflow-wrap: anywhere;
+}
+
+.ui-stat-tile__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+
+/* A figure that opens its records: the number is the button, with a visible
+   focus ring and a coarse-pointer target, and the chosen one is marked by a
+   border rather than a colour alone. */
+.ui-stat-tile__action {
+  appearance: none;
+  background: transparent;
+  border: var(--border-default) solid transparent;
+  border-radius: var(--radius-control);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  margin-inline-start: calc(-1 * var(--space-1));
+  min-block-size: var(--target-min);
+  padding-block: 0;
+  padding-inline: var(--space-1);
+  text-align: start;
+}
+.ui-stat-tile__action:hover {
+  background: var(--color-surface-subtle);
+}
+.ui-stat-tile__action:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+/* The chosen figure marks the whole tile (label, number and line), not the
+   number alone. */
+.ui-stat-tile[data-selected="true"] {
+  border-radius: var(--radius-control);
+  /* A ring just outside the tile: it marks it without changing its size or its
+     place, and leaves the text clear of the line. */
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-1);
+}
+@media (pointer: coarse) {
+  .ui-stat-tile__action {
+    min-block-size: var(--target-coarse);
+  }
+}
+
+/* One bar split into parts, with a key in words. The greys are mixed from the
+   foreground token so they follow light and dark; the "not recorded" part is
+   hatched, so it reads as absent evidence and not as one more category. */
+.ui-segmented-bar {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ui-segmented-bar__bar {
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  display: flex;
+  min-block-size: var(--space-4);
+  overflow: hidden;
+}
+.ui-segmented-bar__part {
+  /* A page-coloured hairline between parts, so neighbouring greys stay apart. */
+  border-inline-end: var(--border-default) solid var(--color-surface);
+  flex-basis: 0;
+  min-inline-size: 2px;
+}
+/* The greys are the foreground role at four strengths, so they follow light and
+   dark; opacity sets the strength, as the rail allows no mixed colours. */
+.ui-segmented-bar__part[data-tone="first"],
+.ui-segmented-bar__swatch[data-tone="first"] {
+  background-color: var(--color-fg);
+  opacity: 0.9;
+}
+.ui-segmented-bar__part[data-tone="second"],
+.ui-segmented-bar__swatch[data-tone="second"] {
+  background-color: var(--color-fg);
+  opacity: 0.75;
+}
+.ui-segmented-bar__part[data-tone="third"],
+.ui-segmented-bar__swatch[data-tone="third"] {
+  background-color: var(--color-fg);
+  opacity: 0.62;
+}
+.ui-segmented-bar__part[data-tone="fourth"],
+.ui-segmented-bar__swatch[data-tone="fourth"] {
+  background-color: var(--color-fg);
+  opacity: 0.5;
+}
+.ui-segmented-bar__part[data-tone="unknown"],
+.ui-segmented-bar__swatch[data-tone="unknown"] {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--color-surface) 0 3px,
+    var(--color-fg) 3px 5px
+  );
+  opacity: 0.45;
+}
+.ui-segmented-bar__key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ui-segmented-bar__item {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-1);
+}
+.ui-segmented-bar__swatch {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  flex: none;
+  inline-size: var(--space-3);
+  block-size: var(--space-3);
+  align-self: center;
+}
+.ui-segmented-bar__name {
+  font: var(--type-row-title);
+}
+.ui-segmented-bar__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+}
+
 /* A combobox with a help tip: the tip sits one small gap after the label's word,
    centred on its line, and the control below it is as wide as any other in its
    stack. The label stays the control's label; it only lets its children join
@@ -2148,10 +2323,199 @@
   grid-row: 1;
   justify-self: start;
   /* The tip is a touch target taller than the label's line; the negative
-     margin keeps it centred on the word without making the row taller. */
+   margin keeps it centred on the word without making the row taller. */
   margin-block: calc(-1 * var(--target-coarse));
 }
 .ui-combobox-help select {
   grid-column: 1 / -1;
   grid-row: 2;
+}
+
+/* A destination's page: the form takes up to 620px and a side column holds its
+   status and the test. Below the rail width there is one column and the
+   side column comes first, so a failing destination's test is the first thing
+   seen. */
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split {
+  align-items: start;
+  grid-template-columns: minmax(0, var(--layout-message))
+    var(--layout-inspector);
+}
+@media (max-width: 1279px) {
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split > :last-child {
+    order: -1;
+  }
+}
+/* The list: every cell of a row sits on one line, and the switch and the
+   button take the same width in every row, so nothing shifts between rows. */
+.ui-settings-content[data-page="installation-monitoring"] .ui-data-table--ruled td {
+  vertical-align: middle;
+}
+.ui-settings-content[data-page="installation-monitoring"] .ui-data-table--ruled td .ui-button {
+  min-inline-size: calc(var(--space-6) * 3);
+}
+/* On a phone the search takes the whole line, and the State filter and the count
+   sit under it. */
+@media (max-width: 743px) {
+  .ui-settings-content[data-page="installation-monitoring"] .ui-search-field {
+    flex: 1 1 100%;
+    inline-size: 100%;
+  }
+}
+/* The chooser: each row is one link, a provider's mark, its name and its
+   sentence, with a chevron at the end. The sentence wraps inside its own
+   column, never under the mark, and the rules run the whole width. */
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link {
+  align-items: center;
+  border-block-end: var(--border-default) solid var(--color-border);
+  color: var(--color-fg);
+  display: flex;
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+  text-decoration: none;
+}
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link .ui-stack {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link:hover,
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link:focus-visible {
+  background: var(--color-surface-subtle);
+}
+/* A phone row: the detail line takes the width and the switch sits at the end
+   of it, on the same line. */
+.ui-settings-content[data-page="installation-monitoring"] .ui-stacked-row .ui-inline {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.ui-settings-content[data-page="installation-monitoring"] .ui-stacked-row .ui-inline > .ui-text {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+/* A destination's header: its name and what it is on the left, the Sending
+   switch on the right, level with the name. */
+.ui-settings-content[data-page="installation-monitoring-destination"] .bakery-page-header--split {
+  align-items: flex-start;
+  padding: var(--space-0);
+}
+.ui-settings-content[data-page="installation-monitoring-destination"] .bakery-page-header__summary {
+  flex-direction: row;
+}
+/* A measurement: its box lines up with the label, and the help sits under the
+   label on the label's own left edge. The touch target is the whole label. */
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-checkbox {
+  align-items: center;
+  flex-wrap: nowrap;
+  min-block-size: calc(var(--space-6));
+}
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-checkbox input {
+  flex: none;
+  min-block-size: var(--space-0);
+  min-inline-size: var(--space-0);
+}
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-checkbox + .ui-text {
+  padding-inline-start: calc(var(--size-checkbox) + var(--space-2));
+}
+/* On a phone the save row stacks, full width, Save first. */
+@media (max-width: 743px) {
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--end[data-form-actions] {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--end[data-form-actions] .ui-button {
+    inline-size: 100%;
+  }
+}
+
+/* Usage's two filters share the title's row: the description beside the title
+   yields, and the filters keep their one line. */
+.ui-settings-content[data-page="installation-usage"] .ui-access-settings__actions {
+  flex-shrink: 0;
+}
+
+/* On a phone the empty state's action sits inside the dashed box, as it does on
+   a desktop: the box is the panel, not the copy alone. */
+@media (max-width: 743px) {
+  .ui-settings-content[data-page="installation-usage"] .ui-access-settings__panel[data-tone="empty"] {
+    border: var(--border-default) dashed var(--color-control-border);
+    border-radius: var(--radius-overlay);
+    padding: var(--space-5);
+  }
+  .ui-settings-content[data-page="installation-usage"] .ui-access-settings__panel[data-tone="empty"] .ui-access-settings__panel-copy {
+    border: var(--border-none);
+    padding: var(--space-0);
+  }
+}
+
+/* How much of a limit is used: a bar, a fill that changes tone with the state,
+   and ticks where the state changes. The fill is plain, then warning, then
+   destructive; the page also writes the state, so colour is not the only cue.
+   The ticks are dark lines taller than the bar, so they show on an empty track
+   in both themes. */
+.ui-usage-meter {
+  display: grid;
+  margin: 0;
+}
+.ui-usage-meter__track {
+  padding-block: var(--space-1);
+  position: relative;
+}
+.ui-usage-meter__bar {
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  block-size: var(--space-3);
+  overflow: hidden;
+  position: relative;
+}
+.ui-usage-meter__fill {
+  background: var(--color-fg);
+  block-size: 100%;
+  display: block;
+  inset-block-start: 0;
+  position: absolute;
+}
+.ui-usage-meter[data-state="warning"] .ui-usage-meter__fill {
+  background: var(--color-status-warning);
+}
+.ui-usage-meter[data-state="paused"] .ui-usage-meter__fill {
+  background: var(--color-destructive);
+}
+.ui-usage-meter__mark {
+  background: var(--color-fg);
+  inline-size: var(--border-emphasis);
+  inset-block: 0;
+  position: absolute;
+  /* Centred on its position, whichever way the line runs. */
+  translate: -50% 0;
+}
+
+/* Storage settings: the description takes the content width, and on a phone
+   Save and Reset fill the line, Save first. */
+.ui-settings-content[data-page="organization-storage"]:has(> .ui-form-content) > .ui-auth-heading {
+  max-inline-size: none;
+}
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline > :first-child {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline > :last-child {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 743px) {
+  .ui-settings-content[data-page="organization-storage"] [data-form-actions] {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ui-settings-content[data-page="organization-storage"] [data-form-actions] .ui-button {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+  }
 }

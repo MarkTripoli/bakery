@@ -1,5 +1,5 @@
 import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { isIP, type LookupFunction } from "node:net";
 
 /** The answer to "may Bakery send telemetry to this address?". */
 export type AddressVerdict =
@@ -175,6 +175,48 @@ export function createPublicHttpsPolicy(
       };
     }
     return { ok: true };
+  };
+}
+
+/** The error code of a connection refused because its address is not public. */
+export const ADDRESS_REFUSED = "ADDRESS_REFUSED";
+
+/** What a person reads when a name points at a private or local network. */
+export const ADDRESS_REFUSED_REASON =
+  "The address points at a private or local network.";
+
+/**
+ * A `lookup` for `node:https` that refuses a non-public address at connect time.
+ *
+ * `createPublicHttpsPolicy` resolves a name and then the request resolves it
+ * again, so a name with a short TTL can answer a public address to the check and
+ * a private one to the connection (DNS rebinding). This function is what the
+ * connection asks, so the address it returns is the address that is dialled: the
+ * check and the connect are one step. TLS still verifies the original host name.
+ *
+ * Every address in the answer must be public; a mixed answer is refused whole.
+ */
+export function createGuardedLookup(
+  resolve: HostResolver = nodeResolver,
+): LookupFunction {
+  return (hostname, options, callback) => {
+    const fail = (error: Error) => callback(error, "", 0);
+    resolve(hostname).then((addresses) => {
+      if (addresses.length === 0 || addresses.some(isNonPublicIp)) {
+        fail(
+          Object.assign(new Error(ADDRESS_REFUSED_REASON), {
+            code: ADDRESS_REFUSED,
+          }),
+        );
+        return;
+      }
+      const entries = addresses.map((address) => ({
+        address,
+        family: isIP(address) === 6 ? 6 : 4,
+      }));
+      if (options.all === true) callback(null, entries);
+      else callback(null, entries[0].address, entries[0].family);
+    }, (error) => fail(error instanceof Error ? error : new Error("dns")));
   };
 }
 

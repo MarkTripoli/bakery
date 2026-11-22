@@ -32,6 +32,7 @@ import {
 } from "./blobs.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { sha256Bytes } from "./bytes.ts";
+import { enqueueProbeSubject } from "./probe-runner.ts";
 
 export type StartInput = Readonly<{
   sha256: string;
@@ -214,6 +215,12 @@ export function createBlobUploadHandlers(blobStore?: OrganizationBlobStore) {
           organizationId,
           principalId,
           sessionId: session.id,
+          blobId: recorded.id,
+        });
+        // The bytes exist and are digest-checked, so this is the moment the
+        // subject becomes askable: queue it in the same transaction as the blob.
+        await enqueueProbeSubject(transaction, {
+          organizationId,
           blobId: recorded.id,
         });
         // The object store is the home now; the parts are a second copy.

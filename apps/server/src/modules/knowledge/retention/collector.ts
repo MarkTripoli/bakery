@@ -5,6 +5,7 @@ import { hasProtectedArtifactReference } from "./references.ts";
 import { appendMemorySourceChanged } from "../memory-source-state.ts";
 import { isTerminalTask } from "./policy.ts";
 import { postgresErrorCode } from "../../../platform/postgres-errors.ts";
+import { assertNotQuiesced } from "../../../platform/maintenance.ts";
 
 export async function collectArtifactVersion(
   ownerDatabase: PgDatabase,
@@ -15,6 +16,8 @@ export async function collectArtifactVersion(
     throw new StandardError({ code: "VALIDATION_FAILED" });
   }
   return await withPgTransaction(ownerDatabase, async (transaction) => {
+    // A backup holds the installation: nothing is collected until it lets go.
+    await assertNotQuiesced(transaction, "dispatch");
     const role = await transaction.query<{ allowed: boolean }>(
       `select session_user='bakery' and current_user='bakery'
       and (select datdba::regrole::text from pg_database where datname=current_database())='bakery' as allowed`,
@@ -92,6 +95,14 @@ export async function collectArtifactVersion(
       versionId,
       traceId,
     });
+    await transaction.query(
+      // Cached extracts are copies of the bytes just removed, so they go with
+      // them in the same transaction. The version row itself survives (it is a
+      // tombstone), so the foreign key's `on delete cascade` would never fire
+      // and purged text would stay readable in the cache.
+      "delete from bakery.artifact_extracts where organization_id=$1 and artifact_version_id=$2",
+      [version.organization_id, versionId],
+    );
     await appendAudit(transaction, {
       organizationId: version.organization_id,
       principalId: null,

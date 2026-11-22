@@ -16,6 +16,7 @@ import {
 } from "./installation-settings.ts";
 import { orgHeader } from "./account-settings.ts";
 import { authRequest, enrollTotp, sessionCookie } from "./auth.ts";
+import { signInDesktop } from "./desktop-sign-in.ts";
 import { connectClient, registerTestClient } from "./oauth-mcp.ts";
 import { createFakeGitHubApp } from "./fake-github-app.ts";
 import { seedRigIntegration } from "./external-effects.ts";
@@ -107,6 +108,9 @@ export async function matrixSecretsKey() {
     githubAppClient: matrixGitHub.client,
     /** No audit case reaches a storage provider: the probe answers verified. */
     skillStorageProbe: () => Promise.resolve("verified" as const),
+    /** Nor does one reach a backup bucket: the destination test answers verified. */
+    backupDestinationProbe: () =>
+      Promise.resolve({ outcome: "verified" as const, detail: null }),
     remove: () => Deno.remove(directory, { recursive: true }),
   };
 }
@@ -121,8 +125,17 @@ function telemetryDestinationBody() {
   return {
     kind: "otlp",
     name: `Audit matrix ${crypto.randomUUID()}`,
-    measurements: ["cost"],
+    measurements: ["results"],
     values: { address: "https://collector.example.test" },
+  };
+}
+
+/** An alert channel pointed at a closed local port, so a test send reaches nothing. */
+function alertChannelBody() {
+  return {
+    kind: "webhook",
+    name: `Audit matrix ${crypto.randomUUID()}`,
+    values: { address: "http://127.0.0.1:1" },
   };
 }
 
@@ -134,6 +147,7 @@ export async function runAuditMatrix(
   const org = orgHeader(f.organizationId);
   const developer = f.developerCookie;
   let telemetryDestination: { id: string; version: number } | undefined;
+  let alertChannel: { id: string; version: number } | undefined;
   const suffix = crypto.randomUUID().slice(0, 8);
   const state: Record<string, string> = {};
   const rowsFor = async (operation: string) =>
@@ -450,6 +464,86 @@ export async function runAuditMatrix(
         }),
         organizationId: null,
       }),
+    },
+    {
+      operation: "browserSessions.revokeCurrent",
+      failure: () =>
+        f.app.fetch(
+          new Request(
+            `${
+              new URL(f.config.auth!.publicOrigin).origin
+            }/v1/me/sessions/revoke-current`,
+            {
+              method: "POST",
+              headers: { origin: f.config.auth!.publicOrigin },
+            },
+          ),
+        ),
+      success: async () => {
+        // A second sign-in of its own, so ending it leaves the matrix's admin session alone.
+        const second = await f.app.fetch(
+          authRequest("/api/auth/sign-in/email", {
+            email: f.adminEmail,
+            password: f.password,
+          }),
+        );
+        assertEquals(second.status, 200);
+        const sessions = await json(
+          await call(f, "GET", "/v1/me/sessions", sessionCookie(second), {
+            headers: org,
+          }),
+        );
+        const current = (sessions.items as { id: string; current: boolean }[])
+          .find((item) => item.current)!;
+        return {
+          response: await call(
+            f,
+            "POST",
+            "/v1/me/sessions/revoke-current",
+            sessionCookie(second),
+            { body: {}, headers: { ...org, "Idempotency-Key": key() } },
+          ),
+          organizationId: null,
+          resourceId: current.id,
+        };
+      },
+    },
+    {
+      operation: "desktopHandoffs.create",
+      // A browser cookie session may not ask for a code: refused, no row.
+      failure: () =>
+        call(f, "POST", "/v1/desktop-handoffs", f.adminCookie, {
+          body: { returnTo: "/projects" },
+          headers: org,
+        }),
+      success: async () => {
+        const desktop = await signInDesktop(f, f.adminCookie);
+        const response = await f.app.fetch(
+          new Request(
+            `${
+              new URL(f.config.auth!.publicOrigin).origin
+            }/v1/desktop-handoffs`,
+            {
+              method: "POST",
+              headers: {
+                authorization: `Bearer ${desktop.credential}`,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({ returnTo: "/projects" }),
+            },
+          ),
+        );
+        const row = await f.pgDatabase.query<{ id: string }>(
+          `select id from bakery.desktop_handoffs
+            where desktop_session_id = $1`,
+          [desktop.sessionId],
+        );
+        return {
+          response,
+          organizationId: null,
+          resourceId: row.rows[0]?.id,
+        };
+      },
     },
     {
       operation: "userPreferences.update",
@@ -868,6 +962,152 @@ export async function runAuditMatrix(
       }),
     },
     {
+      operation: "backups.start",
+      failure: () =>
+        call(f, "POST", "/v1/installation/backups", developer, {
+          body: {},
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/backups",
+          f.adminCookie,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupRunnerCredential.issue",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          "/v1/installation/backup-runner/credential",
+          developer,
+          { body: {} },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/backup-runner/credential",
+          f.adminCookie,
+          { body: {} },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupSchedule.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/backup-schedule", developer, {
+          body: {
+            enabled: true,
+            interval: "daily",
+            timeOfDayUtc: "03:00",
+            daysToKeep: 30,
+          },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/backup-schedule",
+          f.adminCookie,
+          {
+            body: {
+              enabled: true,
+              interval: "daily",
+              timeOfDayUtc: "03:00",
+              daysToKeep: 30,
+            },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupPointInTime.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/backup-point-in-time", developer, {
+          body: { enabled: true },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/backup-point-in-time",
+          f.adminCookie,
+          {
+            body: { enabled: true },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      // Saves first so the test below has a destination to send to.
+      operation: "backupOffsite.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/backup-offsite", developer, {
+          body: {
+            endpoint: "http://127.0.0.1:9000",
+            region: "us-east-1",
+            bucket: "audit-matrix-bucket",
+            accessKeyId: "audit-matrix-access",
+            secretAccessKey: "audit-matrix-secret",
+          },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/backup-offsite",
+          f.adminCookie,
+          {
+            body: {
+              endpoint: "http://127.0.0.1:9000",
+              region: "us-east-1",
+              bucket: "audit-matrix-bucket",
+              accessKeyId: "audit-matrix-access",
+              secretAccessKey: "audit-matrix-secret",
+            },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupOffsite.verify",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          "/v1/installation/backup-offsite/verification",
+          developer,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/backup-offsite/verification",
+          f.adminCookie,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
       // Runs while email is off, so it answers not_configured and sends nothing.
       operation: "emailSettings.test",
       failure: () =>
@@ -882,6 +1122,213 @@ export async function runAuditMatrix(
           "/v1/installation/email/test",
           f.adminCookie,
           { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "alertChannels.create",
+      failure: () =>
+        call(f, "POST", "/v1/installation/alert-channels", developer, {
+          body: alertChannelBody(),
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => {
+        const response = await call(
+          f,
+          "POST",
+          "/v1/installation/alert-channels",
+          f.adminCookie,
+          {
+            body: alertChannelBody(),
+            headers: { "Idempotency-Key": key() },
+          },
+        );
+        if (response.status === 201) {
+          alertChannel = (await response.clone().json() as {
+            channel: { id: string; version: number };
+          }).channel;
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      operation: "alertChannels.update",
+      failure: () =>
+        call(
+          f,
+          "PATCH",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }`,
+          developer,
+          {
+            body: { enabled: false },
+            headers: { "Idempotency-Key": key(), "If-Match": '"1"' },
+          },
+        ),
+      success: async () => {
+        const response = await call(
+          f,
+          "PATCH",
+          `/v1/installation/alert-channels/${alertChannel!.id}`,
+          f.adminCookie,
+          {
+            body: { enabled: false },
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${alertChannel!.version}"`,
+            },
+          },
+        );
+        if (response.status === 200) {
+          alertChannel = await response.clone().json() as {
+            id: string;
+            version: number;
+          };
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      // Points at a closed local port, so it answers not accepted and reaches nothing.
+      operation: "alertChannels.test",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }/tests`,
+          developer,
+          { headers: { "Idempotency-Key": key() } },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${alertChannel!.id}/tests`,
+          f.adminCookie,
+          { headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "alertRules.update",
+      failure: () =>
+        call(f, "PATCH", "/v1/installation/alert-rules", developer, {
+          body: { rule: "queue_age", enabled: true },
+          headers: { "Idempotency-Key": key(), "If-Match": '"1"' },
+        }),
+      success: async () => {
+        // Write the rule's own value back, so the matrix leaves it as it found it.
+        const read = await call(
+          f,
+          "GET",
+          "/v1/installation/alert-rules",
+          f.adminCookie,
+          {},
+        );
+        const rule = ((await read.json()) as {
+          rules: { rule: string; version: number; enabled: boolean }[];
+        }).rules.find((r) => r.rule === "queue_age")!;
+        return {
+          response: await call(
+            f,
+            "PATCH",
+            "/v1/installation/alert-rules",
+            f.adminCookie,
+            {
+              body: { rule: "queue_age", enabled: rule.enabled },
+              headers: {
+                "Idempotency-Key": key(),
+                "If-Match": `"${rule.version}"`,
+              },
+            },
+          ),
+          organizationId: null,
+        };
+      },
+    },
+    {
+      // With no channel to send to it reaches nothing, and is still recorded.
+      operation: "alerts.sendTest",
+      failure: () =>
+        call(f, "POST", "/v1/installation/alert-tests", developer, {
+          body: {},
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/alert-tests",
+          f.adminCookie,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "alertChannels.rotateSecret",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }/secret-rotations`,
+          developer,
+          { headers: { "Idempotency-Key": key(), "If-Match": '"1"' } },
+        ),
+      success: async () => {
+        const response = await call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${
+            alertChannel!.id
+          }/secret-rotations`,
+          f.adminCookie,
+          {
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${alertChannel!.version}"`,
+            },
+          },
+        );
+        if (response.status === 200) {
+          alertChannel = (await response.clone().json() as {
+            channel: { id: string; version: number };
+          }).channel;
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      operation: "alertChannels.delete",
+      failure: () =>
+        call(
+          f,
+          "DELETE",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }`,
+          developer,
+          { headers: { "Idempotency-Key": key(), "If-Match": '"1"' } },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "DELETE",
+          `/v1/installation/alert-channels/${alertChannel!.id}`,
+          f.adminCookie,
+          {
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${alertChannel!.version}"`,
+            },
+          },
         ),
         organizationId: null,
       }),

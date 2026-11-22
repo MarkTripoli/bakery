@@ -2,6 +2,7 @@ import { type Context } from "hono";
 import { jsonBodyResponse, parseContract } from "./http.ts";
 import { createHeartbeatRepository } from "@bakery/persistence/heartbeat";
 import type { ExecutionRouteOptions, WorkerIdentity } from "./shared.ts";
+import { deliverMaintenance } from "./maintenance-delivery.ts";
 import {
   assertWorkerSessionPair,
   contractSchemas,
@@ -70,6 +71,20 @@ export async function heartbeat(
         metadata,
         makeResponse: (value: unknown) =>
           contractSchemas.WorkerHeartbeatResult.parse(value),
+        maintenanceAssignments: (heartbeatTime: Date) =>
+          deliverMaintenance(
+            transaction,
+            {
+              id: identity.host.id,
+              organizationId: identity.host.organization_id,
+              principalId: identity.host.principal_id,
+              status: identity.host.status,
+              desiredMode: identity.host.desired_mode,
+              credentialGeneration: identity.host.credential_generation,
+            },
+            heartbeatTime,
+            metadata,
+          ),
       });
     },
   );

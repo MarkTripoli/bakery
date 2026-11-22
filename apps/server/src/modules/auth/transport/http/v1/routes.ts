@@ -87,9 +87,11 @@ import {
 import {
   browserSessionsList,
   browserSessionsRevoke,
+  browserSessionsRevokeCurrent,
   browserSessionsRevokeOthers,
   connectedClientsList,
   connectedClientsRevoke,
+  desktopHandoffsCreate,
   identityGet,
   installationStatus,
   organizationEffectiveAccess,
@@ -901,6 +903,37 @@ export function createAuthActionRegistry(
     },
     handler: browserSessionsRevokeOthers,
   }).register({
+    name: AuthImplementedAction.DesktopHandoffsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/desktop-handoffs",
+    input: contractSchemas.DesktopHandoffCreate,
+    output: contractSchemas.DesktopHandoff,
+    policy: {
+      // Only the desktop app's own sign-in may mint a code; the handler
+      // refuses a browser cookie session, and an access token never reaches
+      // it.
+      sessionOnly: true,
+      type: ActionKind.Command,
+      access: ActionAccess.Authenticated,
+      organizationContext:
+        OrganizationContextPolicy.AuthenticatedPrincipalScope,
+    },
+    handler: (context, input) => desktopHandoffsCreate(context, input),
+  }).register({
+    name: AuthImplementedAction.BrowserSessionsRevokeCurrent,
+    method: HttpMethod.Post,
+    path: "/v1/me/sessions/revoke-current",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BrowserSessionRevocation,
+    successStatus: 200,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Authenticated,
+      organizationContext:
+        OrganizationContextPolicy.AuthenticatedPrincipalScope,
+    },
+    handler: browserSessionsRevokeCurrent,
+  }).register({
     name: AuthImplementedAction.ConnectedClientsList,
     method: HttpMethod.Get,
     path: "/v1/me/connected-clients",
@@ -1137,6 +1170,7 @@ export function createAuthV1Routes(
   });
   app.use("/v1/me", browserSession);
   app.use("/v1/me/sessions", browserSession);
+  app.use("/v1/desktop-handoffs", browserSession);
   app.use("/v1/me/sessions/*", browserSession);
   app.use("/v1/me/connected-clients", browserSession);
   app.use("/v1/me/connected-clients/*", browserSession);

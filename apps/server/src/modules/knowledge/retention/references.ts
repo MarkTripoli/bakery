@@ -53,6 +53,33 @@ export const artifactVersionReferences = [
     protection: "none",
   },
   {
+    // A queued probe request asks about a version; it never keeps the bytes.
+    // The request goes when the version does, and a purge that leaves a request
+    // behind would ask about bytes nobody can read.
+    kind: "probe-request",
+    table: "probe_requests",
+    constraint: "probe_requests_artifact_version_fk",
+    protection: "none",
+  },
+  {
+    // A probe answer describes an artifact version; it never keeps the bytes
+    // alive. Purging the version removes the answer with it (#437), and asking
+    // again is a new request, not a lost fact.
+    kind: "probe-answer",
+    table: "blob_probes",
+    constraint: "blob_probes_artifact_version_fk",
+    protection: "none",
+  },
+  {
+    // A step's read set records which version a step read (#448). It is a
+    // record of what was read, never a reason to keep the bytes: the FK is on
+    // delete set null, so purging the version leaves the row with no version.
+    kind: "step-read-set",
+    table: "step_read_set",
+    constraint: "step_read_set_artifact_version_fk",
+    protection: "none",
+  },
+  {
     // A check row cites its output as retained evidence. The bytes stay for as
     // long as the row exists: expiry alone never retires check evidence.
     kind: "retained-evidence",
@@ -95,6 +122,16 @@ export const artifactVersionReferences = [
     constraint: "evaluation_results_output_fk",
     protection: "retained-evidence",
   },
+  {
+    // A cached extract is a copy of bytes that already exist elsewhere, so it
+    // never keeps a version alive: the purge deletes the extracts with the
+    // version, and a cache row that outlived its source would be text nobody
+    // can authorize against.
+    kind: "extract-cache",
+    table: "artifact_extracts",
+    constraint: "artifact_extracts_version_fk",
+    protection: "none",
+  },
 ] as const;
 export const declaredArtifactReferenceKinds = [
   "current-pointer",
@@ -110,6 +147,7 @@ export const declaredArtifactReferenceKinds = [
   "memory-source",
   "evaluation-case-input",
   "evaluation-result-output",
+  "extract-cache",
 ] as const;
 export type ArtifactReferenceKind =
   typeof declaredArtifactReferenceKinds[number];

@@ -1,10 +1,67 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { filesFixture, TREE } from "./helpers/files-fixture.ts";
+import {
+  AGENT_NO_PERSON_VERSIONS,
+  filesFixture,
+  TREE,
+} from "./helpers/files-fixture.ts";
 import { uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
+
+/**
+ * The panel is one long-lived component on desktop: choosing another file swaps
+ * its contents without remounting it. On a phone the file is a page of its own,
+ * so there is no shared state to keep and nothing to prove.
+ */
+test.describe("desktop: a refusal belongs to one file", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("a refusal stays on the file it was found on", async ({ page }) => {
+    // A damaged video is refused by Download, then a healthy file is chosen in
+    // the same panel. The refusal belongs to the bytes it was found on, so the
+    // next file must show its own preview rather than the previous file's
+    // verdict (#437 review). No page.goto: the panel is never remounted.
+    const damaged = {
+      ...TREE.find((entry) => entry.id === 41)!,
+      id: 84,
+      name: "damaged.webm",
+      path: "/projects/web-app/damaged.webm",
+    };
+    // Both sit in the folder the page is opened on, so the second is a click
+    // away in the same list.
+    const healthy = {
+      ...TREE.find((entry) => entry.id === 43)!,
+      id: 85,
+      parent: 20,
+      name: "diagram.png",
+      path: "/projects/web-app/diagram.png",
+    };
+    const tree = [...TREE, damaged, healthy];
+    await filesFixture(page, { tree, mismatchId: 84 });
+    await page.goto(`/files/projects/web-app?file=${uuid(84)}`);
+    const details = page.getByTestId("file-details");
+    await expect(details.getByRole("button", { name: "Download" }))
+      .toBeVisible();
+    await details.getByRole("button", { name: "Download" }).click();
+    await expect(details.getByText(/does not match its record/i))
+      .toBeVisible();
+    // Download goes with the refusal: there is nothing left to save.
+    await expect(details.getByRole("button", { name: "Download" }))
+      .toHaveCount(0);
+
+    // The healthy file, opened by clicking its row: same panel, new bytes.
+    await page.getByRole("link", { name: "diagram.png" }).click();
+    await expect(details.getByText(/does not match its record/i))
+      .toHaveCount(0);
+    await expect(details.getByRole("button", { name: "Download" }))
+      .toBeVisible();
+    await expect(details.getByText("Preview", { exact: true })).toBeVisible();
+    await page.mouse.move(700, 700);
+    await still(page, "files-refusal-does-not-follow-the-next-file");
+  });
+});
 
 /** The files browser (#445): folders, a file's details, its versions and uses. */
 for (
@@ -986,6 +1043,92 @@ for (
       await panel.getByRole("button", { name: "Open", exact: true }).click();
       await expect(page).toHaveURL(
         new RegExp(`/tasks/${uuid(602)}/artifacts/${uuid(700)}`),
+      );
+    });
+
+    test("a version an agent wrote names the agent and the person, with an Agent badge", async ({ page }) => {
+      await filesFixture(page, {
+        versions: [
+          {
+            revision: 2,
+            isCurrent: true,
+            sizeBytes: 4200,
+            makerKind: "agent",
+            makerName: "Ana Reyes",
+            agentName: "Reviewer",
+          },
+          {
+            revision: 1,
+            isCurrent: false,
+            sizeBytes: 3900,
+            makerKind: "person",
+            makerName: "Ana Reyes",
+          },
+        ],
+      });
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      const panel = page.getByTestId("file-details");
+      // Never the person's own: the agent, and whose access it used.
+      await expect(panel).toContainText(
+        "Reviewer, an agent working for Ana Reyes",
+      );
+      await expect(panel).toContainText(
+        "Written with Ana Reyes's access to this folder.",
+      );
+      await page.getByRole("tab", { name: "Versions" }).click();
+      await expect(
+        panel.getByRole("button", {
+          name: "Show version 2, written by an agent",
+        }),
+      ).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Show version 1" }))
+        .toBeVisible();
+      await expect(panel.getByText("Agent", { exact: true })).toHaveCount(1);
+      await expect(panel).toContainText(
+        "Reviewer, an agent working for Ana Reyes",
+      );
+    });
+
+    test("an agent version with no person recorded never names one", async ({ page }) => {
+      await filesFixture(page, { versions: AGENT_NO_PERSON_VERSIONS });
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      const panel = page.getByTestId("file-details");
+      await expect(panel).toContainText("Reviewer, an agent");
+      await expect(panel).toContainText(
+        "Whose access it used was not recorded.",
+      );
+      await expect(panel).not.toContainText("Not recorded");
+      await expect(panel).not.toContainText("working for");
+      await page.getByRole("tab", { name: "Versions" }).click();
+      await expect(panel).toContainText("An agent");
+      await expect(panel.getByText("Agent", { exact: true })).toHaveCount(2);
+    });
+
+    test("a version a step wrote carries the Agent badge, a person's does not", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(
+        `/files/projects/web-app?file=${uuid(40)}&tab=versions`,
+      );
+      const panel = page.getByTestId("file-details");
+      await expect(
+        panel.getByRole("button", {
+          name: "Show version 2, written by an agent",
+        }),
+      ).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Show version 1" }))
+        .toBeVisible();
+      await expect(panel.getByText("Agent", { exact: true })).toHaveCount(1);
+    });
+
+    test("the agent help tip explains the line below without a session", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(
+        `/files/projects/web-app?file=${uuid(40)}&tab=versions`,
+      );
+      const panel = page.getByTestId("file-details");
+      await panel.getByRole("button", { name: "About agent versions" }).click();
+      await expect(page.getByRole("tooltip")).toHaveText(
+        "An agent wrote this version. The line below names the agent and whose access it used.",
       );
     });
 

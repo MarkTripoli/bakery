@@ -11,6 +11,7 @@ import {
   connectivityState,
   type DispatchGate,
   dispatchGate,
+  openMutatingMaintenance,
 } from "./machine-readiness.ts";
 import { appendAudit, appendDomainEvent } from "./event-audit.ts";
 import { executionActionCapabilities } from "./action-admission.ts";
@@ -38,6 +39,27 @@ import {
   rebindPreparedIdentityOperation as rebindPreparedIdentityOperationInternal,
 } from "./secret-identity.ts";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+
+/**
+ * The agent session a claim hands an attempt of a job (the `agentSessionId`
+ * of its assignment), as a scalar subquery over the job row aliased
+ * `jobAlias`. Run admission creates exactly one session per step (the insert
+ * is guarded by "not exists" under a per-step advisory lock), and the
+ * application role cannot change a session afterwards, so the step's first
+ * session is the one every attempt of the step was told to run under and the
+ * one its worker results must name. A later session on the same step (a
+ * coordinator or continuation session) is never the attempt's. Callers that
+ * record which session an attempt acted in use this so they agree with the
+ * claim.
+ */
+export function assignedAgentSessionSql(jobAlias: string): string {
+  return `(select assigned_session.id
+     from bakery.agent_sessions assigned_session
+    where assigned_session.organization_id = ${jobAlias}.organization_id
+      and assigned_session.run_step_id = ${jobAlias}.run_step_id
+    order by assigned_session.created_at asc, assigned_session.id asc
+    limit 1)`;
+}
 export {
   DEFAULT_LEASE_SECONDS,
   IDEMPOTENCY_REPLAY_TTL_SECONDS,
@@ -189,6 +211,8 @@ export type ClaimsRepository = {
     principalId: string | null;
     requestId: string;
     traceId: string;
+    /** The attempt's W3C span context, kept so later events can join its trace. */
+    traceparent: string;
     fence: bigint;
     encryptReplay: () => Promise<string>;
   }): Promise<void>;
@@ -255,7 +279,7 @@ export function createClaimsRepository(
          order by check_id asc, id asc`,
         [identity.host.id],
       );
-      return dispatchGate({
+      const gate = dispatchGate({
         now,
         connectivity: connectivityState(identity.host.lastHeartbeatAt, now),
         status: identity.host.status,
@@ -272,6 +296,18 @@ export function createClaimsRepository(
           expiresAt: row.expires_at,
         })),
       });
+      // An unfinished mutating maintenance operation closes the claim gate
+      // (issue #25). The host row is already locked FOR UPDATE by
+      // loadWorkerIdentity, the same lock the Admin create path takes.
+      // needs_attention reopens claims: a busy host waits, it is never bricked.
+      if (
+        await openMutatingMaintenance(transaction, identity.host.id, {
+          forClaims: true,
+        })
+      ) {
+        return { ...gate, allBlocked: true };
+      }
+      return gate;
     },
     async acquireClaimLock(workerHostId, claimKey) {
       await transaction.query(
@@ -363,14 +399,7 @@ export function createClaimsRepository(
        select id, action, requirements, input,
           current_checkpoints, agent_config, skill_refs, agent_version_id,
           billing, installation_reservation_id, current_fence,
-          (
-            select session.id
-              from bakery.agent_sessions session
-             where session.organization_id = jobs.organization_id
-               and session.run_step_id = jobs.run_step_id
-             order by session.created_at asc, session.id asc
-             limit 1
-          ) as agent_session_id,
+          ${assignedAgentSessionSql("jobs")} as agent_session_id,
           (
             select candidate_run.requested_by
               from bakery.run_steps claim_step
@@ -773,6 +802,11 @@ export function createClaimsRepository(
       return await prepareIdentityOperationInternal(transaction, input);
     },
     async recordAssignment(options) {
+      await transaction.query(
+        `update bakery.job_attempts set traceparent = $3
+          where organization_id = $1 and id = $2`,
+        [options.organizationId, options.attemptId, options.traceparent],
+      );
       const scope = await transaction.query<{
         applicationId: string;
         repositoryId: string | null;

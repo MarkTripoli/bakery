@@ -7,6 +7,7 @@ import {
 import { releaseWorkflowAction } from "../../apps/server/src/modules/work/budget.ts";
 import { reconcileBudgetLedger } from "../../apps/server/src/modules/work/budget-recovery.ts";
 import { claimEffect } from "../../apps/server/src/modules/effects/claim.ts";
+import { applyRestoreFence } from "../../apps/server/src/modules/backups/restore-fence.ts";
 import {
   type PrepareDeps,
   prepareEffect,
@@ -1492,4 +1493,100 @@ Deno.test("a prepared effect on an expired reservation does not pin it", () =>
       "released",
       "released",
     ]);
+  }));
+
+// #64 slice E1: a restore replaces the ledger with an older copy of it. An effect
+// that was only prepared (or submitted) at the backup may have been sent since,
+// so after the restore fence it is uncertain: reconciled by reading the provider,
+// never sent.
+const restoreFence = (fixture: WorkerFixture) =>
+  withPgTransaction(
+    fixture.pgDatabase,
+    (transaction) =>
+      applyRestoreFence(transaction, {
+        backupName: "20261121T030000Z-restore-test",
+        cutoffAt: null,
+      }),
+  );
+
+Deno.test("restore: a prepared effect the provider already received is confirmed by its marker and never sent again", () =>
+  withWorkerFixture(async (fixture) => {
+    const d = await dispatchStage(fixture, "restore-prepared-sent");
+    // At the backup the ledger said only `prepared`; since then it was sent.
+    d.github.comments.push({
+      id: 9100,
+      body: `hello\n\n<!-- bakery-effect:${d.effectId} -->`,
+      user: { id: 4242, type: "Bot" },
+    });
+    const fenced = await restoreFence(fixture);
+    assertEquals(fenced.effectsHeld >= 1, true);
+    const held = await fixture.pgDatabase.query<{
+      status: string;
+      generation: number;
+      evidence: { source: string; reason: string; previousStatus: string };
+    }>(
+      `select status, dispatch_generation as generation,
+              reconciliation_evidence as evidence
+         from bakery.external_effects where id = $1`,
+      [d.effectId],
+    );
+    assertEquals(held.rows[0].status, "uncertain");
+    assertEquals(held.rows[0].generation, 1);
+    assertEquals(held.rows[0].evidence.source, "restore");
+    assertEquals(held.rows[0].evidence.previousStatus, "prepared");
+
+    const result = await d.run();
+    assertEquals(result.outcome, "confirmed");
+    assertEquals(result.dispatched, false);
+    assertEquals(result.effect.remoteId, "9100");
+    assertEquals(d.github.posts(), 0, "nothing was sent after the restore");
+    assertEquals(d.github.lists(), 1, "it only read the provider");
+  }));
+
+Deno.test("restore: a prepared effect the provider never received stays blocked, not sent", () =>
+  withWorkerFixture(async (fixture) => {
+    const d = await dispatchStage(fixture, "restore-prepared-unsent");
+    await restoreFence(fixture);
+    for (let round = 0; round < 3; round++) {
+      const result = await d.run();
+      assertEquals(result.outcome, "uncertain");
+      assertEquals(result.dispatched, false);
+    }
+    // Reconciliation found nothing, and nothing authorizes a send: it waits for
+    // an administrator, however often it is run.
+    assertEquals(d.github.posts(), 0);
+    assertEquals(
+      (await fixture.pgDatabase.query<{ status: string }>(
+        `select status from bakery.external_effects where id = $1`,
+        [d.effectId],
+      )).rows[0].status,
+      "uncertain",
+    );
+  }));
+
+Deno.test("restore: a submitted effect is held the same way and its lease no longer lets it run", () =>
+  withWorkerFixture(async (fixture) => {
+    const d = await dispatchStage(fixture, "restore-submitted");
+    const claim = await d.s.claim(d.effectId);
+    assertEquals(claim.outcome, "claimed");
+    const before = await fixture.pgDatabase.query<{ generation: number }>(
+      `select dispatch_generation as generation from bakery.external_effects
+        where id = $1`,
+      [d.effectId],
+    );
+    await restoreFence(fixture);
+    const after = await fixture.pgDatabase.query<
+      { status: string; generation: number; lease: Date | null }
+    >(
+      `select status, dispatch_generation as generation,
+              lease_expires_at as lease
+         from bakery.external_effects where id = $1`,
+      [d.effectId],
+    );
+    assertEquals(after.rows[0].status, "uncertain");
+    assertEquals(after.rows[0].generation, before.rows[0].generation + 1);
+    assertEquals(after.rows[0].lease, null);
+    const result = await d.run();
+    assertEquals(result.dispatched, false);
+    assertEquals(d.github.posts(), 0);
   }));

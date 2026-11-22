@@ -227,17 +227,22 @@ Deno.test("every bakery files command works against a real server with a real ac
       "Nothing has used this file yet.",
     ]]);
 
-    // Known gap, reported to the PM and not hidden: the server's file search
-    // (#453) covers artifact-backed files and the library mirror, not
-    // working-area files (#447) like these, so the real route answers (and
-    // the client validates its page) with no matches. Indexing them needs the
-    // personal-folder visibility rule in the search query, a server security
-    // change that is not part of the CLI. The hit path is covered by
-    // tests/unit/bakery-cli-files_test.ts.
+    // The server's search finds working-area files since #755, so a hit
+    // comes back through the real route.
     const found = await cli(["files", "search", "plan"]);
-    assertEquals([found.code, found.lines], [0, ["No matches."]]);
+    assertEquals([found.code, found.lines], [
+      0,
+      ["/shared/plan.md  file  13 B"],
+    ]);
     const inFolder = await cli(["files", "search", "--in", "/shared"]);
-    assertEquals([inFolder.code, inFolder.lines], [0, ["No matches."]]);
+    assertEquals(inFolder.code, 0);
+    assert(
+      // The CLI pads its columns to the longest path, so match any run of spaces.
+      inFolder.lines.some((line) =>
+        /^\/shared\/plan\.md\s+file\s+13 B$/.test(line)
+      ),
+      "a search in a folder lists its files: " + inFolder.lines.join(" | "),
+    );
 
     const missing = await cli(["files", "ls", "/shared/nothing"]);
     assertEquals([missing.code, missing.errors], [1, [

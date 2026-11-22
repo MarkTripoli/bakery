@@ -53,6 +53,7 @@ import {
 } from "./storage-working-areas.ts";
 import {
   createFileContentReader,
+  createFileProbeReader,
   createFileUseLister,
   createFileVersionLister,
   createFolderLister,
@@ -62,6 +63,7 @@ import {
   readStorageFileByVersion,
   type StorageReader,
 } from "./storage-reads.ts";
+import { pinStorageFile } from "./storage-pin.ts";
 import {
   createAgentFileGrant,
   revokeAgentFileGrant,
@@ -97,6 +99,7 @@ import {
 } from "./blob-upload-handlers.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { registerCommentActions } from "./comments/routes.ts";
+import { registerArtifactAccessActions } from "./artifact-access.ts";
 import { extractArtifactVersion } from "./extraction.ts";
 import { buildContextPack } from "./context-packs.ts";
 import {
@@ -719,6 +722,21 @@ export function createArtifactActions(
         ),
     })
     .register(artifactContentActionDefinition)
+    .register({
+      // A separate read from the content: the probe answer is about the blob's
+      // bytes, so it belongs to every version that shares them, and a client
+      // wants it before deciding whether to fetch anything at all.
+      name: "artifactVersions.probe",
+      method: HttpMethod.Get,
+      path: "/v1/artifact-versions/:id/probe",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.ArtifactProbeAnswer,
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas.ArtifactProbeAnswer.parse(
+          await handlers.readArtifactProbe(context),
+        ),
+    })
     // Blob uploads: the session names what it promises, parts are keyed by
     // ordinal, and completion verifies before recording. The client supplies
     // bytes and the digest it claims for them; the server checks the claim.
@@ -758,6 +776,7 @@ export function createArtifactActions(
     });
   registerStorageActions(registry, options.secret, options.blobStore);
   registerCommentActions(registry, options.secret, options.blobStore);
+  registerArtifactAccessActions(registry, options.secret);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,
@@ -780,6 +799,7 @@ function registerStorageActions(
   const listFolder = createFolderLister(secret);
   const listVersions = createFileVersionLister(secret);
   const listUses = createFileUseLister(secret);
+  const readProbe = createFileProbeReader();
   const A = StorageImplementedAction;
   registry
     .register({
@@ -884,6 +904,26 @@ function registerStorageActions(
       },
     })
     .register({
+      // The probe answer is about the blob's bytes, so it belongs to every
+      // version that shares them, and a client wants it before deciding whether
+      // to fetch anything at all. The route below serves it, under this action's
+      // authority, the same way the content read is served.
+      name: A.StorageFilesProbe,
+      method: HttpMethod.Get,
+      path: "/v1/storage/files/:id/probe",
+      input: contractSchemas.StorageFileProbeQuery,
+      output: contractSchemas.ArtifactProbeAnswer,
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas.ArtifactProbeAnswer.parse(
+          await readProbe(
+            context,
+            storageReader(context, A.StorageFilesProbe),
+            { revision: (input as { revision?: number }).revision ?? null },
+          ),
+        ),
+    })
+    .register({
       name: A.StorageFilesPut,
       method: HttpMethod.Put,
       path: "/v1/storage/files",
@@ -934,6 +974,26 @@ function registerStorageActions(
       handler: async (context, input) =>
         contractSchemas.StorageEntry.parse(
           await moveStorageEntry(context, input),
+        ),
+    })
+    .register({
+      // An administrator pin, by the file's own id, so the command line can set
+      // it with a token: the same permission and the same pin as the artifact
+      // PATCH, without an artifact id or its version.
+      name: A.StorageFilesPin,
+      method: HttpMethod.Put,
+      path: "/v1/storage/files/:id/pin",
+      input: contractSchemas.StorageFilePin,
+      output: contractSchemas.ArtifactPinResult,
+      explicitIdempotency: "key",
+      policy: storageAdminPolicy(A.StorageFilesPin),
+      handler: async (context, input) =>
+        contractSchemas.ArtifactPinResult.parse(
+          await pinStorageFile(
+            context,
+            storageReader(context, A.StorageFilesPin),
+            input as { pinned: boolean },
+          ),
         ),
     })
     .register({
@@ -1061,12 +1121,17 @@ export function createArtifactResourceRoutes(
     /^\/v1\/storage\/files\/[^/]+\/(?:versions|uses|content)$/,
     /^\/v1\/storage\/file-versions\/[^/]+$/,
   ];
+  // The one write a token may make here: a file's pin (PUT .../pin), which the
+  // action itself keeps to the permission the artifact PATCH checks.
+  const tokenPinPath = /^\/v1\/storage\/files\/[^/]+\/pin$/;
   const readsAcceptTokens: MiddlewareHandler<{ Variables: AuthVariables }> = (
     context,
     next,
   ) =>
-    context.req.method === "GET" && options.tokenSession !== undefined &&
-      tokenReadablePaths.some((path) => path.test(context.req.path))
+    options.tokenSession !== undefined &&
+      ((context.req.method === "GET" &&
+        tokenReadablePaths.some((path) => path.test(context.req.path))) ||
+        (context.req.method === "PUT" && tokenPinPath.test(context.req.path)))
       ? options.tokenSession(context, next)
       : session(context, next);
   app.use("/v1/files/search", readsAcceptTokens);

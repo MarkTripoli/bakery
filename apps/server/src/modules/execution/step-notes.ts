@@ -199,6 +199,8 @@ export async function createRunStepNote(
     organizationId,
     principalId,
     operation: "runSteps.note",
+    // An agent's note names its session (O50); the admission found it.
+    agentSessionId: admission?.sessionId ?? null,
     resourceType: row.id === null ? "workflow_run" : "run_step",
     resourceId: row.id ?? runId,
     requestId: context.requestId,

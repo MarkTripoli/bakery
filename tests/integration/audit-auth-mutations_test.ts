@@ -13,6 +13,7 @@ Deno.test("every auth mutation writes exactly one audit row on success and none 
     secretsKey: key.secretsKey,
     githubAppClient: key.githubAppClient,
     skillStorageProbe: key.skillStorageProbe,
+    backupDestinationProbe: key.backupDestinationProbe,
   });
   try {
     const rows = await runAuditMatrix(f);

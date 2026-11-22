@@ -13,6 +13,7 @@ import {
   StorageNameError,
   storageQueryOf,
 } from "./storage-tree.ts";
+import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
 
 /**
  * File search and the read-only library mirror (chapter 25 section 17, #453).
@@ -62,10 +63,17 @@ type HitRow = {
   version_id: string | null;
   producer_id: string | null;
   media_group: string | null;
-  producer_kind: "person" | "step" | null;
+  producer_kind: "person" | "step" | "agent" | null;
   producer_name: string | null;
   producer_task_id: string | null;
   producer_task_title: string | null;
+  producer_step_id: string | null;
+  producer_run_id: string | null;
+  producer_attempt_id: string | null;
+  producer_session_id: string | null;
+  producer_agent_name: string | null;
+  producer_acting_for_id: string | null;
+  producer_acting_for_name: string | null;
   library_path: string | null;
   created_at: Date | string;
   cursor_created_at: string;
@@ -449,6 +457,13 @@ export function createFileSearchHandler(
                  as producer_task_id,
                case when v.run_step_id is not null then task.title end
                  as producer_task_title,
+               v.run_step_id as producer_step_id,
+               coalesce(v.run_id, step.run_id) as producer_run_id,
+               v.attempt_id as producer_attempt_id,
+               v.agent_session_id as producer_session_id,
+               def.name as producer_agent_name,
+               v.acting_for_principal_id as producer_acting_for_id,
+               actor.display_name as producer_acting_for_name,
                null::text as library_path, entry.created_at
           from bakery.storage_entries entry
           join bakery.artifacts a
@@ -467,6 +482,17 @@ export function createFileSearchHandler(
           left join bakery.tasks task
             on task.organization_id = run.organization_id
            and task.id = run.task_id
+          left join bakery.principals actor
+            on actor.id = v.acting_for_principal_id
+          left join bakery.agent_sessions s
+            on s.organization_id = v.organization_id
+           and s.id = v.agent_session_id
+          left join bakery.agent_versions av
+            on av.organization_id = s.organization_id
+           and av.id = s.agent_version_id
+          left join bakery.agent_definitions def
+            on def.organization_id = av.organization_id
+           and def.id = av.agent_id
          where entry.organization_id = ${org} and entry.kind = 'file'
            and entry.id not in (select id from hidden)
            and (${folder}::uuid is null or entry.id in (select id from scope))
@@ -493,16 +519,50 @@ export function createFileSearchHandler(
                entry.name, 'file'::text as kind, v.media_type,
                v.size_bytes::integer as size_bytes, v.id as version_id,
                v.author_id as producer_id, ${MEDIA_GROUP_SQL} as media_group,
-               'person'::text as producer_kind,
+               -- An agent's write (#448 S8a): what the version recorded at
+               -- the write, or for one written before that, its step write
+               -- set row.
+               case when v.attempt_id is not null or agent.id is not null
+                    then 'agent' else 'person' end as producer_kind,
                person.display_name as producer_name,
-               null::uuid as producer_task_id,
-               null::text as producer_task_title,
+               task.id as producer_task_id,
+               task.title as producer_task_title,
+               v.run_step_id as producer_step_id, v.run_id as producer_run_id,
+               coalesce(v.attempt_id, agent.attempt_id) as producer_attempt_id,
+               coalesce(v.agent_session_id, agent.agent_session_id) as producer_session_id,
+               def.name as producer_agent_name,
+               v.acting_for_principal_id as producer_acting_for_id,
+               actor.display_name as producer_acting_for_name,
                null::text as library_path, entry.created_at
           from bakery.storage_entries entry
           join bakery.storage_file_versions v
             on v.organization_id = entry.organization_id
            and v.id = entry.current_version_id
           left join bakery.principals person on person.id = v.author_id
+          left join bakery.workflow_runs run
+            on run.organization_id = v.organization_id
+           and run.id = v.run_id
+          left join bakery.tasks task
+            on task.organization_id = run.organization_id
+           and task.id = run.task_id
+          left join lateral (select w.id, w.agent_session_id, w.attempt_id
+                               from bakery.step_write_set w
+                              where v.attempt_id is null
+                                and w.organization_id = v.organization_id
+                                and w.new_version_id = v.id
+                                and w.op in ('put', 'copy')
+                              order by w.created_at, w.id limit 1) agent on true
+          left join bakery.principals actor
+            on actor.id = v.acting_for_principal_id
+          left join bakery.agent_sessions s
+            on s.organization_id = v.organization_id
+           and s.id = coalesce(v.agent_session_id, agent.agent_session_id)
+          left join bakery.agent_versions av
+            on av.organization_id = s.organization_id
+           and av.id = s.agent_version_id
+          left join bakery.agent_definitions def
+            on def.organization_id = av.organization_id
+           and def.id = av.agent_id
          where entry.organization_id = ${org} and entry.kind = 'file'
            and entry.artifact_id is null
            and entry.trashed_at is null and entry.purged_at is null
@@ -531,6 +591,12 @@ export function createFileSearchHandler(
                   null::text as media_group, null::text as producer_kind,
                   null::text as producer_name, null::uuid as producer_task_id,
                   null::text as producer_task_title,
+                  null::uuid as producer_step_id, null::uuid as producer_run_id,
+                  null::uuid as producer_attempt_id,
+                  null::uuid as producer_session_id,
+                  null::text as producer_agent_name,
+                  null::uuid as producer_acting_for_id,
+                  null::text as producer_acting_for_name,
                   '/library/${source.section}/' || x.${source.slug} as library_path,
                   x.created_at
              from ${source.table} x
@@ -579,7 +645,18 @@ export function createFileSearchHandler(
        order by created_at desc, sort_id desc
        limit ${p(limit + 1)}`;
     const result = await transaction.query<HitRow>(sql, params);
-    const visible = result.rows.slice(0, limit);
+    const page = result.rows.slice(0, limit);
+    // A reviewer's search leaves out the files it may not read (O47); the
+    // cursor follows the unfiltered page.
+    const hidden = await hiddenEntryIds(
+      transaction,
+      await reviewerIsolationOf(transaction, context, organizationId),
+      organizationId,
+      page.filter((row) => row.source === "files").map((row) => row.sort_id),
+    );
+    const visible = page.filter((row) =>
+      row.source !== "files" || !hidden.has(row.sort_id)
+    );
 
     // Paths of the tree hits, in one query: each entry's ancestors, joined.
     const treeIds = visible.filter((row) => row.source === "files").map((row) =>
@@ -605,7 +682,7 @@ export function createFileSearchHandler(
       for (const row of found.rows) paths.set(row.leaf, row.path);
     }
 
-    const last = visible.at(-1);
+    const last = page.at(-1);
     return {
       items: visible.map((row) => {
         const match = nameMatch(row.name, input.query);
@@ -635,6 +712,13 @@ export function createFileSearchHandler(
           producerName: row.producer_name,
           producerTaskId: row.producer_task_id,
           producerTaskTitle: row.producer_task_title,
+          producerStepId: row.producer_step_id,
+          producerRunId: row.producer_run_id,
+          producerAttemptId: row.producer_attempt_id,
+          producerSessionId: row.producer_session_id,
+          producerAgentName: row.producer_agent_name,
+          producerActingForId: row.producer_acting_for_id,
+          producerActingForName: row.producer_acting_for_name,
           nameMatchStart: match?.start ?? null,
           nameMatchLength: match?.length ?? null,
           createdAt: toIso(row.created_at),

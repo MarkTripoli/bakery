@@ -478,10 +478,11 @@ Deno.test("two people opening a draft at the same moment both get the one draft"
     const pending = owner.call("POST", draftPath);
     let blocked = false;
     for (let wait = 0; wait < 400 && !blocked; wait += 1) {
+      // pg_locks is readable by every role; the open request runs as the
+      // application role, whose pg_stat_activity query text is hidden from here.
       const waiting = await f.fixture.pgDatabase.query<{ n: number }>(
-        `select count(*)::int as n from pg_stat_activity
-          where wait_event_type = 'Lock'
-            and query like '%insert into bakery.skill_drafts%'
+        `select count(*)::int as n from pg_locks
+          where not granted and locktype = 'transactionid'
             and pid <> pg_backend_pid()`,
       );
       blocked = waiting.rows[0].n > 0;
@@ -552,6 +553,167 @@ Deno.test("a stray percent sign in a link is a problem the check reports, not a 
       [{ file: "SKILL.md", line: 3, code: "referenced_file_missing" }],
     );
     assert(linkProblems[0].message.includes("50%off.md"));
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("a draft publishes as the next version once; a stale or flawed draft publishes nothing", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-publish-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const owner = api(f, f.ownerCookie);
+    const created = await f.post(f.ownerCookie, "/v1/skills", {
+      slug: "publisher",
+      name: "Publisher",
+    }, "skill-publisher");
+    assertEquals(created.status, 201, await created.clone().text());
+    const skill = await created.json() as { id: string };
+    const draftPath = `/v1/skills/${skill.id}/draft`;
+    const publishPath = `${draftPath}/publish`;
+    const first = await f.post(
+      f.ownerCookie,
+      `/v1/skills/${skill.id}/versions`,
+      await upload({
+        "SKILL.md": "# Publisher\n\nRead [the notes](notes.md).\n",
+        "notes.md": "The notes.\n",
+      }),
+      "publisher-v1",
+    );
+    assertEquals(first.status, 201, await first.clone().text());
+    const versionOne = await first.json() as { id: string; digest: string };
+    const versions = () =>
+      f.fixture.pgDatabase.query<
+        { id: string; revision: number; digest: string }
+      >(
+        "select id, revision, digest from bakery.skill_versions where skill_id = $1 order by revision",
+        [skill.id],
+      ).then((result) => result.rows);
+
+    const opened = await (await owner.call("POST", draftPath)).json() as Draft;
+    // The draft's version is required, and a stale one is refused.
+    assertEquals((await owner.call("POST", publishPath)).status, 428);
+    assertEquals(
+      (await owner.call("POST", publishPath, { version: opened.version + 5 }))
+        .status,
+      412,
+    );
+
+    // A draft with a problem is refused with it, and nothing is published.
+    const save = async (content: string, version: number) => {
+      const saved = await owner.call("POST", `${draftPath}/files`, {
+        version,
+        body: {
+          path: "SKILL.md",
+          mediaType: "text/markdown",
+          contentBase64: b64(content),
+        },
+      });
+      assertEquals(saved.status, 200, await saved.clone().text());
+      return await saved.json() as Draft;
+    };
+    const flawed = await save(
+      "# Publisher 2\n\nRead [the notes](notes.md) and [gone](gone.md).\n",
+      opened.version,
+    );
+    const refused = await owner.call("POST", publishPath, {
+      version: flawed.version,
+    });
+    assertEquals(refused.status, 422, await refused.clone().text());
+    assert((await refused.text()).includes("gone.md"));
+    assertEquals((await versions()).length, 1);
+    assertEquals(
+      (await (await owner.call("GET", draftPath)).json() as Draft).version,
+      flawed.version,
+    );
+
+    // The corrected draft publishes as revision 2, and the draft is gone.
+    const fixed = await save(
+      "# Publisher 2\n\nRead [the notes](notes.md).\n",
+      flawed.version,
+    );
+    const key = "publisher-v2";
+    const published = await owner.call("POST", publishPath, {
+      version: fixed.version,
+      key,
+    });
+    assertEquals(published.status, 201, await published.clone().text());
+    const versionTwo = await published.json() as {
+      id: string;
+      revision: number;
+      digest: string;
+    };
+    assertEquals(versionTwo.revision, 2);
+    assert(versionTwo.digest !== versionOne.digest);
+    assertEquals((await owner.call("GET", draftPath)).status, 404);
+    const rows = await versions();
+    assertEquals(rows.map((row) => row.revision), [1, 2]);
+    // The first version is exactly as it was published.
+    assertEquals(rows[0], {
+      id: versionOne.id,
+      revision: 1,
+      digest: versionOne.digest,
+    });
+    const active = await f.fixture.pgDatabase.query<
+      { active_version_id: string }
+    >("select active_version_id from bakery.skills where id = $1", [skill.id]);
+    assertEquals(active.rows[0].active_version_id, versionTwo.id);
+
+    // The same request again is the same answer, not a third version.
+    const replay = await owner.call("POST", publishPath, {
+      version: fixed.version,
+      key,
+    });
+    assertEquals(replay.status, 201, await replay.clone().text());
+    assertEquals(replay.headers.get("idempotent-replayed"), "true");
+    assertEquals((await replay.json() as { id: string }).id, versionTwo.id);
+    assertEquals((await versions()).length, 2);
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("an administrator publishes an organization skill's draft with no grant", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-org-publish-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const admin = api(f, f.ownerCookie);
+    const created = await f.post(f.ownerCookie, "/v1/skills", {
+      slug: "shared-publisher",
+      name: "Shared publisher",
+      scope: "organization",
+    }, "skill-shared-publisher");
+    assertEquals(created.status, 201, await created.clone().text());
+    const skill = await created.json() as { id: string };
+    const first = await f.post(
+      f.ownerCookie,
+      `/v1/skills/${skill.id}/versions`,
+      await upload({ "SKILL.md": "# Shared\n\nFirst.\n" }),
+      "shared-v1",
+    );
+    assertEquals(first.status, 201, await first.clone().text());
+    const draftPath = `/v1/skills/${skill.id}/draft`;
+    const opened = await admin.call("POST", draftPath);
+    assertEquals(opened.status, 200, await opened.clone().text());
+    const draft = await opened.json() as Draft;
+    const saved = await admin.call("POST", `${draftPath}/files`, {
+      version: draft.version,
+      body: {
+        path: "SKILL.md",
+        mediaType: "text/markdown",
+        contentBase64: b64("# Shared\n\nBy the administrator.\n"),
+      },
+    });
+    assertEquals(saved.status, 200, await saved.clone().text());
+    const edited = await saved.json() as Draft;
+    const published = await admin.call("POST", `${draftPath}/publish`, {
+      version: edited.version,
+    });
+    assertEquals(published.status, 201, await published.clone().text());
+    assertEquals((await published.json() as { revision: number }).revision, 2);
+    assertEquals((await admin.call("GET", draftPath)).status, 404);
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });

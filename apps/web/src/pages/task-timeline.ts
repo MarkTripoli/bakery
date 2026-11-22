@@ -75,6 +75,8 @@ export function runTimelineEvents(
   steps: readonly RunStep[],
   t: Translator,
   page: { first: boolean; last: boolean } = { first: true, last: true },
+  /** Steps waiting on a model, by id, with what their row says (#70). */
+  waiting: ReadonlyMap<string, string> = new Map(),
   /** How a time reads for the person; without it the record's own text shows. */
   formatTime: (iso: string) => string = (iso) => iso,
 ): UI.RunTimelineEvent[] {
@@ -106,10 +108,11 @@ export function runTimelineEvents(
   for (const step of steps) {
     const known = KNOWN_STEPS[step.stepKey as keyof typeof KNOWN_STEPS];
     const budgetKey = budgetFaultReason(step);
+    const waitingText = waiting.get(step.id);
     events.push({
       id: step.id,
       title: known ? t(known) : step.stepKey,
-      description: t(`tasks.run.step.${step.status}`),
+      description: waitingText ?? t(`tasks.run.step.${step.status}`),
       reason: step.status !== "failed"
         ? undefined
         : hasHarnessFault(step)
@@ -121,7 +124,7 @@ export function runTimelineEvents(
       timeLabel: formatTime(
         step.finishedAt ?? step.startedAt ?? step.createdAt,
       ),
-      status: STEP_STATUS[step.status],
+      status: waitingText === undefined ? STEP_STATUS[step.status] : "waiting",
     });
   }
   if (

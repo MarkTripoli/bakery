@@ -238,6 +238,42 @@ Deno.test("mentions share one conversation atomically and only with authority", 
       );
 
     await t.step(
+      "sharers names up to three people who may share, the author first",
+      async () => {
+        const page = await json<{
+          items: { principalId: string; displayName: string }[];
+        }>(
+          await call(
+            fixture,
+            viewer.cookie,
+            orgA,
+            `/v1/conversations/${conversation}/access/sharers`,
+          ),
+          200,
+        );
+        // Wren wrote the conversation, so leads; Dana also holds the share
+        // right. Viewers, a disabled account, a removed member, an agent and
+        // another organization's admin never appear.
+        assertEquals(page.items.map((item) => item.principalId), [
+          writer.principalId,
+          dev.principalId,
+        ]);
+        assertEquals(
+          page.items.map((item) => Object.keys(item).sort()),
+          [["displayName", "principalId"], ["displayName", "principalId"]],
+        );
+        const foreign = await call(
+          fixture,
+          writer.cookie,
+          orgA,
+          `/v1/conversations/${foreignConversation}/access/sharers`,
+        );
+        assertEquals(foreign.status, 404);
+        await foreign.body?.cancel();
+      },
+    );
+
+    await t.step(
       "search shows only visible members, marked by access",
       async () => {
         const all: Candidate[] = [];
@@ -674,6 +710,77 @@ Deno.test("mentions share one conversation atomically and only with authority", 
         );
         // Removing a grant never removes inherited access.
         assertEquals((await send(dev, {})).status, 201);
+      },
+    );
+
+    await t.step(
+      "sharers stops at three, and a guest whose custom role cannot read still gets it through a grant",
+      async () => {
+        const path = (id: string) => `/v1/conversations/${id}/access/sharers`;
+        for (const n of ["Ann Extra", "Bob Extra", "Cy Extra", "Di Extra"]) {
+          await human(n, [{ org: orgA, role: "developer" }]);
+        }
+        const page = await json<
+          { items: { principalId: string; displayName: string }[] }
+        >(
+          await call(fixture, writer.cookie, orgA, path(conversation)),
+          200,
+        );
+        assertEquals(page.items.length, 3, "cap of three");
+        assertEquals(
+          page.items[0].principalId,
+          writer.principalId,
+          "author first",
+        );
+        assert(
+          !page.items.some((i) => i.principalId === outsider.principalId),
+          "no foreign org person",
+        );
+        const guest = await human("Gus Guest", [{ org: orgA, role: "guest" }]);
+        const roleId = crypto.randomUUID();
+        await fixture.pgDatabase.query(
+          `insert into bakery.organization_roles (id, organization_id, key, name, permissions, created_by_principal_id) values ($1, $2, 'files-only', 'Files only', $3, $4)`,
+          [roleId, orgA, ["artifact:read"], writer.principalId],
+        );
+        await fixture.pgDatabase.query(
+          `update bakery.organization_memberships set custom_role_id = $3 where organization_id = $1 and principal_id = $2`,
+          [orgA, guest.principalId, roleId],
+        );
+        const before = await call(
+          fixture,
+          guest.cookie,
+          orgA,
+          path(conversation),
+        );
+        assert(
+          [403, 404].includes(before.status),
+          "guest without grant: " + before.status,
+        );
+        await before.body?.cancel();
+        await fixture.pgDatabase.query(
+          `insert into bakery.conversation_access_grants (organization_id, conversation_id, principal_id, granted_by) values ($1, $2, $3, $4)`,
+          [orgA, conversation, guest.principalId, writer.principalId],
+        );
+        const granted = await json<{ items: { principalId: string }[] }>(
+          await call(fixture, guest.cookie, orgA, path(conversation)),
+          200,
+        );
+        assertEquals(
+          granted.items.length,
+          3,
+          "grant-only guest gets the answer",
+        );
+        const other = crypto.randomUUID();
+        await fixture.pgDatabase.query(
+          `insert into bakery.conversations (id, organization_id, title, created_by) values ($1, $2, 'Other chat', $3)`,
+          [other, orgA, writer.principalId],
+        );
+        const elsewhere = await call(fixture, guest.cookie, orgA, path(other));
+        assert(
+          [403, 404].includes(elsewhere.status),
+          "grant is for one conversation only: " + elsewhere.status,
+        );
+        await elsewhere.body?.cancel();
       },
     );
   } finally {

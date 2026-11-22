@@ -436,6 +436,10 @@ export async function executeClaim(
           inputDigest: await canonicalExecutionInputDigest(job.input),
         });
       }
+      const claimTraceparent = assignmentTraceparent(
+        options.headers,
+        job.originalTraceparent,
+      );
       const response = assignmentFromJob(
         job,
         lease.attemptId,
@@ -449,7 +453,7 @@ export async function executeClaim(
         lease.serverTime,
         sealedCredentialOperation,
         sessionCredential,
-        assignmentTraceparent(options.headers, job.originalTraceparent),
+        claimTraceparent,
       );
       await persistence.recordAssignment({
         organizationId: identity.host.organizationId,
@@ -462,6 +466,7 @@ export async function executeClaim(
         principalId: identity.host.principalId,
         requestId: metadata.requestId,
         traceId: metadata.traceId,
+        traceparent: claimTraceparent,
         fence,
         encryptReplay: () => protect(options.secret, response),
       });

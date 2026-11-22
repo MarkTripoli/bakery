@@ -1,13 +1,398 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
+    "8cad16fd684a429cb8026ca22c26945ab8eb8511"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fc17149c0fe66b9edd3bce0e0e874009fcc4febff5c6e3a8348713e760f8be74",
-  "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:92052ff2e5de048db0cee867d9aa0d1d03ae165af0835507e2780c4fd10ad8f7",
+  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "c1a828aec0c6d9e361f541cb676907d1e10c0222",
+        "dc1728c0f3e887d52aec240ec602e9da14aa7e35"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5835d700baff5d3a6db269f82bf2d2b6daca1ca25e16f1d6cf287e8a41315345",
+      "reason": "#41 versioned evaluations by dev-bugfix on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main dc1728c0f3e887d52aec240ec602e9da14aa7e35: evaluation batches pin exact versions (kind, id, version only), model scorers can be optional so a scorer's required flag is now stated on every result, attempts can end interrupted, batches carry a pin digest, a model budget and a corpus report, and evaluationBatches.run is new. Main's own approval it displaces is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f5c4ca5dab467f7a98a0272b8fa9a1840b3f20d0"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0e92d311a1f2274c39ae8f13895c0b7423df24a3b62458e2f278fbd990e255b2",
+      "reason": "#25 maintenance (slices A, B1, B2, C) by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main f5c4ca5dab467f7a98a0272b8fa9a1840b3f20d0: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Main's own #70 approval is kept unchanged below, after this PR's previous ones."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "9422f56a8b751ca4a57edf8c02149606e8da529a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dd56648af7ba5523cc95bd57715731a20eaf66a21f32266d21629f61f634027c",
+      "reason": "#25 maintenance (slices A, B1, B2, C) by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 9422f56a8b751ca4a57edf8c02149606e8da529a: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Displaced when main moved again (#876 merged): the digest follows the tree."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "bab18ab7ded93a5ea4b5ca7ebde825cee1971226",
+        "46f1ca889f9500aec2e8f992d6de4847929427e7"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:2199a6ed830ff45d9b59b5fe83b40c9f92dd0b0594789e40e697003d74dce978",
+      "reason": "#25 maintenance (slices A, B1, B2, C) by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main bab18ab7ded93a5ea4b5ca7ebde825cee1971226 and 46f1ca889f9500aec2e8f992d6de4847929427e7: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Displaced when main moved again (#70 one-paste link merged): the digest follows the tree."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "46f1ca889f9500aec2e8f992d6de4847929427e7"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:74cd9dbc5efe4ab6e8ddf44bd016fa24bcc95b07c43255cccde24f19183f763f",
+      "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 46f1ca889f9500aec2e8f992d6de4847929427e7: link codes and link requests on worker enrollment; link requests accept only linux or macos as os, and machine names, host names and architectures on the link and registration inputs refuse the control, separator, zero-width, text-direction, byte-order-mark and tag characters the link command refuses. The approval it displaces is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "7ff69adbf5f71387997af40d3febc5760ca5a8a2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6da4387e06fe3baf8453668e397561d7b4ac346ed9012201f9ea7409f987e74c",
+      "reason": "#25 slice C by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 7ff69adbf5f71387997af40d3febc5760ca5a8a2: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Displaced when main moved again (#59 ask 9 merged): the digest follows the tree."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "bab18ab7ded93a5ea4b5ca7ebde825cee1971226"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:503059407be95022ac2cbf30a6e2560f71d4c1cf358494228b80ac079b5b5561",
+      "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main bab18ab7ded93a5ea4b5ca7ebde825cee1971226: link codes and link requests on worker enrollment; link requests accept only linux or macos as os, and machine names, host names and architectures on the link and registration inputs refuse control characters. Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "547ccc62b40c98376db5f5ef44238a8d23c96495",
+        "931df69723f15304dce34cf1521d7555e75e8c22"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:410873c344d34c4871c225fa82e132a5134f68d02f15c29bd41b15d58afb1efd",
+      "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 931df69723f15304dce34cf1521d7555e75e8c22: installationStatus gains a required updatePaused beside restoreHeld. Main's own approval is kept unchanged below, after this PR's previous one."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2e1a186904dbedcc6eb84cd23264207022718c37"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5dc2c61e686ac8085c96decf85c409151156899804ac96cdd55561268eaeb5c2",
+      "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 2e1a186904dbedcc6eb84cd23264207022718c37: installationStatus gains a required updatePaused beside restoreHeld. Displaced when main moved again (#867 merged): the digest follows the tree."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "77dc67ce584a210f1c1f54b2c588ef1d6349232f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:342031789a41b0d6954e7d86e02bf0427dfe01e81fe8b20108e71c4f5e36f370",
+      "reason": "#64 E4 server by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 77dc67ce584a210f1c1f54b2c588ef1d6349232f: installationStatus gains restoreHeld, and installationRestore gains who took each step (InstallationRestoreActor). Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "aa871531a3328a642137a85b370e51973391b6a6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:512ee3f1b960b1871b2f3dad5ce2e26e387d318f82e0553bc8da73b9731a6914",
+      "reason": "#64 E4 server by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main aa871531a3328a642137a85b370e51973391b6a6: installationStatus gains restoreHeld, and installationRestore gains who took each step (InstallationRestoreActor). Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f5ec00f7de45132935cf369a5841a7b710f99c61"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:72801058163e0c9d7f8eefb0fbabdc15b7fc436355124e42ab17b78394aac147",
+      "reason": "#80 point-in-time P1a by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main f5ec00f7de45132935cf369a5841a7b710f99c61: backupPointInTime.get/put, the runner's WAL report, and BackupRunnerSettings gains a required pointInTimeEnabled. Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b5c94881564cc3f2254efb23fd52338828d047d3"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dc9bc9faa37e598d625d1fb669b99daaa3a52e6492cc63feebb4f07363963f31",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main b5c94881564cc3f2254efb23fd52338828d047d3: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "fcf081cba36cd29784a4da1d7e6777662e46384a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:282e7c27884d1391ae1a77fd9d18c934a7e8f93033f0bdbbec81965c31b313a0",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main fcf081cba36cd29784a4da1d7e6777662e46384a: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "523b2647da5129abd555c6cc708911c3c6d1878d"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:aec7dd9ef6d8ecb08c7c33c910f664b11dfb3bf15c7c9a05bfd269ee9cfb1544",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 523b2647da5129abd555c6cc708911c3c6d1878d: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "88dafb55652383258303edc4de6e86815d7e9c33"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:51e88572c295c52a4d4c78d5215a9f166f47c2aa448eadf3f50c1edbec4da04e",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 88dafb55652383258303edc4de6e86815d7e9c33: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a90e69c734392ec761caf3fd8805c1c6355444c2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b0253a3aff00da400668344c5c722ef264a95cac2480a9daefb10d4a985f76e0",
+      "reason": "#46 slice C line-count rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main a90e69c734392ec761caf3fd8805c1c6355444c2: merged pull requests carry lineCount evidence for development metrics, re-bound after merging main. Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "3f14137d0dd427997c84cc218f94b379edf6396b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:2faab4e9a06dac179b8cea4f14b8d780bfbb6765d9439579a1c58695ba9ca689",
+      "reason": "#58 batches slice 3a rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 3f14137d0dd427997c84cc218f94b379edf6396b: BatchIssue gains issueNumber and issueTitle (nullable, always present; a read join); BatchQuery gains an optional state filter; BatchStartableQuery, BatchStartableIssue and BatchStartable are new for batches.startable. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "ad5241ce6670eff3c31661b68d533e613cbccf0b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1c141ac78d679b2bc98ce7f6ce69d5aa91aeed6c893e5f18fa8e264b319de2c3",
+      "reason": "#76 plugin pages main-merge rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main ad5241ce6670eff3c31661b68d533e613cbccf0b: the #76 server half (plugin pages served sealed) re-bound after a conflict-only merge of main. Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d5b78073a25b16722e2b68bda86d9e170c977106",
+        "2b80e3defdbf4e8c8cda6a23ce6383f7dfd11bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:da92d61ec30ee51d5af5b216449f1be52859fd22b13f921b6d078680cdc62bcb",
+      "reason": "#75 evaluation names rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main d5b78073a25b16722e2b68bda86d9e170c977106: EvaluationBatch gains datasetName, candidateDefinition, baselineDefinition and canceledBy, and EvaluationBatchResult gains caseName, all required in the answer (read joins, nothing stored); EvaluationPinDefinition is new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2b80e3defdbf4e8c8cda6a23ce6383f7dfd11bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:f485f696f3c4ca7f6b0f0e704bd118266e1c9ac0288e4ea77ed633a16697b6cc",
+      "reason": "#70 chooser server re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2b80e3defdbf4e8c8cda6a23ce6383f7dfd11bee, onto the #70 slice 2 head 1bf2a8f2: RouteContinuationOffer drops estimatedIncrementalCost and lists only usable targets, gaining unavailable (counts per reason, per harness, and up to 20 open route names); RouteContinuationTarget drops eligible and ineligibleReason and gains providerName, modelName, priced and estimatedIncrementalCost; RouteContinuationSource gains providerName and modelName. Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "ac855249abfe5b82963c32aec8e6d014b9237ba1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:310d095913989f75555035f8881bb459ef84b9b2fb0c8aa148faef3df220c930",
+      "reason": "#448 S8a version provenance by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main ac855249abfe5b82963c32aec8e6d014b9237ba1: StorageFileVersion gains attemptId, actingForPrincipalId and actingForName; FileSearchHit gains producerKind agent and the producer step, run, attempt, session, agent and acting-for fields. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "0b0c2706c99f2cd499937ac5f17797ff3bfde891",
+        "76b0d8e448facf07eef4c78af3e77386ebadab2c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:27f0cef78077fdb96b37869109edce7e61a49fc90011a81598c4f8fa9bc31341",
+      "reason": "Main-red rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 0b0c2706c99f2cd499937ac5f17797ff3bfde891: the approval was bound to main 76b0d8e4 and #812, #813, #797 and #759 merged after it, so the generated contract digest moved and every run based on 76b0d8e4 failed. The approval now covers the current main and the earlier base; the displaced approval is kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "76b0d8e448facf07eef4c78af3e77386ebadab2c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1cf004af3771a81ff0bf65260951658a68ad86256ac348a92f3a29fe91d3f759",
+      "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 76b0d8e448facf07eef4c78af3e77386ebadab2c: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. The digest follows the tree when main moved again (#808 merged); my previous approval on the earlier main is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "35f272370446c45c9e1f79177a3836a7d1903a2b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6be79e65f8d6390329197e6eeb666584a52b9104710badda9373f31cf33eb4ad",
+      "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 35f272370446c45c9e1f79177a3836a7d1903a2b: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. Main's own approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e321e76af1ce1933149b3345d832e98295ccc364"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8e68e8856af05cf093594afce7f54f58b31f1ee7e41065c23fcfeea17847cd05",
+      "reason": "#64 slice B quiesce re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e321e76af1ce1933149b3345d832e98295ccc364: BackupStatus gains maintenanceState and maintenanceSince, both required (the installation maintenance switch a backup holds); the retryable 503 INSTALLATION_QUIESCED is added to the errors of five actions that start or change work, and the runner route backupRunner.maintain is new. A webhook delivery is accepted during a hold, so intake.webhook does not list it. Main's own approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "064ca6fd61b59fe9eae31cfe2469f62f9e635687"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
+      "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 064ca6fd61b59fe9eae31cfe2469f62f9e635687: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8d403f1221dc327bbb871c1eebc0b41b99b31619"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below, then this PR's previous ones. The cursor description now names the provider filter, which the cursor was already bound to."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8d403f1221dc327bbb871c1eebc0b41b99b31619"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4c7ce0ae4caa534c2ceec4f5b125ffe45a2e213b8f9d484be0365ab13c20c517",
+      "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8d403f1221dc327bbb871c1eebc0b41b99b31619"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below, then this PR's previous ones. [Displaced by the #739 cursor wording fix: this PR's previous approval, kept unchanged otherwise.]"
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "536ca2f627dbd9fdb8ba2500830bd8b508645b40"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
+      "reason": "#57 slice 2 merge-queue reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 536ca2f627dbd9fdb8ba2500830bd8b508645b40 (#788 and handoff manifests merged): PullRequest gains targetBranch, required and not nullable; MergeEntry gains blockedReason, nullable. This PR's previous approval is kept unchanged first below, then main's own."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "49a52678dd508066cbaf33db1178a066945a87f6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:78b2f8ca7fbaddc4dad1b5aa7aa413fc35aa31bfd8480a2839765308b1d021f2",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 49a52678dd508066cbaf33db1178a066945a87f6: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged below, then this PR's previous ones."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "168b504d36e82f366c73d7931d4b9c82afe389da"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b6340fefd73f1155f0b70b57f61530f9a538d482b7816f4588851b78f52c1123",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 168b504d36e82f366c73d7931d4b9c82afe389da: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged below, then this PR's previous one."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "283ceeaf7750a9d6bfac79dce642a0b0bdf28224"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
+      "reason": "#739 Monitoring list server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 283ceeaf7750a9d6bfac79dce642a0b0bdf28224: TelemetryDestinationList gains destinationLimit, nextCursor, total and stateCounts, all required, and the list now takes search, state, kind, cursor and limit; telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2de7c9744ef72c605c415b6fc2ba846b95f98eee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5e6cbf87fc5f188cc0b7baf0b42f9b86c72229e09937616145eabbbb79c8f48c",
+      "reason": "#57 slice 2 merge-queue reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2de7c9744ef72c605c415b6fc2ba846b95f98eee: PullRequest gains targetBranch, required and not nullable, the repository's default branch that mergeEntries.create takes; MergeEntry gains blockedReason, nullable. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e1326d79aceb7704529567b7d6e1dda58569ff14"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9ba189cc43ffbe02eeddd3a250f68eb0a6fcd143089fa3732b2fdf597d4085a9",
+      "reason": "#14 context pack limits re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e1326d79aceb7704529567b7d6e1dda58569ff14: ContextPackItem gains limits (why an item carries no content, or null) and redactions (credentials redacted from the item), both required, so a reader of a pack is told what it is missing. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "006746add1aff121cc9ccdf46c7eb4d54d7cd0e1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4b34d06824ea03e2862a772e2f7f1c56f85fc63037820b671eeba8b490a42d3e",
+      "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 006746add1aff121cc9ccdf46c7eb4d54d7cd0e1: the breaking drift is this PR's own (step write and read sets, limits, revert). Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:766a91a3406a6ef488de878590269f396d6b646fb70be95418e27e01a7071c2c",
+      "reason": "#445 pin re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: StorageFolderItem gains pinned, required and not nullable, whether an administrator pinned the file's artifact, so the file browser and the command line's stat show it; storageFiles.pin is a new action. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
@@ -16,7 +401,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:01305743634c3447fe91302c0a64559bbcd7503cb16ec7a76eeb1cff3f878713",
-      "reason": "#44 evaluation batches re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 133085d155d6af34566063e17a68bdd70bbebdbe: the breaking drift is unchanged (WorkerResult fault refineScope and the evaluation batch contracts). Re-bound onto main 70f783249d02ba6493a0fc4f413cf3ef34e11392 after merging it; drift unchanged. [Displaced by the #19 private previews re-bind: main's own approval, preserved unchanged.]"
+      "reason": "#44 evaluation batches re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 133085d155d6af34566063e17a68bdd70bbebdbe: the breaking drift is unchanged (WorkerResult fault refineScope and the evaluation batch contracts). Re-bound onto main 70f783249d02ba6493a0fc4f413cf3ef34e11392 after merging it; drift unchanged."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",

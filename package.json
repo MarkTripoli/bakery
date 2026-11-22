@@ -28,7 +28,7 @@
     "test:security": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts security",
     "contracts:generate": "deno run --allow-read --allow-write --allow-run=git scripts/generate-contracts.ts",
     "contracts:check": "deno run --allow-read --allow-run=git scripts/generate-contracts.ts --check",
-    "fmt": "deno fmt apps/server apps/worker apps/web packages/config packages/contracts packages/i18n packages/integration-linear packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap packages/workflow-sdk packages/cli scripts tests",
+    "fmt": "deno fmt apps/server apps/worker apps/web apps/desktop packages/config packages/contracts packages/i18n packages/integration-linear packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap packages/workflow-sdk packages/cli scripts tests",
     "ui:tokens:generate": "deno run --allow-read --allow-write scripts/generate-ui-tokens.ts generate",
     "ui:tokens:check": "deno run --allow-read scripts/generate-ui-tokens.ts --check",
     "ui:stories:check": "deno run --allow-read scripts/verify-ui-stories.ts",
@@ -38,7 +38,7 @@
     "lint:suppressions": "deno run --allow-read --allow-run scripts/ci/check-suppressions.ts",
     "rails:integration-boundaries": "deno run --allow-read --allow-env --allow-write scripts/check-integration-boundaries.ts",
     "rails:provider-literals": "deno run --allow-read --allow-write scripts/check-provider-literals.ts",
-    "lint": "deno fmt --check apps/server apps/worker apps/web packages/config packages/contracts packages/i18n packages/integration-linear packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap packages/workflow-sdk packages/cli scripts tests && deno lint apps/server apps/worker apps/web packages/config packages/contracts packages/i18n packages/integration-linear packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap packages/workflow-sdk packages/cli scripts tests && pnpm lint:suppressions",
+    "lint": "deno fmt --check apps/server apps/worker apps/web apps/desktop packages/config packages/contracts packages/i18n packages/integration-linear packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap packages/workflow-sdk packages/cli scripts tests && deno lint apps/server apps/worker apps/web apps/desktop packages/config packages/contracts packages/i18n packages/integration-linear packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap packages/workflow-sdk packages/cli scripts tests && pnpm lint:suppressions",
     "clean": "turbo run clean",
     "test:e2e": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts e2e",
     "test:connected": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts connected",
@@ -48,7 +48,9 @@
     "catalog:literals:check": "deno run --allow-read scripts/generate-catalog-literals.ts --check",
     "test:r2": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts r2",
     "licences:audit": "deno run --allow-read --allow-env --allow-run=pnpm,deno --allow-write=scripts/licences/dependency-licences.json scripts/licences/audit.ts --write",
-    "licences:check": "deno run --allow-read --allow-env --allow-run=pnpm,deno scripts/licences/audit.ts --check"
+    "licences:check": "deno run --allow-read --allow-env --allow-run=pnpm,deno scripts/licences/audit.ts --check",
+    "worker-link:generate": "deno run --allow-read --allow-write --allow-run=deno scripts/generate-worker-link-bundle.ts",
+    "worker-link:check": "deno run --allow-read --allow-run=deno scripts/generate-worker-link-bundle.ts --check"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.888.0",

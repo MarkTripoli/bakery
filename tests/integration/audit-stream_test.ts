@@ -65,6 +65,7 @@ Deno.test("stream delivers every settled event once, oldest first, redacted and 
   const f = await openInstallationFixture(true, {
     secretsKey: key.secretsKey,
     githubAppClient: key.githubAppClient,
+    backupDestinationProbe: key.backupDestinationProbe,
   });
   try {
     await runAuditMatrix(f);

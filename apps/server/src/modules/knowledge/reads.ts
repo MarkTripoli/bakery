@@ -9,9 +9,58 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { readBlobProbe } from "./blob-probes.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
+import {
+  hiddenArtifactIds,
+  hiddenFromReviewer,
+  hiddenVersionIds,
+  reviewerIsolationOf,
+} from "./reviewer-isolation.ts";
+
+/** Not found for a reviewer session when the artifact is another step's transcript (O47). */
+async function refuseHiddenArtifact(
+  context: ActionContext,
+  organizationId: string,
+  artifactId: string,
+): Promise<void> {
+  const { transaction } = requireWorkTransaction(context);
+  const isolation = await reviewerIsolationOf(
+    transaction,
+    context,
+    organizationId,
+  );
+  const hidden = await hiddenArtifactIds(
+    transaction,
+    isolation,
+    organizationId,
+    [artifactId],
+  );
+  if (hidden.size) hiddenFromReviewer();
+}
+
+/** Not found for a reviewer session when the version is hidden from it (O47). */
+async function refuseHiddenVersion(
+  context: ActionContext,
+  organizationId: string,
+  versionId: string,
+): Promise<void> {
+  const { transaction } = requireWorkTransaction(context);
+  const isolation = await reviewerIsolationOf(
+    transaction,
+    context,
+    organizationId,
+  );
+  const hidden = await hiddenVersionIds(
+    transaction,
+    isolation,
+    organizationId,
+    [versionId],
+  );
+  if (hidden.size) hiddenFromReviewer();
+}
 
 const ARTIFACT_ORDERING = "createdAt:desc,id:desc";
 const VERSION_ORDERING = "createdAt:desc,id:desc";
@@ -440,8 +489,17 @@ export function createArtifactReadHandlers(
           limit + 1,
         ],
       );
-      const items = result.rows.slice(0, limit);
-      const last = items.at(-1);
+      const page = result.rows.slice(0, limit);
+      // A reviewer's list leaves out other steps' transcripts (O47); the
+      // cursor follows the unfiltered page.
+      const hidden = await hiddenArtifactIds(
+        transaction,
+        await reviewerIsolationOf(transaction, context, organizationId),
+        organizationId,
+        page.map((row) => row.id),
+      );
+      const items = page.filter((row) => !hidden.has(row.id));
+      const last = page.at(-1);
       return {
         items: items.map(artifact),
         nextCursor: result.rows.length > limit && last
@@ -467,6 +525,7 @@ export function createArtifactReadHandlers(
       if (!result.rows[0]) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
+      await refuseHiddenArtifact(context, organizationId, result.rows[0].id);
       return artifact(result.rows[0]);
     },
 
@@ -487,6 +546,7 @@ export function createArtifactReadHandlers(
       );
       const taskId = parent.rows[0]?.task_id;
       if (!taskId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      await refuseHiddenArtifact(context, organizationId, String(artifactId));
       const limit = pageSize(input.limit);
       const binding = versionBinding(organizationId, principalId, artifactId);
       const position = await decodeCursor(secret, input.cursor, binding);
@@ -555,11 +615,70 @@ export function createArtifactReadHandlers(
         organizationId,
         context.params.id,
       );
+      await refuseHiddenVersion(context, organizationId, row.id);
       return {
         versionId: row.id,
         sha256: row.sha256,
         sizeBytes: size,
         mediaType: row.media_type,
+      };
+    },
+
+    /**
+     * What the probe learned about this version's bytes, or nulls.
+     *
+     * A flat answer rather than the probe's own union: the wire shape says one
+     * thing per fact and `null` for "not measured", which is what the facts
+     * line needs. Nothing here runs a probe -- an unasked blob reads as null
+     * and the client decides whether to show a state or ask again.
+     */
+    async readArtifactProbe(context: ActionContext) {
+      const { transaction, organizationId } = requireWorkTransaction(context);
+      const { row } = await loadContentMetadata(
+        transaction,
+        organizationId,
+        context.params.id,
+      );
+      // The runner keys a store-less version's answer on the version itself, so
+      // stopping here left every such version reading as never probed.
+      const stored = await readBlobProbe(transaction, {
+        organizationId,
+        ...(row.blob_id === null
+          ? { artifactVersionId: row.id }
+          : { blobId: row.blob_id }),
+      });
+      if (stored === null) {
+        return {
+          status: null,
+          kind: null,
+          mediaType: null,
+          byteLength: null,
+          width: null,
+          height: null,
+          durationMs: null,
+          lineCount: null,
+          utf8: null,
+          code: null,
+          limit: null,
+          probedAt: null,
+        };
+      }
+      const { result, probedAt } = stored;
+      const described = result.status === "described" ? result : null;
+      const refused = result.status === "refused" ? result : null;
+      return {
+        status: result.status,
+        kind: described?.kind ?? null,
+        mediaType: described?.mediaType ?? null,
+        byteLength: described?.byteLength ?? null,
+        width: described?.width ?? null,
+        height: described?.height ?? null,
+        durationMs: described?.durationMs ?? null,
+        lineCount: described?.lineCount ?? null,
+        utf8: described?.utf8 ?? null,
+        code: refused?.code ?? null,
+        limit: refused?.limit ?? null,
+        probedAt: probedAt.toISOString(),
       };
     },
 
@@ -573,6 +692,7 @@ export function createArtifactReadHandlers(
         organizationId,
         context.params.id,
       );
+      await refuseHiddenVersion(context, organizationId, row.id);
       const headers = new Headers({
         "Content-Type": row.media_type,
         "Content-Length": String(size),

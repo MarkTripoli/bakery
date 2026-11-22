@@ -1,5 +1,5 @@
 {
-  "revision": "4f0e635889893b33ebcfbcd294f3e12993fbf1616696dc254f6b855702824963",
+  "revision": "490c57a6739a2ca174e18d00954c0a7df161633512eef20143ddb2b5f2948ee1",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -305,7 +305,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27QE-0",
-          "name": "A exact \u00b7 ui.text \u00b7 1440\u00d7960"
+          "name": "A exact · ui.text · 1440×960"
         }
       ],
       "a11y": {
@@ -452,7 +452,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27RA-0",
-          "name": "A exact \u00b7 ui.heading \u00b7 1440\u00d7960"
+          "name": "A exact · ui.heading · 1440×960"
         }
       ],
       "a11y": {
@@ -596,7 +596,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27S6-0",
-          "name": "A exact \u00b7 ui.label \u00b7 1440\u00d7960"
+          "name": "A exact · ui.label · 1440×960"
         }
       ],
       "a11y": {
@@ -730,7 +730,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27T0-0",
-          "name": "A exact \u00b7 ui.dataText \u00b7 1440\u00d7960"
+          "name": "A exact · ui.dataText · 1440×960"
         }
       ],
       "a11y": {
@@ -861,7 +861,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27U5-0",
-          "name": "A exact \u00b7 ui.stack \u00b7 1440\u00d7960"
+          "name": "A exact · ui.stack · 1440×960"
         }
       ],
       "a11y": {
@@ -989,7 +989,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27US-0",
-          "name": "A exact \u00b7 ui.inline \u00b7 1440\u00d7960"
+          "name": "A exact · ui.inline · 1440×960"
         }
       ],
       "a11y": {
@@ -1130,7 +1130,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27VO-0",
-          "name": "A exact \u00b7 ui.divider \u00b7 1440\u00d7960"
+          "name": "A exact · ui.divider · 1440×960"
         }
       ],
       "a11y": {
@@ -1250,7 +1250,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27W6-0",
-          "name": "A exact \u00b7 ui.spacer \u00b7 1440\u00d7960"
+          "name": "A exact · ui.spacer · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1373,7 +1373,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27WO-0",
-          "name": "A exact \u00b7 ui.icon \u00b7 390\u00d7844"
+          "name": "A exact · ui.icon · 390×844"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1679,7 +1679,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27XK-0",
-          "name": "A exact \u00b7 ui.logoMark \u00b7 1440\u00d7960"
+          "name": "A exact · ui.logoMark · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1782,6 +1782,130 @@
       }
     },
     {
+      "id": "ui.providerMark",
+      "name": "ProviderMark",
+      "description": "A provider's own mark in a fixed square slot, or a letter tile when it has none.",
+      "level": "atom",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Atoms/ProviderMark",
+      "usage": {
+        "whenToUse": "Show which provider a destination or an integration belongs to, beside the provider's name.",
+        "whenNotToUse": "Do not link it, enlarge it past Bakery's own mark, recolour it, or use it where the provider has not agreed: such a provider gets the letter tile.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "atom",
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "img",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "Beside the provider's name the mark is hidden from assistive technology; where it stands alone, its accessible name is the provider's name."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-surface-subtle",
+        "--radius-control",
+        "--space-0-5",
+        "--space-5",
+        "--space-6",
+        "--space-8",
+        "--type-label"
+      ],
+      "variants": [
+        "row",
+        "header"
+      ],
+      "states": [
+        "mark",
+        "tile"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A provider's mark in a row and a header slot, light and dark, and the letter tile.",
+          "variants": [
+            "row",
+            "header"
+          ],
+          "states": [
+            "mark",
+            "tile"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.providerMark.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.providerMark.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.providerMark.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 739 (revision 4), not in Paper; the Paper manifests have no provider marks."
+    },
+    {
       "id": "ui.themeProvider",
       "name": "ThemeProvider",
       "description": "Resolves theme, locale, direction, density, and pointer context before shared UI renders.",
@@ -1813,7 +1937,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27Y8-0",
-          "name": "A exact \u00b7 ui.themeProvider \u00b7 1440\u00d7960"
+          "name": "A exact · ui.themeProvider · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1946,7 +2070,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27Z4-0",
-          "name": "A exact \u00b7 ui.button \u00b7 1440\u00d7960"
+          "name": "A exact · ui.button · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2121,7 +2245,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "281K-0",
-          "name": "A exact \u00b7 ui.iconButton \u00b7 1440\u00d7960"
+          "name": "A exact · ui.iconButton · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2406,7 +2530,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "283G-0",
-          "name": "A exact \u00b7 ui.link \u00b7 1440\u00d7960"
+          "name": "A exact · ui.link · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2547,7 +2671,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "284U-0",
-          "name": "A exact \u00b7 ui.menu \u00b7 1440\u00d7960"
+          "name": "A exact · ui.menu · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2693,7 +2817,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "285U-0",
-          "name": "A exact \u00b7 ui.command \u00b7 1440\u00d7960"
+          "name": "A exact · ui.command · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2841,7 +2965,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "2870-0",
-          "name": "A exact \u00b7 ui.field \u00b7 1440\u00d7960"
+          "name": "A exact · ui.field · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2853,7 +2977,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "HJE-0",
-          "name": "Profile \u00b7 inline field rows \u00b7 1440\u00d7900"
+          "name": "Profile · inline field rows · 1440×900"
         }
       ],
       "a11y": {
@@ -2990,7 +3114,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "288N-0",
-          "name": "A exact \u00b7 ui.searchField \u00b7 1440\u00d7960"
+          "name": "A exact · ui.searchField · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -3139,7 +3263,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "289T-0",
-          "name": "A exact \u00b7 ui.combobox \u00b7 1440\u00d7960"
+          "name": "A exact · ui.combobox · 1440×960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -3293,7 +3417,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DN-0",
-          "name": "B exact \u00b7 ui.checkbox \u00b7 1440\u00d7960"
+          "name": "B exact · ui.checkbox · 1440×960"
         }
       ],
       "a11y": {
@@ -3430,7 +3554,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DO-0",
-          "name": "B exact \u00b7 ui.radio \u00b7 1440\u00d7960"
+          "name": "B exact · ui.radio · 1440×960"
         }
       ],
       "a11y": {
@@ -3570,7 +3694,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DP-0",
-          "name": "B exact \u00b7 ui.switch \u00b7 1440\u00d7960"
+          "name": "B exact · ui.switch · 1440×960"
         }
       ],
       "a11y": {
@@ -3705,7 +3829,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DQ-0",
-          "name": "B exact \u00b7 ui.resourcePicker \u00b7 1440\u00d7960"
+          "name": "B exact · ui.resourcePicker · 1440×960"
         }
       ],
       "a11y": {
@@ -3849,7 +3973,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DR-0",
-          "name": "B exact \u00b7 ui.applicationRail \u00b7 1440\u00d7960"
+          "name": "B exact · ui.applicationRail · 1440×960"
         }
       ],
       "a11y": {
@@ -3993,13 +4117,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DS-0",
-          "name": "B exact \u00b7 ui.sectionNavigation \u00b7 390\u00d7844"
+          "name": "B exact · ui.sectionNavigation · 390×844"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "2C15-0",
-          "name": "B exact \u00b7 ui.sectionNavigationWide \u00b7 1440\u00d7960",
+          "name": "B exact · ui.sectionNavigationWide · 1440×960",
           "variant": "wide"
         }
       ],
@@ -4151,7 +4275,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DT-0",
-          "name": "B exact \u00b7 ui.breadcrumbs \u00b7 1440\u00d7960"
+          "name": "B exact · ui.breadcrumbs · 1440×960"
         }
       ],
       "a11y": {
@@ -4275,7 +4399,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DU-0",
-          "name": "B exact \u00b7 ui.notificationBell \u00b7 1440\u00d7960"
+          "name": "B exact · ui.notificationBell · 1440×960"
         }
       ],
       "a11y": {
@@ -4417,7 +4541,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DV-0",
-          "name": "B exact \u00b7 ui.tabs \u00b7 1440\u00d7960"
+          "name": "B exact · ui.tabs · 1440×960"
         }
       ],
       "a11y": {
@@ -4555,7 +4679,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DW-0",
-          "name": "B exact \u00b7 ui.segmentedControl \u00b7 1440\u00d7960"
+          "name": "B exact · ui.segmentedControl · 1440×960"
         }
       ],
       "a11y": {
@@ -4690,7 +4814,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DX-0",
-          "name": "B exact \u00b7 ui.cursorControls \u00b7 1440\u00d7960"
+          "name": "B exact · ui.cursorControls · 1440×960"
         }
       ],
       "a11y": {
@@ -4823,7 +4947,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DY-0",
-          "name": "B exact \u00b7 ui.objectRow \u00b7 1440\u00d7960"
+          "name": "B exact · ui.objectRow · 1440×960"
         }
       ],
       "a11y": {
@@ -4957,7 +5081,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DZ-0",
-          "name": "B exact \u00b7 ui.dataTable \u00b7 1440\u00d7960"
+          "name": "B exact · ui.dataTable · 1440×960"
         }
       ],
       "a11y": {
@@ -5102,7 +5226,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E0-0",
-          "name": "B exact \u00b7 ui.statusBadge \u00b7 1440\u00d7960"
+          "name": "B exact · ui.statusBadge · 1440×960"
         }
       ],
       "a11y": {
@@ -5249,7 +5373,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E1-0",
-          "name": "B exact \u00b7 ui.statusLabel \u00b7 1440\u00d7960"
+          "name": "B exact · ui.statusLabel · 1440×960"
         }
       ],
       "a11y": {
@@ -5526,7 +5650,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E2-0",
-          "name": "B exact \u00b7 ui.codeBlock \u00b7 1440\u00d7960"
+          "name": "B exact · ui.codeBlock · 1440×960"
         }
       ],
       "a11y": {
@@ -5666,7 +5790,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E3-0",
-          "name": "B exact \u00b7 ui.logViewer \u00b7 1440\u00d7960"
+          "name": "B exact · ui.logViewer · 1440×960"
         }
       ],
       "a11y": {
@@ -5803,7 +5927,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E4-0",
-          "name": "B exact \u00b7 ui.avatar \u00b7 390\u00d7844"
+          "name": "B exact · ui.avatar · 390×844"
         }
       ],
       "a11y": {
@@ -5929,7 +6053,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E5-0",
-          "name": "B exact \u00b7 ui.identity \u00b7 1440\u00d7960"
+          "name": "B exact · ui.identity · 1440×960"
         }
       ],
       "a11y": {
@@ -6066,7 +6190,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26PO-0",
-          "name": "ui.inlineNotice \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.inlineNotice · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -6216,7 +6340,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26QE-0",
-          "name": "ui.alertBanner \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.alertBanner · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -6497,7 +6621,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26RD-0",
-          "name": "ui.toast \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.toast · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -6649,7 +6773,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26SL-0",
-          "name": "ui.skeleton \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.skeleton · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -6779,7 +6903,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26T5-0",
-          "name": "ui.emptyState \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.emptyState · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -6909,7 +7033,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26TM-0",
-          "name": "ui.errorState \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.errorState · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -7042,7 +7166,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26U6-0",
-          "name": "ui.tooltip \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.tooltip · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -7989,7 +8113,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26UW-0",
-          "name": "ui.popover \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.popover · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -8136,7 +8260,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26VM-0",
-          "name": "ui.dialog \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.dialog · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -8283,7 +8407,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26WI-0",
-          "name": "ui.alertDialog \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.alertDialog · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -8424,7 +8548,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26XE-0",
-          "name": "ui.sheet \u00b7 sheet coarse \u00b7 390\u00d7844",
+          "name": "ui.sheet · sheet coarse · 390×844",
           "variant": "sheet coarse"
         }
       ],
@@ -8572,7 +8696,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26YD-0",
-          "name": "ui.conversationMessage \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.conversationMessage · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -9175,7 +9299,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26ZL-0",
-          "name": "ui.questionCard \u00b7 sheet coarse \u00b7 390\u00d7844",
+          "name": "ui.questionCard · sheet coarse · 390×844",
           "variant": "sheet coarse"
         }
       ],
@@ -9313,7 +9437,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "270T-0",
-          "name": "ui.artifactComment \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.artifactComment · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -9448,7 +9572,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "271J-0",
-          "name": "ui.runTimeline \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.runTimeline · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -9608,7 +9732,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "272R-0",
-          "name": "ui.modelResolution \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "ui.modelResolution · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -9759,7 +9883,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "001 · Sign in · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -9912,7 +10036,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "001 · Sign in · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -10067,7 +10191,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "1AQA-0",
-          "name": "119 \u00b7 Enter an authentication code \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "119 · Enter an authentication code · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -10342,7 +10466,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "001 · Sign in · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -10472,7 +10596,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "010 · Accept an invitation · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -10617,7 +10741,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "010 · Accept an invitation · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -10736,7 +10860,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19AU-0",
-          "name": "107 \u00b7 Set up an authenticator \u00b7 Scan \u00b7 Desktop \u00b7 Light",
+          "name": "107 · Set up an authenticator · Scan · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -10863,7 +10987,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19AU-0",
-          "name": "107 \u00b7 Set up an authenticator \u00b7 Scan \u00b7 Desktop \u00b7 Light",
+          "name": "107 · Set up an authenticator · Scan · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -10989,7 +11113,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19AU-0",
-          "name": "107 \u00b7 Set up an authenticator \u00b7 Scan \u00b7 Desktop \u00b7 Light",
+          "name": "107 · Set up an authenticator · Scan · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -11115,7 +11239,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19R8-0",
-          "name": "111 \u00b7 Save backup codes \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "111 · Save backup codes · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -11625,7 +11749,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "273N-0",
-          "name": "template.appShell \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "template.appShell · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -11773,7 +11897,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "274M-0",
-          "name": "template.taskDetail \u00b7 rail fine \u00b7 1440\u00d7960",
+          "name": "template.taskDetail · rail fine · 1440×960",
           "variant": "rail fine"
         }
       ],
@@ -11916,14 +12040,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "001 · Sign in · Default · Desktop · Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "010 · Accept an invitation · Default · Desktop · Light",
           "variant": "desktop light"
         }
       ],
@@ -12413,6 +12537,118 @@
       "paperAbsentReason": "Confirmation flows on page O-0 (12, 13) are route goldens, not template specimens."
     },
     {
+      "id": "template.formWithSummary",
+      "name": "FormWithSummary",
+      "description": "Places a form beside a plain summary of what it will do, with optional buttons under the form, and stacks them on a narrow screen.",
+      "level": "template",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Templates/FormWithSummary",
+      "usage": {
+        "whenToUse": "Lay out a form page that has a summary or notes to read beside it, such as starting a batch of issues.",
+        "whenNotToUse": "Do not use it for a settings form inside SettingsContent (use FormContent), or when there is nothing to put beside the form.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The content is a full-width settings section",
+            "use": "template.settingsSection"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "accessibleName": "none",
+        "keyboard": [],
+        "notes": "A form column and a 300px summary column from 1280px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region. Without buttons there is no buttons row and no rule under the form."
+      },
+      "tokens": [
+        "--space-6"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented FormWithSummary variants and observable states across required contexts.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.frontend"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:template.formWithSummary.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:template.formWithSummary.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:template.formWithSummary.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #58 UX design comment (revision 2) for the batch start page; no Paper frame names it."
+    },
+    {
       "id": "page.authSignIn",
       "name": "AuthSignIn",
       "description": "Identifies the selected sign-in composition as design evidence without claiming a runtime page implementation.",
@@ -12440,28 +12676,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "001 · Sign in · Default · Desktop · Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JHK-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Phone \u00b7 Light",
+          "name": "001 · Sign in · Default · Phone · Light",
           "variant": "phone light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "KEN-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Dark",
+          "name": "001 · Sign in · Default · Desktop · Dark",
           "variant": "desktop dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "X1V-0",
-          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Phone \u00b7 Dark",
+          "name": "001 · Sign in · Default · Phone · Dark",
           "variant": "phone dark"
         }
       ],
@@ -12577,28 +12813,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "010 · Accept an invitation · Default · Desktop · Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "K1D-0",
-          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Phone \u00b7 Light",
+          "name": "010 · Accept an invitation · Default · Phone · Light",
           "variant": "phone light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "XUN-0",
-          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Dark",
+          "name": "010 · Accept an invitation · Default · Desktop · Dark",
           "variant": "desktop dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "Y8I-0",
-          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Phone \u00b7 Dark",
+          "name": "010 · Accept an invitation · Default · Phone · Dark",
           "variant": "phone dark"
         }
       ],
@@ -12714,8 +12950,8 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "27I7-0",
-          "name": "page.workQueue \u00b7 reviewedDesktop \u00b7 rail fine \u00b7 1440\u00d7960",
-          "variant": "reviewedDesktop \u00b7 rail fine"
+          "name": "page.workQueue · reviewedDesktop · rail fine · 1440×960",
+          "variant": "reviewedDesktop · rail fine"
         }
       ],
       "a11y": {
@@ -12832,42 +13068,42 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "9VJ-0",
-          "name": "02b \u00b7 Onboarding \u00b7 Start listening \u00b7 Desktop",
+          "name": "02b · Onboarding · Start listening · Desktop",
           "variant": "start desktop"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "9ZB-0",
-          "name": "02b \u00b7 Onboarding \u00b7 Start listening \u00b7 Mobile",
+          "name": "02b · Onboarding · Start listening · Mobile",
           "variant": "start phone"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AMY-0",
-          "name": "02c \u00b7 Onboarding \u00b7 Listening \u00b7 Desktop",
+          "name": "02c · Onboarding · Listening · Desktop",
           "variant": "listening desktop"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AR1-0",
-          "name": "02c \u00b7 Onboarding \u00b7 Listening \u00b7 Mobile",
+          "name": "02c · Onboarding · Listening · Mobile",
           "variant": "listening phone"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "ATN-0",
-          "name": "02d \u00b7 Onboarding \u00b7 Connected \u00b7 Desktop",
+          "name": "02d · Onboarding · Connected · Desktop",
           "variant": "connected desktop"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AXQ-0",
-          "name": "02d \u00b7 Onboarding \u00b7 Connected \u00b7 Mobile",
+          "name": "02d · Onboarding · Connected · Mobile",
           "variant": "connected phone"
         }
       ],
@@ -13524,28 +13760,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "8SD-0",
-          "name": "01 \u00b7 Machines \u00b7 Desktop \u00b7 Light",
+          "name": "01 · Machines · Desktop · Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "8SE-0",
-          "name": "01 \u00b7 Machines \u00b7 Mobile \u00b7 Light",
+          "name": "01 · Machines · Mobile · Light",
           "variant": "phone light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "A8Y-0",
-          "name": "01 \u00b7 Machines \u00b7 Desktop \u00b7 Dark",
+          "name": "01 · Machines · Desktop · Dark",
           "variant": "desktop dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AD7-0",
-          "name": "01 \u00b7 Machines \u00b7 Mobile \u00b7 Dark",
+          "name": "01 · Machines · Mobile · Dark",
           "variant": "phone dark"
         }
       ],
@@ -14171,14 +14407,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "8Y2-0",
-          "name": "03 \u00b7 Harnesses \u00b7 Desktop \u00b7 Light",
+          "name": "03 · Harnesses · Desktop · Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "90D-0",
-          "name": "03 \u00b7 Harnesses \u00b7 Mobile \u00b7 Light",
+          "name": "03 · Harnesses · Mobile · Light",
           "variant": "phone light"
         }
       ],
@@ -14803,7 +15039,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue \u00b7 Desktop 1440",
+          "name": "Work queue · Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -14947,14 +15183,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue \u00b7 Desktop 1440",
+          "name": "Work queue · Desktop 1440",
           "variant": "rail fine"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue \u00b7 Phone 390",
+          "name": "Work queue · Phone 390",
           "variant": "sheet coarse"
         }
       ],
@@ -15076,7 +15312,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue \u00b7 Desktop 1440",
+          "name": "Work queue · Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -15199,7 +15435,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue \u00b7 Desktop 1440",
+          "name": "Work queue · Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -15326,7 +15562,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue \u00b7 Phone 390",
+          "name": "Work queue · Phone 390",
           "variant": "sheet coarse"
         }
       ],
@@ -15466,7 +15702,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue \u00b7 Desktop 1440",
+          "name": "Work queue · Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -15594,7 +15830,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue \u00b7 Desktop 1440",
+          "name": "Work queue · Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -15725,7 +15961,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue \u00b7 Desktop 1440",
+          "name": "Work queue · Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -16051,14 +16287,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop \u00b7 1440\u00d7900",
+          "name": "Work queue desktop · 1440×900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone \u00b7 390\u00d7844",
+          "name": "Work queue phone · 390×844",
           "variant": "sheet"
         }
       ],
@@ -16199,7 +16435,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
+          "name": "Shared session and plan desktop · 1440×900",
           "variant": "rail"
         }
       ],
@@ -16336,21 +16572,21 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop \u00b7 1440\u00d7900",
+          "name": "Work queue desktop · 1440×900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone \u00b7 390\u00d7844",
+          "name": "Work queue phone · 390×844",
           "variant": "sheet"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
+          "name": "Shared session and plan desktop · 1440×900",
           "variant": "rail"
         }
       ],
@@ -16486,14 +16722,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
+          "name": "Shared session and plan desktop · 1440×900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "P6-0",
-          "name": "Shared session and plan phone \u00b7 390\u00d7844",
+          "name": "Shared session and plan phone · 390×844",
           "variant": "sheet"
         }
       ],
@@ -16635,14 +16871,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop \u00b7 1440\u00d7900",
+          "name": "Work queue desktop · 1440×900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone \u00b7 390\u00d7844",
+          "name": "Work queue phone · 390×844",
           "variant": "sheet"
         }
       ],
@@ -16795,7 +17031,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop \u00b7 1440\u00d7900",
+          "name": "Work queue desktop · 1440×900",
           "variant": "rail"
         }
       ],
@@ -16937,14 +17173,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
+          "name": "Shared session and plan desktop · 1440×900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "P6-0",
-          "name": "Shared session and plan phone \u00b7 390\u00d7844",
+          "name": "Shared session and plan phone · 390×844",
           "variant": "sheet"
         }
       ],
@@ -17093,28 +17329,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "N1T-0",
-          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Light",
+          "name": "05 · Appearance · Desktop · Light",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "N6E-0",
-          "name": "05 \u00b7 Appearance \u00b7 Phone \u00b7 Light",
+          "name": "05 · Appearance · Phone · Light",
           "variant": "sheet"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "SGB-0",
-          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Dark",
+          "name": "05 · Appearance · Desktop · Dark",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "SLW-0",
-          "name": "05 \u00b7 Appearance \u00b7 Phone \u00b7 Dark",
+          "name": "05 · Appearance · Phone · Dark",
           "variant": "sheet"
         }
       ],
@@ -17257,13 +17493,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "N1T-0",
-          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Light"
+          "name": "05 · Appearance · Desktop · Light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "SGB-0",
-          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Dark"
+          "name": "05 · Appearance · Desktop · Dark"
         }
       ],
       "a11y": {
@@ -17397,13 +17633,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "KHJ-0",
-          "name": "Your access \u00b7 Developer \u00b7 Desktop \u00b7 Dark"
+          "name": "Your access · Developer · Desktop · Dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "MZJ-0",
-          "name": "Your access \u00b7 Developer \u00b7 Phone \u00b7 Dark"
+          "name": "Your access · Developer · Phone · Dark"
         }
       ],
       "a11y": {
@@ -17539,28 +17775,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "TWJ-0",
-          "name": "Authorize an MCP client \u00b7 Default \u00b7 Desktop \u00b7 Light",
+          "name": "Authorize an MCP client · Default · Desktop · Light",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "TYY-0",
-          "name": "Authorize an MCP client \u00b7 Default \u00b7 Phone \u00b7 Light",
+          "name": "Authorize an MCP client · Default · Phone · Light",
           "variant": "sheet"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "KHJ-0",
-          "name": "06 \u00b7 Your access \u00b7 Developer \u00b7 Desktop",
+          "name": "06 · Your access · Developer · Desktop",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "MZJ-0",
-          "name": "06 \u00b7 Your access \u00b7 Developer \u00b7 Phone",
+          "name": "06 · Your access · Developer · Phone",
           "variant": "sheet"
         }
       ],
@@ -17695,7 +17931,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "QM9-0",
-          "name": "09 \u00b7 Settings \u00b7 Section index \u00b7 Phone",
+          "name": "09 · Settings · Section index · Phone",
           "variant": "sheet"
         }
       ],
@@ -17760,14 +17996,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop \u00b7 1440\u00d7900",
+          "name": "Work queue desktop · 1440×900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone \u00b7 390\u00d7844",
+          "name": "Work queue phone · 390×844",
           "variant": "sheet"
         }
       ],
@@ -18126,14 +18362,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
+          "name": "Shared session and plan desktop · 1440×900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "P6-0",
-          "name": "Shared session and plan phone \u00b7 390\u00d7844",
+          "name": "Shared session and plan phone · 390×844",
           "variant": "sheet"
         }
       ],
@@ -18299,7 +18535,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default \u00b7 RunIdentity"
+          "name": "Task run default · RunIdentity"
         }
       ],
       "a11y": {
@@ -18439,7 +18675,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default \u00b7 RevisionSummary"
+          "name": "Task run default · RevisionSummary"
         }
       ],
       "a11y": {
@@ -18579,7 +18815,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default \u00b7 RunOutputPanel"
+          "name": "Task run default · RunOutputPanel"
         }
       ],
       "a11y": {
@@ -18732,7 +18968,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default \u00b7 RunOutputView"
+          "name": "Task run default · RunOutputView"
         }
       ],
       "a11y": {
@@ -19014,7 +19250,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--default--light--desktop",
-          "name": "Artifact default \u00b7 light \u00b7 desktop"
+          "name": "Artifact default · light · desktop"
         }
       ],
       "a11y": {
@@ -19139,7 +19375,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--default--light--desktop",
-          "name": "Artifact default \u00b7 light \u00b7 desktop"
+          "name": "Artifact default · light · desktop"
         }
       ],
       "a11y": {
@@ -19276,7 +19512,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--comments--light--desktop",
-          "name": "Artifact comments \u00b7 light \u00b7 desktop"
+          "name": "Artifact comments · light · desktop"
         }
       ],
       "a11y": {
@@ -19405,7 +19641,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--reply--light--desktop",
-          "name": "Artifact reply \u00b7 light \u00b7 desktop"
+          "name": "Artifact reply · light · desktop"
         }
       ],
       "a11y": {
@@ -19534,7 +19770,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--comments--light--phone",
-          "name": "Artifact comments \u00b7 light \u00b7 phone"
+          "name": "Artifact comments · light · phone"
         }
       ],
       "a11y": {
@@ -19662,7 +19898,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--expired--light--desktop",
-          "name": "Artifact expired \u00b7 light \u00b7 desktop"
+          "name": "Artifact expired · light · desktop"
         }
       ],
       "a11y": {
@@ -19789,7 +20025,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--capacity-paused--light--desktop",
-          "name": "Artifact capacity-paused \u00b7 light \u00b7 desktop"
+          "name": "Artifact capacity-paused · light · desktop"
         }
       ],
       "a11y": {
@@ -19885,6 +20121,374 @@
       }
     },
     {
+      "id": "ui.usageMeter",
+      "name": "UsageMeter",
+      "description": "A bar that shows how much of a limit is used, with ticks where the state changes.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/UsageMeter",
+      "usage": {
+        "whenToUse": "A bar that shows how much of a limit is used, with ticks where the state changes.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "meter",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "The caller names the meter and gives the reading in words as its value; the ticks are decoration and the page explains them in text."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-destructive",
+        "--color-fg",
+        "--color-status-warning",
+        "--color-surface-subtle",
+        "--radius-control",
+        "--space-1",
+        "--space-3"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "ok",
+        "warning",
+        "paused"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A bar that shows how much of a limit is used, with ticks where the state changes.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "ok",
+            "warning",
+            "paused"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.usageMeter.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.usageMeter.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.usageMeter.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 447, not in Paper; the Paper manifests have no usage meter."
+    },
+    {
+      "id": "ui.segmentedBar",
+      "name": "SegmentedBar",
+      "description": "One bar split into the parts of a whole, with a key that says each part in words.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/SegmentedBar",
+      "usage": {
+        "whenToUse": "One bar split into the parts of a whole, with a key that says each part in words.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "img",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "The bar is a picture named by the caller; the key under it is the content, so no part is told by colour alone."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--radius-control",
+        "--space-1",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--type-caption",
+        "--type-row-title"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "One bar split into the parts of a whole, with a key that says each part in words.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 75, not in Paper; the Paper manifests have no segmented or stacked bar."
+    },
+    {
+      "id": "ui.statTile",
+      "name": "StatTile",
+      "description": "One figure with its label, a line of detail and an optional help tip; it can be chosen when it carries an action.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/StatTile",
+      "usage": {
+        "whenToUse": "One figure with its label, a line of detail and an optional help tip; it can be chosen when it carries an action.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "none",
+        "accessibleName": "content",
+        "keyboard": [
+          "Enter",
+          "Space"
+        ],
+        "notes": "A tile with an action is one button whose name is its label, figure and detail; a tile without one is plain text."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-emphasis",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--radius-control",
+        "--space-1",
+        "--target-coarse",
+        "--target-min",
+        "--type-caption",
+        "--type-heading-section",
+        "--type-row-title"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "One figure with its label, a line of detail and an optional help tip; it can be chosen when it carries an action.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.statTile.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.statTile.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.statTile.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 75, not in Paper; the Paper manifests have no figure tile."
+    },
+    {
       "id": "ui.sendToAgentDialog",
       "name": "SendToAgentDialog",
       "description": "Confirms sending a discussion and immutable revision to an agent.",
@@ -19914,7 +20518,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--send-to-agent--light--desktop",
-          "name": "Artifact send-to-agent \u00b7 light \u00b7 desktop"
+          "name": "Artifact send-to-agent · light · desktop"
         }
       ],
       "a11y": {
@@ -20044,7 +20648,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--default--light--desktop",
-          "name": "Artifact default \u00b7 light \u00b7 desktop"
+          "name": "Artifact default · light · desktop"
         }
       ],
       "a11y": {
@@ -20170,7 +20774,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IBL-0-0",
-          "name": "Task conversation default \u00b7 stage strip"
+          "name": "Task conversation default · stage strip"
         }
       ],
       "a11y": {
@@ -20341,7 +20945,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IBL-0-0",
-          "name": "Task conversation default \u00b7 composer"
+          "name": "Task conversation default · composer"
         }
       ],
       "a11y": {
@@ -20484,6 +21088,456 @@
       }
     },
     {
+      "id": "ui.accessOffer",
+      "name": "AccessOffer",
+      "description": "The block under a message or comment that offers access to a mentioned person who has none: the question, what they would get and the way out; the chips above it are the only list of names.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/AccessOffer",
+      "usage": {
+        "whenToUse": "Ask whether to give a mentioned person access, in the place the writer is already typing, so a missing access never stops the mention.",
+        "whenNotToUse": "Do not use for a refusal the writer cannot fix here, for a confirmation of a destructive action (AlertDialog), or as a notice with no choice in it (InlineNotice).",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy",
+          "ui.intentional-overflow"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "status",
+        "accessibleName": "none",
+        "keyboard": [
+          "Every button in the block is reached by Tab in reading order; the draft keeps its caret."
+        ],
+        "notes": "The block is a status region, so it is read once when it opens and the draft does not lose focus."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-none",
+        "--color-border",
+        "--color-canvas",
+        "--color-control-border",
+        "--color-destructive",
+        "--color-destructive-surface",
+        "--color-fg",
+        "--color-fg-disabled",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-selection-surface",
+        "--color-status-neutral",
+        "--color-status-success",
+        "--color-status-success-surface",
+        "--color-status-warning",
+        "--color-status-warning-surface",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--icon-stroke-compact",
+        "--radius-control",
+        "--radius-overlay",
+        "--radius-surface",
+        "--space-0",
+        "--space-0-5",
+        "--space-1",
+        "--space-1-5",
+        "--space-2",
+        "--space-2-5",
+        "--space-3",
+        "--space-4",
+        "--space-5",
+        "--space-6",
+        "--space-8",
+        "--target-coarse",
+        "--type-body",
+        "--type-caption",
+        "--type-control",
+        "--type-heading-subsection",
+        "--type-hint",
+        "--type-label",
+        "--type-meta",
+        "--type-notice",
+        "--type-time",
+        "--weight-medium",
+        "--weight-semibold"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default",
+        "busy"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, while sending, for a writer who may not share (who can be asked, or could not be read), and after the send with its Undo, in good-news and warning tones.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default",
+            "busy"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine",
+          "desktop-dark-fine",
+          "system-dark",
+          "phone-light-coarse",
+          "phone-dark-coarse",
+          "rtl"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 73 (revision 3), not in Paper; the Paper manifests have no access offer."
+    },
+    {
+      "id": "ui.mentionPicker",
+      "name": "MentionPicker",
+      "description": "A listbox of the people a writer may mention, hung above a text field: quiet rows, a badge only for the exception, and its loading, empty and failed states.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/MentionPicker",
+      "usage": {
+        "whenToUse": "Offer the people a writer may mention while they type an @ in a message or comment field.",
+        "whenNotToUse": "Do not use for choosing one value from a short fixed list (Combobox) or for commands (Command).",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy",
+          "ui.intentional-overflow"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "listbox",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "The text field keeps focus and owns the list: Up and Down move the highlight, Enter or Tab chooses, Escape closes and keeps the typed text."
+        ],
+        "notes": "Each option's accessible name includes its state (\"Ana Ruiz, no access yet\"). The caller wires aria-controls and aria-activedescendant on the field."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-none",
+        "--color-border",
+        "--color-canvas",
+        "--color-control-border",
+        "--color-destructive",
+        "--color-destructive-surface",
+        "--color-fg",
+        "--color-fg-disabled",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-selection-surface",
+        "--color-status-neutral",
+        "--color-status-success",
+        "--color-status-success-surface",
+        "--color-status-warning",
+        "--color-status-warning-surface",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--icon-stroke-compact",
+        "--radius-control",
+        "--radius-overlay",
+        "--radius-surface",
+        "--space-0",
+        "--space-0-5",
+        "--space-1",
+        "--space-1-5",
+        "--space-2",
+        "--space-2-5",
+        "--space-3",
+        "--space-4",
+        "--space-5",
+        "--space-6",
+        "--space-8",
+        "--target-coarse",
+        "--type-body",
+        "--type-caption",
+        "--type-control",
+        "--type-heading-subsection",
+        "--type-hint",
+        "--type-label",
+        "--type-meta",
+        "--type-notice",
+        "--type-time",
+        "--weight-medium",
+        "--weight-semibold"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises MentionPicker in its rows, loading, empty and failed states.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default",
+            "loading",
+            "empty",
+            "error"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine",
+          "desktop-dark-fine",
+          "system-dark",
+          "phone-light-coarse",
+          "phone-dark-coarse",
+          "rtl"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 73 (revision 2), not in Paper; the Paper manifests have no mention picker."
+    },
+    {
+      "id": "ui.sealedFrame",
+      "name": "SealedFrame",
+      "description": "The frame a plugin's own page runs in: scripts may run and nothing else is granted; it fills its parent and scrolls inside.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/SealedFrame",
+      "usage": {
+        "whenToUse": "Show a page that a plugin made, under Bakery's own strip that says who made it.",
+        "whenNotToUse": "Do not show a page that Bakery made, a page from an address the plugin names, or anything that needs the person's sign-in or storage: the frame has none.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "none",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Tab moves into the page and out of it in order."
+        ],
+        "notes": "The frame's accessible name is supplied by the caller (as its title), such as the page title and the plugin that provided it; the page inside cannot change it."
+      },
+      "tokens": [
+        "--border-none",
+        "--color-canvas"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A sealed frame showing a page of its own, at the size it fills.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.sealedFrame.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.sealedFrame.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.sealedFrame.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 76 (revision 5), not in Paper; the Paper manifests have no plugin page frame."
+    },
+    {
       "id": "ui.paneSection",
       "name": "PaneSection",
       "description": "A padded, optionally titled and ruled block of a side pane.",
@@ -20515,7 +21569,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IBL-0-0",
-          "name": "Task conversation default \u00b7 inspector"
+          "name": "Task conversation default · inspector"
         }
       ],
       "a11y": {
@@ -21244,7 +22298,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IK1-0-0",
-          "name": "Task conversation plan review \u00b7 plan revision"
+          "name": "Task conversation plan review · plan revision"
         }
       ],
       "a11y": {
@@ -21416,7 +22470,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2J3V-0-0",
-          "name": "Task conversation phone \u00b7 plan card"
+          "name": "Task conversation phone · plan card"
         }
       ],
       "a11y": {
@@ -21588,7 +22642,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JQJ-0-0",
-          "name": "Task coordination phone \u00b7 lane row"
+          "name": "Task coordination phone · lane row"
         }
       ],
       "a11y": {
@@ -21758,13 +22812,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop \u00b7 list section"
+          "name": "Projects onboarding desktop · list section"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2K4U-0",
-          "name": "Projects onboarding phone \u00b7 list section"
+          "name": "Projects onboarding phone · list section"
         }
       ],
       "a11y": {
@@ -21900,7 +22954,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2K4U-0",
-          "name": "Projects onboarding phone \u00b7 list row"
+          "name": "Projects onboarding phone · list row"
         }
       ],
       "a11y": {
@@ -22039,7 +23093,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop \u00b7 detail row"
+          "name": "Projects onboarding desktop · detail row"
         }
       ],
       "a11y": {
@@ -22170,7 +23224,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop \u00b7 revision row"
+          "name": "Projects onboarding desktop · revision row"
         }
       ],
       "a11y": {
@@ -22305,7 +23359,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop \u00b7 table cell"
+          "name": "Projects onboarding desktop · table cell"
         }
       ],
       "a11y": {

@@ -108,6 +108,13 @@ export type ArtifactProbeOptions = Readonly<{
    * (`BAKERY_PROBE_SPOOL_DIR`, read through `RuntimeConfig`). Absent means a
    * store that cannot hand over a path cannot be probed: the answer is
    * `sandbox-unavailable`, never a description produced some other way.
+   *
+   * It must not live under a home directory. The launcher mounts it as
+   * `ReadOnlyPaths=` inside a unit that also sets `ProtectHome=read-only`, so a
+   * spool under `/home` is readable by the server and invisible to the sandbox,
+   * which reads as an unreadable file rather than a misconfigured host. A private
+   * directory under the runtime dir (`/run/user/<uid>/...`, mode 700) is what the
+   * launcher was proven with on mini1.
    */
   spoolDir?: string;
   /**

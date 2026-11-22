@@ -10,6 +10,14 @@ Issue/PR descriptions: use the repo-local `bakery-authoring` skill. Templates
 and enforcement: [.github/AUTHORING.md](../.github/AUTHORING.md). Description
 checks never authorize execution, prove tests or replace independent review.
 
+Create and edit a PR body with `scripts/authoring/pr-body.ts` (`publish` and
+`verify`): it runs the real validator first and sends nothing to GitHub when the
+body has a format error. A format error fails the `pull-request` check. A
+verification line nobody has ticked yet is not an error: it keeps the
+`verification` job skipped until every line is ticked or marked N/A at the PR
+head, and a push to the PR opens the old ticks again. Merge needs `pull-request`
+green and `verification` success on the exact head.
+
 ## Section navigation is a shared design standard
 
 Areas with multiple sibling sections MUST use `SectionNavigation` from
@@ -41,9 +49,10 @@ CI runner placement (#330): every lane a pull request runs, the aggregate and
 the description policy run on GitHub-hosted `ubuntu-24.04` runners (the
 repository is public), so a pull request never waits for the three self-hosted
 runners. Only the post-merge heavy lanes stay self-hosted: the `amd` lanes and
-the Postgres, cgroup and browser lanes. A new lane that a pull request runs
-goes on a hosted runner; `tests/unit/wire-backend-test-lanes-ci-and-fail-closed-evidence_test.ts`
-fails otherwise. A main push does not cancel the push before it.
+the Postgres, cgroup and browser lanes. A new lane that a pull request runs goes
+on a hosted runner;
+`tests/unit/wire-backend-test-lanes-ci-and-fail-closed-evidence_test.ts` fails
+otherwise. A main push does not cancel the push before it.
 
 The pull request route can skip the Paper parity lanes, so a change to a story,
 a catalog entry or `docs/technical-design/ui-baselines/runtime-cases.json` runs
@@ -61,9 +70,9 @@ them locally before merge, as `.github/workflows/ci.yml` does, after
   `runtime-cases.json`), so a new runtime case needs no repin; editing the
   `paper-detail-light-phone` context does, and
   `render:paper:worker-dark -- --write` regenerates the file and the digest.
-  `capture:worker-dark` still needs exactly one registered runtime case for
-  the worker detail story (same args, dark, coarse); a second case matching
-  those fails the capture, not the digest.
+  `capture:worker-dark` still needs exactly one registered runtime case for the
+  worker detail story (same args, dark, coarse); a second case matching those
+  fails the capture, not the digest.
 - `ui / paper parity entitlements`:
   `node packages/ui/scripts/paper-jsx-to-html.mjs --site entitlements --check`,
   then `capture:<site> -- --all --web-base-url <URL>` and
@@ -104,8 +113,8 @@ CI re-runs both; never suppress a gate. Suppression rules live in
   where validation is needed. Consumers MUST NOT duplicate raw literals.
 - Distinct domain primitives and stateful records MUST cross trust or
   persistence boundaries through described Zod schemas, inferred or branded
-  value-object types, and named constructors. Application and adapter
-  signatures use those value objects instead of raw primitives.
+  value-object types, and named constructors. Application and adapter signatures
+  use those value objects instead of raw primitives.
 - Reused structured records MUST use named types; do not repeat anonymous object
   shapes across application and adapter boundaries.
 - Server code MUST import workspace packages through their published `@bakery/*`
@@ -141,8 +150,7 @@ and test harnesses may snapshot `Deno.env.toObject()` only to feed a
   tenant/resource authority; previews, labels, prompts and schema text grant
   none.
 - Atomically commit state, replay response, audit and outbox. Provider I/O stays
-  outside transactions. Reconcile uncertain effects before repeating a
-  mutation.
+  outside transactions. Reconcile uncertain effects before repeating a mutation.
 - Integration/E2E claims require real Postgres, Inngest and workers; missing
   services or skipped required lanes fail.
 - Independent review before merge; never approve your own work, weaken tests or

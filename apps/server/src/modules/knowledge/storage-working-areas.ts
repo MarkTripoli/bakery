@@ -21,9 +21,20 @@ import { appendAudit } from "@bakery/persistence/event-audit";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
-import { type AgentWrite, storageAuditActor } from "./agent-file-scope.ts";
+import {
+  type AgentWrite,
+  type StepWriteOp,
+  StepWriteOp as WriteOp,
+  stepWriteSetRow,
+  storageAuditActor,
+} from "./agent-file-scope.ts";
 import { agentFileWriteFor, refuseAgentPath } from "./agent-file-guard.ts";
 import { sha256Bytes } from "./bytes.ts";
+import { enqueueProbeSubject } from "./probe-runner.ts";
+import {
+  attemptVersionProvenance,
+  type VersionProvenance,
+} from "./version-provenance.ts";
 import {
   type CursorBinding,
   decodeCursor,
@@ -41,6 +52,7 @@ import {
   quotaState,
   revisionsToPrune,
   scopeKeyFromAncestors,
+  stepWriteLimitRefusal,
   type StorageLimits,
   writeRefusal,
 } from "./storage-areas.ts";
@@ -52,6 +64,12 @@ import {
   type StoragePolicy,
   storageQueryOf,
 } from "./storage-tree.ts";
+import {
+  type EntryNow,
+  planStepUndo,
+  type RecordedWrite,
+  UndoAction,
+} from "./step-write-undo.ts";
 
 /** Largest file a put may carry inline as base64; larger files upload a blob. */
 export const MAX_INLINE_FILE_BYTES = 1024 * 1024;
@@ -297,11 +315,12 @@ export async function readStorageLimits(
   tx: Pick<PgTransactionClient, "query">,
   organizationId: string,
 ): Promise<StorageLimits & { version: number; customized: boolean }> {
-  const found = await tx.query<Record<string, string | number>>(
+  const found = await tx.query<Record<string, string | number | null>>(
     "select working_versions_kept, trash_retention_days," +
       " scratch_retention_days, max_file_bytes::text," +
       " organization_quota_bytes::text, project_quota_bytes::text," +
-      " personal_quota_bytes::text, version" +
+      " personal_quota_bytes::text, step_write_bytes::text," +
+      " step_write_files, version" +
       " from bakery.storage_settings where organization_id = $1",
     [organizationId],
   );
@@ -317,6 +336,13 @@ export async function readStorageLimits(
     organizationQuotaBytes: Number(row.organization_quota_bytes),
     projectQuotaBytes: Number(row.project_quota_bytes),
     personalQuotaBytes: Number(row.personal_quota_bytes),
+    // Null is the default (migration 0286), so a saved row follows it.
+    stepWriteBytes: row.step_write_bytes === null
+      ? DEFAULT_STORAGE_LIMITS.stepWriteBytes
+      : Number(row.step_write_bytes),
+    stepWriteFiles: row.step_write_files === null
+      ? DEFAULT_STORAGE_LIMITS.stepWriteFiles
+      : Number(row.step_write_files),
     version: Number(row.version),
     customized: true,
   };
@@ -387,6 +413,64 @@ async function assertQuota(
     : limits.personalQuotaBytes;
   const used = await usedBytes(tx, organizationId, scopeKey);
   if (!admitsWrite(used, addedBytes, limit)) quotaRefusal(scopeKey);
+}
+
+/**
+ * Refuses an agent write that would take its run step attempt past the step
+ * write limits (O49): the distinct entries and the bytes the attempt already
+ * wrote, from its write set, plus this write. A person's own write (agent
+ * null) is never limited. Identical-bytes puts record no write-set row, so
+ * they neither count nor reach here.
+ *
+ * Race-safe: it takes the same per-organization storage lock assertQuota
+ * takes, before counting, and holds it to commit. The write-set row of this
+ * write is inserted later in the same transaction, so a concurrent write of
+ * the same attempt waits on the lock until this one commits and then counts
+ * its row (each statement under READ COMMITTED sees rows committed before it
+ * began). A transaction-level advisory lock is re-entrant, so taking it again
+ * after assertQuota costs nothing.
+ */
+async function assertStepWriteLimit(
+  tx: PgTransactionClient,
+  organizationId: string,
+  agent: AgentWrite | null,
+  entryId: string,
+  addedBytes: number,
+  limits: StorageLimits,
+): Promise<void> {
+  if (agent === null) return;
+  await tx.query(
+    "select pg_advisory_xact_lock(hashtext('storage-quota:' || $1))",
+    [organizationId],
+  );
+  // Bytes count once per version a put or copy made; a move or trash names
+  // the version it already had and adds none.
+  const found = await tx.query<
+    { files: string; bytes: string; written: boolean }
+  >(
+    "select count(distinct w.entry_id)::text as files," +
+      // bytes_written is kept on the row, so a version retention later
+      // deletes still counts against the step.
+      " coalesce(sum(w.bytes_written), 0)::text as bytes," +
+      " coalesce(bool_or(w.entry_id = $3), false) as written" +
+      " from bakery.step_write_set w" +
+      " where w.organization_id = $1 and w.attempt_id = $2",
+    [organizationId, agent.attemptId, entryId],
+  );
+  const row = found.rows[0];
+  const reason = stepWriteLimitRefusal(
+    { files: Number(row.files), bytes: Number(row.bytes) },
+    { newEntry: !row.written, addedBytes },
+    limits,
+  );
+  if (reason === undefined) return;
+  throw new StandardError({
+    code: "STEP_WRITE_LIMIT_EXCEEDED",
+    params: {
+      reason,
+      limit: reason === "files" ? limits.stepWriteFiles : limits.stepWriteBytes,
+    },
+  });
 }
 
 type FileBytes = {
@@ -469,30 +553,52 @@ async function appendVersion(
     entry: Row;
     bytes: FileBytes;
     limits: StorageLimits;
+    /** The agent step that produced the version; null for a person's. */
+    provenance: VersionProvenance | null;
   },
-): Promise<void> {
+): Promise<string> {
   const revision = await tx.query<{ next: number }>(
     "select coalesce(max(revision), 0) + 1 as next" +
       " from bakery.storage_file_versions" +
       " where organization_id = $1 and entry_id = $2",
     [input.organizationId, input.entry.id],
   );
+  const revisionNumber = revision.rows[0].next;
   const inserted = await tx.query<{ id: string }>(
     "insert into bakery.storage_file_versions" +
       " (organization_id, entry_id, revision, blob_id, content, sha256," +
-      " size_bytes, media_type, author_id)" +
-      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id",
+      " size_bytes, media_type, author_id, run_id, run_step_id, attempt_id," +
+      " agent_session_id, acting_for_principal_id)" +
+      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)" +
+      " returning id",
     [
       input.organizationId,
       input.entry.id,
-      revision.rows[0].next,
+      revisionNumber,
       input.bytes.blobId,
       input.bytes.content,
       input.bytes.sha256,
       input.bytes.sizeBytes,
       input.bytes.mediaType,
       input.principalId,
+      input.provenance?.runId ?? null,
+      input.provenance?.runStepId ?? null,
+      input.provenance?.attemptId ?? null,
+      input.provenance?.agentSessionId ?? null,
+      input.provenance?.actingForPrincipalId ?? null,
     ],
+  );
+  // A blob-backed version is asked about once however many versions share the
+  // bytes; an inline version is its own subject, because nothing else has them.
+  await enqueueProbeSubject(
+    tx,
+    input.bytes.blobId === null
+      ? {
+        organizationId: input.organizationId,
+        entryId: input.entry.id,
+        revision: revisionNumber,
+      }
+      : { organizationId: input.organizationId, blobId: input.bytes.blobId },
   );
   await tx.query(
     "update bakery.storage_entries" +
@@ -518,6 +624,7 @@ async function appendVersion(
       [input.organizationId, input.entry.id, prune],
     );
   }
+  return inserted.rows[0].id;
 }
 
 type ProjectedRow = Row & {
@@ -615,6 +722,18 @@ async function audit(
     details: Record<string, unknown>;
     /** The allowed agent write, or null for a person's own request. */
     agent?: AgentWrite | null;
+    /**
+     * What the write did to the entry, for the step write set: the operation
+     * and the entry's current version before and after it.
+     */
+    write?: Readonly<{
+      op: StepWriteOp;
+      previousVersionId: string | null;
+      newVersionId: string | null;
+      previousParentId?: string | null;
+      previousName?: string | null;
+      entryVersionBefore?: number | null;
+    }>;
   },
 ): Promise<void> {
   // The same actor keys for a person and an agent (O50, R1): the principal,
@@ -635,6 +754,56 @@ async function audit(
     traceId: context.traceId,
     details: { ...input.details, actor },
   });
+  // The step write set: one row per agent write, in the write's transaction.
+  if (input.write !== undefined) {
+    const row = stepWriteSetRow(input.agent ?? null, {
+      organizationId: input.organizationId,
+      entryId: input.entryId,
+      ...input.write,
+    });
+    if (row !== null) await recordStepWrite(tx, row);
+  }
+}
+
+/**
+ * Inserts one write-set row. A previous version the write's own pruning just
+ * deleted is recorded as null, as its foreign key would leave it.
+ */
+async function recordStepWrite(
+  tx: PgTransactionClient,
+  row: NonNullable<ReturnType<typeof stepWriteSetRow>>,
+): Promise<void> {
+  await tx.query(
+    "insert into bakery.step_write_set" +
+      " (organization_id, attempt_id, agent_session_id, entry_id, op," +
+      " previous_version_id, new_version_id, bytes_written," +
+      " previous_parent_id, previous_name, entry_version_before," +
+      " entry_version_after)" +
+      " select $1, $2, $3, $4, $5," +
+      " (select id from bakery.storage_file_versions" +
+      " where organization_id = $1 and id = $6), $7," +
+      // The stored size, so the step's byte limit keeps counting a version
+      // that retention later deletes.
+      " case when $5 in ('put', 'copy') then coalesce((select size_bytes" +
+      " from bakery.storage_file_versions" +
+      " where organization_id = $1 and id = $7), 0) else 0 end," +
+      // The entry's row version now, after the write, so the undo can tell
+      // whether anyone changed it since.
+      " $8, $9, $10, (select version from bakery.storage_entries" +
+      " where organization_id = $1 and id = $4)",
+    [
+      row.organizationId,
+      row.attemptId,
+      row.agentSessionId,
+      row.entryId,
+      row.op,
+      row.previousVersionId,
+      row.newVersionId,
+      row.previousParentId,
+      row.previousName,
+      row.entryVersionBefore,
+    ],
+  );
 }
 
 /**
@@ -809,12 +978,32 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     bytes.sizeBytes,
     limits,
   );
-  await appendVersion(tx, {
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    bytes.sizeBytes,
+    limits,
+  );
+  const previousVersionId = entry.current_version_id;
+  const newVersionId = await appendVersion(tx, {
     organizationId,
     principalId,
     entry,
     bytes,
     limits,
+    // An agent's write records the step that made it, from this call's
+    // attempt and session; a person's own write records none.
+    provenance: agent === null ? null : await attemptVersionProvenance(
+      tx,
+      organizationId,
+      agent.attemptId,
+      {
+        agentSessionId: agent.agentSessionId,
+        actingForPrincipalId: principalId,
+      },
+    ),
   });
   await audit(tx, context, {
     organizationId,
@@ -822,6 +1011,12 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     operation: "storageFiles.put",
     entryId: entry.id,
     agent,
+    write: {
+      op: WriteOp.Put,
+      previousVersionId,
+      newVersionId,
+      entryVersionBefore: created ? null : Number(entry.version),
+    },
     details: {
       created,
       sha256: bytes.sha256,
@@ -865,12 +1060,25 @@ export async function createStorageFolder(
     nameKey,
     kind: "folder",
   });
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    0,
+    await readStorageLimits(tx, organizationId),
+  );
   await audit(tx, context, {
     organizationId,
     principalId,
     operation: "storageFolders.create",
     entryId: entry.id,
     agent,
+    write: {
+      op: WriteOp.Mkdir,
+      previousVersionId: null,
+      newVersionId: null,
+    },
     details: { parentId: parent.id },
   });
   return await project(tx, organizationId, entry.id);
@@ -971,12 +1179,31 @@ export async function copyStorageEntry(
     bytes.sizeBytes,
     limits,
   );
-  await appendVersion(tx, {
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    bytes.sizeBytes,
+    limits,
+  );
+  const newVersionId = await appendVersion(tx, {
     organizationId,
     principalId,
     entry,
     bytes,
     limits,
+    // An agent's write records the step that made it, from this call's
+    // attempt and session; a person's own write records none.
+    provenance: agent === null ? null : await attemptVersionProvenance(
+      tx,
+      organizationId,
+      agent.attemptId,
+      {
+        agentSessionId: agent.agentSessionId,
+        actingForPrincipalId: principalId,
+      },
+    ),
   });
   await audit(tx, context, {
     organizationId,
@@ -984,6 +1211,7 @@ export async function copyStorageEntry(
     operation: "storageEntries.copy",
     entryId: entry.id,
     agent,
+    write: { op: WriteOp.Copy, previousVersionId: null, newVersionId },
     details: { sourceId: source.id, sha256: bytes.sha256 },
   });
   return await project(tx, organizationId, entry.id);
@@ -1017,42 +1245,17 @@ async function subtreeBytes(
 }
 
 /**
- * mv: renames or moves an entry within working areas. Changes only the entry,
- * and, moving between quota scopes or into or out of a personal folder, the
- * owner, policy and scope its subtree carries; no version or pin moves.
+ * Puts an entry under a folder with a name, carrying the owner, policy and
+ * quota scope its new place gives its subtree. Shared by mv and by the undo of
+ * a step's move; the caller has locked both and checked the write is allowed.
  */
-export async function moveStorageEntry(
-  context: ActionContext,
-  input: Readonly<{ destinationPath: string }>,
-) {
-  const { transaction: tx, organizationId, principalId } =
-    requireWorkTransaction(context);
-  refuseAgentPath(context, input.destinationPath);
-  await prepareTree(tx, organizationId, principalId);
-  const entry = await visibleEntry(
-    tx,
-    organizationId,
-    principalId,
-    context.params.id ?? "",
-  );
-  if (entry.trashed_at !== null) conflict("entry_trashed");
-  const refusal = changeRefusal(area(entry));
-  if (refusal) refuse(refusal);
-  requireExpectedVersion(context, entry);
-  // A move is a write in both folders: the one it leaves and the one it enters.
-  await agentLeaves(tx, context, organizationId, principalId, entry);
-  const { parent, name, nameKey } = await writableParent(
-    tx,
-    organizationId,
-    principalId,
-    input.destinationPath,
-  );
-  const agent = await agentFileWriteFor(tx, context, {
-    organizationId,
-    principalId,
-    target: parent,
-    rawPath: input.destinationPath,
-  });
+async function relocateEntry(
+  tx: PgTransactionClient,
+  organizationId: string,
+  entry: Row,
+  target: Readonly<{ parent: Row; name: string; nameKey: string }>,
+): Promise<void> {
+  const { parent, name, nameKey } = target;
   const ids = (await subtree(tx, organizationId, entry.id)).map((row) =>
     row.id
   );
@@ -1093,12 +1296,69 @@ export async function moveStorageEntry(
       " where organization_id = $1 and id = $2",
     [organizationId, entry.id, parent.id, name, nameKey],
   );
+}
+
+/**
+ * mv: renames or moves an entry within working areas. Changes only the entry,
+ * and, moving between quota scopes or into or out of a personal folder, the
+ * owner, policy and scope its subtree carries; no version or pin moves.
+ */
+export async function moveStorageEntry(
+  context: ActionContext,
+  input: Readonly<{ destinationPath: string }>,
+) {
+  const { transaction: tx, organizationId, principalId } =
+    requireWorkTransaction(context);
+  refuseAgentPath(context, input.destinationPath);
+  await prepareTree(tx, organizationId, principalId);
+  const entry = await visibleEntry(
+    tx,
+    organizationId,
+    principalId,
+    context.params.id ?? "",
+  );
+  if (entry.trashed_at !== null) conflict("entry_trashed");
+  const refusal = changeRefusal(area(entry));
+  if (refusal) refuse(refusal);
+  requireExpectedVersion(context, entry);
+  // A move is a write in both folders: the one it leaves and the one it enters.
+  await agentLeaves(tx, context, organizationId, principalId, entry);
+  const { parent, name, nameKey } = await writableParent(
+    tx,
+    organizationId,
+    principalId,
+    input.destinationPath,
+  );
+  const agent = await agentFileWriteFor(tx, context, {
+    organizationId,
+    principalId,
+    target: parent,
+    rawPath: input.destinationPath,
+  });
+  await relocateEntry(tx, organizationId, entry, { parent, name, nameKey });
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    0,
+    await readStorageLimits(tx, organizationId),
+  );
   await audit(tx, context, {
     organizationId,
     principalId,
     operation: "storageEntries.move",
     entryId: entry.id,
     agent,
+    // A move changes no version: before and after are the same one.
+    write: {
+      op: WriteOp.Move,
+      previousVersionId: entry.current_version_id,
+      newVersionId: entry.current_version_id,
+      previousParentId: entry.parent_id,
+      previousName: entry.name,
+      entryVersionBefore: Number(entry.version),
+    },
     details: { fromParentId: entry.parent_id, toParentId: parent.id },
   });
   return await project(tx, organizationId, entry.id);
@@ -1129,13 +1389,20 @@ export async function trashStorageEntry(context: ActionContext) {
     principalId,
     entry,
   );
-  await tx.query(
-    "update bakery.storage_entries" +
-      " set trash_parent_id = parent_id, trash_name = name, parent_id = $3," +
-      " name_key = 'trash:' || id::text, trashed_at = now()," +
-      " trashed_by_id = $4, version = version + 1, updated_at = now()" +
-      " where organization_id = $1 and id = $2",
-    [organizationId, entry.id, top.get("trash")!, principalId],
+  await moveToTrash(
+    tx,
+    organizationId,
+    entry.id,
+    top.get("trash")!,
+    principalId,
+  );
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    0,
+    await readStorageLimits(tx, organizationId),
   );
   await audit(tx, context, {
     organizationId,
@@ -1143,6 +1410,12 @@ export async function trashStorageEntry(context: ActionContext) {
     operation: "storageEntries.trash",
     entryId: entry.id,
     agent,
+    write: {
+      op: WriteOp.Trash,
+      previousVersionId: entry.current_version_id,
+      newVersionId: entry.current_version_id,
+      entryVersionBefore: Number(entry.version),
+    },
     details: { fromParentId: entry.parent_id },
   });
   return await project(tx, organizationId, entry.id);
@@ -1161,6 +1434,45 @@ export async function restoreStorageEntry(context: ActionContext) {
   );
   if (entry.trashed_at === null) conflict("entry_not_trashed");
   requireExpectedVersion(context, entry);
+  const parent = await restoreFromTrash(tx, organizationId, entry);
+  await audit(tx, context, {
+    organizationId,
+    principalId,
+    operation: "storageEntries.restore",
+    entryId: entry.id,
+    details: { toParentId: parent.id },
+  });
+  return await project(tx, organizationId, entry.id);
+}
+
+/** Moves an entry to /trash, remembering the folder and name it had. */
+async function moveToTrash(
+  tx: PgTransactionClient,
+  organizationId: string,
+  entryId: string,
+  trashFolderId: string,
+  principalId: string,
+): Promise<void> {
+  await tx.query(
+    "update bakery.storage_entries" +
+      " set trash_parent_id = parent_id, trash_name = name, parent_id = $3," +
+      " name_key = 'trash:' || id::text, trashed_at = now()," +
+      " trashed_by_id = $4, version = version + 1, updated_at = now()" +
+      " where organization_id = $1 and id = $2",
+    [organizationId, entryId, trashFolderId, principalId],
+  );
+}
+
+/**
+ * Puts a trashed entry back in the folder it came from, under its old name;
+ * refused when that folder is gone or trashed, or the name is taken. Shared by
+ * restore and by the undo of a step's rm. Returns the folder.
+ */
+async function restoreFromTrash(
+  tx: PgTransactionClient,
+  organizationId: string,
+  entry: Row,
+): Promise<Row> {
   const parent = entry.trash_parent_id === null
     ? undefined
     : await lockEntry(tx, organizationId, entry.trash_parent_id);
@@ -1184,14 +1496,7 @@ export async function restoreStorageEntry(context: ActionContext) {
       " where organization_id = $1 and id = $2",
     [organizationId, entry.id, parent.id, name, nameKey],
   );
-  await audit(tx, context, {
-    organizationId,
-    principalId,
-    operation: "storageEntries.restore",
-    entryId: entry.id,
-    details: { toParentId: parent.id },
-  });
-  return await project(tx, organizationId, entry.id);
+  return parent;
 }
 
 /**
@@ -1298,12 +1603,22 @@ async function settingsView(tx: PgTransactionClient, organizationId: string) {
     organizationQuotaBytes: limits.organizationQuotaBytes,
     projectQuotaBytes: limits.projectQuotaBytes,
     personalQuotaBytes: limits.personalQuotaBytes,
+    stepWriteBytes: limits.stepWriteBytes,
+    stepWriteFiles: limits.stepWriteFiles,
     organizationUsedBytes: used,
     organizationQuotaState: quotaState(used, limits.organizationQuotaBytes),
     customized: limits.customized,
     version: limits.version,
   };
 }
+
+/**
+ * What an Admin saves. The step write limits may be left out: absent stores
+ * null, which follows Bakery's default (O49).
+ */
+export type StorageSettingsInput =
+  & Omit<StorageLimits, "stepWriteBytes" | "stepWriteFiles">
+  & Partial<Pick<StorageLimits, "stepWriteBytes" | "stepWriteFiles">>;
 
 /** The organization's storage limits with its usage against its quota. */
 export async function getStorageSettings(context: ActionContext) {
@@ -1317,11 +1632,17 @@ export async function getStorageSettings(context: ActionContext) {
  */
 export async function putStorageSettings(
   context: ActionContext,
-  input: StorageLimits,
+  input: StorageSettingsInput,
 ) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
-  const invalid = invalidLimit(input);
+  const invalid = invalidLimit({
+    ...input,
+    stepWriteBytes: input.stepWriteBytes ??
+      DEFAULT_STORAGE_LIMITS.stepWriteBytes,
+    stepWriteFiles: input.stepWriteFiles ??
+      DEFAULT_STORAGE_LIMITS.stepWriteFiles,
+  });
   if (invalid) unprocessable(invalid, "out_of_range");
   await tx.query(
     "select pg_advisory_xact_lock(hashtext('storage-settings:' || $1))",
@@ -1343,8 +1664,9 @@ export async function putStorageSettings(
     "insert into bakery.storage_settings" +
       " (organization_id, working_versions_kept, trash_retention_days," +
       " scratch_retention_days, max_file_bytes, organization_quota_bytes," +
-      " project_quota_bytes, personal_quota_bytes, updated_by_id)" +
-      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9)" +
+      " project_quota_bytes, personal_quota_bytes, updated_by_id," +
+      " step_write_bytes, step_write_files)" +
+      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)" +
       " on conflict (organization_id) do update set" +
       " working_versions_kept = excluded.working_versions_kept," +
       " trash_retention_days = excluded.trash_retention_days," +
@@ -1353,6 +1675,8 @@ export async function putStorageSettings(
       " organization_quota_bytes = excluded.organization_quota_bytes," +
       " project_quota_bytes = excluded.project_quota_bytes," +
       " personal_quota_bytes = excluded.personal_quota_bytes," +
+      " step_write_bytes = excluded.step_write_bytes," +
+      " step_write_files = excluded.step_write_files," +
       " updated_by_id = excluded.updated_by_id," +
       " version = bakery.storage_settings.version + 1, updated_at = now()",
     [
@@ -1365,6 +1689,8 @@ export async function putStorageSettings(
       input.projectQuotaBytes,
       input.personalQuotaBytes,
       principalId,
+      input.stepWriteBytes ?? null,
+      input.stepWriteFiles ?? null,
     ],
   );
   await appendAudit(tx, {
@@ -1499,4 +1825,183 @@ async function queueRecordPurge(
     entriesRemoved: 0,
     bytesRemoved: 0,
   };
+}
+
+type WriteSetRow = {
+  id: string;
+  attempt_id: string;
+  entry_id: string;
+  op: StepWriteOp;
+  previous_version_id: string | null;
+  new_version_id: string | null;
+  previous_parent_id: string | null;
+  previous_name: string | null;
+  entry_version_before: string | null;
+  entry_version_after: string;
+};
+
+/** At most this many refused entries are named in one refusal. */
+const MAX_NAMED_CONFLICTS = 20;
+
+/**
+ * Reverts the writes the given attempts' agent made that are not yet undone,
+ * newest first, in the caller's transaction (section 17.6, O48, #448 S5).
+ * All or nothing: when any entry refuses, STATE_CONFLICT
+ * `step_writes_conflict` names each one and nothing changes. Every reverted
+ * write is marked with who undid it and when, so it is never undone twice; a
+ * second undo finds nothing and reverts nothing. Each reverted entry gets an
+ * audit row. The caller has checked that a person with run control asks.
+ */
+export async function revertStepWrites(
+  context: ActionContext,
+  attemptIds: readonly string[],
+): Promise<{ reverted: number; entries: number }> {
+  const { transaction: tx, organizationId, principalId } =
+    requireWorkTransaction(context);
+  if (attemptIds.length === 0) return { reverted: 0, entries: 0 };
+  const top = await prepareTree(tx, organizationId, principalId);
+  const found = await tx.query<WriteSetRow>(
+    "select id, attempt_id, entry_id, op, previous_version_id," +
+      " new_version_id, previous_parent_id, previous_name," +
+      " entry_version_before::text, entry_version_after::text" +
+      " from bakery.step_write_set" +
+      " where organization_id = $1 and attempt_id = any($2::uuid[])" +
+      " and reverted_at is null" +
+      " order by created_at, id for update",
+    [organizationId, attemptIds],
+  );
+  if (found.rows.length === 0) return { reverted: 0, entries: 0 };
+  const writes: RecordedWrite[] = found.rows.map((row) => ({
+    id: row.id,
+    entryId: row.entry_id,
+    op: row.op,
+    previousVersionId: row.previous_version_id,
+    newVersionId: row.new_version_id,
+    previousParentId: row.previous_parent_id,
+    previousName: row.previous_name,
+    entryVersionBefore: row.entry_version_before === null
+      ? null
+      : Number(row.entry_version_before),
+    entryVersionAfter: Number(row.entry_version_after),
+  }));
+
+  // Lock every entry in id order, so two undos never deadlock.
+  const ids = [...new Set(writes.map((write) => write.entryId))].sort();
+  const rows = new Map<string, Row>();
+  const entries = new Map<string, EntryNow>();
+  for (const id of ids) {
+    const row = await lockEntry(tx, organizationId, id);
+    if (row) rows.set(id, row);
+    const children = row?.kind === "folder"
+      ? (await tx.query<{ id: string }>(
+        "select id from bakery.storage_entries" +
+          " where organization_id = $1 and parent_id = $2" +
+          " and trashed_at is null",
+        [organizationId, id],
+      )).rows.map((child) => child.id)
+      : [];
+    entries.set(id, {
+      id,
+      path: row ? await folderPath(tx, organizationId, id) : id,
+      kind: row?.kind ?? "file",
+      version: Number(row?.version ?? -1),
+      gone: !row || row.purged_at !== null,
+      parentId: row?.parent_id ?? null,
+      trashed: row?.trashed_at != null,
+      trashParentId: row?.trash_parent_id ?? null,
+      liveChildIds: children,
+    });
+  }
+
+  const plan = planStepUndo(writes, entries);
+  if (!plan.ok) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: {
+        reason: "step_writes_conflict",
+        issues: plan.conflicts.slice(0, MAX_NAMED_CONFLICTS).map((
+          conflict,
+        ) => ({
+          path: [conflict.path],
+          message: conflict.reason,
+          code: conflict.reason,
+        })),
+      },
+    });
+  }
+
+  const attemptOf = new Map(found.rows.map((row) => [row.id, row.attempt_id]));
+  for (const step of plan.steps) {
+    // Re-read: an earlier reversal in this undo may have changed the entry.
+    const entry = await lockEntry(tx, organizationId, step.entryId);
+    if (!entry) notFound();
+    let details: Record<string, unknown> = {};
+    switch (step.action) {
+      case UndoAction.Trash:
+        if (entry.trashed_at === null) {
+          await moveToTrash(
+            tx,
+            organizationId,
+            entry.id,
+            top.get("trash")!,
+            principalId,
+          );
+        }
+        details = { fromParentId: entry.parent_id };
+        break;
+      case UndoAction.SetVersion:
+        await tx.query(
+          "update bakery.storage_entries" +
+            " set current_version_id = $3, version = version + 1," +
+            " updated_at = now()" +
+            " where organization_id = $1 and id = $2",
+          [organizationId, entry.id, step.versionId],
+        );
+        details = {
+          fromVersionId: entry.current_version_id,
+          toVersionId: step.versionId,
+        };
+        break;
+      case UndoAction.MoveBack: {
+        const parent = await lockEntry(tx, organizationId, step.parentId!);
+        if (!parent || parent.trashed_at !== null) {
+          conflict("restore_parent_gone");
+        }
+        const { name, nameKey } = normalizeEntryName(step.name!);
+        await relocateEntry(tx, organizationId, entry, {
+          parent,
+          name,
+          nameKey,
+        });
+        details = { fromParentId: entry.parent_id, toParentId: parent.id };
+        break;
+      }
+      case UndoAction.Restore: {
+        const parent = await restoreFromTrash(tx, organizationId, entry);
+        details = { toParentId: parent.id };
+        break;
+      }
+    }
+    await audit(tx, context, {
+      organizationId,
+      principalId,
+      operation: "storageEntries.revertStepWrite",
+      entryId: entry.id,
+      details: {
+        ...details,
+        action: step.action,
+        writeId: step.writeId,
+        attemptId: attemptOf.get(step.writeId),
+      },
+    });
+  }
+
+  await tx.query(
+    "update bakery.step_write_set" +
+      " set reverted_at = now(), reverted_by_principal_id = $3" +
+      " where organization_id = $1 and id = any($2::uuid[])" +
+      " and reverted_at is null",
+    [organizationId, writes.map((write) => write.id), principalId],
+  );
+  return { reverted: writes.length, entries: ids.length };
 }

@@ -5,7 +5,9 @@ import {
   pausedBanner,
   progressNext,
   progressReason,
+  questionRow,
   startedBy,
+  waitsOnAnswer,
 } from "../../apps/web/src/pages/issues/work-model.ts";
 
 /**
@@ -171,4 +173,116 @@ Deno.test("the page speaks about the newest request", () => {
   assertEquals(currentRequest([]), null);
   const newest = { id: "a" } as never;
   assertEquals(currentRequest([newest, { id: "b" } as never]), newest);
+});
+
+/** #61 slice 1: the question row, read from a task's served questions. */
+const asked = (
+  status: "open" | "answered" | "expired" | "withdrawn" | "superseded",
+  createdAt: string,
+  prompt = "Which database should this use?",
+  kind: "question" | "approval" = "question",
+) => ({ kind, status, prompt, createdAt });
+
+Deno.test("no questions, or only answered ones, show no row", () => {
+  assertEquals(questionRow([]), null);
+  assertEquals(
+    questionRow([asked("answered", "2026-01-01T10:00:00.000Z")]),
+    null,
+  );
+});
+
+Deno.test("an open question shows its first two lines and when it was asked", () => {
+  assertEquals(
+    questionRow([
+      asked(
+        "open",
+        "2026-01-01T10:00:00.000Z",
+        "Which database?\n\n  Postgres or SQLite.  \nThird line.",
+      ),
+    ]),
+    {
+      kind: "open",
+      count: 1,
+      lines: ["Which database?", "Postgres or SQLite."],
+      askedAt: "2026-01-01T10:00:00.000Z",
+    },
+  );
+});
+
+Deno.test("several open questions are counted and the oldest is shown", () => {
+  const row = questionRow([
+    asked("open", "2026-01-01T12:00:00.000Z", "Newer"),
+    asked("open", "2026-01-01T09:00:00.000Z", "Oldest"),
+    asked("open", "2026-01-01T11:00:00.000Z", "Middle"),
+    asked("answered", "2026-01-01T08:00:00.000Z", "Done"),
+  ]);
+  assertEquals(row, {
+    kind: "open",
+    count: 3,
+    lines: ["Oldest"],
+    askedAt: "2026-01-01T09:00:00.000Z",
+  });
+});
+
+Deno.test("an approval is a decision on the task page, not a question here", () => {
+  assertEquals(
+    questionRow([
+      asked(
+        "open",
+        "2026-01-01T10:00:00.000Z",
+        "Approve the plan?",
+        "approval",
+      ),
+    ]),
+    null,
+  );
+});
+
+Deno.test("an expired question shows only while it is the newest", () => {
+  assertEquals(
+    questionRow([asked("expired", "2026-01-01T10:00:00.000Z")]),
+    { kind: "expired" },
+  );
+  // An answer came after the expiry: nothing to say any more.
+  assertEquals(
+    questionRow([
+      asked("expired", "2026-01-01T10:00:00.000Z"),
+      asked("answered", "2026-01-01T11:00:00.000Z"),
+    ]),
+    null,
+  );
+  // Another question is open: that one is shown, not the expiry.
+  assertEquals(
+    questionRow([
+      asked("expired", "2026-01-01T10:00:00.000Z"),
+      asked("open", "2026-01-01T11:00:00.000Z", "Again?"),
+    ])?.kind,
+    "open",
+  );
+});
+
+Deno.test("the badge says Needs an answer only while work is under way and a question is open", () => {
+  const open = questionRow([asked("open", "2026-01-01T10:00:00.000Z")]);
+  assertEquals(waitsOnAnswer("active", open), true);
+  assertEquals(waitsOnAnswer("admitted", open), true);
+  // A paused, finished or stopped request keeps its own word.
+  for (
+    const progress of [
+      "pending",
+      "waiting",
+      "suspended",
+      "completed",
+      "failed",
+      "canceled",
+      "rejected",
+    ] as const
+  ) assertEquals(waitsOnAnswer(progress, open), false);
+  assertEquals(waitsOnAnswer("active", null), false);
+  assertEquals(
+    waitsOnAnswer(
+      "active",
+      questionRow([asked("expired", "2026-01-01T10:00:00.000Z")]),
+    ),
+    false,
+  );
 });

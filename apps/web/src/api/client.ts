@@ -41,6 +41,8 @@ export type SafeProblem = Readonly<{
   reason?: string;
   /** Stable issue codes of a 422, such as a storage probe outcome. */
   issueCodes?: readonly string[];
+  /** A 422's field paths (JSON Pointers) and plain messages. */
+  issues?: readonly { readonly path: string; readonly message: string }[];
 }>;
 
 export type ApiFailure =
@@ -81,6 +83,10 @@ export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
+export type RouteContinuationOffersResponse =
+  ClientOutputMap["RouteContinuationOffers"];
+export type RouteContinuationAdmit = ClientInputMap["RouteContinuationAdmit"];
+export type RouteContinuationResponse = ClientOutputMap["RouteContinuation"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
 export type AgentSessionPageResponse = ClientOutputMap["AgentSessionPage"];
 export type SessionFeedResponse = ClientOutputMap["SessionFeed"];
@@ -92,6 +98,9 @@ export type DeliveryDecisionListResponse =
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
 export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
+export type MergeEntryListResponse = ClientOutputMap["Page<MergeEntry>"];
+export type MergeEntryResponse = ClientOutputMap["MergeEntry"];
+export type MergeEntryCreate = ClientInputMap["MergeEntryCreate"];
 export type MergeReconciliationResponse =
   ClientOutputMap["MergeReconciliation"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
@@ -105,6 +114,25 @@ export type UserPreferencesUpdate = ClientInputMap["UserPreferencesUpdate"];
 export type InstallationCapabilities =
   ClientOutputMap["InstallationCapabilities"];
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
+/** The restore that holds the installation, and how far its ordered re-enable has got (#64 E3). */
+export type InstallationRestore = ClientOutputMap["InstallationRestore"];
+/** One step of the ordered re-enable, in the order they are taken. */
+export type InstallationRestoreStep =
+  ClientInputMap["InstallationRestoreStep"]["step"];
+/** What the installation-wide usage summary answers: figures and budgets. */
+export type UsageSummary = ClientOutputMap["UsageSummary"];
+/** Window and filters for that summary; all three are optional on the server. */
+export type UsageQuery = ClientInputMap["UsageQuery"];
+/** One delivery metric over a window: points, provenance and what is missing. */
+export type MetricSeries = ClientOutputMap["MetricSeries"];
+/** The metric, window and repository a series is asked for. */
+export type MetricsQuery = ClientInputMap["MetricsQuery"];
+/** The same question, listing the records behind the numbers, one page at a time. */
+export type MetricSourcesQuery = ClientInputMap["MetricSourcesQuery"];
+/** One page of the pull requests or tasks counted in a metric. */
+export type MetricSourcePage = ClientOutputMap["Page<MetricSource>"];
+/** One pull request or task counted in a metric. */
+export type MetricSource = MetricSourcePage["items"][number];
 export type IntegrationAppRegistration =
   ClientOutputMap["IntegrationAppRegistration"];
 export type IntegrationAppManifestStart =
@@ -117,6 +145,23 @@ export type IntegrationClientCredentials =
   ClientOutputMap["IntegrationClientCredentials"];
 export type IntegrationClientCredentialsPut =
   ClientInputMap["IntegrationClientCredentialsPut"];
+export type TelemetryDestinationList =
+  ClientOutputMap["TelemetryDestinationList"];
+export type TelemetryDestination = ClientOutputMap["TelemetryDestination"];
+export type TelemetryDestinationListQuery =
+  ClientInputMap["TelemetryDestinationListQuery"];
+export type TelemetryDestinationDetail =
+  ClientOutputMap["TelemetryDestinationDetail"];
+export type TelemetryDestinationCreate =
+  ClientInputMap["TelemetryDestinationCreate"];
+export type TelemetryDestinationUpdate =
+  ClientInputMap["TelemetryDestinationUpdate"];
+export type TelemetryDestinationTest =
+  ClientInputMap["TelemetryDestinationTest"];
+export type TelemetryDestinationTestResult =
+  ClientOutputMap["TelemetryDestinationTestResult"];
+export type StorageSettings = ClientOutputMap["StorageSettings"];
+export type StorageSettingsPut = ClientInputMap["StorageSettingsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
 export type SkillStorageSettingsPut = ClientInputMap["SkillStorageSettingsPut"];
 export type SkillStorageVerification =
@@ -164,10 +209,19 @@ export type ExternalTicketListResponse =
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourcePersonResponse = ClientOutputMap["TicketSourcePerson"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type BatchResponse = ClientOutputMap["Batch"];
+export type BatchListResponse = ClientOutputMap["Page<Batch>"];
+export type BatchIssueResponse = BatchResponse["issues"][number];
+export type BatchStartableResponse = ClientOutputMap["BatchStartable"];
+export type BatchStartableIssue = BatchStartableResponse["items"][number];
+export type BatchCreateInput = ClientInputMap["BatchCreate"];
 export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
 export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
 export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
+export type PluginPageListResponse = ClientOutputMap["Page<PluginPageEntry>"];
+export type PluginPageEntry = PluginPageListResponse["items"][number];
+export type PluginPageAccessResponse = ClientOutputMap["PluginPageAccess"];
 /**
  * One item a plugin has saved, as the page may know it: where it is kept, how
  * big it is and when it was last saved. The read it comes from carries no saved
@@ -234,6 +288,44 @@ export function versionEtag(version: number): string {
   return `"v${version}"`;
 }
 export type { AccessAdminClient } from "./access-client.ts";
+export type MentionCandidatePage = ClientOutputMap["Page<MentionCandidate>"];
+export type MentionCandidate = MentionCandidatePage["items"][number];
+export type ConversationAccessPage =
+  ClientOutputMap["Page<ConversationAccessGrant>"];
+export type ConversationAccessGrant = ConversationAccessPage["items"][number];
+/** Up to three people who may share one conversation, for a writer who may not. */
+export type ConversationSharers = ClientOutputMap["ConversationSharers"];
+export type ConversationSharer = ConversationSharers["items"][number];
+export type ArtifactAccessPage = ClientOutputMap["Page<ArtifactAccessGrant>"];
+export type ArtifactAccessGrant = ArtifactAccessPage["items"][number];
+/** Up to three people who may share one document, for a writer who may not. */
+export type ArtifactSharers = ClientOutputMap["ArtifactSharers"];
+export type ArtifactSharer = ArtifactSharers["items"][number];
+/**
+ * Where a mention is being written: a task's conversation, or a document's
+ * comment thread. A comment thread is read by version, but access is given to
+ * the document, so a comment source names both.
+ */
+export type MentionSource =
+  | { readonly kind: "conversation"; readonly id: string }
+  | {
+    readonly kind: "comment";
+    /** The document version the comment is on (the picker reads by version). */
+    readonly id: string;
+    /** The document the access is given to. */
+    readonly artifactId: string;
+  };
+
+export type EvaluationBatch = ClientOutputMap["EvaluationBatch"];
+export type EvaluationBatchPage = ClientOutputMap["Page<EvaluationBatch>"];
+export type EvaluationBatchResultPage =
+  ClientOutputMap["Page<EvaluationBatchResult>"];
+export type EvaluationBatchResult = EvaluationBatchResultPage["items"][number];
+export type EvaluationAttemptPage = ClientOutputMap["Page<EvaluationAttempt>"];
+export type EvaluationAttempt = EvaluationAttemptPage["items"][number];
+/** What one measured result can be: the seven states the server keeps. */
+export type EvaluationResultState = EvaluationBatchResult["state"];
+
 export type OrganizationAccessPage =
   ClientOutputMap["Page<OrganizationAccess>"];
 export type OrganizationAccess = OrganizationAccessPage["items"][number];
@@ -261,6 +353,9 @@ export type ApplicationResponse = ClientOutputMap["Application"];
 export type WorkflowDefinitionResponse = ClientOutputMap["Workflow"];
 export type WorkflowDefinitionListResponse = ClientOutputMap["Page<Workflow>"];
 export type WorkflowVersionResponse = ClientOutputMap["WorkflowVersion"];
+/** Every skill the steps of one workflow version name, as the reader may see them. */
+export type WorkflowVersionSkills = ClientOutputMap["WorkflowVersionSkills"];
+export type WorkflowStepSkill = WorkflowVersionSkills["items"][number];
 export type WorkflowVersionListResponse =
   ClientOutputMap["Page<WorkflowVersion>"];
 export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
@@ -475,6 +570,14 @@ export type ExtractArtifactVersionOptions = Readonly<
   }
 >;
 
+export type ArtifactProbeResponse = ClientOutputMap["ArtifactProbeAnswer"];
+
+export type ReadArtifactProbeOptions = Readonly<{
+  organizationId: string;
+  versionId: string;
+  signal?: AbortSignal;
+}>;
+
 export type ListArtifactCommentsOptions = Readonly<
   ArtifactCommentQuery & {
     organizationId: string;
@@ -654,13 +757,28 @@ export type BakeryApiClient = {
       cursor?: string,
       signal?: AbortSignal,
     ) => Promise<ApiResult<LibraryPage>>;
-    /** A file's bytes: its current version, or the one at `revision`. */
+    /**
+     * A file's bytes: its current version, or the one at `revision`. A `range`
+     * asks for part of them, as `bytes=0-0` does to check a digest without
+     * reading a whole video into the page.
+     */
     readonly content: (
       organizationId: string,
       fileId: string,
       revision: number | undefined,
       signal?: AbortSignal,
+      range?: string,
     ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
+    /**
+     * What the probe measured about this version's bytes, or nulls. A file
+     * stored inline has no blob and so no answer yet, which is not a refusal.
+     */
+    readonly probe: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["ArtifactProbeAnswer"]>>;
   };
   readonly output: {
     readonly attempts: (
@@ -877,6 +995,20 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallListResponse>>;
+    /** `GET /v1/plugin-pages`: every page of every plugin that is on and that this person has, for the sidebar. */
+    readonly pages: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginPageListResponse>>;
+    /** `GET /v1/plugin-installs/{id}/pages/{pageId}`: whether one page may be shown, and why not when it may not. */
+    readonly page: (options: {
+      readonly organizationId: string;
+      readonly installId: string;
+      readonly pageId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginPageAccessResponse>>;
     /** `POST /v1/plugin-installs`: installs one published version, for everyone or for one person. */
     readonly install: (options: {
       readonly organizationId: string;
@@ -935,6 +1067,54 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<RunPreviewResponse>>;
+  };
+  /** Bounded runs of issues: start one, watch it, pause, resume or stop it. */
+  readonly batches: {
+    /** `GET /v1/batches`: batches newest first, optionally for one repository. */
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly repositoryId?: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchListResponse>>;
+    /** `GET /v1/batches/startable`: the issues a batch in one repository would take now, and the smallest spend that can start one. */
+    readonly startable: (options: {
+      readonly organizationId: string;
+      readonly repositoryId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchStartableResponse>>;
+    /** `GET /v1/batches/{id}`: one batch with the issues it considered. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
+    /** `POST /v1/batches`: starts a batch in one repository. */
+    readonly create: (options: {
+      readonly organizationId: string;
+      readonly input: BatchCreateInput;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
+    /** `POST /v1/batches/{id}/pause`, `resume`, `start-next` and `finish`: nothing to send but the batch. */
+    readonly control: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly action: "pause" | "resume" | "startNext" | "finish";
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
+    /** `POST /v1/batches/{id}/stop`: stops a batch; `cancelCurrent` also cancels the issue being worked on. */
+    readonly stop: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly cancelCurrent: boolean;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchResponse>>;
   };
   /** GitHub issues Bakery has read, and the repositories it takes them from. */
   readonly tickets: {
@@ -1241,6 +1421,98 @@ export type BakeryApiClient = {
       signal?: AbortSignal,
     ) => Promise<ApiResult<InstallationCapabilities>>;
   };
+  /**
+   * Where Bakery sends its measurements (#739); installation administrators
+   * with a browser session only. A result never carries a secret.
+   */
+  readonly telemetryDestinations: {
+    /** `GET /v1/installation/telemetry-destinations`: the kinds, the measurements, the providers and one page of the destinations that match the search and filters. */
+    readonly list: (
+      query?: TelemetryDestinationListQuery,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<TelemetryDestinationList>>;
+    /** `GET /v1/installation/telemetry-destinations/{id}`: one destination with its kind, provider and the measurements. */
+    readonly get: (
+      id: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<TelemetryDestinationDetail>>;
+    /** `POST /v1/installation/telemetry-destinations`: adds one. */
+    readonly create: (options: {
+      readonly input: TelemetryDestinationCreate;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestination>>;
+    /** `PATCH /v1/installation/telemetry-destinations/{id}`: changes one, with its version as If-Match. */
+    readonly update: (options: {
+      readonly id: string;
+      readonly input: Omit<TelemetryDestinationUpdate, "id">;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestination>>;
+    /** `DELETE /v1/installation/telemetry-destinations/{id}`: removes one, with its version as If-Match. */
+    readonly remove: (options: {
+      readonly id: string;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<undefined>>;
+    /** `POST /v1/installation/telemetry-destination-tests`: sends one harmless message and reports the answer. */
+    readonly test: (options: {
+      readonly input: TelemetryDestinationTest;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestinationTestResult>>;
+  };
+  readonly storageSettings: {
+    /** `GET /v1/storage/settings`: the organization's storage limits and how much of the quota is used. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<StorageSettings>>;
+    /** `PUT /v1/storage/settings`: replace every limit; `version` 0 is the first save and sends no If-Match. */
+    readonly put: (options: {
+      readonly organizationId: string;
+      readonly input: StorageSettingsPut;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<StorageSettings>>;
+  };
+  readonly usage: {
+    /** `GET /v1/usage`: the installation's usage summary (administrators only). */
+    readonly list: (options: {
+      readonly query: UsageQuery;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<UsageSummary>>;
+  };
+  readonly metrics: {
+    /** `GET /v1/metrics`: one delivery metric over a window. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly query: MetricsQuery;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<MetricSeries>>;
+    /** `GET /v1/metrics/sources`: the records behind it, keyset paged. */
+    readonly sources: (options: {
+      readonly organizationId: string;
+      readonly query: MetricSourcesQuery;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<MetricSourcePage>>;
+  };
+  readonly installationRestore: {
+    /** `GET /v1/installation/restore`: the restore that holds the installation; RESTORE_NOT_HELD (409) when none does. */
+    readonly get: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<InstallationRestore>>;
+    /** `POST /v1/installation/restore/steps`: takes the next step with the typed backup name. Idempotency-Key is required; a browser session only. */
+    readonly step: (options: {
+      readonly step: InstallationRestoreStep;
+      readonly confirmation: string;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<InstallationRestore>>;
+  };
   readonly installationSettings: {
     readonly get: (
       signal?: AbortSignal,
@@ -1500,6 +1772,29 @@ export type BakeryApiClient = {
     readonly runId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunResponse>>;
+  /**
+   * The choices a run is waiting on: each step whose model has an open incident,
+   * what it waits on and the other routes it could continue on. A read of
+   * current state; nothing is switched by reading it. Developers and Admins only.
+   */
+  readonly listRouteContinuations: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RouteContinuationOffersResponse>>;
+  /**
+   * A person's choice to continue one waiting step on another route, against the
+   * exact offer they saw. A stale or refused choice commits nothing and names why
+   * (`ApiFailure.problem.reason`). Reuse the key and input when the outcome is
+   * unknown.
+   */
+  readonly admitRouteContinuation: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly input: RouteContinuationAdmit;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RouteContinuationResponse>>;
   readonly getRunControlCapabilities: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -1576,6 +1871,29 @@ export type BakeryApiClient = {
     readonly mergeMethod: "merge" | "squash" | "rebase";
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MergeAttemptResponse>>;
+  /**
+   * One pull request's merge queue entries, newest first. An entry still
+   * queued, being checked or merging reads the same after a reload.
+   */
+  readonly listMergeEntries: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryListResponse>>;
+  /**
+   * Asks Bakery to queue a merge of the candidate the person saw: the exact
+   * head and base, with the run, review and checks that vouch for it. Bakery
+   * checks that nothing changed, then merges; a repeat with the same key
+   * answers with the same entry.
+   */
+  readonly createMergeEntry: (options: {
+    readonly organizationId: string;
+    readonly input: MergeEntryCreate;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryResponse>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -1619,6 +1937,13 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowVersionListResponse>>;
+  /** The skills the steps of one workflow version name, with whether each can be used now; a draft or a published version. */
+  readonly listWorkflowVersionSkills: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionSkills>>;
   /** Makes a published version the one new tasks use; `version` is the workflow's, sent as If-Match. */
   readonly activateWorkflowVersion: (options: {
     readonly organizationId: string;
@@ -1731,6 +2056,44 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MemoryRevisionListResponse>>;
+  /** The runs of the organization, newest first: one page of the Evaluations tab. */
+  readonly listEvaluationBatches: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatchPage>>;
+  /** One run with its counts and its quality gate. */
+  readonly getEvaluationBatch: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatch>>;
+  /** Stops a run that is waiting or running. `version` is the run's own, sent as If-Match. */
+  readonly cancelEvaluationBatch: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatch>>;
+  /** The results of one run, optionally only those in one state. */
+  readonly listEvaluationResults: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly state?: EvaluationResultState;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatchResultPage>>;
+  /** The attempts behind one result, newest first. */
+  readonly listEvaluationAttempts: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationAttemptPage>>;
   /**
    * Puts a fact in use (approving a suggestion, or using it again) or stops
    * using it. `version` is the fact's own, sent as If-Match; the server may
@@ -1908,6 +2271,9 @@ export type BakeryApiClient = {
   readonly extractArtifactVersion: (
     options: ExtractArtifactVersionOptions,
   ) => Promise<ApiResult<ArtifactExtractionResponse>>;
+  readonly readArtifactProbe: (
+    options: ReadArtifactProbeOptions,
+  ) => Promise<ApiResult<ArtifactProbeResponse>>;
   readonly listArtifactComments: (
     options: ListArtifactCommentsOptions,
   ) => Promise<ApiResult<ArtifactCommentListResponse>>;
@@ -1979,6 +2345,70 @@ export type BakeryApiClient = {
   readonly createMessage: (
     options: CreateMessageOptions,
   ) => Promise<ApiResult<MessageResponse>>;
+  /** The people a writer may mention here, by name or email, ten at a time. */
+  readonly listMentionCandidates: (options: {
+    readonly organizationId: string;
+    readonly source: MentionSource;
+    readonly query?: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MentionCandidatePage>>;
+  /** The people a conversation was opened to by a mention. */
+  readonly listConversationAccess: (options: {
+    readonly organizationId: string;
+    readonly conversationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ConversationAccessPage>>;
+  /** Who can give access to a conversation: up to three people, the author first. It grants nothing. */
+  readonly listConversationSharers: (options: {
+    readonly organizationId: string;
+    readonly conversationId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ConversationSharers>>;
+  /** The people a document was opened to by a mention (and by hand), live grants. */
+  readonly listArtifactAccess: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactAccessPage>>;
+  /** Who can give access to a document: up to three people, the author first. It grants nothing. */
+  readonly listArtifactSharers: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactSharers>>;
+  /** Gives one person direct access to a document at a level; for someone who has it, a different level changes it. */
+  readonly grantArtifactAccess: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly principalId: string;
+    readonly level: "read_comment" | "edit";
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactAccessGrant>>;
+  /** Takes one person's direct access to a document back. `version` is the grant's own, sent as If-Match. */
+  readonly revokeArtifactAccess: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly principalId: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ArtifactAccessGrant>>;
+  /** Takes one person's mention access back. `version` is the grant's own, sent as If-Match. */
+  readonly revokeConversationAccess: (options: {
+    readonly organizationId: string;
+    readonly conversationId: string;
+    readonly principalId: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ConversationAccessGrant>>;
   readonly listMessages: (options: {
     readonly organizationId: string;
     readonly conversationId: string;
@@ -2057,6 +2487,7 @@ export type BakeryApiClient = {
       | "withdrawn"
       | "superseded";
     readonly limit?: number;
+    readonly cursor?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<QuestionListResponse>>;
   readonly answerQuestion: (options: {
@@ -2112,6 +2543,7 @@ function safeProblem(problem: ApiProblem): SafeProblem | null {
       ? { reason: problem.reason }
       : {}),
     ...(problem.issueCodes ? { issueCodes: problem.issueCodes } : {}),
+    ...(problem.issues ? { issues: problem.issues } : {}),
   };
 }
 
@@ -2431,7 +2863,9 @@ async function getArtifactContentResponse(
     throw new ApiTransportError("protocol", status);
   }
   if (status === 200 && await sha256Hex(content) !== contentDigest) {
-    throw new ApiTransportError("protocol", status);
+    // Named, not generic: the file is not the file the record describes, and the
+    // screen has a state for exactly that (#437).
+    throw new ApiTransportError("digest-mismatch", status);
   }
 
   if (status === 206) {
@@ -2540,6 +2974,26 @@ export function createBakeryApiClient({
             }, { signal: options.signal }),
         );
       },
+      pages(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginPages.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      page(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginPages.get"]({
+              id: options.installId,
+              pageId: options.pageId,
+            }, { signal: options.signal }),
+        );
+      },
       install(options) {
         return workerResult(
           options.organizationId,
@@ -2626,6 +3080,78 @@ export function createBakeryApiClient({
           (scoped) =>
             scoped.actions["previews.stop"]({ id: options.previewId }, {
               idempotencyKey: options.idempotencyKey ?? crypto.randomUUID(),
+              signal: options.signal,
+            }),
+        );
+      },
+    },
+    batches: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.list"]({
+              repositoryId: options.repositoryId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      startable(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.startable"]({
+              repositoryId: options.repositoryId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      get(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.get"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      create(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.create"](options.input, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      control(options) {
+        const name = {
+          pause: "batches.pause",
+          resume: "batches.resume",
+          startNext: "batches.startNext",
+          finish: "batches.finish",
+        }[options.action] as "batches.pause";
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions[name]({ id: options.id }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      stop(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.stop"]({
+              id: options.id,
+              cancelCurrent: options.cancelCurrent,
+            }, {
+              idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
         );
@@ -3240,7 +3766,7 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
-      async content(org, fileId, revision, signal) {
+      async content(org, fileId, revision, signal, range) {
         const scoped = createBakeryClient({
           baseUrl,
           fetch: fetchImpl,
@@ -3252,6 +3778,26 @@ export function createBakeryApiClient({
             data: await scoped.actions["storageFiles.content"]({
               id: fileId,
               revision,
+              ...(range === undefined ? {} : { range }),
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async probe(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.probe"]({
+              id: fileId,
+              organizationId: org,
+              ...(revision === undefined ? {} : { revision }),
             }, { signal }),
           };
         } catch (error) {
@@ -3856,6 +4402,209 @@ export function createBakeryApiClient({
       },
     },
 
+    telemetryDestinations: {
+      async list(query, signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.list"](
+              query ?? {},
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async get(id, signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.get"](
+              { id },
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async create(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.create"](
+              options.input,
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async update(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.update"](
+              { id: options.id, ...options.input },
+              {
+                ifMatch: versionEtag(options.version),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async remove(options) {
+        try {
+          await client.actions["telemetryDestinations.delete"](
+            { id: options.id },
+            {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            },
+          );
+          return { ok: true, data: undefined };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async test(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.test"](
+              options.input,
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    storageSettings: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "storageSettings.get"
+            ]({}, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async put(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "storageSettings.put"
+            ](options.input, {
+              // The first save has no version yet and refuses an If-Match.
+              ...(options.version === 0
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    usage: {
+      async list(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["usage.list"](options.query, {
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    metrics: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            // Bound to the caller's organization: the shared client's context
+            // is set and cleared by other calls and may be empty here.
+            data: await scoped(options.organizationId).actions["metrics.get"](
+              options.query,
+              { signal: options.signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async sources(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "metrics.sources"
+            ](options.query, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    installationRestore: {
+      async get(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationRestore.get"]({}, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async step(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationRestore.step"](
+              { step: options.step, confirmation: options.confirmation },
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
     installationSettings: {
       async get(signal) {
         try {
@@ -4398,6 +5147,27 @@ export function createBakeryApiClient({
       }
     },
 
+    /**
+     * What the probe learned about this version's bytes, or nulls.
+     *
+     * Separate from the content read on purpose: the answer is small, it needs
+     * no bytes, and a caller wants it before deciding whether to fetch any.
+     */
+    async readArtifactProbe(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactVersions.probe"](
+          { id: options.versionId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async listArtifactComments(options) {
       const { organizationId: scopeId, versionId, signal, ...input } = options;
       organizationId = scopeId;
@@ -4630,6 +5400,160 @@ export function createBakeryApiClient({
       }
     },
 
+    async listMentionCandidates(options) {
+      organizationId = options.organizationId;
+      try {
+        const query = {
+          id: options.source.id,
+          ...(options.query === undefined || options.query === ""
+            ? {}
+            : { query: options.query }),
+          ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+          ...(options.limit === undefined ? {} : { limit: options.limit }),
+        };
+        const data = options.source.kind === "conversation"
+          ? await client.actions["conversations.mentionCandidates"](query, {
+            signal: options.signal,
+          })
+          : await client.actions["artifactComments.mentionCandidates"](query, {
+            signal: options.signal,
+          });
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listConversationAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["conversationAccess.list"](
+          {
+            id: options.conversationId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listConversationSharers(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["conversationAccess.sharers"](
+          { id: options.conversationId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listArtifactAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.list"](
+          {
+            id: options.artifactId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listArtifactSharers(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.sharers"](
+          { id: options.artifactId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async grantArtifactAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.grant"](
+          {
+            id: options.artifactId,
+            principalId: options.principalId,
+            level: options.level,
+          },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async revokeArtifactAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactAccess.revoke"](
+          { id: options.artifactId, principalId: options.principalId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async revokeConversationAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["conversationAccess.revoke"](
+          { id: options.conversationId, principalId: options.principalId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async listMessages(options) {
       organizationId = options.organizationId;
       try {
@@ -4827,6 +5751,7 @@ export function createBakeryApiClient({
             taskId: options.taskId,
             ...(options.status === undefined ? {} : { status: options.status }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
           },
           { signal: options.signal },
         );
@@ -5012,6 +5937,45 @@ export function createBakeryApiClient({
           { signal: options.signal },
         );
         if (data.id !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRouteContinuations(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["routeContinuations.list"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
+        if (data.runId !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async admitRouteContinuation(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["routeContinuations.admit"](
+          { id: options.runId, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.runId !== options.runId) {
           throw new ApiTransportError("protocol", 200);
         }
         return { ok: true, data };
@@ -5240,6 +6204,40 @@ export function createBakeryApiClient({
       }
     },
 
+    async listMergeEntries(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.list"](
+          {
+            pullRequestId: options.pullRequestId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMergeEntry(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async mergePullRequest(options) {
       organizationId = options.organizationId;
       try {
@@ -5412,6 +6410,21 @@ export function createBakeryApiClient({
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listWorkflowVersionSkills(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.skills"](
+          { id: options.workflowId, versionId: options.versionId },
           { signal: options.signal },
         );
         return { ok: true, data };
@@ -5680,6 +6693,103 @@ export function createBakeryApiClient({
       organizationId = options.organizationId;
       try {
         const data = await client.actions["memoryRevisions.list"](
+          {
+            id: options.id,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listEvaluationBatches(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatches.list"](
+          {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getEvaluationBatch(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatches.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async cancelEvaluationBatch(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatches.cancel"](
+          { id: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listEvaluationResults(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatchResults.list"](
+          {
+            id: options.id,
+            ...(options.state === undefined ? {} : { state: options.state }),
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listEvaluationAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationAttempts.list"](
           {
             id: options.id,
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),

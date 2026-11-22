@@ -12,6 +12,8 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   type CandidateRouteRow,
   ineligibleReason,
+  jobBillingRoute,
+  readRoutePricing,
 } from "./route-continuations.ts";
 
 /**
@@ -101,13 +103,6 @@ type RouteRow = CandidateRouteRow & {
   billing_route: string;
   provider_account_id: string | null;
 };
-
-/** The job-side spelling of a route's billing route, or null when there is none. */
-function jobBillingRoute(routeBilling: string): "api" | "subscription" | null {
-  if (routeBilling === "api_metered") return "api";
-  if (routeBilling === "subscription") return "subscription";
-  return null;
-}
 
 function pinOf(billing: Record<string, unknown>): Pin {
   return {
@@ -240,30 +235,9 @@ export async function admitRouteContinuation(
   // and the pricing snapshot an active price exists for. No account, no price, or a
   // billing route a job cannot carry, and the step has nothing trustworthy to be
   // priced against.
-  const targetRoute = jobBillingRoute(target.billing_route);
-  if (targetRoute === null || target.provider_account_id === null) {
-    throw refuse("target_pricing_unavailable");
-  }
-  const account = (await transaction.query<{ billing_identity: string }>(
-    `select billing_identity from bakery.model_provider_accounts
-      where organization_id = $1 and id = $2`,
-    [organizationId, target.provider_account_id],
-  )).rows[0];
-  if (!account) throw refuse("target_pricing_unavailable");
-  const snapshot = (await transaction.query<
-    { id: string; pricing_metadata_snapshot: string }
-  >(
-    `select id, pricing_metadata_snapshot
-       from bakery.provider_pricing_snapshots
-      where provider = $1 and billing_account_id = $2 and model = $3
-        and billing_type = $4 and status = 'active'
-        and effective_from <= clock_timestamp()
-        and (effective_until is null or effective_until > clock_timestamp())
-      order by effective_from desc, id desc
-      limit 1`,
-    [target.provider, account.billing_identity, target.model, targetRoute],
-  )).rows[0];
-  if (!snapshot) throw refuse("target_pricing_unavailable");
+  const pricing = await readRoutePricing(transaction, organizationId, target);
+  if (pricing === null) throw refuse("target_pricing_unavailable");
+  const { billingRoute: targetRoute, account, snapshot } = pricing;
 
   // 6. Every job to move, checked before any is touched.
   const plans = [];

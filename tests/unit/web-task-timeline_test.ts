@@ -12,9 +12,14 @@ const run = {
 const t = ((key: string) => key) as any;
 
 Deno.test("a timeline row keeps the record's time and shows a person's reading of it", () => {
-  const [queued] = runTimelineEvents(run, [], t, { first: true, last: false }, (
-    iso,
-  ) => `read:${iso}`);
+  const [queued] = runTimelineEvents(
+    run,
+    [],
+    t,
+    { first: true, last: false },
+    new Map(),
+    (iso) => `read:${iso}`,
+  );
   assertEquals(queued.time, "2026-11-20T09:00:00.000Z");
   assertEquals(queued.timeLabel, "read:2026-11-20T09:00:00.000Z");
 });

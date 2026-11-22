@@ -9,7 +9,7 @@ import { GITHUB_READ_PAGE_SIZE } from "./github-app.ts";
  * Resumable reconciliation progress.
  *
  * One checkpoint belongs to one selected repository resource and one stream:
- * `issues`, `pull_requests` or `checks`. The row holds the stream's cursor,
+ * `issues`, `pull_requests`, `checks` or `line_counts`. The row holds the stream's cursor,
  * so a scan that fails, is rate limited or hits its request cap resumes where
  * it stopped instead of starting over, and a completed scan waits before the
  * next one. Nothing here concludes anything from a gap: a checkpoint records
@@ -22,6 +22,7 @@ export const SyncStream = Object.freeze(
     Issues: "issues",
     PullRequests: "pull_requests",
     Checks: "checks",
+    LineCounts: "line_counts",
   } as const,
 );
 export type SyncStream = (typeof SyncStream)[keyof typeof SyncStream];
@@ -31,6 +32,7 @@ export const SYNC_STREAMS: readonly SyncStream[] = Object.freeze([
   SyncStream.Issues,
   SyncStream.PullRequests,
   SyncStream.Checks,
+  SyncStream.LineCounts,
 ]);
 
 export function isSyncStream(value: unknown): value is SyncStream {

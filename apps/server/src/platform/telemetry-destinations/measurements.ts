@@ -33,9 +33,14 @@ export function isMeasurementKind(value: unknown): value is MeasurementKind {
  */
 const EVENT_MEASUREMENTS: Readonly<Record<string, readonly MeasurementKind[]>> =
   Object.freeze({
-    // Not mapped until the record carries what the kind promises: usage.settled
-    // holds only the attempt id (no amount, no tokens), and job.completed holds
-    // the outcome but no duration. A kind comes back here as it is emitted.
+    // A kind that promises more than a record carries stays unmapped until it
+    // does: job.completed holds the outcome but no duration, and no record holds
+    // an amount in money, so durations and cost are still not sent.
+    "attempt.started": ["results"],
+    // A destination that takes the workflow's results also gets the usage span
+    // under each attempt, with token counts: this is how a trace shows where the
+    // tokens went. The amount in money is the cost kind's, which is not offered.
+    "usage.settled": ["results"],
     "job.completed": ["results"],
     "lease.renewed": ["health"],
   });

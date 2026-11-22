@@ -32,6 +32,10 @@ import {
   storageScopeRefusal,
 } from "./agent-file-scope.ts";
 import { type AreaEntry, isVisibleTo } from "./storage-areas.ts";
+import {
+  reviewerDeclaredOutput,
+  reviewerIsolationOf,
+} from "./reviewer-isolation.ts";
 import type { StoragePolicy } from "./storage-tree.ts";
 
 /** The folder a write lands in (or, for mv and rm, the folder it leaves). */
@@ -285,6 +289,13 @@ export type AgentFileReadScope = Readonly<{
   declared: readonly AgentTreeArea[];
   own: AgentOwnPlaces;
   now: Date;
+  /**
+   * The entry is a declared output of the reviewer's own run tree (O47): a
+   * reviewer reads it even where its files section and grants reach nothing.
+   * Only the area axis gives way; /trash, /system and the principal's own
+   * authority still decide.
+   */
+  reviewedOutput?: boolean;
 }>;
 
 /**
@@ -327,12 +338,14 @@ export async function assertAgentFileRead(
     folderChain: chain.map((row) => row.id),
     now: scope.now,
   });
-  const refusal = agentReadAreaRefusal({
-    area,
-    declared: scope.declared,
-    liveGrant: decision.grant,
-    personalOwnerId: personalOwnerOf(entries),
-  });
+  const refusal = scope.reviewedOutput === true
+    ? undefined
+    : agentReadAreaRefusal({
+      area,
+      declared: scope.declared,
+      liveGrant: decision.grant,
+      personalOwnerId: personalOwnerOf(entries),
+    });
   if (refusal !== undefined) forbidden(refusal);
   // Layer 4: never beyond the person the agent acts for.
   if (
@@ -373,6 +386,12 @@ export async function agentFileReadFor(
     declared: declaredTreeAreas(context.sessionScopes, AgentFileAccess.Read),
     own: await ownPlaces(tx, scope.organizationId, origin.taskId),
     now: scope.now ?? new Date(),
+    reviewedOutput: await reviewerDeclaredOutput(
+      tx,
+      await reviewerIsolationOf(tx, context, scope.organizationId),
+      scope.organizationId,
+      scope.target.id,
+    ),
   });
 }
 
@@ -406,6 +425,12 @@ export async function agentFileWriteFor(
   const attemptId = context.agentSession.attemptId;
   const origin = await attemptOrigin(tx, scope.organizationId, attemptId);
   if (origin === null) forbidden(AgentFileRefusal.GrantMissing);
+  // O47: a reviewer writes only its declared outputs, which reach the record
+  // area through its step's result, never a storage write. Judged before any
+  // grant is read, so a grant to the folder cannot reopen it.
+  if (
+    (await reviewerIsolationOf(tx, context, scope.organizationId)) !== null
+  ) forbidden(AgentFileRefusal.ReviewerOutputsOnly);
   return await assertAgentFileWrite(tx, {
     organizationId: scope.organizationId,
     principalId: scope.principalId,

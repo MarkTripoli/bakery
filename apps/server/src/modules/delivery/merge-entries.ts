@@ -61,7 +61,30 @@ export type MergeEntryRead = {
   createdAt: string;
   updatedAt: string;
   version: number;
+  /** Why the queue stopped it; null unless blocked with a recorded reason. */
+  blockedReason: MergeEntryBlockedReason | null;
 };
+
+/** The closed set of reasons the queue records (migration 0259). */
+export const MERGE_ENTRY_BLOCKED_REASONS = [
+  "already_merged",
+  "not_open",
+  "head_moved",
+  "base_moved",
+  "checks_not_passed",
+  "not_permitted",
+  "evidence_changed",
+  "github_refused",
+  "not_merged",
+  "unavailable",
+] as const;
+
+export type MergeEntryBlockedReason =
+  typeof MERGE_ENTRY_BLOCKED_REASONS[number];
+
+const BLOCKED_REASONS: ReadonlySet<string> = new Set(
+  MERGE_ENTRY_BLOCKED_REASONS,
+);
 
 type EntryRow = {
   id: string;
@@ -78,6 +101,7 @@ type EntryRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  blocked_reason: string | null;
   cursor_created_at: string;
 };
 
@@ -85,6 +109,7 @@ const ENTRY_COLUMNS = `entry.id,entry.pull_request_id,entry.repository_id,
   entry.target_branch,entry.expected_head_sha,entry.expected_base_sha,
   entry.status,entry.external_effect_id,entry.run_id,entry.policy_digest,
   entry.review_cycle_id,entry.created_at,entry.updated_at,entry.version,
+  entry.blocked_reason,
   to_char(entry.created_at at time zone 'UTC', '${TIMESTAMP_SQL}')
     as cursor_created_at`;
 
@@ -121,6 +146,12 @@ function entry(row: EntryRow): MergeEntryRead {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
+    // A reason the read does not know reads as no reason, so the page shows
+    // its "was not told why" card instead of guessing.
+    blockedReason: row.blocked_reason !== null &&
+        BLOCKED_REASONS.has(row.blocked_reason)
+      ? row.blocked_reason as MergeEntryBlockedReason
+      : null,
   };
 }
 

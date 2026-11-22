@@ -16,6 +16,9 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
 import { FilePreview, previewKind } from "./FilePreview.tsx";
+import { mismatchSubject } from "./mismatch-selection.ts";
+import { refusedDownload } from "./media-failure.ts";
+import { offersDownload } from "../preview-actions.ts";
 import { type ReactNode, useState } from "react";
 
 export type FileTab = "details" | "versions" | "uses";
@@ -86,9 +89,18 @@ export function FileDetails(
       file.id,
       shown?.revision,
     );
-    if (
-      !result.ok || result.data.status !== 200 || result.data.content === null
-    ) {
+    if (!result.ok) {
+      // A refused read is not a download that failed: the bytes and the record
+      // disagree, and that is the same refusal the preview shows. Keeping it here
+      // means the panel says one thing, and stops offering to save the bytes.
+      if (refusedDownload(result.error) === "mismatch") {
+        setBytesMismatch(true);
+        return;
+      }
+      setDownloadFailed(true);
+      return;
+    }
+    if (result.data.status !== 200 || result.data.content === null) {
       setDownloadFailed(true);
       return;
     }
@@ -107,9 +119,30 @@ export function FileDetails(
   const useRows = uses.data?.pages.flatMap((page) => page.items) ?? [];
   const current = versionRows.find((version) => version.isCurrent) ?? null;
   // An older version being looked at; the current one is the plain file.
+  // The preview says when the bytes and the record disagree; this panel must not
+  // offer to save them, since the design promises exactly that (#437).
+  const [bytesMismatch, setBytesMismatch] = useState(false);
+  // A refusal belongs to the file and version that was refused. Selecting
+  // another one starts clean, or one refusal would blame every file opened in
+  // this panel until it closes (#437 review).
+  const subject = mismatchSubject(file.id, revision);
+  const [mismatchFor, setMismatchFor] = useState(subject);
+  if (mismatchFor !== subject) {
+    setMismatchFor(subject);
+    setBytesMismatch(false);
+    setDownloadFailed(false);
+    setMoreOpen(false);
+  }
+
   const shown = revision === undefined || revision === current?.revision
     ? null
     : versionRows.find((version) => version.revision === revision) ?? null;
+  // With Download gone, "More" would open a menu with one item in it: on a phone
+  // the path itself becomes the button (#437, UX review).
+  const downloadWithheld = !offersDownload({
+    mismatch: bytesMismatch,
+    contentRemoved: shown?.contentRemoved ?? file.contentRemoved,
+  });
 
   const day = (value: string) =>
     formatDate(new Date(value), locale, { dateStyle: "medium", timeZone });
@@ -156,8 +189,25 @@ export function FileDetails(
         </>
       );
     }
+    if (version.makerKind === "agent") {
+      return (
+        <UI.Stack gap="none">
+          {madeByText(version)}
+          <UI.Text variant="muted">
+            {version.makerName === null
+              ? translate("files.madeBy.agentAccessUnknown")
+              : translate("files.madeBy.agentAccess", {
+                person: version.makerName,
+              })}
+          </UI.Text>
+        </UI.Stack>
+      );
+    }
     return version.makerName ?? translate("files.madeBy.unknown");
   };
+  // A run step or an agent's session wrote it: the Agent badge and row name.
+  const byAgent = (version: StorageFileVersion): boolean =>
+    version.makerKind === "agent" || version.makerKind === "step";
   // The "who or what" line as text, for a row whose description is a string.
   const madeByText = (version: StorageFileVersion | null): string => {
     if (version === null) return translate("files.madeBy.unknown");
@@ -166,6 +216,22 @@ export function FileDetails(
         step: version.stepName,
         item: version.workItemTitle ?? "",
       });
+    }
+    if (version.makerKind === "agent") {
+      // An agent's version never reads as the person's own (#448).
+      // With no person recorded, the sentence never names "Not recorded".
+      const person = version.makerName;
+      if (person === null) {
+        return version.agentName === null
+          ? translate("files.madeBy.agentAlone")
+          : translate("files.madeBy.agentOnly", { agent: version.agentName });
+      }
+      return version.agentName === null
+        ? translate("files.madeBy.agentUnnamed", { person })
+        : translate("files.madeBy.agent", {
+          agent: version.agentName,
+          person,
+        });
     }
     return version.makerName ?? translate("files.madeBy.unknown");
   };
@@ -264,9 +330,12 @@ export function FileDetails(
               key={version.id}
               onSelect={() =>
                 onRevision(version.isCurrent ? undefined : version.revision)}
-              aria-label={translate("files.version.choose", {
-                number: version.revision,
-              })}
+              aria-label={translate(
+                byAgent(version)
+                  ? "files.version.chooseAgent"
+                  : "files.version.choose",
+                { number: version.revision },
+              )}
               title={
                 <UI.Inline gap="compact">
                   {translate("files.version.title", {
@@ -279,6 +348,19 @@ export function FileDetails(
                       </UI.Badge>
                     )
                     : null}
+                  {!byAgent(version) ? null : (
+                    <UI.Inline gap="compact">
+                      <UI.Badge tone="neutral">
+                        {translate("files.version.agentBadge")}
+                      </UI.Badge>
+                      <UI.HelpTip
+                        label={translate("files.version.agentHelpLabel")}
+                        placement="above"
+                      >
+                        {translate("files.version.agentHelp")}
+                      </UI.HelpTip>
+                    </UI.Inline>
+                  )}
                   {shown?.revision === version.revision
                     ? (
                       <UI.Badge tone="neutral">
@@ -419,6 +501,8 @@ export function FileDetails(
           version={shown}
           full={opened && phone}
           onOpenable={setOpenable}
+          onMismatch={setBytesMismatch}
+          downloadRefused={bytesMismatch}
         />
       )}
       <UI.Inline gap="compact">
@@ -448,21 +532,23 @@ export function FileDetails(
             </UI.Button>
           )
           : null}
-        {(shown?.contentRemoved ?? file.contentRemoved) ? null : (
-          <UI.Button
-            // The first button in the row is the primary one: Download, when
-            // there is nothing to open (or the file is already open).
-            variant={artifactTarget !== null || showOpen
-              ? "secondary"
-              : "primary"}
-            onClick={() => void download()}
-          >
-            {shown === null
-              ? translate("files.action.download")
-              : translate("files.action.downloadVersion")}
-          </UI.Button>
-        )}
-        {phone
+        {(shown?.contentRemoved ?? file.contentRemoved) || downloadWithheld
+          ? null
+          : (
+            <UI.Button
+              // The first button in the row is the primary one: Download, when
+              // there is nothing to open (or the file is already open).
+              variant={artifactTarget !== null || showOpen
+                ? "secondary"
+                : "primary"}
+              onClick={() => void download()}
+            >
+              {shown === null
+                ? translate("files.action.download")
+                : translate("files.action.downloadVersion")}
+            </UI.Button>
+          )}
+        {phone && !downloadWithheld
           ? (
             <UI.Button
               variant="secondary"
@@ -486,7 +572,7 @@ export function FileDetails(
             </UI.Button>
           )}
       </UI.Inline>
-      {phone && moreOpen
+      {phone && moreOpen && !downloadWithheld
         ? (
           <UI.Menu
             aria-label={translate("files.action.moreLabel")}

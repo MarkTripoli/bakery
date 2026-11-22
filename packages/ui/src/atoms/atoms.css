@@ -130,6 +130,13 @@
 .ui-inline--compact {
   gap: var(--space-2);
 }
+/* 12px: the blocks of one open step, between compact (8px) and standard (16px). */
+.ui-stack--comfortable {
+  gap: var(--space-3);
+}
+.ui-stack--indent {
+  padding-inline-start: var(--space-4);
+}
 .ui-stack--standard,
 .ui-inline--standard {
   gap: var(--space-4);
@@ -176,6 +183,19 @@
   gap: var(--space-4);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+/* A list to pick from (12.5rem) beside what it picks, such as providers beside
+   their models; one column on phones. */
+.ui-inline--aside {
+  align-items: start;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 12.5rem minmax(0, 1fr);
+}
+@media (max-width: 743px) {
+  .ui-inline--aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .ui-inline--thirds {
   align-items: stretch;
   display: grid;
@@ -185,6 +205,19 @@
 @media (max-width: 743px) {
   .ui-inline--thirds {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Four figures across a page; two by two where four would be too narrow to
+   read a number. */
+.ui-inline--quarters {
+  align-items: stretch;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 743px) {
+  .ui-inline--quarters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 .ui-spacer {
@@ -280,4 +313,87 @@
   .ui-heading[data-inset="row"] {
     padding-inline: var(--space-4);
   }
+}
+
+/* A provider's mark: a fixed square slot, so every name starts at one x. The
+   art is the vendor's own file and is only ever scaled to fit. */
+.ui-provider-mark {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+}
+.ui-provider-mark--row {
+  block-size: var(--space-6);
+  inline-size: var(--space-6);
+}
+.ui-provider-mark--header {
+  block-size: var(--space-8);
+  inline-size: var(--space-8);
+}
+.ui-provider-mark__art {
+  block-size: var(--space-5);
+  inline-size: var(--space-5);
+  object-fit: contain;
+}
+.ui-provider-mark--header .ui-provider-mark__art {
+  block-size: calc(var(--space-6) + var(--space-0-5));
+  inline-size: calc(var(--space-6) + var(--space-0-5));
+}
+/* A vendor file that carries its own clear space (OpenAI): the whole file is
+   drawn at twice the art size and overflows the slot, centred, so the glyph
+   reads at the normal size. The slot keeps its size; the overflow is
+   transparent clear space and takes no pointer events. */
+.ui-provider-mark[data-clear-space="true"] {
+  overflow: visible;
+  pointer-events: none;
+}
+.ui-provider-mark[data-clear-space="true"] .ui-provider-mark__art {
+  block-size: calc(var(--space-5) * 2);
+  flex: none;
+  inline-size: calc(var(--space-5) * 2);
+}
+.ui-provider-mark--header[data-clear-space="true"] .ui-provider-mark__art {
+  block-size: calc((var(--space-6) + var(--space-0-5)) * 2);
+  inline-size: calc((var(--space-6) + var(--space-0-5)) * 2);
+}
+.ui-provider-mark__tile {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: inline-flex;
+  font: var(--type-label);
+  justify-content: center;
+  block-size: 100%;
+  inline-size: 100%;
+}
+/* In a heading the mark leads the name, on the name's own line. */
+/* A mark beside its name keeps to one line: the name wraps, never drops under
+   the mark. */
+.ui-inline:has(> .ui-provider-mark) {
+  flex-wrap: nowrap;
+}
+.ui-heading .ui-provider-mark {
+  margin-inline-end: var(--space-3);
+  vertical-align: middle;
+}
+
+/* A plugin's own page: a frame that fills its parent and scrolls inside. The
+   frame has no border of its own; Bakery's strip above it draws the edge. */
+.ui-sealed-frame {
+  background: var(--color-canvas);
+  block-size: 100%;
+  /* It fills the rest of the window, on a phone as on a desktop. */
+  min-block-size: 70dvh;
+  border: var(--border-none);
+  display: block;
+  inline-size: 100%;
+}
+
+/* A row whose buttons keep full touch targets wherever it is placed. */
+.ui-inline[data-touch-targets="coarse"] {
+  --target-min: var(--target-coarse);
 }

@@ -671,7 +671,7 @@ Deno.test("issue 82 recheck: an explicit resume clears the pause mark, so the ne
     );
   }));
 
-Deno.test("issue 82 recheck: a finished run ends the request; a ticket without a nonterminal request is left alone", () =>
+Deno.test("issue 82 recheck: a finished run ends the request once its work is merged; a ticket without a nonterminal request is left alone", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: fx.policy() });
     setIssue(fx, 801);
@@ -680,6 +680,25 @@ Deno.test("issue 82 recheck: a finished run ends the request; a ticket without a
       `update bakery.workflow_runs set status = 'completed', finished_at = now()
         where organization_id = $1 and id = $2`,
       [fx.organizationId, admitted.request!.workflowRunId],
+    );
+    // Issue 32: a pull request closed without a merge does not deliver the work.
+    const open = () =>
+      fx.owner.query<{ disposition: string }>(
+        "select disposition from bakery.ticket_requests where id = $1",
+        [admitted.request!.id],
+      ).then((result) => result.rows[0].disposition);
+    const before = await open();
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: admitted.request!.taskId,
+      number: 91,
+      status: "closed",
+    });
+    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
+    assertEquals(await open(), before, "still open: nothing was merged");
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where provider_number = 91 and organization_id = $1",
+      [fx.organizationId],
     );
     const ended = await fx.recheck(admitted.ticketId!);
     assertEquals(ended.applied, ["terminal"]);
@@ -695,6 +714,153 @@ Deno.test("issue 82 recheck: a finished run ends the request; a ticket without a
     assertEquals(none.applied, []);
     assertEquals(none.request, null);
     assertEquals((await fx.counts(sourceId)).reports, reports);
+  }));
+
+Deno.test("issue 32 recheck: under the default merged policy a run that finishes before its pull request registers is not delivered, and one with none after the hold is", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: fx.policy() });
+    setIssue(fx, 831);
+    const admitted = await fx.admit(sourceId, { number: 831, intent: "start" });
+    assertEquals(admitted.request!.intent, "start");
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed', finished_at = now()
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, admitted.request!.workflowRunId],
+    );
+    // The run ended a moment ago and no pull request is registered yet: the
+    // step that registers it may not have run. A terminal request never
+    // reopens, so the request is held, not delivered.
+    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
+    // The pull request registers after the run finished: it still counts, and
+    // delivery waits for the merge.
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: admitted.request!.taskId,
+      number: 94,
+      status: "open",
+    });
+    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where provider_number = 94 and organization_id = $1",
+      [fx.organizationId],
+    );
+    const merged = await fx.recheck(admitted.ticketId!);
+    assertEquals(merged.applied, ["terminal"]);
+    assertEquals(merged.request?.disposition, "completed");
+
+    // A docs or ops task, or a run that found nothing to change, registers no
+    // pull request: once the hold is over there is nothing to merge, so
+    // finished is delivered.
+    setIssue(fx, 833);
+    const bare = await fx.admit(sourceId, { number: 833, intent: "start" });
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed',
+              finished_at = now() - interval '11 minutes'
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, bare.request!.workflowRunId],
+    );
+    const ended = await fx.recheck(bare.ticketId!);
+    assertEquals(ended.applied, ["terminal"]);
+    assertEquals(ended.request?.disposition, "completed");
+    assertEquals(ended.request?.dispositionReason, "run_completed");
+
+    // A pull request that is open holds the work: it is code not yet taken.
+    setIssue(fx, 832);
+    const held = await fx.admit(sourceId, { number: 832, intent: "start" });
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: held.request!.taskId,
+      number: 93,
+      status: "open",
+    });
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed', finished_at = now()
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, held.request!.workflowRunId],
+    );
+    assertEquals((await fx.recheck(held.ticketId!)).applied, []);
+  }));
+
+Deno.test("issue 32 recheck: under deployed_healthy a merge is not delivery, and a closed issue or an unmerged pull request never is", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ completion: "deployed_healthy" }),
+    });
+    setIssue(fx, 811);
+    const admitted = await fx.admit(sourceId, { number: 811, intent: "start" });
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed', finished_at = now()
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, admitted.request!.workflowRunId],
+    );
+    setIssue(fx, 811, { state: "closed", stateReason: "completed" });
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: admitted.request!.taskId,
+      number: 92,
+      status: "closed",
+    });
+    // A closed issue stops new work (the request is suspended); it is not
+    // delivery, and neither is a pull request closed without a merge.
+    const notDelivered = async (why: string) => {
+      const result = await fx.recheck(admitted.ticketId!);
+      assertEquals(result.applied.includes("terminal"), false, why);
+      const stored = await fx.owner.query<{ disposition: string }>(
+        "select disposition from bakery.ticket_requests where id = $1",
+        [admitted.request!.id],
+      );
+      assertEquals(stored.rows[0].disposition !== "completed", true, why);
+    };
+    await notDelivered("a closed issue and an unmerged pull request");
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where provider_number = 92 and organization_id = $1",
+      [fx.organizationId],
+    );
+    // Merged, but no healthy release is recorded: still not delivered.
+    await notDelivered("a merge without healthy release evidence");
+  }));
+
+Deno.test("issue 32 recheck: work that opens no pull request is delivered when it finishes, by the task policy or a planning-only request", () =>
+  withTicketFixture(async (fx) => {
+    const finish = (runId: string | null) =>
+      fx.owner.query(
+        `update bakery.workflow_runs set status = 'completed', finished_at = now()
+          where organization_id = $1 and id = $2`,
+        [fx.organizationId, runId],
+      );
+    const disposition = async (requestId: string) =>
+      (await fx.owner.query<{ disposition: string }>(
+        "select disposition from bakery.ticket_requests where id = $1",
+        [requestId],
+      )).rows[0].disposition;
+
+    // The source says `task`: a finished run with no pull request is done.
+    const taskSource = await fx.insertSource({
+      policy: fx.policy({ completion: "task" }),
+    });
+    setIssue(fx, 821);
+    const task = await fx.admit(taskSource, { number: 821, intent: "start" });
+    await finish(task.request!.workflowRunId);
+    const ended = await fx.recheck(task.ticketId!);
+    assertEquals(ended.applied, ["terminal"]);
+    assertEquals(await disposition(task.request!.id), "completed");
+
+    // A planning-only request opens no pull request, so under the default
+    // `merged` policy it is still delivered when its run finishes.
+    const mergedSource = await fx.insertSource({ policy: fx.policy() });
+    setIssue(fx, 822);
+    const plan = await fx.admit(mergedSource, { number: 822, intent: "plan" });
+    // A planning-only request has no run: it ends with its task.
+    assertEquals(plan.request!.workflowRunId, null);
+    await fx.owner.query(
+      `update bakery.tasks set status = 'completed', updated_at = now(),
+              version = version + 1
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, plan.request!.taskId],
+    );
+    const planned = await fx.recheck(plan.ticketId!);
+    assertEquals(planned.applied, ["terminal"]);
+    assertEquals(await disposition(plan.request!.id), "completed");
   }));
 
 Deno.test("issue 82 recheck: a suspended request's task refuses runs.create, and a run started by hand once it resumes is linked, not duplicated", () =>

@@ -41,13 +41,15 @@ const STEADY_INTERVAL_MS = 300_000;
 /** `Retry-After` is honoured up to this; a provider cannot park a route for a day. */
 const RETRY_AFTER_CEILING_MS = 3_600_000;
 /**
- * Whether a failed probe may open an incident. Off, by ruling on #26: an incident
- * is only safe to open once something can close it, and only the inference-trial
- * slice adds that. Until then the probe records reachability, failure counts and
- * backoff, so a transient outage can never permanently remove a route. That slice
- * turns this on together with its closer.
+ * Whether a failure (a probe's, or a real attempt's) may open an incident.
+ *
+ * The ruling on #26 kept this off until something could close an incident, so a
+ * transient outage could never permanently remove a route. That closer now exists
+ * (#70): a completed attempt on a route's pin is `inference_proven`
+ * (`attempt-route-evidence.ts`), and claiming work never checks a route's health,
+ * so the next step that runs on the pin and succeeds closes the incident.
  */
-export const PROBE_OPENS_INCIDENTS = false;
+export const PROBE_OPENS_INCIDENTS = true;
 /** A route whose host the server may not call is retried rarely; it is a configuration fault. */
 const REFUSED_RETRY_MS = 3_600_000;
 

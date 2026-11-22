@@ -24,6 +24,23 @@ import {
 } from "./shared.ts";
 
 import { createWorkerSessionWorkflows } from "@bakery/persistence/worker-session";
+export { withLinkCommand } from "./link-codes.ts";
+import { withLinkCommand } from "./link-codes.ts";
+import {
+  isSupportedSystem,
+  linkCodeHash,
+  mintShortCode,
+  normalizeShortCode,
+  reportedOs,
+} from "./link-codes.ts";
+import {
+  linkRefusal,
+  REGISTER_LINK_PER_CODE,
+  REGISTER_LINK_PER_SOURCE,
+  requestSource,
+  spendLinkAttempt,
+} from "./link.ts";
+
 export async function enrollWorker(
   context: Context<{ Variables: AuthVariables }>,
   options: ExecutionRouteOptions,
@@ -32,9 +49,15 @@ export async function enrollWorker(
     context,
     contractSchemas.WorkerEnrollmentCreate,
   );
+  const name = input.name?.trim() || null;
+  const architecture = input.architecture === undefined
+    ? null
+    : normalizeArchitecture(input.architecture);
   const canonicalInput = {
     ...input,
-    architecture: normalizeArchitecture(input.architecture),
+    name,
+    os: input.os ?? null,
+    architecture,
   };
   const idempotencyKey = parseIdempotencyKey(
     context.req.header("Idempotency-Key"),
@@ -51,12 +74,14 @@ export async function enrollWorker(
         principalId: principal.principalId,
         idempotencyKey,
         requestDigest: digest,
-        name: input.name,
-        os: input.os,
-        architecture: canonicalInput.architecture,
+        name,
+        os: input.os ?? null,
+        architecture,
         capabilities,
         slots: input.slots,
         metadata,
+        mintLinkCode: mintShortCode,
+        hashLinkCode: linkCodeHash,
         enrollmentTtlSeconds: ENROLLMENT_TTL_MS / 1000,
         replayTtlSeconds: IDEMPOTENCY_REPLAY_TTL_SECONDS,
         randomSecret,
@@ -65,7 +90,7 @@ export async function enrollWorker(
         unprotect: (value) => unprotect(options.secret, value),
       });
       return {
-        response: contractSchemas.WorkerEnrollment.parse(result.response),
+        response: withLinkCommand(options, result.response),
         replayed: result.replayed,
       };
     },
@@ -106,7 +131,37 @@ export async function registerWorker(
   });
   const metadata = requestMetadata(context);
   assertCredentialStrength(input.workerCredential);
-  const enrollmentHash = await sha256Hex(input.enrollmentToken);
+  // Exactly one of the long token or the link code names the enrollment.
+  if (
+    (input.enrollmentToken === undefined) === (input.linkCode === undefined)
+  ) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { field: "enrollmentToken" },
+    });
+  }
+  let enrollment: { by: "token" | "linkCode"; hash: string };
+  if (input.linkCode !== undefined) {
+    await spendLinkAttempt(
+      options,
+      `register:source:${requestSource(context)}`,
+      REGISTER_LINK_PER_SOURCE,
+    );
+    const code = normalizeShortCode(input.linkCode);
+    if (code === null) throw linkRefusal("not_found");
+    const hash = await linkCodeHash(code);
+    await spendLinkAttempt(
+      options,
+      `register:code:${hash}`,
+      REGISTER_LINK_PER_CODE,
+    );
+    enrollment = { by: "linkCode", hash };
+  } else {
+    enrollment = {
+      by: "token",
+      hash: await sha256Hex(input.enrollmentToken ?? ""),
+    };
+  }
   const requestedCapabilities = normalizeCapabilities(input.capabilities);
   const result = await withPgTransaction(
     options.database,
@@ -114,7 +169,9 @@ export async function registerWorker(
       const result = await createWorkerSessionWorkflows(transaction).register({
         idempotencyKey,
         requestDigest: digest,
-        enrollmentHash,
+        enrollment,
+        isSupportedSystem: (os, architecture) =>
+          isSupportedSystem(reportedOs(os), architecture),
         name: input.name,
         os: input.os,
         architecture: canonicalInput.architecture,

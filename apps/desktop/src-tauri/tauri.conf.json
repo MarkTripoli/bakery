@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Bakery",
+  "version": "0.0.0",
+  "identifier": "com.bakery.desktop",
+  "build": {
+    "frontendDist": "../web"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Bakery",
+        "width": 960,
+        "height": 640,
+        "minWidth": 400,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Bakery desktop app",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "bakery.desktop"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "UNSET: the release public key is held by the owner, so no update verifies until it is set",
+      "endpoints": []
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "bakery"
+        ]
+      }
+    }
+  }
+}

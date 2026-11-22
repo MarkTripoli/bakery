@@ -70,6 +70,7 @@
       "packages/contracts/src/catalog-literals.ts",
       "packages/contracts/generated/client-manifest.ts",
       "packages/contracts/generated/transport-schemas.ts",
+      "packages/worker-bootstrap/generated/link-bundle.ts",
       "docs/technical-design/enterprise-mocks/paper-source/",
       "docs/technical-design/enterprise-mocks/site/",
       "docs/technical-design/settings-mocks/source/",
@@ -77,12 +78,16 @@
       "docs/technical-design/entitlements-mocks/source/",
       "docs/technical-design/entitlements-mocks/site/",
       "docs/technical-design/artifacts-mocks/source/",
-      "docs/technical-design/artifacts-mocks/site/"
+      "docs/technical-design/artifacts-mocks/site/",
+      "apps/desktop/web/foundations/",
+      "apps/desktop/web/fonts/"
     ]
   },
   "lint": {
     "exclude": [
-      "apps/web/public/theme-bootstrap.js"
+      "apps/web/public/theme-bootstrap.js",
+      "apps/desktop/web/foundations/",
+      "apps/desktop/web/fonts/"
     ],
     "plugins": [
       "./scripts/lint/contract-quality.ts"

@@ -64,9 +64,50 @@
   flex: none;
 }
 
+/* On a phone a banner's action takes its own row under the text, so a short
+   label never squeezes the message into a narrow column. */
+@media (max-width: 743px) {
+  .ui-alert-banner__action {
+    flex-basis: 100%;
+  }
+}
+
+/* A banner whose buttons are its next step: on a phone they sit under the text, full width. */
+@media (max-width: 743px) {
+  .ui-alert-banner[data-action-layout="stretch"] {
+    flex-wrap: wrap;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action {
+    flex: 1 1 100%;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline > * {
+    flex: none;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-button {
+    inline-size: 100%;
+  }
+}
+
 .ui-inline-notice__icon,
 .ui-alert-banner__icon {
   flex: none;
+}
+
+/* From a tablet up, a notice with an action is one line of text beside its
+   button: icon, text and action share a centre line, so a one-line notice is not
+   a tall box with the text at the top. A phone keeps the top alignment, where
+   the text can wrap under the icon. The bar layout has its own alignment. */
+@media (min-width: 744px) {
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) {
+    align-items: center;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) > .ui-inline-notice__icon {
+    margin-block-start: 0;
+  }
 }
 
 .ui-inline-notice__icon {
@@ -278,6 +319,11 @@
 .ui-help-tip .ui-icon-button:hover,
 .ui-help-tip .ui-icon-button:focus-visible {
   color: var(--color-fg);
+}
+/* On a line of text the 44px target hangs out of the line box, so a name with a
+   tip keeps the same height as one without: rows keep one rhythm. */
+[data-hung-tip] > .ui-help-tip {
+  margin-block: calc(var(--space-2-5) * -1);
 }
 .ui-help-tip__panel {
   background: var(--color-surface-raised);

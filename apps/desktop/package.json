@@ -1,0 +1,9 @@
+{
+  "name": "@bakery/desktop",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "sync": "deno run --allow-read --allow-write scripts/sync-foundations.ts",
+    "typecheck": "deno check scripts/sync-foundations.ts"
+  }
+}

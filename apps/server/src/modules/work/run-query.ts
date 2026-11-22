@@ -18,6 +18,7 @@ import {
 import { readRunBudgetSummary } from "./budget.ts";
 import { isTaskStatus, toIso } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { readRunsWaitingOnModel } from "../execution/route-continuations.ts";
 
 const RUN_ORDERING = "createdAt:desc,id:desc";
 const RUN_STEP_ORDERING = "position:asc,iteration:asc,id:asc";
@@ -284,6 +285,11 @@ export function createRunQueryHandlers(secret: string) {
         ],
       );
       const visible = result.rows.slice(0, limit);
+      const waiting = await readRunsWaitingOnModel(
+        transaction,
+        organizationId,
+        visible.map((row) => row.id),
+      );
       const items: RunOutput[] = [];
       for (const row of visible) {
         items.push({
@@ -296,6 +302,7 @@ export function createRunQueryHandlers(secret: string) {
             }),
           ),
           ...await readRunBlocking(transaction, organizationId, row),
+          waitingOnModel: waiting.has(row.id),
         });
       }
       const last = visible.at(-1);
@@ -325,6 +332,11 @@ export function createRunQueryHandlers(secret: string) {
           }),
         ),
         ...await readRunBlocking(transaction, organizationId, run),
+        waitingOnModel: (await readRunsWaitingOnModel(
+          transaction,
+          organizationId,
+          [run.id],
+        )).has(run.id),
       };
     },
 

@@ -109,9 +109,10 @@ Deno.test("a registry refuses two adapters for one kind and lists them in order"
 });
 
 Deno.test("every record the server emits maps to the kinds it carries, and an unmapped one to none", () => {
-  // usage.settled holds only the attempt id and job.completed no duration, so
-  // neither carries cost or durations yet.
-  assertEquals(measurementsOf(usage), []);
+  // usage.settled carries token counts, which is the usage span under an
+  // attempt; no record holds an amount in money or a duration yet, so cost and
+  // durations are still not sent.
+  assertEquals(measurementsOf(usage), ["results"]);
   assertEquals(measurementsOf(completed), ["results"]);
   assertEquals(measurementsOf(sample), ["health"]);
   assertEquals(measurementsOf(unknown), []);
@@ -383,6 +384,20 @@ Deno.test("a destination that never answers fills only its own bounded queue whi
   assert(states.get("b")?.droppedSince !== null);
   // Nothing past the queue bound was ever held for it.
   assert(stuckBatches.every((size) => size <= fast.capacity));
+  // Each loss is kept as a report: how many, when and why, never the records.
+  const reports = fanout.drops("b");
+  assert(reports.length > 0, "the stuck destination has drop reports");
+  assertEquals(
+    reports.map((report) => report.id),
+    reports.map((_, index) => reports[0].id + index),
+  );
+  assert(reports.every((report) => report.count > 0 && report.at > 0));
+  assertEquals(
+    reports.reduce((sum, report) => sum + report.count, 0),
+    states.get("b")?.dropped,
+  );
+  assertEquals(fanout.drops("a"), []);
+  assertEquals(fanout.drops("nobody"), []);
   await fanout.close(0);
 });
 
@@ -411,9 +426,9 @@ Deno.test("a destination receives only the kinds it was told to, and an off one 
     [usage, completed, sample, unknown],
     new AbortController().signal,
   );
-  await until(() => got.results.length === 1 && got.health.length === 1);
+  await until(() => got.results.length === 2 && got.health.length === 1);
   await new Promise((resolve) => setTimeout(resolve, 30));
-  assertEquals(got.results, ["job.completed"]);
+  assertEquals(got.results, ["usage.settled", "job.completed"]);
   assertEquals(got.health, ["metrics"]);
   assertEquals(got.off, []);
   assertEquals(fanout.states().get("o")?.state, "off");

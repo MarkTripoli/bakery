@@ -19,6 +19,7 @@ import {
 import { createConversationQueryHandlers } from "./queries.ts";
 import {
   createConversationAccessListHandler,
+  createConversationAccessSharersHandler,
   createConversationMentionCandidatesHandler,
   revokeConversationAccess,
 } from "./access.ts";
@@ -83,6 +84,7 @@ export function createConversationRegistry(options: {
       ),
       accessList: createConversationAccessListHandler(options.cursorSecret),
       accessRevoke: revokeConversationAccess,
+      accessSharers: createConversationAccessSharersHandler(),
     },
     {
       authorityRunner: new PostgresAuthorityRunner(options.database),

@@ -10,6 +10,7 @@ import {
   open,
   type Output,
   search,
+  setPin,
   stat,
   uses,
 } from "./files.ts";
@@ -24,6 +25,8 @@ Usage:
   bakery files cat <ref>                 write a file's bytes to standard output
   bakery files get <ref> [-o path]       save a file (checks its digest)
   bakery files open <version-id>         the path and revision a saved version belongs to
+  bakery files pin <path>                keep a record file's versions (administrators; needs artifact:manage)
+  bakery files unpin <path>              let retention apply to it again
   bakery files search [text] [--in path] [--kind kind] [--type media-type]
 
 A <ref> is a path (/projects/web/plan.md), a path at one revision
@@ -186,6 +189,16 @@ export async function run(
         break;
       case "open":
         await open(api, single(parsed, "version id"), options, runtime.output);
+        break;
+      case "pin":
+      case "unpin":
+        await setPin(
+          api,
+          single(parsed, "file"),
+          command === "pin",
+          options,
+          runtime.output,
+        );
         break;
       case "search": {
         if (parsed.positionals.length > 1) {

@@ -9,6 +9,8 @@ import {
   createClaimsRepository,
 } from "@bakery/persistence/claims";
 import { jsonResponse, noContentResponse, parseContract } from "./http.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
+import { emitAttemptEvent, EXECUTION_TELEMETRY_EVENTS } from "./telemetry.ts";
 import { type ClaimUnitOfWork, executeClaim } from "./claim-application.ts";
 import {
   contractSchemas,
@@ -56,6 +58,10 @@ function createClaimUnitOfWork(database: PgDatabase): ClaimUnitOfWork {
           if (workerHostId !== identity.host.id) {
             throw new StandardError({ code: "AUTH_FORBIDDEN" });
           }
+          // A backup holds the installation: no new attempt is leased until it
+          // lets go. A worker treats the 503 as transient and keeps working
+          // on, and renewing the lease of, what it already holds.
+          await assertNotQuiesced(transaction, "workers");
           const persistence = createClaimsRepository(
             transaction,
             persistenceIdentity(identity),
@@ -79,12 +85,31 @@ export async function claimJob(
     context,
     contractSchemas.WorkerClaim,
   );
+  const claimUnit = createClaimUnitOfWork(options.database);
+  let organizationId = "";
   const result = await executeClaim({
     secret: options.secret,
     headers: context.req.raw.headers,
-    unitOfWork: createClaimUnitOfWork(options.database),
+    unitOfWork: {
+      run: (headers, workerHostId, work) =>
+        claimUnit.run(headers, workerHostId, (unit) => {
+          organizationId = unit.identity.host.organizationId;
+          return work(unit);
+        }),
+    },
     input,
   });
   if (result.status === 204) return noContentResponse(result.replayed);
+  // The claim has committed. A replayed claim handed out nothing new.
+  if (!result.replayed) {
+    await emitAttemptEvent(
+      options.database,
+      options.telemetry,
+      organizationId,
+      result.response.attemptId,
+      EXECUTION_TELEMETRY_EVENTS.attemptStarted,
+      { "bakery.attempt.id": result.response.attemptId },
+    );
+  }
   return jsonResponse(result.response, 200, result.replayed);
 }

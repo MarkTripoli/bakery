@@ -42,6 +42,12 @@ export type HelpTipProps =
     closeLabel?: string;
     /** The button's accessible name, such as "About enforcement". */
     label: string;
+    /**
+     * Where the tooltip opens from 744px up: "auto" (the default) below the
+     * button in the top half of the window and above it in the bottom half;
+     * "above" always above, for a tip whose text would cover the line it explains.
+     */
+    placement?: "auto" | "above";
   };
 
 /** Fired on the window when a HelpTip opens, so the others close. */
@@ -58,7 +64,13 @@ const OPENED = "bakery:help-tip-opened";
  * not a dialog: no backdrop, no focus trap, focus stays on the button.
  */
 export function HelpTip(
-  { children, closeLabel = "Close help", label, ...unsafeProps }: HelpTipProps,
+  {
+    children,
+    closeLabel = "Close help",
+    label,
+    placement = "auto",
+    ...unsafeProps
+  }: HelpTipProps,
 ) {
   const props = withoutSemanticOwnerProps(unsafeProps);
   const id = useId();
@@ -82,7 +94,8 @@ export function HelpTip(
       }
       const box = button.getBoundingClientRect();
       const rtl = getComputedStyle(button).direction === "rtl";
-      const below = box.top < globalThis.innerHeight / 2;
+      const below = placement === "auto" &&
+        box.top < globalThis.innerHeight / 2;
       // The start edge of the button, kept 16px inside the window for the widest panel.
       const width = document.documentElement.clientWidth;
       const room = Math.min(320, width - 32);
@@ -101,7 +114,7 @@ export function HelpTip(
       globalThis.removeEventListener("resize", place);
       globalThis.removeEventListener("scroll", place, true);
     };
-  }, [open]);
+  }, [open, placement]);
 
   // Never two at once: opening one closes any other that is open.
   useEffect(() => {

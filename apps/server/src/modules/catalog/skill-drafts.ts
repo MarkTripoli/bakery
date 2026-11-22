@@ -8,6 +8,12 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  finalizeLocalSkillVersionPublication,
+  type LocalSkillVersionPublicationPreparation,
+  type LocalSkillVersionPublicationProof,
+  prepareLocalSkillVersionPublication,
+} from "./publication.ts";
+import {
   assertMayAuthorSkill,
   SKILL_VISIBLE_TO,
   type SkillScope,
@@ -73,7 +79,7 @@ const DRAFT_FROM = `bakery.skill_drafts as draft
     on base.organization_id = draft.organization_id
    and base.id = draft.base_version_id`;
 
-type Facts = Readonly<{
+export type Facts = Readonly<{
   transaction: PgTransactionClient;
   organizationId: string;
   principalId: string;
@@ -86,7 +92,9 @@ type Facts = Readonly<{
  * Finds the skill the caller may author. Someone else's personal skill is not
  * found; a skill that comes with Bakery has no draft, only a copy has.
  */
-async function authorableSkill(context: ActionContext): Promise<Facts> {
+export async function authorableSkill(
+  context: ActionContext,
+): Promise<Facts> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
@@ -608,38 +616,36 @@ export function relativeLinks(
   return found;
 }
 
-/**
- * skillDrafts.check: what a publish would say about the draft, as sentences tied
- * to a file and, where known, a line. It runs the validation an upload runs, so
- * a draft that checks clean publishes.
- */
-export async function checkSkillDraft(
-  context: ActionContext,
-): Promise<DraftCheck> {
-  const facts = await authorableSkill(context);
-  const row = await requireDraft(facts);
-  const rows = (await facts.transaction.query<
-    FileRow & { content: Uint8Array }
-  >(
+type DraftFileWithContent = FileRow & { content: Uint8Array };
+type DraftProblem = {
+  file: string | null;
+  line: number | null;
+  code: string;
+  message: string;
+};
+
+async function readDraftFiles(
+  facts: Facts,
+  draftId: string,
+): Promise<DraftFileWithContent[]> {
+  return (await facts.transaction.query<DraftFileWithContent>(
     `select id, path, media_type, is_executable, size_bytes, sha256, content
        from bakery.skill_draft_files
       where organization_id = $1 and draft_id = $2 order by path`,
-    [facts.organizationId, row.id],
+    [facts.organizationId, draftId],
   )).rows;
-  const problems: DraftCheck["problems"] = [];
-  const add = (
-    file: string | null,
-    line: number | null,
-    code: string,
-    message: string,
-  ) => {
-    if (problems.length < SKILL_DRAFT_MAX_PROBLEMS) {
-      problems.push({ file, line, code, message });
-    }
-  };
-  const upload: LocalSkillVersionInput = {
+}
+
+/** The draft as the upload a publish would validate, at the revision it would take. */
+function draftUpload(
+  facts: Facts,
+  row: DraftRow,
+  rows: readonly DraftFileWithContent[],
+  revision: number,
+): LocalSkillVersionInput {
+  return {
     id: facts.skillId,
-    revision: 1,
+    revision,
     digest: "",
     entryPath: row.entry_path,
     manifest: {
@@ -661,6 +667,25 @@ export async function checkSkillDraft(
       isExecutable: file.is_executable,
       contentBase64: Buffer.from(file.content).toString("base64"),
     })),
+  };
+}
+
+/** What a publish would say about the draft, as sentences tied to a file and line. */
+async function draftProblems(
+  row: DraftRow,
+  rows: readonly DraftFileWithContent[],
+  upload: ReturnType<typeof draftUpload>,
+): Promise<DraftProblem[]> {
+  const problems: DraftProblem[] = [];
+  const add = (
+    file: string | null,
+    line: number | null,
+    code: string,
+    message: string,
+  ) => {
+    if (problems.length < SKILL_DRAFT_MAX_PROBLEMS) {
+      problems.push({ file, line, code, message });
+    }
   };
   try {
     await validateLocalSkillVersion(upload, { computeDigest: true });
@@ -697,10 +722,135 @@ export async function checkSkillDraft(
       }
     }
   }
+  return problems;
+}
+
+/**
+ * skillDrafts.check: what a publish would say about the draft, as sentences tied
+ * to a file and, where known, a line. It runs the validation an upload runs, so
+ * a draft that checks clean publishes.
+ */
+export async function checkSkillDraft(
+  context: ActionContext,
+): Promise<DraftCheck> {
+  const facts = await authorableSkill(context);
+  const row = await requireDraft(facts);
+  const rows = await readDraftFiles(facts, row.id);
+  const problems = await draftProblems(
+    row,
+    rows,
+    draftUpload(facts, row, rows, 1),
+  );
   const check: DraftCheck = {
     ok: problems.length === 0,
     problems,
     draftVersion: row.version,
   };
   return check;
+}
+
+/** A draft ready to publish: the version it becomes, held until its bytes are stored. */
+export type SkillDraftPublishPreparation = Readonly<{
+  draftId: string;
+  draftVersion: number;
+  publication: LocalSkillVersionPublicationPreparation;
+}>;
+
+/**
+ * skillDrafts.publish, first phase (before any object is written): the draft at
+ * the version the caller saw, checked as a publish checks it, and prepared as the
+ * next revision of its skill. A draft with problems is refused with each one.
+ */
+export async function prepareSkillDraftPublish(
+  context: ActionContext,
+): Promise<SkillDraftPublishPreparation> {
+  const facts = await authorableSkill(context);
+  const row = await requireDraft(facts, true);
+  const expected = requireExpectedVersion(context, row);
+  const rows = await readDraftFiles(facts, row.id);
+  const next = Number(
+    (await facts.transaction.query<{ next: number }>(
+      `select coalesce(max(revision), 0) + 1 as next
+         from bakery.skill_versions
+        where organization_id = $1 and skill_id = $2`,
+      [facts.organizationId, facts.skillId],
+    )).rows[0].next,
+  );
+  const upload = draftUpload(facts, row, rows, next);
+  const problems = await draftProblems(row, rows, upload);
+  if (problems.length > 0) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: {
+        issues: problems.map((problem) => ({
+          path: problem.file === null ? [] : ["files", problem.file],
+          code: problem.code,
+          message: problem.line === null
+            ? problem.message
+            : `${problem.message} (line ${problem.line})`,
+        })),
+      },
+    });
+  }
+  let digest: string;
+  try {
+    digest = (await validateLocalSkillVersion(upload, {
+      computeDigest: true,
+    })).digest;
+  } catch (error) {
+    if (error instanceof SkillUploadInvalid) uploadProblem(error);
+    throw error;
+  }
+  const publication = await prepareLocalSkillVersionPublication({
+    transaction: facts.transaction,
+    input: { ...upload, digest },
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+  });
+  return Object.freeze({
+    draftId: row.id,
+    draftVersion: expected,
+    publication,
+  });
+}
+
+/**
+ * skillDrafts.publish, final phase: the version is finalized and the draft is
+ * gone in one transaction, so a published draft is never published twice and a
+ * draft that changed since it was prepared publishes nothing.
+ */
+export async function commitSkillDraftPublish(options: {
+  context: ActionContext;
+  preparation: SkillDraftPublishPreparation;
+  proof: LocalSkillVersionPublicationProof;
+}) {
+  const { context, preparation, proof } = options;
+  const facts = await authorableSkill(context);
+  const row = await requireDraft(facts, true);
+  if (
+    row.id !== preparation.draftId || row.version !== preparation.draftVersion
+  ) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  const version = await finalizeLocalSkillVersionPublication({
+    transaction: facts.transaction,
+    context,
+    preparation: preparation.publication,
+    proof,
+  });
+  await facts.transaction.query(
+    `delete from bakery.skill_drafts where organization_id = $1 and id = $2`,
+    [facts.organizationId, row.id],
+  );
+  await appendAudit(facts.transaction, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    operation: "skillDrafts.publish",
+    resourceType: "skill_draft",
+    resourceId: row.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: { skillId: facts.skillId, versionId: version.id },
+  });
+  return version;
 }

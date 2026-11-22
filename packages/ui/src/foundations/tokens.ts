@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 087091ac93d0f90d61e5c626377d0ba676ab96b604353cf6cffc6d28dd5cf6f2. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 9751ef57dad9532c7dd744124499e031390d3bec10424b6067812b7d4f7154a6. */
 export const semanticTokens = {
   "border.default": "--border-default",
   "border.emphasis": "--border-emphasis",
@@ -84,6 +84,7 @@ export const semanticTokens = {
   "layout.device.status.gap": "--layout-device-status-gap",
   "layout.dialog": "--layout-dialog",
   "layout.field.label": "--layout-field-label",
+  "layout.form-summary": "--layout-form-summary",
   "layout.header": "--layout-header",
   "layout.inspector": "--layout-inspector",
   "layout.item.action": "--layout-item-action",

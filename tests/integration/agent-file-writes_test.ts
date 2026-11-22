@@ -77,6 +77,32 @@ type Agent = {
 };
 
 /**
+ * A session call that has not answered in 30 s fails the test by name. The
+ * gateway holds the attempt row while the operation runs on another
+ * connection; a lock the two wait on in turn never errors in Postgres (the
+ * cycle runs through the client), so without this a regression hangs.
+ */
+async function bounded(
+  call: Promise<Response>,
+  tool: string,
+): Promise<Response> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      call,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("session call " + tool + " hung for 30 s")),
+          30_000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * An agent in a real session: a registered worker claims a seeded job and
  * calls Bakery's own operations through the self-connection with the session
  * credential the claim minted.
@@ -108,19 +134,22 @@ async function agentSession(
     attemptId: assignment.attemptId,
     job,
     call: (tool, args, ifMatch) =>
-      workerRequest(
-        fixture,
-        worker.credential,
-        "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
-        { tool, arguments: args },
-        {
-          headers: {
-            "x-session-credential": token,
-            ...(ifMatch === undefined
-              ? {}
-              : { "If-Match": '"' + ifMatch + '"' }),
+      bounded(
+        workerRequest(
+          fixture,
+          worker.credential,
+          "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
+          { tool, arguments: args },
+          {
+            headers: {
+              "x-session-credential": token,
+              ...(ifMatch === undefined
+                ? {}
+                : { "If-Match": '"' + ifMatch + '"' }),
+            },
           },
-        },
+        ),
+        tool,
       ),
   };
 }
@@ -227,6 +256,177 @@ Deno.test("an agent's write is audited with the person and the session, in the p
       Object.keys(personRow.details.actor).sort(),
       Object.keys(agentRow.details.actor).sort(),
     );
+  }));
+
+Deno.test("an agent's put writes exactly one write-set row, and its version reads as the agent's", () =>
+  withWorkerFixture(async (fixture) => {
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-write-set",
+      }),
+      201,
+    );
+    const agent = await agentSession(
+      fixture,
+      "agent-448-write-set",
+      async (job) => {
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    const written = await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-write-set/a.md"),
+      ),
+    );
+    // A person's own write in the same folder is in no step's set.
+    await json(
+      await asPerson(
+        fixture,
+        "PUT",
+        "/v1/storage/files",
+        file("/shared/agent-448-write-set/b.md", "person bytes"),
+      ),
+      200,
+    );
+    const rows = await fixture.pgDatabase.query<{
+      attempt_id: string;
+      agent_session_id: string | null;
+      entry_id: string;
+      op: string;
+      previous_version_id: string | null;
+      new_version_id: string | null;
+    }>(
+      "select attempt_id, agent_session_id, entry_id, op," +
+        " previous_version_id, new_version_id from bakery.step_write_set" +
+        " where organization_id = $1 and attempt_id = $2",
+      [fixture.organizationId, agent.attemptId],
+    );
+    assertEquals(rows.rows.length, 1);
+    const row = rows.rows[0];
+    assertEquals(row.entry_id, written.id);
+    assertEquals(row.op, "put");
+    assertEquals(row.previous_version_id, null);
+    assertEquals(row.new_version_id, written.currentVersionId);
+    const audit = await fixture.pgDatabase.query<
+      { agent_session_id: string | null }
+    >(
+      "select agent_session_id from bakery.audit_events" +
+        " where organization_id = $1 and operation = 'storageFiles.put'" +
+        " and resource_id = $2",
+      [fixture.organizationId, written.id],
+    );
+    assertEquals(audit.rows.length, 1);
+    assert(audit.rows[0].agent_session_id !== null);
+    assertEquals(audit.rows[0].agent_session_id, row.agent_session_id);
+    const person = await fixture.pgDatabase.query<{ n: string }>(
+      "select count(*)::text as n from bakery.step_write_set w" +
+        " join bakery.storage_entries e on e.organization_id = w.organization_id" +
+        " and e.id = w.entry_id" +
+        " where w.organization_id = $1 and e.name = 'b.md'",
+      [fixture.organizationId],
+    );
+    assertEquals(person.rows[0].n, "0");
+    // The version the agent wrote reads as the agent's, naming the person.
+    const versions = await json(
+      await asPerson(
+        fixture,
+        "GET",
+        "/v1/storage/files/" + written.id + "/versions",
+      ),
+      200,
+    ) as { items: Json[] };
+    assertEquals(versions.items[0].makerKind, "agent");
+    assertEquals(versions.items[0].makerPrincipalId, fixture.principalId);
+    assertEquals(versions.items[0].sessionId, row.agent_session_id);
+    // #448 S8a: the version itself recorded, at the write, the run, step,
+    // attempt and session that made it and the person the run acts for.
+    const origin = (await fixture.pgDatabase.query<{
+      run_id: string;
+      run_step_id: string;
+    }>(
+      "select step.run_id, job.run_step_id from bakery.job_attempts attempt" +
+        " join bakery.jobs job on job.organization_id = attempt.organization_id" +
+        " and job.id = attempt.job_id" +
+        " join bakery.run_steps step on step.organization_id = job.organization_id" +
+        " and step.id = job.run_step_id" +
+        " where attempt.organization_id = $1 and attempt.id = $2",
+      [fixture.organizationId, agent.attemptId],
+    )).rows[0];
+    const stored = (await fixture.pgDatabase.query<{
+      run_id: string | null;
+      run_step_id: string | null;
+      attempt_id: string | null;
+      agent_session_id: string | null;
+      acting_for_principal_id: string | null;
+    }>(
+      "select run_id, run_step_id, attempt_id, agent_session_id," +
+        " acting_for_principal_id from bakery.storage_file_versions" +
+        " where organization_id = $1 and id = $2",
+      [fixture.organizationId, written.currentVersionId],
+    )).rows[0];
+    assertEquals(stored, {
+      run_id: origin.run_id,
+      run_step_id: origin.run_step_id,
+      attempt_id: agent.attemptId,
+      agent_session_id: row.agent_session_id,
+      acting_for_principal_id: fixture.principalId,
+    });
+    const made = versions.items[0];
+    assertEquals(made.attemptId, agent.attemptId);
+    assertEquals(made.runId, origin.run_id);
+    assertEquals(made.stepId, origin.run_step_id);
+    assertEquals(made.actingForPrincipalId, fixture.principalId);
+    // A later session on the same step (a retry, a continuation) does not
+    // become the maker of the version the earlier one wrote.
+    await fixture.pgDatabase.query(
+      "insert into bakery.agent_sessions (organization_id, run_step_id," +
+        " conversation_id, agent_version_id, harness, status, created_at)" +
+        " select organization_id, run_step_id, conversation_id," +
+        " agent_version_id, harness, 'active', now() + interval '1 hour'" +
+        " from bakery.agent_sessions where organization_id = $1 and id = $2",
+      [fixture.organizationId, row.agent_session_id],
+    );
+    const again = await json(
+      await asPerson(
+        fixture,
+        "GET",
+        "/v1/storage/files/" + written.id + "/versions",
+      ),
+      200,
+    ) as { items: Json[] };
+    assertEquals(again.items[0].sessionId, row.agent_session_id);
+    assertEquals(again.items[0].attemptId, agent.attemptId);
+    // The search hit names the same maker.
+    const hits = await json(
+      await asPerson(fixture, "GET", "/v1/files/search?query=a.md"),
+      200,
+    ) as { items: Json[] };
+    const hit = hits.items.find((item) => item.entryId === written.id);
+    assert(hit, "the agent's file is a search hit");
+    assertEquals(hit.producerKind, "agent");
+    assertEquals(hit.producerSessionId, row.agent_session_id);
+    assertEquals(hit.producerAttemptId, agent.attemptId);
+    assertEquals(hit.producerRunId, origin.run_id);
+    assertEquals(hit.producerStepId, origin.run_step_id);
+    assertEquals(hit.producerActingForId, fixture.principalId);
+    // A person's own version records no provenance at all.
+    const own = await json(
+      await asPerson(fixture, "GET", "/v1/files/search?query=b.md"),
+      200,
+    ) as { items: Json[] };
+    const ownHit = own.items.find((item) =>
+      (item.path as string).endsWith("/agent-448-write-set/b.md")
+    );
+    assert(ownHit, "the person's file is a search hit");
+    assertEquals(ownHit.producerKind, "person");
+    assertEquals(ownHit.producerAttemptId, null);
+    assertEquals(ownHit.producerSessionId, null);
   }));
 
 Deno.test("the guard reads only the caller's organization: a foreign organization sees no folder", () =>
@@ -388,6 +588,94 @@ Deno.test("the claim mints the step's files section (O44, O45) into the session 
     ) assert(scopes.includes(scope), scope + " in " + JSON.stringify(scopes));
     // No personal area is ever minted.
     assert(!scopes.some((scope) => scope.includes("users")));
+  }));
+
+Deno.test("an agent at its step's file limit is refused the next write; a person is not (O49)", () =>
+  withWorkerFixture(async (fixture) => {
+    const current = await json(
+      await asPerson(fixture, "GET", "/v1/storage/settings"),
+      200,
+    );
+    assertEquals(current.stepWriteFiles, 2000);
+    assertEquals(current.stepWriteBytes, 2 * 1024 ** 3);
+    const {
+      organizationUsedBytes: _used,
+      organizationQuotaState: _state,
+      customized: _customized,
+      version: _version,
+      ...limits
+    } = current;
+    const saved = await json(
+      await asPerson(fixture, "PUT", "/v1/storage/settings", {
+        ...limits,
+        stepWriteFiles: 2,
+      }),
+      200,
+    );
+    assertEquals(saved.stepWriteFiles, 2);
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-limits",
+      }),
+      201,
+    );
+    const agent = await agentSession(
+      fixture,
+      "agent-448-limits",
+      async (job) => {
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    const first = await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/1.md"),
+      ),
+    );
+    await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/2.md"),
+      ),
+    );
+    // A new version of a file the step already wrote is not a new file.
+    await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/1.md", "agent bytes, again"),
+        first.version as number,
+      ),
+    );
+    const refused = await agent.call(
+      "storageFiles.put",
+      file("/shared/agent-448-limits/3.md"),
+    );
+    assertEquals(await refusal(refused), {
+      status: 409,
+      code: "STEP_WRITE_LIMIT_EXCEEDED",
+      reason: "files",
+    });
+    const kept = await fixture.pgDatabase.query<{ n: string }>(
+      "select count(*)::text as n from bakery.storage_entries" +
+        " where organization_id = $1 and parent_id = $2",
+      [fixture.organizationId, folder.id],
+    );
+    assertEquals(kept.rows[0].n, "2");
+    // A person's writes are never limited by a step's limit.
+    await json(
+      await asPerson(
+        fixture,
+        "PUT",
+        "/v1/storage/files",
+        file("/shared/agent-448-limits/3.md", "person bytes"),
+      ),
+      200,
+    );
   }));
 
 /**

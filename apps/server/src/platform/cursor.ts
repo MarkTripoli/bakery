@@ -123,7 +123,7 @@ function assertBinding(binding: CursorBinding): void {
   }
 }
 
-type RowCursorKind = "timestamp" | "ordinal";
+type RowCursorKind = "timestamp" | "ordinal" | "timestamp-position";
 
 function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
   // Every descending-time ordering reads the same way: the newest first, keyed
@@ -135,7 +135,8 @@ function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
     binding.ordering === "countedAt:asc,id:asc" ||
     binding.ordering === "createdAt:desc,id:desc" ||
     binding.ordering === "openedAt:desc,id:desc" ||
-    binding.ordering === "trashedAt:desc,id:desc"
+    binding.ordering === "trashedAt:desc,id:desc" ||
+    binding.ordering === "requestedAt:desc,id:desc"
   ) return "timestamp";
   // A storage folder lists folders first, then by name: the ordinal carries
   // the kind rank and the server reads the name key back from the row id.
@@ -146,6 +147,12 @@ function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
   ) {
     return "ordinal";
   }
+  // One row of a parent can expand into several list items (the pages one
+  // plugin install adds), so the key is the parent's (time, id) plus the
+  // item's position within it.
+  if (binding.ordering === "createdAt:asc,id:asc,position:asc") {
+    return "timestamp-position";
+  }
   throw new Error("CURSOR_BINDING_INVALID");
 }
 
@@ -155,6 +162,15 @@ function positionKind(position: CursorPosition): RowCursorKind | null {
     TIMESTAMP.test(position.createdAt) &&
     Number.isFinite(Date.parse(position.createdAt));
   if (timestampValid && UUID.test(position.id)) return "timestamp";
+  const timestampPositionValid = typeof position.createdAt === "string" &&
+    position.iteration === undefined &&
+    Number.isSafeInteger(position.position) &&
+    (position.position as number) >= 0 &&
+    TIMESTAMP.test(position.createdAt) &&
+    Number.isFinite(Date.parse(position.createdAt));
+  if (timestampPositionValid && UUID.test(position.id)) {
+    return "timestamp-position";
+  }
   const ordinalValid = position.createdAt === undefined &&
     Number.isSafeInteger(position.position) &&
     Number.isSafeInteger(position.iteration) &&
@@ -265,6 +281,8 @@ export async function encodeCursor(
     k: "row",
     ...(kind === "timestamp"
       ? { c: position.createdAt }
+      : kind === "timestamp-position"
+      ? { c: position.createdAt, n: position.position }
       : { n: position.position, t: position.iteration }),
     i: position.id,
   };
@@ -288,8 +306,18 @@ export async function decodeCursor(
     typeof record.n === "number" &&
     typeof record.t === "number" &&
     typeof record.i === "string";
+  const timestampPositionPayload = keys === "a,c,f,i,k,n,o,p,r,s,v" &&
+    typeof record.c === "string" &&
+    typeof record.n === "number" &&
+    typeof record.i === "string";
   const position = expectedKind === "timestamp" && timestampPayload
     ? { createdAt: record.c as string, id: record.i as string }
+    : expectedKind === "timestamp-position" && timestampPositionPayload
+    ? {
+      createdAt: record.c as string,
+      position: record.n as number,
+      id: record.i as string,
+    }
     : expectedKind === "ordinal" && ordinalPayload
     ? {
       position: record.n as number,

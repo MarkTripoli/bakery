@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 087091ac93d0f90d61e5c626377d0ba676ab96b604353cf6cffc6d28dd5cf6f2. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 9751ef57dad9532c7dd744124499e031390d3bec10424b6067812b7d4f7154a6. */
 :root {
   --border-default: 1px;
   --border-emphasis: 2px;
@@ -35,6 +35,7 @@
   --layout-device-status-gap: 154px;
   --layout-dialog: 600px;
   --layout-field-label: 200px;
+  --layout-form-summary: 300px;
   --layout-header: 64px;
   --layout-inspector: 320px;
   --layout-item-action: 100px;

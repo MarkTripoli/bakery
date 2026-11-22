@@ -91,6 +91,7 @@ export type Entry = {
   updatedAt?: string;
   artifactId?: number | null;
   contentRemoved?: boolean;
+  pinned?: boolean;
 };
 
 export type Version = {
@@ -98,8 +99,9 @@ export type Version = {
   isCurrent: boolean;
   sizeBytes: number;
   contentRemoved?: boolean;
-  makerKind?: "person" | "step";
+  makerKind?: "person" | "step" | "agent";
   makerName?: string | null;
+  agentName?: string | null;
   stepName?: string | null;
   workItemTitle?: string | null;
 };
@@ -272,6 +274,26 @@ export const VERSIONS: Version[] = [
   },
 ];
 
+/** An agent's version with no person recorded, beside one with no agent name. */
+export const AGENT_NO_PERSON_VERSIONS: Version[] = [
+  {
+    revision: 2,
+    isCurrent: true,
+    sizeBytes: 4200,
+    makerKind: "agent",
+    makerName: null,
+    agentName: "Reviewer",
+  },
+  {
+    revision: 1,
+    isCurrent: false,
+    sizeBytes: 3900,
+    makerKind: "agent",
+    makerName: null,
+    agentName: null,
+  },
+];
+
 export const USES: Use[] = [
   {
     id: 1,
@@ -297,6 +319,11 @@ export type FilesOptions = {
   disabledPrincipal?: boolean;
   /** More kinds than one page of 100, to show the Kind filter reads every page. */
   kindCount?: number;
+  /**
+   * A file whose stored bytes do not hash to the digest its record names, so
+   * every read of it is refused as a mismatch (#437).
+   */
+  mismatchId?: number;
 };
 
 /** A list as the server pages it: `limit` at a time, the cursor an offset. */
@@ -327,6 +354,7 @@ const item = (entry: Entry) => ({
   artifactId: entry.artifactId === undefined || entry.artifactId === null
     ? null
     : uuid(entry.artifactId),
+  pinned: entry.pinned ?? false,
   contentRemoved: entry.contentRemoved ?? false,
   updatedAt: entry.updatedAt ?? STAMP,
 });
@@ -424,7 +452,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           runId: version.makerKind === "step" ? uuid(601) : null,
           workItemId: version.makerKind === "step" ? uuid(602) : null,
           workItemTitle: version.workItemTitle ?? null,
-          sessionId: null,
+          sessionId: version.makerKind === "agent" ? uuid(603) : null,
+          agentName: version.agentName ?? null,
         }))),
       );
     },
@@ -686,6 +715,27 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
       );
       seen.contents.push(revision);
       const fileId = new URL(route.request().url()).pathname.split("/")[4]!;
+      if (
+        options.mismatchId !== undefined &&
+        fileId === uuid(options.mismatchId)
+      ) {
+        return route.fulfill({
+          status: 409,
+          // The client only reads a failure as a problem when it is served as
+          // one; any other content type becomes an unexplained protocol error.
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Conflict",
+            status: 409,
+            code: "ARTIFACT_CONTENT_MISMATCH",
+            retryable: false,
+            detail: "the stored bytes do not hash to the recorded digest",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
       if (fileId === uuid(45)) {
         return route.fulfill({
           status: 500,

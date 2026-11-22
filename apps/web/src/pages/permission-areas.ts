@@ -33,6 +33,7 @@ export const RESOURCE_AREAS = {
   run: "work",
   runStep: "work",
   runRequest: "work",
+  batch: "work",
   job: "work",
   jobAttempt: "work",
   session: "work",
@@ -141,6 +142,7 @@ export const RESOURCE_AREAS = {
   installationAdministrator: "installation",
   installationAuditEvent: "installation",
   installationSetting: "installation",
+  backup: "installation",
 } as const satisfies Record<string, PermissionArea>;
 export type PermissionResource = keyof typeof RESOURCE_AREAS;
 

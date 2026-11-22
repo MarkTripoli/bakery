@@ -1,0 +1,8 @@
+# The desktop app (#77). `core` holds every decision that needs no window system, so it builds and
+# tests anywhere; `src-tauri` is the thin Tauri shell around it.
+[workspace]
+members = ["core", "src-tauri"]
+resolver = "2"
+
+[profile.dev]
+debug = 0

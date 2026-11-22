@@ -272,6 +272,7 @@ export async function prepareDraftSuggestion(
   principalId: string,
   draftId: string,
   input: DraftSuggestionCreateInput,
+  record: Omit<SuggestionRecordContext, "create" | "draftId">,
 ): Promise<DraftSuggestionRead | PreparedDraftEdit> {
   const scope = await loadDraftScope(transaction, organizationId, draftId);
   const digest = await suggestionDigest(draftId, principalId, input);
@@ -283,6 +284,20 @@ export async function prepareDraftSuggestion(
     input.mutationId,
   );
   if (recorded) return assertSuggestionDigest(recorded, digest);
+  // A proposal from an epoch that has closed (a client that was offline across
+  // a rollover) is kept, not lost: it is recorded as one the draft no longer
+  // fits, so a person can read it and apply it by hand. It is never anchored,
+  // because its checkpoint may have been compacted away.
+  if (input.epoch < scope.epoch) {
+    return await insertSuggestion(
+      transaction,
+      organizationId,
+      { ...record, draftId, create: input },
+      digest,
+      scope,
+      true,
+    );
+  }
   if (scope.epoch !== input.epoch) throw refusedDraftEdit("draft_moved_on");
   return await prepareDraftEditStates(
     transaction,
@@ -293,53 +308,38 @@ export async function prepareDraftSuggestion(
   );
 }
 
+/** What recording a suggestion needs besides the proposal itself. */
+export type SuggestionRecordContext = {
+  draftId: string;
+  attribution: ActionAttribution;
+  requestId: string;
+  traceId: string;
+  create: DraftSuggestionCreateInput;
+};
+
+type DraftScopeRow = Awaited<ReturnType<typeof loadDraftScope>>;
+
 /**
- * Records a verified proposal. The draft row is locked and its epoch and
- * server sequence re-checked, so a proposal made against a draft that moved on
- * in the meantime is refused rather than recorded against a stale anchor.
+ * Inserts one proposal and announces it: the row, the `draft.suggestion_created`
+ * event and the audit entry. `moved` records it as one the draft no longer fits
+ * (a closed epoch) instead of waiting. A lost insert race answers with the
+ * recorded proposal after the digest check, so a retry never records twice.
  */
-export async function commitDraftSuggestion(
+async function insertSuggestion(
   transaction: PgTransactionClient,
   organizationId: string,
-  input: {
-    draftId: string;
-    attribution: ActionAttribution;
-    requestId: string;
-    traceId: string;
-    create: DraftSuggestionCreateInput;
-  },
-  preparation: PreparedDraftEdit,
-): Promise<{ suggestion: DraftSuggestionRead; traceId: string }> {
-  const scope = await loadDraftScope(
-    transaction,
-    organizationId,
-    input.draftId,
-    true,
-  );
-  const replay = await findSuggestionRow(
-    transaction,
-    organizationId,
-    input.draftId,
-    "mutation",
-    input.create.mutationId,
-  );
-  if (replay) {
-    return {
-      suggestion: assertSuggestionDigest(replay, preparation.requestDigest),
-      traceId: input.traceId,
-    };
-  }
-  if (
-    scope.epoch !== preparation.epoch ||
-    String(scope.server_sequence) !== preparation.highwater
-  ) throw refusedDraftEdit("draft_moved_on");
+  input: SuggestionRecordContext,
+  requestDigest: string,
+  scope: DraftScopeRow,
+  moved: boolean,
+): Promise<DraftSuggestionRead> {
   const inserted = await transaction.query<{ id: string }>(
     `insert into bakery.artifact_draft_suggestions (
        organization_id,draft_id,epoch,source_checkpoint_id,start_cursor,
        end_cursor,expected_text,expected_digest,replacement,
        client_mutation_id,request_digest,requested_by_id,actor_kind,
-       access_token_id,request_id,trace_id,state
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'waiting')
+       access_token_id,request_id,trace_id,state,refusal_reason
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      on conflict (organization_id, draft_id, client_mutation_id) do nothing
      returning id`,
     [
@@ -353,12 +353,14 @@ export async function commitDraftSuggestion(
       input.create.expectedDigest,
       input.create.replacement,
       input.create.mutationId,
-      preparation.requestDigest,
+      requestDigest,
       input.attribution.principalId,
       input.attribution.actorKind,
       input.attribution.accessTokenId,
       input.requestId,
       input.traceId,
+      moved ? "no_longer_fits" : "waiting",
+      moved ? "draft_moved_on" : null,
     ],
   );
   const id = inserted.rows[0]?.id;
@@ -371,10 +373,7 @@ export async function commitDraftSuggestion(
       input.create.mutationId,
     );
     if (!existing) throw new StandardError({ code: "STATE_CONFLICT" });
-    return {
-      suggestion: assertSuggestionDigest(existing, preparation.requestDigest),
-      traceId: input.traceId,
-    };
+    return assertSuggestionDigest(existing, requestDigest);
   }
   await appendDomainEvent(transaction, {
     organizationId,
@@ -401,6 +400,7 @@ export async function commitDraftSuggestion(
       epoch: input.create.epoch,
       sourceCheckpointId: input.create.sourceCheckpointId,
       actorKind: input.attribution.actorKind,
+      ...(moved ? { movedOn: true } : {}),
     },
   });
   const recorded = await findSuggestion(
@@ -411,7 +411,54 @@ export async function commitDraftSuggestion(
     id,
   );
   if (!recorded) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return { suggestion: recorded, traceId: input.traceId };
+  return recorded;
+}
+
+/**
+ * Records a verified proposal. The draft row is locked and its epoch and
+ * server sequence re-checked, so a proposal made against a draft that moved on
+ * in the meantime is refused rather than recorded against a stale anchor.
+ */
+export async function commitDraftSuggestion(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  input: SuggestionRecordContext,
+  preparation: PreparedDraftEdit,
+): Promise<{ suggestion: DraftSuggestionRead; traceId: string }> {
+  const scope = await loadDraftScope(
+    transaction,
+    organizationId,
+    input.draftId,
+    true,
+  );
+  const replay = await findSuggestionRow(
+    transaction,
+    organizationId,
+    input.draftId,
+    "mutation",
+    input.create.mutationId,
+  );
+  if (replay) {
+    return {
+      suggestion: assertSuggestionDigest(replay, preparation.requestDigest),
+      traceId: input.traceId,
+    };
+  }
+  if (
+    scope.epoch !== preparation.epoch ||
+    String(scope.server_sequence) !== preparation.highwater
+  ) throw refusedDraftEdit("draft_moved_on");
+  return {
+    suggestion: await insertSuggestion(
+      transaction,
+      organizationId,
+      input,
+      preparation.requestDigest,
+      scope,
+      false,
+    ),
+    traceId: input.traceId,
+  };
 }
 
 /** How a suggestion is being decided. */

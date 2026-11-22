@@ -124,6 +124,7 @@ erDiagram
     jsonb result "nullable"
     timestamp started_at "nullable"
     timestamp ended_at "nullable"
+    text traceparent "nullable"
   }
   organizations ||..o{ job_attempts : "organization_id"
   jobs ||..o{ job_attempts : "job_id"

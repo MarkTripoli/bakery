@@ -104,6 +104,12 @@ export const AgentFileRefusal = Object.freeze(
      * there needs a person's grant.
      */
     ConnectionNotBound: "agent_file_connection_not_bound",
+    /**
+     * A reviewer's session writes only its declared outputs, through its
+     * step's result (O47): no storage write, whatever its files section or a
+     * grant to the folder says.
+     */
+    ReviewerOutputsOnly: "agent_file_reviewer_outputs_only",
   } as const,
 );
 export type AgentFileRefusal =
@@ -330,6 +336,70 @@ export type AgentWrite = Readonly<{
   agentSessionId: string | null;
   fileGrantId: string | null;
 }>;
+
+/**
+ * The storage operations a step write set records (section 17.6): every write
+ * an agent's session can make to Bakery Files.
+ */
+export const StepWriteOp = Object.freeze(
+  {
+    Put: "put",
+    Mkdir: "mkdir",
+    Copy: "copy",
+    Move: "move",
+    Trash: "trash",
+  } as const,
+);
+export type StepWriteOp = typeof StepWriteOp[keyof typeof StepWriteOp];
+
+/** One row of bakery.step_write_set, as the write builds it. */
+export type StepWriteSetRow = Readonly<{
+  organizationId: string;
+  attemptId: string;
+  agentSessionId: string | null;
+  entryId: string;
+  op: StepWriteOp;
+  previousVersionId: string | null;
+  newVersionId: string | null;
+  /** For a move: the folder and name the entry had before it; else null. */
+  previousParentId: string | null;
+  previousName: string | null;
+  /** The entry's row version before the write; null when it made the entry. */
+  entryVersionBefore: number | null;
+}>;
+
+/**
+ * The write-set row an allowed agent write records, or null for a person's own
+ * write, which no step's set holds. The previous and new versions are the
+ * entry's current version before and after the write.
+ */
+export function stepWriteSetRow(
+  agent: AgentWrite | null,
+  write: Readonly<{
+    organizationId: string;
+    entryId: string;
+    op: StepWriteOp;
+    previousVersionId: string | null;
+    newVersionId: string | null;
+    previousParentId?: string | null;
+    previousName?: string | null;
+    entryVersionBefore?: number | null;
+  }>,
+): StepWriteSetRow | null {
+  if (agent === null) return null;
+  return {
+    organizationId: write.organizationId,
+    attemptId: agent.attemptId,
+    agentSessionId: agent.agentSessionId,
+    entryId: write.entryId,
+    op: write.op,
+    previousVersionId: write.previousVersionId,
+    newVersionId: write.newVersionId,
+    previousParentId: write.previousParentId ?? null,
+    previousName: write.previousName ?? null,
+    entryVersionBefore: write.entryVersionBefore ?? null,
+  };
+}
 
 export function storageAuditActor(
   attribution: Readonly<{

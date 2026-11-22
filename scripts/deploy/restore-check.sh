@@ -1,10 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$(id -u)" == 0 ]] || exit 77
+# BAKERY_BACKUP_SANDBOX is for tests only (it roots the paths and skips the root
+# check); it is refused unless BAKERY_ENV=test, before anything is touched. The
+# systemd units and operators never set it.
+if [[ -n "${BAKERY_BACKUP_SANDBOX:-}" ]]; then
+  if [[ "${BAKERY_ENV:-}" != test ]]; then
+    echo "BAKERY_BACKUP_SANDBOX is only honoured when BAKERY_ENV=test; refusing to run" >&2
+    exit 64
+  fi
+  root=$BAKERY_BACKUP_SANDBOX/opt/bakery
+  state=$BAKERY_BACKUP_SANDBOX/var/lib/bakery
+else
+  [[ "$(id -u)" == 0 ]] || exit 77
+  root=/opt/bakery
+  state=/var/lib/bakery
+fi
 snapshot=${1:?completed backup directory required}
 identity=${2:?operator age identity file required}
+legacy=${3:-}
 [[ -d "$snapshot" && -f "$identity" ]] || exit 64
+[[ -z "$legacy" || "$legacy" == --allow-legacy ]] || exit 64
 umask 077
+# The set must be complete before anything is restored: the manifest says every
+# declared state store is in it and every file matches what was recorded. A set
+# from before manifests has none, so it fails closed unless --allow-legacy says
+# the operator knows it is an old set (its old checks below still run).
+export DENO_DIR=${DENO_DIR:-$state/backup-runner/deno}
+# A fresh disaster-recovery host may have neither Deno nor a release checkout.
+# Say so and exit 70 (the documented "not a verified set" code) rather than die
+# with 127 from a missing command.
+verifier="$root/background/scripts/deploy/backup-manifest.ts"
+missing=""
+command -v deno > /dev/null 2>&1 || missing="deno (install Deno and put it on the PATH)"
+[[ -f "$verifier" ]] || missing+="${missing:+; }the release checkout $root/background (install or enable a release)"
+if [[ -n "$missing" ]]; then
+  echo "restore-check.sh cannot verify the set; missing: $missing. Nothing was restored." >&2
+  exit 70
+fi
+deno run --no-prompt "--allow-read=$snapshot" \
+  "$verifier" verify "$snapshot" ${legacy:+"$legacy"}
 temporary=$(mktemp -d /var/tmp/bakery-restore-check-XXXXXXXX)
 container="bakery-restore-check-$(cat /proc/sys/kernel/random/uuid)"
 cleanup() {

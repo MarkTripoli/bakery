@@ -28,6 +28,7 @@ import {
   IntakeProjectionSchema,
   type IntakeRoutePurpose,
 } from "./intake-events.ts";
+import { isQuiesced } from "../../platform/maintenance.ts";
 import { INTAKE_RECEIVED_EVENT, RouteStatus } from "./intake-receipts.ts";
 import {
   findTrackedPullRequest,
@@ -99,7 +100,9 @@ export type SkipReason =
   | "not_due"
   | "in_progress"
   | "superseded"
-  | "foreign_purpose";
+  | "foreign_purpose"
+  /** A backup holds the installation: the route is left exactly as it is. */
+  | "quiesced";
 
 /** Fact writes one route made; check routes write several. */
 export type FactTally = {
@@ -193,6 +196,12 @@ async function claimRoute(
   routeId: string,
 ): Promise<ClaimResult> {
   return await withPgTransaction(database, async (transaction) => {
+    // A backup holds the installation: leave the route as it is, unclaimed and
+    // with no attempt counted, so a long hold cannot use up its attempts. The
+    // recovery sweep resends it once the hold ends.
+    if (await isQuiesced(transaction, "intake")) {
+      return ended({ kind: "skipped", reason: "quiesced" });
+    }
     const found = await transaction.query<ClaimRow>(
       `select route.id, route.organization_id as "organizationId",
          route.connection_id as "connectionId",

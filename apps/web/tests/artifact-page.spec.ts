@@ -5,6 +5,7 @@ import "./helpers/artifact-page-navigation.ts";
 import "./helpers/artifact-page-conflicts.ts";
 import "./helpers/artifact-page-accessibility.ts";
 import "./helpers/artifact-page-authoring.ts";
+import "./helpers/artifact-page-mentions.ts";
 import "./helpers/artifact-page-live-state.ts";
 import "./helpers/artifact-page-bounded-preview.ts";
 import "./helpers/artifact-page-preview-handoff.ts";
@@ -60,30 +61,67 @@ test("deep links verify the selected immutable version and switching updates the
 test("preview refuses bytes whose digest disagrees with the advertised version", async ({ page }) => {
   await stubArtifactPage(page, { content: "Corrupted current bytes!!\n" });
   await page.goto(PATH);
-  await expect(
-    page.getByText("Content could not be verified. Preview is unavailable."),
-  ).toBeVisible();
+  // Bytes that do not hash to the digest they came with failed on the way:
+  // nothing is shown, and the read can be tried again.
+  await expect(page.getByText("The preview did not load.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   await expect(page.locator('[data-ui-component="artifactViewer"]'))
     .toHaveCount(0);
   await expect(page.getByText("Corrupted current bytes!!", { exact: true }))
     .toHaveCount(0);
 });
 
-test("HTML stays download-only and is not fetched automatically", async ({ page }) => {
-  const html = '<script>document.body.dataset.compromised="yes"</script>';
+test("when the server says what is stored is not what was recorded, the page says so and offers no preview or download", async ({ page }) => {
+  await stubArtifactPage(page);
+  await page.route(
+    "**/v1/artifact-versions/**/content",
+    (route) => route.fulfill(problem(409, "ARTIFACT_CONTENT_MISMATCH")),
+  );
+  await page.goto(PATH);
+  await expect(page.getByText("This file does not match its record"))
+    .toBeVisible();
+  await expect(page.locator('[data-ui-component="artifactViewer"]'))
+    .toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Download verified bytes" }))
+    .toHaveCount(0);
+});
+
+test("HTML is shown as inert text: the markup is escaped characters, nothing runs, nothing is fetched", async ({ page }) => {
+  const html = [
+    "<!doctype html><html><head>",
+    '<link rel="stylesheet" href="https://hostile.example/a.css">',
+    '<script src="https://hostile.example/a.js"></script></head>',
+    "<body onload=\"document.body.dataset.compromised='yes'\">",
+    '<img src="https://hostile.example/pixel.png" onerror="document.body.dataset.compromised=\'yes\'">',
+    '<iframe src="https://hostile.example/frame"></iframe>',
+    '<script>document.body.dataset.compromised="yes"</script></body></html>',
+  ].join("\n");
+  // Nothing the content names may leave the browser: any request to it is a failure.
+  const hostile: string[] = [];
+  await page.route("https://hostile.example/**", (route) => {
+    hostile.push(route.request().url());
+    return route.abort();
+  });
   await stubArtifactPage(page, {
     current: version(html, "text/html"),
     content: html,
   });
-  const contentRequests: string[] = [];
-  page.on("request", (request) => {
-    if (request.url().includes("/content")) contentRequests.push(request.url());
-  });
   await page.goto(PATH);
-  await expect(page.getByText(/This media type is download-only/))
-    .toBeVisible();
+  // Nothing was probed, so the declared type decides: text, drawn as characters.
+  const preview = page.getByRole("region", { name: "Preview" });
+  await expect(preview).toBeVisible();
+  await expect.poll(() => preview.evaluate((node) => node.textContent ?? ""))
+    .toContain(html);
+  // The markup is characters, not elements: the preview holds none of its tags.
+  await expect(preview.locator("script, img, iframe, link, style")).toHaveCount(
+    0,
+  );
+  await expect(page.locator("iframe, img[src*='hostile.example']")).toHaveCount(
+    0,
+  );
   await expect(page.getByTestId("artifact-retrieval-download")).toBeEnabled();
-  expect(contentRequests).toEqual([]);
+  await page.waitForLoadState("networkidle");
+  expect(hostile).toEqual([]);
   await expect(page.locator("body")).not.toHaveAttribute(
     "data-compromised",
     "yes",

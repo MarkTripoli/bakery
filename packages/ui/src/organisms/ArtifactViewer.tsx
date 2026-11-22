@@ -1,11 +1,23 @@
-import { createElement, type ReactNode, useId } from "react";
+import {
+  createContext,
+  createElement,
+  type ReactNode,
+  useContext,
+  useId,
+} from "react";
 import "../artifacts.css";
 
 export type ArtifactViewerContent =
   | {
     readonly kind: "text" | "markdown" | "patch" | "log";
     readonly text: string;
-    /** The text is the first lines of more: a fade marks the cut. */
+    /**
+     * Show the first lines under a fade, at the panel's cap (#437).
+     *
+     * A side panel is meant to tell a person what a file is, not to become the
+     * reader: a long file pushes Download and the tabs below the fold. The
+     * artifact page shows the whole file and never sets this.
+     */
     readonly cut?: boolean;
   }
   | {
@@ -17,8 +29,9 @@ export type ArtifactViewerContent =
   | {
     /**
      * A player that loads only what it plays: `preload="none"`, never
-     * autoplayed, the browser's own controls. `src` is a path on this origin or
-     * an http(s) URL; anything else is refused rather than handed to the element.
+     * autoplayed, the browser's own controls. `src` is a path on this origin, an
+     * http(s) URL, or a `blob:` URL the page itself verified; anything else is
+     * refused rather than handed to the element.
      */
     readonly kind: "video" | "audio";
     readonly src: string;
@@ -29,6 +42,13 @@ export type ArtifactViewerContent =
     readonly onError?: () => void;
   }
   | { readonly kind: "unsupported"; readonly message: ReactNode };
+/**
+ * True inside a surface that already names the preview as a region (the task
+ * artifact pane). A viewer there is a labelled group, not a second landmark with
+ * the same name, so a person moving by landmarks meets one "Preview", not two.
+ */
+export const artifactViewerRegion = createContext(false);
+
 export type ArtifactViewerProps = {
   readonly label: ReactNode;
   readonly content: ArtifactViewerContent;
@@ -125,7 +145,7 @@ function preview(content: ArtifactViewerContent): ReactNode {
       return (
         <div
           className="ui-artifact-viewer__markdown"
-          data-cut={content.cut ? "true" : undefined}
+          data-cut={content.cut === true ? "panel" : undefined}
         >
           {markdown(content.text)}
         </div>
@@ -136,7 +156,7 @@ function preview(content: ArtifactViewerContent): ReactNode {
       return (
         <pre
           data-ui-overflow="wrap"
-          data-cut={content.cut ? "true" : undefined}
+          data-cut={content.cut === true ? "panel" : undefined}
         >
           <code>{content.text}</code>
         </pre>
@@ -152,7 +172,9 @@ function preview(content: ArtifactViewerContent): ReactNode {
     case "video":
     case "audio": {
       // A src the player must not be given: a script URL or any other scheme.
-      const allowed = /^(\/(?!\/)|https?:\/\/)/.test(content.src);
+      // `blob:` is allowed because a surface that fetched the bytes and checked
+      // their digest has them only as a blob, and handing them over is the point.
+      const allowed = /^(\/(?!\/)|https?:\/\/|blob:)/.test(content.src);
       if (!allowed) return <p role="alert">{content.unavailableLabel}</p>;
       return content.kind === "video"
         ? (
@@ -200,24 +222,24 @@ export function ArtifactViewer(
   }: ArtifactViewerProps,
 ) {
   const titleId = useId();
-  return (
-    <section
-      className="ui-artifact-viewer"
-      aria-labelledby={titleId}
-      aria-busy={state === "loading" || undefined}
-      data-testid={testId}
-      data-ui-component="artifactViewer"
-      data-variant={content.kind}
-      data-size={size}
-      data-state={state}
-    >
-      {
-        /* Opened full size, the page names the file above the card: the heading
-          stays only to name the card for assistive technology, and is not shown. */
-      }
-      <h2 id={titleId} hidden={size === "full"}>{label}</h2>
-      {state === "ready" ? preview(content) : null}
-      {footer}
-    </section>
+  const withinRegion = useContext(artifactViewerRegion);
+  return createElement(
+    withinRegion ? "div" : "section",
+    {
+      className: "ui-artifact-viewer",
+      ...(withinRegion ? { role: "group" } : {}),
+      "aria-labelledby": titleId,
+      "aria-busy": state === "loading" || undefined,
+      "data-testid": testId,
+      "data-ui-component": "artifactViewer",
+      "data-variant": content.kind,
+      "data-size": size,
+      "data-state": state,
+    },
+    /* Opened full size, the page names the file above the card: the heading
+      stays only to name the card for assistive technology, and is not shown. */
+    <h2 id={titleId} hidden={size === "full"}>{label}</h2>,
+    state === "ready" ? preview(content) : null,
+    footer,
   );
 }

@@ -40,7 +40,7 @@ export type CatalogActionHandlers = {
   ) => Promise<z.output<typeof contractSchemas.SkillSource>>;
   listSkills: (
     context: ActionContext,
-    input: z.output<typeof contractSchemas.CursorQuery>,
+    input: z.output<typeof contractSchemas.SkillQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<Skill>"]>>;
   getSkill: (
     context: ActionContext,
@@ -82,6 +82,10 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
   ) => Promise<z.output<typeof contractSchemas.SkillDraftCheck>>;
+  checkSkillSourceUpdate: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillSourceUpdateCheck>>;
   saveSkillDraftFile: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.SkillDraftFileSave>,
@@ -106,6 +110,10 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.SkillCopy>,
   ) => Promise<z.output<typeof contractSchemas.Skill>>;
+  publishSkillDraft: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillVersion>>;
   createSkillVersion: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.LocalSkillVersion>,
@@ -160,6 +168,48 @@ function skillCopyDefinition(
     policy: {
       ...commandPolicy,
       access: ActionAccess.DeveloperForPersonalAdminForOrganization,
+    },
+    handler,
+  } as const;
+}
+
+/**
+ * Publishing a draft writes object bytes like publishing a version, so it runs
+ * its handler only behind the staged publication runners in routes.ts. The
+ * caller says which draft version it saw (If-Match), so a draft someone else
+ * changed since is not published.
+ */
+function skillDraftPublishDefinition(
+  handler: CatalogActionHandlers["publishSkillDraft"],
+) {
+  return {
+    name: CatalogImplementedAction.SkillDraftsPublish,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/draft/publish",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillVersion,
+    explicitIdempotency: "key-and-if-match",
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler,
+  } as const;
+}
+
+function skillSourceUpdateDefinition(
+  handler: CatalogActionHandlers["checkSkillSourceUpdate"],
+) {
+  return {
+    name: CatalogImplementedAction.SkillsSourceUpdate,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/source-update",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillSourceUpdateCheck,
+    successStatus: 200,
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
     },
     handler,
   } as const;
@@ -222,7 +272,7 @@ export function createCatalogActionRegistry(
     name: CatalogImplementedAction.SkillsList,
     method: HttpMethod.Get,
     path: "/v1/skills",
-    input: contractSchemas.CursorQuery,
+    input: contractSchemas.SkillQuery,
     output: contractSchemas["Page<Skill>"],
     policy: queryPolicy,
     handler: handlers.listSkills,
@@ -391,6 +441,10 @@ export function createCatalogActionRegistry(
   });
   if (options.includeSkillVersionPublication !== false) {
     registry.register(skillCopyDefinition(handlers.copySkill));
+    registry.register(skillDraftPublishDefinition(handlers.publishSkillDraft));
+    registry.register(
+      skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
+    );
     registry.register({
       name: CatalogImplementedAction.SkillVersionsCreate,
       method: HttpMethod.Post,
@@ -429,6 +483,51 @@ export function createSkillCopyActionRegistry(
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     CatalogImplementedAction.SkillsCopy,
+  ]);
+  return registry;
+}
+
+export function createSkillDraftPublishActionRegistry(
+  handlers: Pick<CatalogActionHandlers, "publishSkillDraft">,
+  options: {
+    authorityRunner?: ActionAuthorityRunner;
+    commandRunner?: CommandRunner;
+  } = {},
+): ActionRegistry {
+  const registry = new ActionRegistry(
+    options.authorityRunner,
+    options.commandRunner,
+  );
+  registry.register(skillDraftPublishDefinition(handlers.publishSkillDraft));
+  assertRegisteredActions(registry);
+  assertImplementedActionRegistry(registry, [
+    CatalogImplementedAction.SkillDraftsPublish,
+  ]);
+  return registry;
+}
+
+/**
+ * skills.sourceUpdate looks at a source over the network, so it runs in stages
+ * (see routes.ts) and has a registry of its own, like a skill copy: the shared
+ * catalog registry does not carry it.
+ */
+export function createSkillSourceUpdateActionRegistry(
+  handlers: Pick<CatalogActionHandlers, "checkSkillSourceUpdate">,
+  options: {
+    authorityRunner?: ActionAuthorityRunner;
+    commandRunner?: CommandRunner;
+  } = {},
+): ActionRegistry {
+  const registry = new ActionRegistry(
+    options.authorityRunner,
+    options.commandRunner,
+  );
+  registry.register(
+    skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
+  );
+  assertRegisteredActions(registry);
+  assertImplementedActionRegistry(registry, [
+    CatalogImplementedAction.SkillsSourceUpdate,
   ]);
   return registry;
 }

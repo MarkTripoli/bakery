@@ -10,8 +10,10 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  effectiveAccessQueryOptions,
   installationSettingsQueryOptions,
   organizationQueryOptions,
+  pluginPagesQueryOptions,
 } from "../api/query.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { OrganizationSwitchGuard } from "./OrganizationSwitchGuard.tsx";
@@ -34,6 +36,7 @@ import {
   INSTALLATION_INTEGRATIONS_PATH,
   InstallationSettingsNavigation,
 } from "./InstallationSettingsNavigation.tsx";
+import { HeldBanner } from "./HeldBanner.tsx";
 import { OrganizationSettingsNavigation } from "./OrganizationSettingsNavigation.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import {
@@ -43,6 +46,7 @@ import {
   ORGANIZATIONS_PATH,
   SIGN_OUT_PATH,
 } from "../app/auth-required.tsx";
+import { ORGANIZATION_STORAGE_PATH } from "../app/auth-paths.ts";
 import { useThemePreference } from "../app/server-presentation.tsx";
 import { useSession } from "../app/session-context.tsx";
 import {
@@ -100,6 +104,45 @@ function usePrimaryDestinations(
 ): readonly UI.ApplicationRailItem[] {
   const { translate } = useI18n();
   const workHref = useWorkHref();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const session = useSession();
+  // Delivery is for whoever may read metrics. The rail asks the server what
+  // this person may do rather than guessing from a role name, so a custom role
+  // that grants metric:read sees it and one that does not never does.
+  const access = useQuery({
+    ...effectiveAccessQueryOptions(api, scope),
+    enabled: !fixture && session.status === "authenticated" &&
+      scope.organizationId !== null,
+  });
+  const canReadMetrics = access.data?.capabilities.includes("metric:read") ??
+    false;
+  // The pages of the plugins that are on: the first six, then a way to the rest.
+  const pluginPages = useQuery({
+    ...pluginPagesQueryOptions(api, scope),
+    enabled: !fixture && session.status === "authenticated" &&
+      scope.organizationId !== null,
+  });
+  const pluginEntries = pluginPages.data?.items ?? [];
+  const pluginItems: UI.ApplicationRailItem[] = [
+    ...pluginEntries.slice(0, 6).map((entry) => ({
+      group: translate("shell.navigation.pluginsGroup"),
+      id: `plugin-${entry.installId}-${entry.pageId}`,
+      label: entry.title,
+      href: `/plugins/${entry.installId}/${entry.pageId}`,
+      matchPath: `/plugins/${entry.installId}/${entry.pageId}`,
+      icon: <UI.IconGlyph name="integration" />,
+    })),
+    ...(pluginEntries.length > 6
+      ? [{
+        id: "plugins-more",
+        group: translate("shell.navigation.pluginsGroup"),
+        label: translate("shell.navigation.morePluginPages"),
+        href: "/settings/organization/plugins",
+        icon: <UI.IconGlyph name="integration" />,
+      }]
+      : []),
+  ];
   const soon = fixture ? undefined : translate("shell.navigation.comingSoon");
   const unshipped = (
     id: string,
@@ -220,6 +263,15 @@ function usePrimaryDestinations(
       matchPath: "/projects",
       icon: <UI.IconGlyph name="applications" />,
     },
+    ...(canReadMetrics
+      ? [{
+        id: "delivery",
+        label: translate("shell.navigation.delivery"),
+        href: "/delivery",
+        matchPath: "/delivery",
+        icon: <UI.IconGlyph name="clock" />,
+      }]
+      : []),
     unshipped(
       "sessions",
       translate("shell.navigation.sessionsArea"),
@@ -258,6 +310,7 @@ function usePrimaryDestinations(
       matchPath: "/settings",
       icon: <UI.IconGlyph name="settings-sun" />,
     },
+    ...pluginItems,
   ];
 }
 
@@ -292,6 +345,10 @@ function useAccountActions() {
         id: "organization-settings",
         label: translate("shell.navigation.organizationSettings"),
       },
+      {
+        id: "organization-storage",
+        label: translate("shell.navigation.organizationStorage"),
+      },
       ...(installation.isSuccess
         ? [{
           id: "installation-settings",
@@ -309,6 +366,8 @@ function useAccountActions() {
         void choose(nextTheme);
       } else if (id === "organization-settings") {
         void navigate({ to: ORGANIZATION_SETTINGS_PATH });
+      } else if (id === "organization-storage") {
+        void navigate({ to: ORGANIZATION_STORAGE_PATH });
       } else if (id === "installation-settings") {
         void navigate({ to: "/installation/settings" });
       } else if (id === "switch-organization") {
@@ -440,7 +499,8 @@ function ShellSidebar(
           <UI.WorkspaceSwitcher
             items={account.items.filter((item) =>
               item.id === "switch-organization" ||
-              item.id === "organization-settings"
+              item.id === "organization-settings" ||
+              item.id === "organization-storage"
             )}
             label={translate("shell.navigation.switchOrganization")}
             onSelect={account.onSelect}
@@ -481,6 +541,9 @@ function usePageTitle(pathname: string): string | undefined {
   if (pathname === "/projects" || pathname.startsWith("/projects/")) {
     return translate("shell.navigation.projects");
   }
+  if (pathname === "/delivery") {
+    return translate("shell.navigation.delivery");
+  }
   if (pathname === INSTALLATION_INTEGRATIONS_PATH) {
     return translate("shell.navigation.installation");
   }
@@ -490,6 +553,9 @@ function usePageTitle(pathname: string): string | undefined {
   ) return translate("shell.states.settingsTitle");
   if (pathname === ORGANIZATION_SETTINGS_PATH) {
     return translate("shell.navigation.organizationSettings");
+  }
+  if (pathname === ORGANIZATION_STORAGE_PATH) {
+    return translate("shell.navigation.organizationStorage");
   }
   return undefined;
 }
@@ -625,6 +691,10 @@ function ShellFrame() {
     pathname.startsWith("/__fixtures__/settings/");
   const installationSettings = pathname === "/installation/settings" ||
     pathname === "/installation/audit" ||
+    (pathname === "/installation/monitoring" ||
+      pathname.startsWith("/installation/monitoring/")) ||
+    pathname === "/installation/usage" ||
+    pathname === "/installation/restore" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
@@ -710,6 +780,10 @@ function ShellFrame() {
         ? (
           <InstallationSettingsNavigation
             currentPath={pathname === "/installation/audit" ||
+                (pathname === "/installation/monitoring" ||
+                  pathname.startsWith("/installation/monitoring/")) ||
+                pathname === "/installation/usage" ||
+                pathname === "/installation/restore" ||
                 pathname === INSTALLATION_INTEGRATIONS_PATH
               ? pathname
               : "/installation/settings"}
@@ -832,6 +906,7 @@ function ShellFrame() {
       )}
       variant={shellVariant}
     >
+      <HeldBanner pathname={pathname} />
       <StartupGate
         enabled={needsOrganization}
         failure={restore.failure}

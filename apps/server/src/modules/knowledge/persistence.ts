@@ -4,6 +4,11 @@ import {
 } from "../../platform/storage-capacity.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { enqueueProbeSubject } from "./probe-runner.ts";
+import {
+  attemptVersionProvenance,
+  type VersionProvenance,
+} from "./version-provenance.ts";
 import {
   publicationRetention,
   type PublicationSource,
@@ -100,6 +105,11 @@ export async function commitArtifactVersion(
       | { kind: "human" };
     publicationSource?: PublicationSource;
     traceId?: string;
+    /**
+     * The agent step that produced the version (#448 S8a), read from the
+     * attempt that is publishing it; absent or null for a person's version.
+     */
+    provenance?: VersionProvenance | null;
     /**
      * Where a new version's bytes go. Present, the version names a blob and
      * carries no inline content; absent, it stores its bytes inline exactly as
@@ -198,7 +208,7 @@ export async function commitArtifactVersion(
     id: string;
     created_at: Date | string;
   }>(
-    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, blob_id, sha256, size_bytes, media_type, retention_class, expires_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) returning id, created_at`,
+    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, blob_id, sha256, size_bytes, media_type, retention_class, expires_at, run_id, attempt_id, agent_session_id, acting_for_principal_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) returning id, created_at`,
     [
       scope.organizationId,
       parent.id,
@@ -217,9 +227,28 @@ export async function commitArtifactVersion(
       version.mediaType,
       retentionClass,
       expiresAt,
+      args.provenance?.runId ?? null,
+      args.provenance?.attemptId ?? null,
+      args.provenance?.agentSessionId ?? null,
+      args.provenance?.actingForPrincipalId ?? null,
     ],
   );
   const versionRow = versionResult.rows[0];
+  // Queue the probe here, in the write's own transaction, so a version cannot
+  // exist that nobody has asked about. Nothing is probed on this path: the probe
+  // needs a sandbox, and a write must not wait for one. A blob-backed version is
+  // asked about once however many versions share the bytes; an inline one -- a
+  // server with no object store -- is keyed on its own version id, because those
+  // bytes are its own.
+  await enqueueProbeSubject(
+    transaction,
+    blobId === null
+      ? {
+        organizationId: scope.organizationId,
+        artifactVersionId: versionRow.id,
+      }
+      : { organizationId: scope.organizationId, blobId },
+  );
   const createdAt = iso(versionRow.created_at);
   const response = {
     id: versionRow.id,
@@ -453,6 +482,11 @@ export async function publishArtifact(
       },
     },
     traceId,
+    provenance: await attemptVersionProvenance(
+      transaction,
+      scope.organization_id,
+      attemptId,
+    ),
   });
   await transaction.query(
     `insert into bakery.artifact_publication_replays (organization_id,attempt_id,worker_host_id,idempotency_key,request_digest,response) values ($1,$2,$3,$4,$5,$6)`,

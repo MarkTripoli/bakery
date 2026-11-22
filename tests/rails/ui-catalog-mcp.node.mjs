@@ -4,7 +4,10 @@ import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkFile } from "../../scripts/check-ui-architecture.mjs";
+import {
+  checkFile,
+  describeFileAnalysisRuns,
+} from "../../scripts/check-ui-architecture.mjs";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const SERVER = fileURLToPath(
@@ -556,6 +559,35 @@ test("ui_check_file reports a diagnostic checkFile also reports", async () => {
   } finally {
     rmSync(absolute, { force: true });
   }
+});
+
+test("single-file answers share one analysis per state of the tree", () => {
+  const file = "apps/web/src/router.tsx";
+  checkFile(file, { root: ROOT });
+  const settled = describeFileAnalysisRuns();
+  // The tree is unchanged: any number of questions, about any files, reuse it.
+  checkFile(file, { root: ROOT });
+  checkFile("apps/web/src/pages/SignInPage.tsx", { root: ROOT });
+  assert.equal(describeFileAnalysisRuns(), settled, "no new analysis");
+  // A file added anywhere is a new state: it is analysed, and answered.
+  const path = `apps/web/src/__mcp_cache_probe_${process.pid}__.tsx`;
+  const absolute = join(ROOT, path);
+  writeFileSync(absolute, "export const Probe = () => <table />;\n");
+  try {
+    assert.deepEqual(
+      checkFile(path, { root: ROOT }).map((d) => d.rule),
+      ["ui/raw-element-in-app"],
+    );
+    assert.equal(describeFileAnalysisRuns(), settled + 1, "analysed again");
+  } finally {
+    rmSync(absolute, { force: true });
+  }
+  // The file removed is another new state, and the probe is no longer a module.
+  assert.throws(
+    () => checkFile(path, { root: ROOT }),
+    /not an analyzed UI module/,
+  );
+  assert.equal(describeFileAnalysisRuns(), settled + 2, "analysed again");
 });
 
 test("ui_check_file errors on paths that are not analyzed modules", async () => {

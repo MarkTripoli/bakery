@@ -13,7 +13,7 @@ import {
   type PreviewFactsTranslate,
 } from "../../apps/web/src/pages/preview-facts.ts";
 
-const locale = "en-US";
+const locale = "en";
 // A translator that shows exactly which keys were used, in order, so a test can
 // see both the words and the order without depending on real copy.
 const t: PreviewFactsTranslate = (key, values) => {
@@ -38,7 +38,7 @@ Deno.test("an image states its size, its pixels and its bytes", () => {
     ),
     "[files.preview.facts.image kind=Image] · " +
       "[files.preview.facts.pixels width=1200 height=800] · " +
-      "[tasks.run.artifact.size size=340]",
+      "[files.size.kilobytes value=340]",
   );
 });
 
@@ -56,8 +56,10 @@ Deno.test("a video states its length, not a size it does not have", () => {
       t,
     ),
     "[files.preview.facts.video kind=Video] · " +
-      "[files.preview.facts.duration duration=0:12] · " +
-      "[tasks.run.artifact.size size=2,048]",
+      // Under a minute there is no zero to state: "0 min 2 s" would be a
+      // measurement of nothing (#437, UX review).
+      "[files.preview.facts.durationSeconds seconds=12] · " +
+      "[files.size.megabytes value=2]",
   );
 });
 
@@ -75,8 +77,8 @@ Deno.test("an audio file states its length", () => {
       t,
     ),
     "[files.preview.facts.audio kind=Audio] · " +
-      "[files.preview.facts.duration duration=1:02] · " +
-      "[tasks.run.artifact.size size=1]",
+      "[files.preview.facts.duration minutes=1 seconds=2] · " +
+      "[files.size.kilobytes value=1]",
   );
 });
 
@@ -96,7 +98,7 @@ Deno.test("a text file states its lines, and says nothing about pixels", () => {
     ),
     "[files.preview.facts.text kind=Text] · " +
       "[files.preview.facts.lines lines=412] · " +
-      "[tasks.run.artifact.size size=18]",
+      "[files.size.kilobytes value=18]",
   );
 });
 
@@ -116,10 +118,10 @@ Deno.test("a measured fact with no number is dropped, not rendered empty", () =>
   assertEquals(facts.includes("files.preview.facts.duration"), false);
   assertEquals(
     facts,
-    "[files.preview.facts.video kind=Video] · [tasks.run.artifact.size size=2]",
+    "[files.preview.facts.video kind=Video] · [files.size.kilobytes value=2]",
   );
-  // Kilobytes keep the app's thousands separator, because the app's own
-  // `tasks.run.artifact.size` rule is what produces this number.
+  // The size is the Files screens' own formatter, so this line and the Size row
+  // beside it cannot disagree about how big the file is.
 });
 
 Deno.test("nothing described means no facts line at all", () => {
@@ -137,10 +139,8 @@ Deno.test("nothing described means no facts line at all", () => {
   }
 });
 
-Deno.test("bytes format the way the rest of the app formats them", () => {
-  // TaskRunArtifactCard divides by 1024 and formats through Intl with one
-  // fraction digit; these are the same numbers through the same rule, so a
-  // reader comparing the facts line with the artifact card sees one app.
+Deno.test("bytes are the Files screens' own units, under a kilobyte included", () => {
+  // 1.5 KB: one fraction digit at most, so it reads "1.5" and never "1.50".
   assertEquals(
     previewFacts(
       {
@@ -151,24 +151,24 @@ Deno.test("bytes format the way the rest of the app formats them", () => {
         width: 1,
         height: 1,
       },
-      "de-DE",
+      locale,
       t,
-    ).endsWith("[tasks.run.artifact.size size=1,5]"),
+    ).endsWith("[files.size.kilobytes value=1.5]"),
     true,
   );
-  // A file under a kilobyte rounds to the same "0" the rest of the app shows.
+  // A file under a kilobyte is bytes, which is what the Size row says too: "77 B",
+  // never "0.1 KiB" beside it.
   assertEquals(
     previewFacts(
       {
         status: "described",
         kind: "text",
         mediaType: "text/plain",
-        byteLength: 10,
+        byteLength: 77,
       },
       locale,
       t,
     ),
-    "[files.preview.facts.text kind=Text] · " +
-      "[tasks.run.artifact.size size=0]",
+    "[files.preview.facts.text kind=Text] · [files.size.bytes value=77]",
   );
 });

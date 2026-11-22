@@ -169,6 +169,13 @@ export function dispatchedContext(
  */
 export function sessionRefusal(error: unknown): unknown {
   if (error instanceof SessionToolError) {
+    if (error.code === "SESSION_TOOL_PEOPLE_ONLY") {
+      return new StandardError({
+        code: "AUTH_FORBIDDEN",
+        params: { reason: "session_operation_people_only" },
+        cause: error,
+      });
+    }
     return new StandardError({
       code: error.code === "SESSION_TOOL_UNKNOWN"
         ? "RESOURCE_NOT_FOUND"

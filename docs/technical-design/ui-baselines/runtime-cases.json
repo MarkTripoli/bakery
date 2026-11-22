@@ -591,6 +591,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "template.formWithSummary.contract.desktop-light-fine",
+      "catalogId": "template.formWithSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-formwithsummary--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "template.installationSettingsForm.contract.desktop-light-fine",
       "catalogId": "template.installationSettingsForm",
       "requiredCaseId": "contract",
@@ -868,6 +875,27 @@
       "catalogId": "ui.capacityBanner",
       "requiredCaseId": "contract",
       "storyId": "bakery-molecules-capacitybanner--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.usageMeter.contract.desktop-light-fine",
+      "catalogId": "ui.usageMeter",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-usagemeter--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.statTile.contract.desktop-light-fine",
+      "catalogId": "ui.statTile",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stattile--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.segmentedBar.contract.desktop-light-fine",
+      "catalogId": "ui.segmentedBar",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-segmentedbar--contract",
       "context": "desktop-light-fine"
     },
     {
@@ -1376,6 +1404,20 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.sealedFrame.contract.desktop-light-fine",
+      "catalogId": "ui.sealedFrame",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sealedframe--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.providerMark.contract.desktop-light-fine",
+      "catalogId": "ui.providerMark",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-providermark--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.menu.contract.desktop-light-fine",
       "catalogId": "ui.menu",
       "requiredCaseId": "contract",
@@ -1388,6 +1430,94 @@
       "requiredCaseId": "contract",
       "storyId": "bakery-organisms-messagecomposer--contract",
       "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.accessOffer.contract.desktop-light-fine",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.accessOffer.contract.dark",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.accessOffer.contract.phone-coarse",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "phone-light-coarse",
+      "assertions": ["containment"]
+    },
+    {
+      "id": "ui.accessOffer.contract.phone-dark-coarse",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "phone-dark-coarse",
+      "assertions": ["containment"]
+    },
+    {
+      "id": "ui.accessOffer.contract.rtl",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.accessOffer.contract.system",
+      "catalogId": "ui.accessOffer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-accessoffer--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.mentionPicker.contract.desktop-light-fine",
+      "catalogId": "ui.mentionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-mentionpicker--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.mentionPicker.contract.dark",
+      "catalogId": "ui.mentionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-mentionpicker--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.mentionPicker.contract.phone-coarse",
+      "catalogId": "ui.mentionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-mentionpicker--contract",
+      "context": "phone-light-coarse",
+      "assertions": ["containment"]
+    },
+    {
+      "id": "ui.mentionPicker.contract.phone-dark-coarse",
+      "catalogId": "ui.mentionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-mentionpicker--contract",
+      "context": "phone-dark-coarse",
+      "assertions": ["containment"]
+    },
+    {
+      "id": "ui.mentionPicker.contract.rtl",
+      "catalogId": "ui.mentionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-mentionpicker--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.mentionPicker.contract.system",
+      "catalogId": "ui.mentionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-mentionpicker--contract",
+      "context": "system-dark"
     },
     {
       "id": "ui.messageComposer.contract.desktop-light-fine",

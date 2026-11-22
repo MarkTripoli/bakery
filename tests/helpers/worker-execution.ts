@@ -218,6 +218,31 @@ async function deleteWorkerOrganization(
   organizationId: string,
 ): Promise<void> {
   const organizationIds = [organizationId];
+  // A stored version names the run, step, attempt and agent session that made
+  // it, each by its own set-null foreign key. Deleting the steps below fires
+  // those one after another on the same row, and the second update re-checks
+  // the key the first one's cascade already removed (the row was changed
+  // earlier in this transaction), which Postgres rejects. Which row is hit
+  // first follows the table's physical order, so the failure appeared only in
+  // a long lane. Clear the names in one update first, so no cascade has a row
+  // left to change.
+  await pgDatabase.query(
+    `update bakery.storage_file_versions
+        set run_id = null, run_step_id = null, attempt_id = null,
+            agent_session_id = null
+      where organization_id = any($1::uuid[])
+        and (run_id is not null or run_step_id is not null
+             or attempt_id is not null or agent_session_id is not null)`,
+    [organizationIds],
+  );
+  await pgDatabase.query(
+    `update bakery.artifact_versions
+        set run_id = null, attempt_id = null, agent_session_id = null
+      where organization_id = any($1::uuid[])
+        and (run_id is not null or attempt_id is not null
+             or agent_session_id is not null)`,
+    [organizationIds],
+  );
   // Ledger rows are never deleted by the application; the fixture clears the
   // reservation link and the effects before the steps they reference.
   await pgDatabase.query(
@@ -646,7 +671,7 @@ export async function workerRequest(
   let requestBody = body;
   const mutationPath = path === "/v1/worker/claims" ||
     path === "/v1/worker/heartbeat" ||
-    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|result|session-tools|session-call)$/
+    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|handoff-manifests|result|session-tools|session-call)$/
       .test(path);
   if (mutationPath) {
     const host = await fixture.pgDatabase.query<{

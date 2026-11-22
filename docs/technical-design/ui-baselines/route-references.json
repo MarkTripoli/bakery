@@ -1551,6 +1551,34 @@
       "frames": []
     },
     {
+      "routeId": "installation-monitoring",
+      "path": "/installation/monitoring",
+      "status": "no-mock",
+      "rationale": "Monitoring page (where Bakery sends its measurements). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-monitoring-new",
+      "path": "/installation/monitoring/new",
+      "status": "no-mock",
+      "rationale": "One Monitoring destination on its own page (/installation/monitoring/new). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-monitoring-destination",
+      "path": "/installation/monitoring/$destinationId",
+      "status": "no-mock",
+      "rationale": "One Monitoring destination on its own page (/installation/monitoring/$destinationId). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
+      "routeId": "organization-storage",
+      "path": "/organization/storage",
+      "status": "no-mock",
+      "rationale": "Storage settings page (how full storage is, the limits and retention, saved with a compare-and-swap version). The design is the UX design comment on issue 447 (settings mock at design-447/storage-settings); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition plus UsageMeter, and covered by the organization-storage spec.",
+      "frames": []
+    },
+    {
       "routeId": "artifact-retrieval",
       "path": "/tasks/$taskId/artifacts/$artifactId",
       "status": "baselined",
@@ -5040,6 +5068,13 @@
       "frames": []
     },
     {
+      "routeId": "plugin-page",
+      "path": "/plugins/$installId/$pageId",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 5 (design-76/v5 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. The page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-repository-rules",
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",
@@ -5086,6 +5121,27 @@
       "path": "/issues",
       "status": "no-mock",
       "rationale": "The Issues list is the organization's saved copy of GitHub issues with their readiness, organization-scoped API data. Paper has no mock for an issue list; design-ux's UX design on #56 is the reference.",
+      "frames": []
+    },
+    {
+      "routeId": "batches",
+      "path": "/issues/batches",
+      "status": "no-mock",
+      "rationale": "The list of batches, one row per batch, is designed with mocks in design-ux's UX design, revision 2, on #58; the mocks are PNGs on the pr-evidence branch, and Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "batch-new",
+      "path": "/issues/batches/new",
+      "status": "no-mock",
+      "rationale": "The start page, with its plain summary beside the form, is designed with a mock in design-ux's UX design, revision 2, on #58; Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "batch-detail",
+      "path": "/issues/batches/$batchId",
+      "status": "no-mock",
+      "rationale": "A batch's page, with its banner, three meters and issues table, is designed with mocks in design-ux's UX design, revision 2, on #58; Paper has no frame for it.",
       "frames": []
     },
     {
@@ -5187,10 +5243,38 @@
       "frames": []
     },
     {
+      "routeId": "library-evaluation",
+      "path": "/library/evaluations/$batchId",
+      "status": "no-mock",
+      "rationale": "One evaluation run (its quality gate, results by test case, attempts, what it used, Stop run) is designed by design-ux on #75 (revision 4, mocks at pr-evidence design-75/v4/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "notifications",
       "path": "/notifications",
       "status": "no-mock",
       "rationale": "Notification inbox page (NotificationsPage). No Paper artboard depicts a notifications list: the shipped design is design-ux's UX design comment on issue #455 (comment 6961347054), which specifies the bell, the popover and this page, and supersedes Paper as the source of truth for this surface.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-usage",
+      "path": "/installation/usage",
+      "status": "no-mock",
+      "rationale": "The installation usage page (#75) is designed by design-ux on #75 (revision 2, mock at pr-evidence design-75/v2/usage.png); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-restore",
+      "path": "/installation/restore",
+      "status": "no-mock",
+      "rationale": "The Finish the restore page (#64 E4) is designed by design-ux on #64 (E3 design, mocks at pr-evidence design-64/e3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "delivery",
+      "path": "/delivery",
+      "status": "no-mock",
+      "rationale": "The Delivery page (#75) is designed by design-ux on #75 (revision 3 and its two later changes, mocks at pr-evidence design-75/v3/); Paper has no frame for it.",
       "frames": []
     }
   ]

@@ -33,6 +33,11 @@ function receiver(status: () => number) {
   const server = Deno.serve(
     { hostname: "127.0.0.1", port: 0, onListen: () => {} },
     async (request) => {
+      // Only POSTs are the test's traffic. A host that probes new localhost ports
+      // (mini1 does) sends empty GETs to "/", which must not count as a delivery.
+      if (request.method !== "POST") {
+        return new Response("not found", { status: 404 });
+      }
       seen.push({
         path: new URL(request.url).pathname,
         authorization: request.headers.get("authorization"),
@@ -130,6 +135,8 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
       kinds: { kind: string; fields: { name: string; secret: boolean }[] }[];
       measurements: { kind: string }[];
       destinations: Body[];
+      total: number;
+      destinationLimit: number;
     };
   };
   try {
@@ -175,7 +182,17 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     );
     assertEquals(tested.status, 200, tested.text);
     assertEquals([tested.json.ok, tested.json.status], [true, 200]);
-    assertEquals(collector.seen[0].path, "/v1/traces");
+    assertEquals(
+      collector.seen[0].path,
+      "/v1/traces",
+      "the collector saw: " + JSON.stringify(
+        collector.seen.map((s) => ({
+          path: s.path,
+          authorization: s.authorization,
+          body: s.body.slice(0, 160),
+        })),
+      ),
+    );
     assertEquals(collector.seen[0].authorization, `Bearer ${TOKEN}`);
     answer = 401;
     const refused = await send(
@@ -327,10 +344,16 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     await until(() =>
       collector.seen.some((s) => s.body.includes("job.completed"))
     );
-    // usage.settled carries no amount yet, so no destination receives it.
+    // usage.settled is a results record (the usage span under an attempt, with
+    // token counts), so a destination that takes results receives it...
+    await until(() =>
+      collector.seen.some((s) => s.body.includes("usage.settled"))
+    );
+    // ...and a destination that takes only health does not.
     assertEquals(
-      collector.seen.filter((s) => s.body.includes("usage.settled")),
+      other.seen.filter((s) => s.body.includes("usage.settled")),
       [],
+      "a health-only destination got a results record",
     );
     const traces = collector.seen.filter((s) =>
       s.path === "/v1/traces" && s.body.includes("job.completed")
@@ -504,6 +527,36 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     assertEquals((await list()).destinations.map((d) => d.name), [
       "Health only",
     ]);
+
+    // At most 200 destinations, even when creates race: four at once with room
+    // for two must admit exactly two. The fillers are written straight to the
+    // table so the test does not make 197 requests.
+    const make = (name: string) =>
+      send(f.adminCookie, "POST", "/v1/installation/telemetry-destinations", {
+        body: {
+          kind: "otlp",
+          name,
+          measurements: ["health"],
+          values: { address: other.address },
+        },
+      });
+    await f.pgDatabase.query(
+      `insert into bakery.telemetry_destinations (id, kind, name, measurements)
+       select gen_random_uuid(), 'otlp', 'Filler ' || n, array['health']
+         from generate_series(0, 196) as n`,
+    );
+    assertEquals((await list()).total, 198);
+    const raced = await Promise.all(
+      ["Race A", "Race B", "Race C", "Race D"].map(make),
+    );
+    assertEquals(
+      raced.map((r) => r.status).sort(),
+      [201, 201, 409, 409],
+      "concurrent creates went past the limit",
+    );
+    const full = await list();
+    assertEquals(full.total, 200);
+    assertEquals(full.destinationLimit, 200);
   } finally {
     await telemetry.close(500);
     await fanout.close(0);

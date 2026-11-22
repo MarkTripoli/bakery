@@ -16,9 +16,12 @@ import { WORKFLOW_ACTION_REGISTRY_VERSION } from "../../workflow-action-registry
 import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
 import {
   DEFAULT_STEP_FILES,
+  SEALED_STEP_FILES,
+  sealedByDefault,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_WRITE_AREAS,
   type WorkflowStepFiles,
+  WorkflowStepSealedSchema,
 } from "../step-files.ts";
 import type {
   WorkflowActionNode,
@@ -88,6 +91,7 @@ const ACTION_KEYS: ReadonlySet<string> = new Set([
   "inputs",
   "outputs",
   "files",
+  "sealed",
   "requires",
   "checks",
   "limits",
@@ -375,6 +379,54 @@ function readFileAreas<T extends string>(
     seen.add(item);
   }
   return known.filter((area) => seen.has(area));
+}
+
+/**
+ * Reads a step's `sealed` sugar (O53). True expands into the sealed files
+ * section, so it and the explicit section normalize to the same node and
+ * digest; a files section naming anything else is a conflict, never resolved
+ * silently. False leaves the step's own files section alone. Absent, an
+ * evaluation step with no files section is sealed by default, and any other
+ * step keeps its own section or the defaults.
+ */
+function readSealed(
+  context: Context,
+  raw: Record<string, unknown>,
+  files: WorkflowStepFiles | undefined | null,
+  path: Path,
+  action: string,
+): WorkflowStepFiles | undefined | null {
+  if (!Object.hasOwn(raw, "sealed")) {
+    if (files !== undefined || !sealedByDefault(action)) return undefined;
+    return {
+      read: [...SEALED_STEP_FILES.read],
+      write: [...SEALED_STEP_FILES.write],
+    };
+  }
+  const parsed = WorkflowStepSealedSchema.safeParse(raw["sealed"]);
+  if (!parsed.success) {
+    report(context, [...path, "sealed"], "action_sealed_invalid");
+    return null;
+  }
+  if (!parsed.data) return undefined;
+  const sealed: WorkflowStepFiles = {
+    read: [...SEALED_STEP_FILES.read],
+    write: [...SEALED_STEP_FILES.write],
+  };
+  if (files === null) return null;
+  if (
+    files !== undefined &&
+    (!sameAreas(files.read, sealed.read) ||
+      !sameAreas(files.write, sealed.write))
+  ) {
+    report(context, [...path, "files"], "action_sealed_conflicts_files");
+    return null;
+  }
+  return sealed;
+}
+
+function sameAreas(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((area, index) => area === b[index]);
 }
 
 /**
@@ -853,6 +905,8 @@ function shapeAction(
   if (outputSlots === null) failed = true;
   const files = readStepFiles(context, raw["files"], [...path, "files"]);
   if (files === null) failed = true;
+  const sealedFiles = readSealed(context, raw, files, path, action);
+  if (sealedFiles === null) failed = true;
 
   let limits: WorkflowActionNode["limits"];
   if (Object.hasOwn(raw, "limits")) {
@@ -909,7 +963,8 @@ function shapeAction(
   if (role) node.role = role;
   if (inputSlots) node.inputs = inputSlots;
   if (outputSlots) node.outputs = outputSlots;
-  if (files) node.files = files;
+  if (sealedFiles) node.files = sealedFiles;
+  else if (files) node.files = files;
   if (checks) node.checks = checks;
   if (effectKey) node.effectKey = effectKey;
   if (limits) node.limits = limits;

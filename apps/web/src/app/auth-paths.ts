@@ -28,6 +28,8 @@ export const ORGANIZATIONS_PATH: string = "/organizations";
  * selected organization.
  */
 export const ORGANIZATION_SETTINGS_PATH: string = "/organization/settings";
+/** How much the organization can store and how long Bakery keeps things (#448). */
+export const ORGANIZATION_STORAGE_PATH: string = "/organization/storage";
 export const SECURITY_SETTINGS_PATH: string = "/settings/security";
 export const TWO_FACTOR_SETTINGS_PATH: string = "/settings/security/two-factor";
 export const TWO_FACTOR_SETUP_PATH: string =

@@ -435,8 +435,9 @@ Deno.test("the probe runs every minute, one run at a time, and is one step", () 
   assertEquals(captured.config.concurrency, [{ limit: 1 }]);
 });
 
-Deno.test("the probe does not open incidents until the inference-trial slice can close them", () => {
+Deno.test("the probe opens incidents now that a completed attempt closes them", () => {
   // Ruling on #26: an incident nothing can close would permanently remove a route
-  // after a transient outage. The trial slice flips this together with its closer.
-  assertEquals(PROBE_OPENS_INCIDENTS, false);
+  // after a transient outage. #70 added the closer (a completed attempt is
+  // inference_proven, attempt-route-evidence.ts), so failures open incidents.
+  assertEquals(PROBE_OPENS_INCIDENTS, true);
 });

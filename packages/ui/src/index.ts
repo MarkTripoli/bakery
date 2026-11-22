@@ -6,6 +6,9 @@ import "./feedback.css";
 import "./collaboration.css";
 import "./navigation.css";
 
+export * from "./organisms/AccessOffer.tsx";
+export * from "./organisms/MentionPicker.tsx";
+export * from "./organisms/SealedFrame.tsx";
 export * from "./organisms/MessageComposer.tsx";
 export * from "./organisms/RunIdentity.tsx";
 export * from "./organisms/WorkflowStageStrip.tsx";
@@ -63,6 +66,8 @@ export { Inline, type InlineProps } from "./atoms/Inline.tsx";
 export { Label, type LabelProps } from "./atoms/Label.tsx";
 export * from "./atoms/Link.tsx";
 export { LogoMark, type LogoMarkProps } from "./atoms/LogoMark.tsx";
+export { ProviderMark, type ProviderMarkProps } from "./atoms/ProviderMark.tsx";
+export { providerHasMark } from "./atoms/provider-marks.ts";
 export { type BrandColorName, brandPalette } from "./brand/tokens.ts";
 export {
   logo,
@@ -171,6 +176,9 @@ export * from "./molecules/RecoveryCodes.tsx";
 export * from "./molecules/ResourcePicker.tsx";
 export * from "./molecules/SearchField.tsx";
 export * from "./molecules/SegmentedControl.tsx";
+export * from "./molecules/UsageMeter.tsx";
+export * from "./molecules/SegmentedBar.tsx";
+export * from "./molecules/StatTile.tsx";
 export * from "./molecules/StatusStrip.tsx";
 export * from "./molecules/SetupKey.tsx";
 export * from "./molecules/SettingsIndexRow.tsx";
@@ -205,6 +213,7 @@ export * from "./organisms/TaskQueue.tsx";
 export * from "./organisms/RunTimeline.tsx";
 export * from "./templates/AuthEntry.tsx";
 export * from "./templates/FormContent.tsx";
+export * from "./templates/FormWithSummary.tsx";
 export * from "./templates/SettingsContent.tsx";
 export * from "./templates/SettingsSection.tsx";
 export * from "./templates/InstallationSettingsForm.tsx";

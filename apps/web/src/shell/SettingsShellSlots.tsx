@@ -133,9 +133,13 @@ export function InOrganization(
  * audit) are outside the Settings tree.
  */
 export function InstallationBreadcrumbs(
-  { children, section }: {
+  { children, leaf, section, sectionHref }: {
     readonly children: ReactNode;
     readonly section: MessageKey;
+    /** The section's own page, when a sub-page below it adds a last crumb. */
+    readonly sectionHref?: string;
+    /** The sub-page's name: the last crumb, with the section above it as a link. */
+    readonly leaf?: string;
   },
 ) {
   const { translate } = useI18n();
@@ -149,7 +153,10 @@ export function InstallationBreadcrumbs(
               href: INSTALLATION_HOME,
               label: translate("shell.navigation.installation"),
             },
-            { label: translate(section) },
+            leaf === undefined
+              ? { label: translate(section) }
+              : { href: sectionHref, label: translate(section) },
+            ...(leaf === undefined ? [] : [{ label: leaf }]),
           ]}
         />
       </ShellSlot>

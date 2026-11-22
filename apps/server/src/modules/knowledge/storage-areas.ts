@@ -20,6 +20,10 @@ export type StorageLimits = Readonly<{
   organizationQuotaBytes: number;
   projectQuotaBytes: number;
   personalQuotaBytes: number;
+  /** Bytes one run step attempt may write through an agent (O49). */
+  stepWriteBytes: number;
+  /** Distinct files and folders one run step attempt may write (O49). */
+  stepWriteFiles: number;
 }>;
 
 const GIB = 1024 * 1024 * 1024;
@@ -38,6 +42,9 @@ export const DEFAULT_STORAGE_LIMITS: StorageLimits = Object.freeze({
   organizationQuotaBytes: 100 * GIB,
   projectQuotaBytes: 50 * GIB,
   personalQuotaBytes: 10 * GIB,
+  // O49: by default each step may write up to 2 GiB and 2,000 files.
+  stepWriteBytes: 2 * GIB,
+  stepWriteFiles: 2000,
 });
 
 /** Bounds an Admin may set; outside them a setting is refused, never clamped. */
@@ -50,6 +57,8 @@ export const STORAGE_LIMIT_BOUNDS = Object.freeze(
     organizationQuotaBytes: [1, 1024 * 1024 * GIB],
     projectQuotaBytes: [1, 1024 * 1024 * GIB],
     personalQuotaBytes: [1, 1024 * 1024 * GIB],
+    stepWriteBytes: [1024 * 1024, 1024 * GIB],
+    stepWriteFiles: [1, 1_000_000],
   } as const satisfies Record<keyof StorageLimits, readonly [number, number]>,
 );
 
@@ -235,4 +244,35 @@ export function scopeKeyFromAncestors(
     if (match) return match[1] + ":" + match[2];
   }
   return null;
+}
+
+/** What one run step attempt's agent writes hold so far (O49). */
+export type StepWriteUse = Readonly<{
+  /** Distinct entries the attempt wrote. */
+  files: number;
+  /** Bytes of the versions the attempt's puts and copies made. */
+  bytes: number;
+}>;
+
+/** Which step write limit a write would pass; the fault's reason. */
+export type StepWriteLimitReason = "files" | "bytes";
+
+/**
+ * Whether one more agent write fits the step's limits. A write to an entry the
+ * attempt already wrote adds no file; a write that adds no bytes (a folder, a
+ * move, a trash) is checked against the file count only. The limits are
+ * inclusive: a step may write exactly stepWriteFiles files and stepWriteBytes
+ * bytes.
+ */
+export function stepWriteLimitRefusal(
+  used: StepWriteUse,
+  write: Readonly<{ newEntry: boolean; addedBytes: number }>,
+  limits: Pick<StorageLimits, "stepWriteBytes" | "stepWriteFiles">,
+): StepWriteLimitReason | undefined {
+  if (write.newEntry && used.files + 1 > limits.stepWriteFiles) return "files";
+  if (
+    write.addedBytes > 0 &&
+    used.bytes + write.addedBytes > limits.stepWriteBytes
+  ) return "bytes";
+  return undefined;
 }

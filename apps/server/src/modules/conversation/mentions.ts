@@ -51,13 +51,15 @@ export const MentionRefusal = Object.freeze(
 type MentionRefusalCode = (typeof MentionRefusal)[keyof typeof MentionRefusal];
 
 /** One organization member as the mention rules see them. */
-type MemberRow = {
+export type MemberRow = {
   principalId: string;
   displayName: string;
   role: string | null;
   customRoleId: string | null;
   customPermissions: string[] | null;
   granted: boolean;
+  /** A live direct grant on the document this comment thread belongs to. */
+  artifactGranted?: boolean;
 };
 
 /** What a mention would do for one person, from current state. */
@@ -70,7 +72,18 @@ export type MentionAccess = {
 
 export type MentionScope =
   | { kind: "conversation"; conversationId: string }
-  | { kind: "comment_thread"; conversationId: string | null };
+  | {
+    kind: "comment_thread";
+    conversationId: string | null;
+    /** The document the thread is on; a live grant on it counts as access. */
+    artifactId: string;
+    /**
+     * Sent by the writer to give a mentioned person who cannot read the
+     * document that level of access with the comment; omitted, such a mention
+     * is refused.
+     */
+    accessLevel?: "read_comment" | "edit";
+  };
 
 function actorOf(context: ActionContext): OrganizationActor {
   const authority = (context as Partial<AuthorizedActionContext>).authority;
@@ -85,7 +98,7 @@ function actorOf(context: ActionContext): OrganizationActor {
  * permission. Capabilities are deliberately ignored: an exact action grant is
  * not a person's standing access to a conversation.
  */
-function memberHolds(
+export function memberHolds(
   row: Pick<MemberRow, "role" | "customRoleId" | "customPermissions">,
   permissions: readonly CatalogPermissionKey[],
 ): boolean {
@@ -133,11 +146,35 @@ export function writerMayShare(actor: OrganizationActor): boolean {
 }
 
 /**
+ * Whether the acting writer may give someone new access to a document: a
+ * person acting on their own organization role (never a document grant, which
+ * cannot reshare, and never a service or agent), whose role holds
+ * artifact:share, through a token that carries that scope when one is used.
+ */
+export function writerMayShareArtifact(actor: OrganizationActor): boolean {
+  if (actor.subject.principalType !== PrincipalType.Human) return false;
+  if (
+    actor.conversationGrant !== undefined || actor.artifactGrant !== undefined
+  ) return false;
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows("artifact:share", actor.tokenScopes)
+  ) return false;
+  return memberHolds({
+    role: actor.role ?? null,
+    customRoleId: actor.customRole?.id ?? null,
+    customPermissions: actor.customRole
+      ? [...actor.customRole.permissions]
+      : [],
+  }, ["artifact:share"]);
+}
+
+/**
  * Active human members who can be mentioned at all: enabled account, active
  * membership, a system role other than a bare guest. Disabled, removed and
  * invited-but-not-joined people are not members here and never match.
  */
-const ELIGIBLE_MEMBER_SQL = `
+export const ELIGIBLE_MEMBER_SQL = `
   from bakery.organization_memberships as membership
   join bakery.principals as principal on principal.id = membership.principal_id
   left join public."user" as account on account.id = principal.provider_user_id
@@ -149,6 +186,18 @@ const ELIGIBLE_MEMBER_SQL = `
     and ${organizationMemberRoleSql("membership")}
     and principal.principal_type = '${PrincipalType.Human}'
     and principal.disabled_at is null`;
+
+/** The member columns, with the document grant read from parameter `artifactParam`. */
+function memberColumns(artifactParam: number | null): string {
+  const grant = artifactParam === null ? "false" : `exists (
+    select 1 from bakery.artifact_access_grants as artifact_grant
+    where artifact_grant.organization_id = membership.organization_id
+      and artifact_grant.artifact_id = $${artifactParam}::uuid
+      and artifact_grant.principal_id = principal.id
+      and artifact_grant.revoked_at is null
+  )`;
+  return `${MEMBER_COLUMNS},\n  ${grant} as "artifactGranted"`;
+}
 
 const MEMBER_COLUMNS = `principal.id as "principalId",
   principal.display_name as "displayName", membership.role,
@@ -168,11 +217,13 @@ function accessFor(
   mayShare: boolean,
 ): MentionAccess {
   if (scope.kind === "comment_thread") {
+    const hasAccess = row.artifactGranted === true ||
+      memberHolds(row, COMMENT_READ);
     return {
       principalId: row.principalId,
       displayName: row.displayName,
-      hasAccess: memberHolds(row, COMMENT_READ),
-      gainsAccessOnSend: false,
+      hasAccess,
+      gainsAccessOnSend: !hasAccess && mayShare,
     };
   }
   const hasAccess = row.granted || memberHolds(row, CONVERSATION_REPLY);
@@ -182,6 +233,87 @@ function accessFor(
     hasAccess,
     gainsAccessOnSend: !hasAccess && mayShare,
   };
+}
+
+/**
+ * Whether one member's organization role (system or custom) holds a
+ * permission. Capabilities are ignored, as in memberHolds.
+ */
+export async function memberRoleHolds(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  permission: CatalogPermissionKey,
+): Promise<boolean> {
+  const result = await transaction.query<MemberRow>(
+    `select principal.id as "principalId",
+            principal.display_name as "displayName", membership.role,
+            membership.custom_role_id as "customRoleId",
+            custom.permissions as "customPermissions", false as granted
+     ${ELIGIBLE_MEMBER_SQL}
+       and principal.id = $2::uuid`,
+    [organizationId, principalId],
+  );
+  const row = result.rows[0];
+  return row !== undefined && memberHolds(row, [permission]);
+}
+
+/** The most people a "who can give access" answer names. */
+export const MAX_SHARERS = 3;
+
+/**
+ * Up to MAX_SHARERS active human members whose organization role holds
+ * `permission`, the author first when the author is one of them, then by
+ * display name. People are read in pages of 100 so a large organization with
+ * few sharers still finds them, and the answer never reaches outside the
+ * organization. It names nobody the reader could not already see in the
+ * mention picker: display names only.
+ */
+export async function findSharers(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  authorId: string | null,
+  permission: CatalogPermissionKey,
+): Promise<{ principalId: string; displayName: string }[]> {
+  const found: { principalId: string; displayName: string }[] = [];
+  let after: string | null = null;
+  let authorChecked = authorId === null;
+  while (found.length < MAX_SHARERS) {
+    const result: { rows: MemberRow[] } = await transaction.query<MemberRow>(
+      `select ${MEMBER_COLUMNS}
+       ${ELIGIBLE_MEMBER_SQL}
+         and ($3::uuid is null or principal.id = $3::uuid)
+         and ($4::uuid is null or (lower(principal.display_name), principal.id) >
+           (select lower(after_row.display_name), after_row.id
+            from bakery.principals as after_row where after_row.id = $4::uuid))
+       order by lower(principal.display_name), principal.id
+       limit 100`,
+      [
+        organizationId,
+        null,
+        authorChecked ? null : authorId,
+        authorChecked ? after : null,
+      ],
+    );
+    for (const row of result.rows) {
+      if (!memberHolds(row, [permission])) continue;
+      if (found.some((person) => person.principalId === row.principalId)) {
+        continue;
+      }
+      found.push({
+        principalId: row.principalId,
+        displayName: row.displayName,
+      });
+      if (found.length === MAX_SHARERS) break;
+    }
+    if (!authorChecked) {
+      authorChecked = true;
+      continue;
+    }
+    if (result.rows.length < 100) break;
+    after = result.rows.at(-1)?.principalId ?? null;
+  }
+  return found;
 }
 
 function likePattern(query: string): string {
@@ -231,7 +363,7 @@ export async function searchMentionCandidates(
     ? input.scope.conversationId
     : null;
   const result = await transaction.query<MemberRow>(
-    `select ${MEMBER_COLUMNS}
+    `select ${memberColumns(input.scope.kind === "comment_thread" ? 7 : null)}
      ${ELIGIBLE_MEMBER_SQL}
        and ($3::text = '' or principal.display_name ilike $4 escape '\\'
          or account.email ilike $4 escape '\\')
@@ -247,9 +379,14 @@ export async function searchMentionCandidates(
       likePattern(query),
       cursor?.id ?? null,
       limit + 1,
+      ...(input.scope.kind === "comment_thread"
+        ? [input.scope.artifactId]
+        : []),
     ],
   );
-  const mayShare = writerMayShare(actor);
+  const mayShare = input.scope.kind === "comment_thread"
+    ? writerMayShareArtifact(actor)
+    : writerMayShare(actor);
   const page = result.rows.slice(0, limit);
   const last = page.at(-1);
   return {
@@ -315,14 +452,21 @@ export async function resolveMentions(
   // Lock the membership rows so a concurrent removal or role change is ordered
   // with this send instead of slipping between the check and the commit.
   const result = await transaction.query<MemberRow>(
-    `select ${MEMBER_COLUMNS}
+    `select ${memberColumns(scope.kind === "comment_thread" ? 4 : null)}
      ${ELIGIBLE_MEMBER_SQL}
        and principal.id = any($3::uuid[])
      for share of membership, principal`,
-    [actor.organizationId, conversationId, ids],
+    [
+      actor.organizationId,
+      conversationId,
+      ids,
+      ...(scope.kind === "comment_thread" ? [scope.artifactId] : []),
+    ],
   );
   const byId = new Map(result.rows.map((row) => [row.principalId, row]));
-  const mayShare = writerMayShare(actor);
+  const mayShare = scope.kind === "comment_thread"
+    ? writerMayShareArtifact(actor)
+    : writerMayShare(actor);
   const writer = actor.subject.principalId.toLowerCase();
   const refusals: { index: number; code: MentionRefusalCode }[] = [];
   const people: MentionAccess[] = [];
@@ -335,12 +479,20 @@ export async function resolveMentions(
       continue;
     }
     const access = accessFor(row, scope, mayShare);
-    if (id !== writer && !access.hasAccess && !access.gainsAccessOnSend) {
+    // A comment gives access only when the writer asked for it with an
+    // accessLevel; without one, someone who cannot read the thread is refused.
+    const offered = scope.kind !== "comment_thread" ||
+      scope.accessLevel !== undefined;
+    if (
+      id !== writer && !access.hasAccess &&
+      (!access.gainsAccessOnSend || !offered)
+    ) {
       refusals.push({
         index,
-        code: scope.kind === "comment_thread"
-          ? MentionRefusal.NoThreadAccess
-          : MentionRefusal.ShareForbidden,
+        code: scope.kind !== "comment_thread" ||
+            (scope.accessLevel !== undefined && !access.gainsAccessOnSend)
+          ? MentionRefusal.ShareForbidden
+          : MentionRefusal.NoThreadAccess,
       });
       continue;
     }
