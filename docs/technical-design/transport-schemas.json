@@ -39494,6 +39494,15 @@
       ],
       "description": "Built-in bounded trusted-source inspection with finite code-owned argv templates. Initial admission requires Git; other policy tools are inspected and recorded as missing rather than preventing an honest blocked observation."
     },
+    "rpi.research": {
+      "inputSchema": "ResearchInput",
+      "outputSchema": "ResearchOutput",
+      "schemaSource": "06-workflows-delivery-and-acceptance.md action schema registry",
+      "capabilities": [
+        "model",
+        "web"
+      ]
+    },
     "rpi.design": {
       "inputSchema": "DesignInput",
       "outputSchema": "ArtifactOutput",

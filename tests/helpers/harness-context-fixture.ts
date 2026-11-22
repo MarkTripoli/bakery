@@ -51,3 +51,45 @@ export async function pinnedBrief(): Promise<PinnedBrief> {
     readAttemptContext: () => Promise.resolve([served]),
   };
 }
+
+/**
+ * One pinned input slot holding `text`, as admission pins the artifact a
+ * previous step published: the same artifact id, version id and digest the
+ * previous step reported, so a test can prove the exact version was passed on.
+ */
+export async function pinnedInput(options: {
+  readonly slot: string;
+  readonly path: string;
+  readonly text: string;
+  readonly artifactId?: string;
+  readonly artifactVersionId?: string;
+}): Promise<PinnedBrief> {
+  const bytes = new TextEncoder().encode(options.text);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = [...new Uint8Array(hash)].map((byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
+  const served = {
+    artifactVersionId: options.artifactVersionId ?? crypto.randomUUID(),
+    artifactId: options.artifactId ?? crypto.randomUUID(),
+    digest,
+    sizeBytes: bytes.length,
+    mediaType: "text/markdown",
+    contentBase64: btoa(String.fromCharCode(...bytes)),
+  };
+  return {
+    digest,
+    withContext: (assignment) =>
+      ({
+        ...assignment,
+        contextInputs: [{
+          slot: options.slot,
+          path: options.path,
+          digest,
+          sizeBytes: bytes.length,
+          mediaType: "text/markdown",
+        }],
+      }) as JobAssignment,
+    readAttemptContext: () => Promise.resolve([served]),
+  };
+}
