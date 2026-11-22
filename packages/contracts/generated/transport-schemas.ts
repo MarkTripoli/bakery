@@ -14744,6 +14744,38 @@ const transportSchemas = {
       ],
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
     },
+    "PluginBrokerRequest": {
+      "fields": [
+        {
+          "name": "requestId",
+          "type": "string<=128bytes",
+          "required": true,
+          "description": "Names one effect. A repeat of an id that already ran returns the recorded result and does not run the operation again."
+        },
+        {
+          "name": "sequence",
+          "type": "positiveInteger",
+          "required": true,
+          "description": "Strictly higher than the last request the broker accepted for this attempt; a reused or lower number is refused."
+        },
+        {
+          "name": "operation",
+          "type": "string<=64bytes",
+          "required": true,
+          "description": "Dotted name of a typed operation the host registered. The install must hold the grant of the same name."
+        },
+        {
+          "name": "args",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "The operation's arguments, an object. Identity is never taken from here: the install and organization come from the job the server wrote."
+        }
+      ],
+      "description": "One request from a contained plugin job, relayed by its worker to the install-scoped broker. The whole body is bounded to 64 KiB."
+    },
     "BackupWalReport": {
       "fields": [
         {
@@ -37723,6 +37755,63 @@ const transportSchemas = {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
+    "PluginBrokerOutcome": {
+      "fields": [
+        "ok",
+        "result",
+        "replayed",
+        "denial"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "result": "json|null",
+        "replayed": "boolean|null",
+        "denial": "string|null"
+      },
+      "description": "The broker's answer to one relayed plugin job request: the operation's result, or a typed denial. Exactly one of result and denial is non-null.",
+      "fieldDescriptions": {
+        "ok": "True when the broker ran the operation (or returned the recorded result of an earlier run of the same request id).",
+        "result": "The operation's result when ok is true; otherwise null.",
+        "replayed": "True when the request id had already run and this is its recorded result; null when ok is false.",
+        "denial": "Why the broker refused when ok is false, a short code such as install_off or not_granted; otherwise null."
+      }
+    },
+    "PluginJobFile": {
+      "fields": [
+        "path",
+        "contentBase64"
+      ],
+      "fieldTypes": {
+        "path": "string",
+        "contentBase64": "base64"
+      },
+      "description": "One file of the bundle a contained plugin job runs from.",
+      "fieldDescriptions": {
+        "path": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing.",
+        "contentBase64": "The file's exact bytes, base64 encoded."
+      }
+    },
+    "PluginJobFiles": {
+      "fields": [
+        "bundleDigest",
+        "entry",
+        "files"
+      ],
+      "fieldTypes": {
+        "bundleDigest": "sha256",
+        "entry": "string",
+        "files": "PluginJobFile[]"
+      },
+      "bounds": {
+        "filesMaxItems": 256
+      },
+      "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
+      "fieldDescriptions": {
+        "bundleDigest": "SHA-256 of the install's pinned bundle archive.",
+        "entry": "The path inside the bundle that the job was admitted to run.",
+        "files": "Every file of the bundle, at most 256 and 8 MiB in all."
+      }
+    },
     "Page<InstallationUpdateEvent>": {
       "pageOf": "InstallationUpdateEvent",
       "description": "Cursor page of the update history returned by `GET /v1/installation/updates`, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
@@ -39735,6 +39824,19 @@ const transportSchemas = {
         "storage"
       ],
       "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored. The worker makes one bounded judge call (rubric, output text and answer schema; no tools, no worktree) and reports its usage against the job's budget reservation; a worker with no judge provider, a timeout, or a schema-invalid answer reports unscored with the reason."
+    },
+    "plugin.job": {
+      "inputFields": {
+        "installId": "uuid",
+        "entry": "string"
+      },
+      "outputFields": {
+        "resultJson": "string<=65536"
+      },
+      "capabilities": [
+        "plugin.job.contained"
+      ],
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {
