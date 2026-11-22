@@ -107,6 +107,7 @@ import type {
   RunStepListResponse,
   SavedDataPage,
   ScimConnection,
+  SkillResponse,
   SkillStorageSettings,
   StorageFileAtVersion,
   StorageFileUsePage,
@@ -2786,6 +2787,45 @@ export function agentQueryOptions(
         }),
       );
     },
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The skills a person may attach to a step (#431): every enabled skill with an
+ * active version, read across a few pages. A skill with no active version, or
+ * switched off, cannot be attached and is left out.
+ */
+export function attachableSkillsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkills">,
+  scope: ApiScope,
+) {
+  return queryOptions<SkillResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.attachableSkills", {}),
+    queryFn: async ({ signal }) => {
+      const items: SkillResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listSkills({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(
+          ...read.items.filter((skill) =>
+            skill.enabled && skill.activeVersionId !== null &&
+            skill.activeRevision !== null
+          ),
+        );
+        if (!read.nextCursor) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
 }

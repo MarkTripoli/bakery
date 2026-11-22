@@ -356,6 +356,9 @@ export type WorkflowVersionResponse = ClientOutputMap["WorkflowVersion"];
 /** Every skill the steps of one workflow version name, as the reader may see them. */
 export type WorkflowVersionSkills = ClientOutputMap["WorkflowVersionSkills"];
 export type WorkflowStepSkill = WorkflowVersionSkills["items"][number];
+/** One skill as the picker lists it: its name and scope, and the active version people attach. */
+export type SkillResponse = ClientOutputMap["Skill"];
+export type SkillListResponse = ClientOutputMap["Page<Skill>"];
 export type WorkflowVersionListResponse =
   ClientOutputMap["Page<WorkflowVersion>"];
 export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
@@ -1929,6 +1932,13 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionListResponse>>;
+  /** The skills the caller can see (global, organization, and their own personal ones), one page of a cursor list. */
+  readonly listSkills: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillListResponse>>;
   /** The versions of one workflow, one page of a cursor list. */
   readonly listWorkflowVersions: (options: {
     readonly organizationId: string;
@@ -6388,6 +6398,24 @@ export function createBakeryApiClient({
       try {
         const data = await client.actions["workflows.list"](
           options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listSkills(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.list"](
+          {
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
