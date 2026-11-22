@@ -501,10 +501,23 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                   {translate("settings.plugins.versions.heading")}
                 </UI.Heading>
                 {(() => {
-                  const failedBadge = (version: PluginVersion) =>
+                  // A version that cannot read the data the install holds now: said on its
+                  // row, with the one thing to do, and no button drawn. The version Bakery
+                  // holds a copy for keeps its Go back.
+                  const cannotRead = (version: PluginVersion) =>
                     version.id !== row.versionId &&
-                      (didNotStart.has(version.id) ||
-                        row.updateFailure?.versionId === version.id)
+                    row.cannotReadVersionIds.includes(version.id) &&
+                    row.stateCopy?.versionId !== version.id;
+                  const failedBadge = (version: PluginVersion) =>
+                    cannotRead(version)
+                      ? (
+                        <UI.Badge tone="warning">
+                          {translate("settings.plugins.versions.cannotRead")}
+                        </UI.Badge>
+                      )
+                      : version.id !== row.versionId &&
+                          (didNotStart.has(version.id) ||
+                            row.updateFailure?.versionId === version.id)
                       ? (
                         <UI.Badge tone="danger">
                           {translate("settings.plugins.versions.didNotStart")}
@@ -521,6 +534,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                       : null;
                   const action = (version: PluginVersion) => {
                     if (version.id === row.versionId || !mayChange) return null;
+                    if (cannotRead(version)) return null;
                     const newer = current?.publishedAt != null &&
                       version.publishedAt! > current.publishedAt;
                     return (
@@ -549,9 +563,13 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     );
                   };
                   const publishedLine = (version: PluginVersion) =>
-                    translate("settings.plugins.update.published", {
-                      when: date(version.publishedAt!),
-                    });
+                    cannotRead(version)
+                      ? translate("settings.plugins.versions.cannotRead.hint", {
+                        current: row.versionName,
+                      })
+                      : translate("settings.plugins.update.published", {
+                        when: date(version.publishedAt!),
+                      });
                   return phone
                     ? (
                       <UI.Stack

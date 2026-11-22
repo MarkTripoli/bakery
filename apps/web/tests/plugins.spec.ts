@@ -1018,6 +1018,30 @@ for (
       expect(state.installs[0].status).toBe("enabled");
     });
 
+    test("a version that cannot read the saved data says so on its row and draws no button", async ({ page }) => {
+      await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: NOTES_V2,
+            cannotReadVersionIds: [NOTES_V1],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const row = page.locator(`[data-plugin-version="${NOTES_V1}"]`);
+      await expect(row).toContainText("Cannot read the saved data");
+      await expect(row).toContainText(
+        "Ask the plugin's author for a version that reads data saved by 1.1.0.",
+      );
+      // No button, not a faded one: there is nothing the person can do here.
+      await expect(page.getByRole("button", { name: "Go back to 1.0.0" }))
+        .toHaveCount(0);
+      await shot(page, `plugin-cannot-read-${viewport.name}`, [], {
+        windowOnly: true,
+      });
+    });
+
     test("going back to an older version shows what changes first", async ({ page }) => {
       const state = await pluginsFixture(page, {
         installs: [install({ id: NOTES_INSTALL, pluginVersionId: NOTES_V2 })],
