@@ -3,7 +3,7 @@ import { focusAfterPaint } from "../../app/focus.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { formatList, type MessageKey } from "@bakery/i18n";
+import type { MessageKey } from "@bakery/i18n";
 import { DeliveryBody } from "./DeliveryBody.tsx";
 import type {
   ApprovalChoice,
@@ -75,40 +75,10 @@ type NowCopy = Readonly<{
     | null;
 }>;
 
-/**
- * What the running try is working on, as one phrase: "2 checks and 1 review
- * finding". It comes from the newest try, which is the one running.
- */
-function fixingWhat(
-  t: Translate,
-  locale: Parameters<typeof formatList>[1],
-  model: DeliveryModel,
-): string {
-  const running = model.fixing?.tries[0];
-  const parts: string[] = [];
-  if (running !== undefined && running.checkNames.length > 0) {
-    parts.push(
-      t("tasks.delivery.now.fixing.whatChecks", {
-        count: running.checkNames.length,
-      }),
-    );
-  }
-  if (running !== undefined && running.blocking > 0) {
-    parts.push(
-      t("tasks.delivery.now.fixing.whatFindings", { count: running.blocking }),
-    );
-  }
-  return parts.length === 0
-    ? t("tasks.delivery.now.fixing.whatNothing")
-    : formatList(parts, locale);
-}
-
 function nowCopy(
   t: Translate,
   now: NowCard,
-  context: Readonly<
-    { model: DeliveryModel; locale: Parameters<typeof formatList>[1] }
-  >,
+  context: Readonly<{ model: DeliveryModel }>,
 ): NowCopy {
   const next = t("tasks.delivery.now.nextStep");
   switch (now.kind) {
@@ -132,11 +102,12 @@ function nowCopy(
           attempt: now.attempt,
           max: now.max,
         }),
+        // No count here: "What Bakery tried" says how many checks each try
+        // was asked to fix, so the headline says it once, there.
         body: t(
           now.attempt >= now.max
             ? "tasks.delivery.now.fixing.bodyLast"
             : "tasks.delivery.now.fixing.body",
-          { what: fixingWhat(t, context.locale, context.model) },
         ),
         action: null,
       };
@@ -467,7 +438,7 @@ function ReadyView(
     onTellBakery: () => void;
   }>,
 ) {
-  const { locale, translate: t } = useI18n();
+  const { translate: t } = useI18n();
   const phone = useShellViewport() === "phone";
   const fieldId = useId();
   const changesFieldId = `${fieldId}-changes`;
@@ -475,7 +446,7 @@ function ReadyView(
   const [mergeOpen, setMergeOpen] = useState(false);
   const [comment, setComment] = useState("");
   const deciding = decisionPhase === "deciding";
-  const copy = nowCopy(t, model.now, { model, locale });
+  const copy = nowCopy(t, model.now, { model });
   const head = model.headSha === null ? "" : model.headSha.slice(0, 7);
   const note = comment.trim();
   const tooLong = note.length > MAX_NOTE;

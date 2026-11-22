@@ -676,8 +676,11 @@ test("results for an older commit are said once, in the headline, and the card s
   const section = page.getByTestId("delivery-section");
   const now = section.getByTestId("delivery-now");
   await expect(now).toContainText("Bakery is fixing this");
-  await expect(now).toContainText("It is working on");
-  await expect(now).toContainText("Nothing for you to do yet.");
+  // No count in the headline: "What Bakery tried" says how many checks each try was asked to fix.
+  await expect(now).toContainText(
+    "It is working on the problems it found. Nothing for you to do yet.",
+  );
+  await expect(now).not.toContainText(/\d+ checks?\. Nothing/);
   await expect(now).toHaveAttribute("data-variant", "information");
   // The count never breaks across lines ("try 1 of" / "2" on a phone).
   expect(await now.getByRole("heading").textContent()).toContain(
@@ -689,8 +692,9 @@ test("results for an older commit are said once, in the headline, and the card s
   // Results that no longer count are never drawn as passed, and the old
   // commit's findings are not a thing to attend to now.
   await expect(section.getByTestId("delivery-attention")).toHaveCount(0);
-  await expect(section.getByTestId("delivery-settled-checks")).toContainText(
-    "checks finished",
+  // One check so far: "check", not "checks".
+  await expect(section.getByTestId("delivery-settled-checks")).toHaveText(
+    "0 of 1 check finished",
   );
   const details = await openLink(section, "delivery-details");
   await expect(details).toContainText("Earlier results, for commit 4be19c2");

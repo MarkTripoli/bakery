@@ -9,6 +9,7 @@ import { focusAfterPaint } from "../app/focus.ts";
 import { runControlCapabilitiesQueryOptions } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { useShellViewport } from "../app/responsive.ts";
 
 type Receipt =
   | "idle"
@@ -51,6 +52,7 @@ export function TaskRunControls(
   const scope = useProtectedScope();
   const cache = useQueryClient();
   const { translate: t, locale, timeZone } = useI18n();
+  const phone = useShellViewport() === "phone";
   const capabilities = useQuery({
     ...runControlCapabilitiesQueryOptions(api, scope, runId),
     enabled: enabled && scope.organizationId !== null,
@@ -221,30 +223,38 @@ export function TaskRunControls(
 
   return (
     <>
-      {showResume && (
-        <UI.Button
-          disabled={busy}
-          onClick={() => void submit("resume")}
-          variant="primary"
-        >
-          {t("tasks.controls.menu.resume")}
-        </UI.Button>
-      )}
-      {items.length > 0 && (
-        <UI.Popover
-          label={t("tasks.controls.menu.label")}
-          onOpenChange={setMenuOpen}
-          open={menuOpen}
-          trigger={t("tasks.controls.menu.label")}
-          triggerAppearance="toolbar"
-          variant="interactive"
-        >
-          <UI.Menu
-            aria-label={t("tasks.controls.menu.label")}
-            items={items}
-            onSelect={onSelect}
-          />
-        </UI.Popover>
+      {/* One group, so Resume run and the menu wrap together, never apart. */}
+      {(showResume || items.length > 0) && (
+        <UI.Inline gap="compact">
+          {showResume && (
+            <UI.Button
+              disabled={busy}
+              onClick={() => void submit("resume")}
+              variant="primary"
+            >
+              {t("tasks.controls.menu.resume")}
+            </UI.Button>
+          )}
+          {items.length > 0 && (
+            <UI.Popover
+              // The trigger is at the end of the run line, so the panel lines
+              // up with its end edge; on a phone it wraps to the line start.
+              align={phone ? "start" : "end"}
+              label={t("tasks.controls.menu.label")}
+              onOpenChange={setMenuOpen}
+              open={menuOpen}
+              trigger={t("tasks.controls.menu.label")}
+              triggerAppearance="toolbar"
+              variant="interactive"
+            >
+              <UI.Menu
+                aria-label={t("tasks.controls.menu.label")}
+                items={items}
+                onSelect={onSelect}
+              />
+            </UI.Popover>
+          )}
+        </UI.Inline>
       )}
       <UI.VisuallyHidden
         aria-atomic="true"

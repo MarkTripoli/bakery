@@ -720,10 +720,12 @@ export function DeliveryBody(
       <Attention items={attentionItems(model)} onOpenRules={onOpenRules} />
       <Settled model={model} />
       {model.checks.rows.length === 0 && model.review === null ? null : (
-        <>
+        // Two closed links share one compact group: as siblings of the roomy
+        // section stack each took a full gap, a blank band between them.
+        <UI.Stack gap="compact">
           <Tried fixing={model.fixing} />
           <Details model={model} />
-        </>
+        </UI.Stack>
       )}
     </>
   );
