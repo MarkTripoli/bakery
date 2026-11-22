@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "1905d2af6760f58cb4524134d52bfcee9510ef93"
+    "83d93c791db223b74ef780c491daacc88b6186eb"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:cba657d3b5e61ad4d178963a28b853b3413fa520ea24aa07bbf57d0c42fb6e6e",
-  "reason": "#24 rpi.research worker action by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 1905d2af6760f58cb4524134d52bfcee9510ef93: rpi.research joins the worker action table (the server dispatched its job but no worker contract existed, so nothing could claim it), so the worker job input union gains its ResearchInput variant and the worker result union gains the ResearchOutput variant (artifact plus the repository revision it read); the variants after them move one place; no client or worker could claim or send an rpi.research worker job before. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:f1e86ff0e9cb02332784e0c5360acc8a18006cf468517ae116c4b3920a422423",
+  "reason": "#427 offline runs (slice S1) by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 83d93c791db223b74ef780c491daacc88b6186eb: Run gains a required environment (live or offline) pinned at creation, and RunCreate gains an optional environment, so a client reads where a run may reach. Main's own approval it displaces is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "1905d2af6760f58cb4524134d52bfcee9510ef93"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:cba657d3b5e61ad4d178963a28b853b3413fa520ea24aa07bbf57d0c42fb6e6e",
+      "reason": "Displaced by the #427 offline runs rebind onto main 37671299c: main's own approval, kept unchanged. #24 rpi.research worker action by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 1905d2af6760f58cb4524134d52bfcee9510ef93: rpi.research joins the worker action table (the server dispatched its job but no worker contract existed, so nothing could claim it), so the worker job input union gains its ResearchInput variant and the worker result union gains the ResearchOutput variant (artifact plus the repository revision it read); the variants after them move one place; no client or worker could claim or send an rpi.research worker job before. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
