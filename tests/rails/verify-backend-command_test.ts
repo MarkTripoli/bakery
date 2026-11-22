@@ -94,6 +94,20 @@ Deno.test("credential detection ignores empty and unrelated variables", () => {
   );
 });
 
+Deno.test("a login directory counts only when it holds the login file", () => {
+  const environment = { CODEX_HOME: "/empty", CLAUDE_CONFIG_DIR: "/claude" };
+  // The lanes point CODEX_HOME at an empty directory: that is not a credential.
+  assertEquals(cloudCredentialsPresent(environment, () => false), []);
+  assertEquals(
+    cloudCredentialsPresent(
+      environment,
+      (path) =>
+        path === "/empty/auth.json" || path === "/claude/.credentials.json",
+    ),
+    ["CLAUDE_CONFIG_DIR", "CODEX_HOME"],
+  );
+});
+
 Deno.test("verify:backend runs every step in order by default", async () => {
   const h = harness();
   const result = await runVerifyBackend(h.options([]));

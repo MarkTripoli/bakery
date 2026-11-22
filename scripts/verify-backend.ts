@@ -6,6 +6,8 @@
  *
  *   pnpm verify:backend [--lanes typecheck,rails,unit] [--out path.json]
  */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 import { BAKERY_MIGRATION_SOURCES } from "../apps/server/src/migration-sources.ts";
 import { loadMigrations } from "../apps/server/src/platform/migration-definition.ts";
@@ -26,7 +28,7 @@ export type VerifyBackendStep = (typeof VERIFY_BACKEND_STEPS)[number];
 /**
  * Cloud credentials the repository's code or tooling reads. Exact names come
  * from the code (GITHUB_TOKEN, GH_TOKEN, SENTRY_AUTH_TOKEN, RAILWAY_TOKEN,
- * OPENAI_API_KEY, CODEX_HOME, CLAUDE_CONFIG_DIR) and from the SDKs it bundles
+ * OPENAI_API_KEY) and from the SDKs it bundles
  * (the AWS SDK for S3, Anthropic, Google and Azure credential chains). A
  * prefix refuses every variable that starts with it.
  */
@@ -42,28 +44,47 @@ export const CLOUD_CREDENTIAL_ENVIRONMENT = Object.freeze({
       "GH_ENTERPRISE_TOKEN",
       "OPENAI_API_KEY",
       "ANTHROPIC_API_KEY",
-      "CODEX_HOME",
-      "CLAUDE_CONFIG_DIR",
     ] as const,
   ),
   prefixes: Object.freeze(["AWS_", "AZURE_"] as const),
 });
 
-/** Names of the cloud credential variables set (non-empty) in the environment, sorted. */
+/**
+ * Directories that hold a login, named by the variable that points at them.
+ * The test lanes set CODEX_HOME to an empty directory on purpose (no owner
+ * credentials in tests), so only a directory that holds the login file counts.
+ */
+export const CREDENTIAL_DIRECTORIES = Object.freeze(
+  {
+    CODEX_HOME: "auth.json",
+    CLAUDE_CONFIG_DIR: ".credentials.json",
+  } as const,
+);
+
+/** Names of the cloud credentials present in the environment, sorted. */
 export function cloudCredentialsPresent(
   environment: Readonly<Record<string, string | undefined>>,
+  fileExists: (path: string) => boolean = existsSync,
 ): string[] {
   const exact = new Set<string>(CLOUD_CREDENTIAL_ENVIRONMENT.exact);
-  return Object.entries(environment)
-    .filter(([name, value]) =>
-      (value ?? "").length > 0 &&
-      (exact.has(name) ||
-        CLOUD_CREDENTIAL_ENVIRONMENT.prefixes.some((prefix) =>
-          name.startsWith(prefix)
-        ))
-    )
-    .map(([name]) => name)
-    .sort();
+  const directories = Object.entries(CREDENTIAL_DIRECTORIES)
+    .filter(([name, login]) => {
+      const directory = environment[name] ?? "";
+      return directory.length > 0 && fileExists(join(directory, login));
+    })
+    .map(([name]) => name);
+  return [
+    ...directories,
+    ...Object.entries(environment)
+      .filter(([name, value]) =>
+        (value ?? "").length > 0 &&
+        (exact.has(name) ||
+          CLOUD_CREDENTIAL_ENVIRONMENT.prefixes.some((prefix) =>
+            name.startsWith(prefix)
+          ))
+      )
+      .map(([name]) => name),
+  ].sort();
 }
 
 const Sha256 = z.string().regex(/^[0-9a-f]{64}$/).describe(
