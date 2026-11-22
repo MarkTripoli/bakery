@@ -6,7 +6,10 @@ import { PI_HARNESS_SUPPORTED_ACTIONS } from "../../apps/worker/src/pi-harness.t
 import { NATIVE_SUPPORTED_ACTIONS } from "../../apps/worker/src/executor.ts";
 import { HARNESS_REPAIR_ACTION } from "../../apps/worker/src/harness-common.ts";
 import { FREEFORM_ACTION } from "../../apps/worker/src/harness-freeform.ts";
-import { RPI_FREEFORM_ACTIONS } from "../../apps/worker/src/harness-rpi.ts";
+import {
+  RPI_FREEFORM_ACTIONS,
+  RPI_RESEARCH_ACTION,
+} from "../../apps/worker/src/harness-rpi.ts";
 import { REVIEW_ACTION } from "../../apps/worker/src/reviewer.ts";
 import {
   EVALUATION_CHECK_ACTION,
@@ -58,6 +61,7 @@ Deno.test("every worker action in the table is implemented or pinned as not yet"
     HARNESS_REPAIR_ACTION,
     FREEFORM_ACTION,
     ...RPI_FREEFORM_ACTIONS,
+    RPI_RESEARCH_ACTION,
     REVIEW_ACTION,
     EVALUATION_CHECK_ACTION,
     EVALUATION_SCORE_ACTION,
