@@ -1151,6 +1151,7 @@ export async function approveGate(
   sha,
   {
     confirm,
+    scripted = false,
     review = gateReview,
     who = loginName,
     write = writeAtomic,
@@ -1160,6 +1161,7 @@ export async function approveGate(
   },
 ) {
   commit(sha);
+  if (scripted) throw new Error("GATE_NEEDS_A_PERSON");
   if (!state?.active) throw new Error("GATE_NOTHING_RUNNING");
   let gate;
   try {
@@ -1292,6 +1294,8 @@ async function readState() {
 async function main() {
   const args = process.argv.slice(2);
   // --yes answers the question "go back?" for a script; it is not an argument.
+  // approve-gate refuses it: a change to the checks or the launcher is approved
+  // by a person who has read the files it shows, never by a script.
   const yes = args.includes("--yes");
   const [command, sha, checksum] = args.filter((arg) => arg !== "--yes");
   let lastStep = 0;
@@ -1382,7 +1386,8 @@ async function run(
   }
   if (command === "approve-gate") {
     await approveGate(await readState(), sha, {
-      confirm: (question) => confirmAtTerminal(question, { yes: options.yes }),
+      scripted: options.yes,
+      confirm: (question) => confirmAtTerminal(question),
     });
     return;
   }

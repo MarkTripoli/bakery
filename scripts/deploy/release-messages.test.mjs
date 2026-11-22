@@ -1058,6 +1058,14 @@ test("the refusal names the files, the command that approves it, and ends with i
   );
 });
 
+test("a scripted approval is refused in plain words, and recorded as a refusal", () => {
+  const lines = failureLines(new Error("GATE_NEEDS_A_PERSON"), {});
+  assert.match(lines.join(" "), /approved by a person at the terminal/);
+  assert.match(lines.join(" "), /--yes is not accepted here/);
+  assert.equal(lines.at(-1), "[GATE_NEEDS_A_PERSON]");
+  assert.equal(isRefusal("GATE_NEEDS_A_PERSON"), true);
+});
+
 test("long lists of changed files are cut to a few and a count", () => {
   const many = Array.from(
     { length: 9 },

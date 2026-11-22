@@ -36,6 +36,7 @@ const NOTHING_CHANGED = new Set([
   "GATE_RELEASE_NOT_PREPARED",
   "GATE_NOTHING_RUNNING",
   "GATE_NOT_APPROVED",
+  "GATE_NEEDS_A_PERSON",
   "MAINTENANCE_HELD",
   "DRAIN_TIMEOUT",
   "ROLLBACK_SCHEMA_INCOMPATIBLE",
@@ -200,6 +201,12 @@ export function failureLines(error, context = {}) {
       return lines(
         "Nothing is installed yet, so there is no running version to approve",
         "a change. Nothing was changed.",
+      );
+    case "GATE_NEEDS_A_PERSON":
+      return lines(
+        "A change to the checks or the launcher has to be approved by a person at",
+        "the terminal, after reading the files it shows. --yes is not accepted here.",
+        "Nothing was changed.",
       );
     case "GATE_NOT_APPROVED":
       return lines(

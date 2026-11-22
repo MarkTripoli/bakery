@@ -246,6 +246,17 @@ test("no yes means no approval: Enter, no terminal, or anything else records not
   }
 });
 
+test("a scripted yes never approves: approve-gate asks nothing, records nothing", async () => {
+  const { root } = await twoReleases(true);
+  const a = approver(root, true);
+  await assert.rejects(
+    approveGate(running, next, { ...a.deps, scripted: true }),
+    /GATE_NEEDS_A_PERSON/,
+  );
+  assert.deepEqual(a.asked, [], "no question was put");
+  assert.deepEqual(await readApprovals(a.deps.approvalsPath), []);
+});
+
 test("approve-gate refuses with nothing running, an unprepared release, and says when there is nothing to approve", async () => {
   const { root } = await twoReleases(false);
   const a = approver(root, true);
