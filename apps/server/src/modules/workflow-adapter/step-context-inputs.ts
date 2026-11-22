@@ -53,29 +53,47 @@ function refuse(slot: string, reason: string): StepInputPinning {
   };
 }
 
+/**
+ * What a slot's value names. A slot is normally bound to an artifact version id
+ * (`$step.brief.artifact.versionId`); a full artifact reference is accepted
+ * too, and then its artifact id and digest are checked against the stored
+ * version rather than trusted.
+ */
 function artifactReference(
   value: unknown,
-): { artifactId: string; versionId: string; sha256: string } | null {
+): { versionId: string; artifactId?: string; sha256?: string } | null {
+  if (typeof value === "string") {
+    return UUID_PATTERN.test(value) ? { versionId: value } : null;
+  }
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
-  const record = value as Record<string, unknown>;
-  const { artifactId, versionId, sha256 } = record;
+  const { artifactId, versionId, sha256 } = value as Record<string, unknown>;
+  if (typeof versionId !== "string" || !UUID_PATTERN.test(versionId)) {
+    return null;
+  }
   if (
-    typeof artifactId !== "string" || !UUID_PATTERN.test(artifactId) ||
-    typeof versionId !== "string" || !UUID_PATTERN.test(versionId) ||
-    typeof sha256 !== "string" || !SHA256_PATTERN.test(sha256)
+    artifactId !== undefined &&
+    (typeof artifactId !== "string" || !UUID_PATTERN.test(artifactId))
   ) return null;
-  return { artifactId, versionId, sha256 };
+  if (
+    sha256 !== undefined &&
+    (typeof sha256 !== "string" || !SHA256_PATTERN.test(sha256))
+  ) return null;
+  return {
+    versionId,
+    ...(artifactId === undefined ? {} : { artifactId }),
+    ...(sha256 === undefined ? {} : { sha256 }),
+  };
 }
 
 /**
  * Pins what each declared input slot of a step resolved to.
  *
- * The slot's value must be an artifact reference. The version is read for the
- * organization, must belong to the artifact the reference names and must still
- * have the digest the reference carries: a reference whose bytes moved is
- * refused, never followed. Each version is pinned for the run, so the route that
+ * The slot's value must name an artifact version, by id or by full reference.
+ * The version is read for the organization; a reference that also names an
+ * artifact or a digest must match the stored version, so a reference whose bytes
+ * moved is refused, never followed. Each version is pinned for the run, so the route that
  * serves an attempt's inputs checks the same digest, and the returned list is
  * what the job carries to the worker. A step with no slots pins nothing.
  */
@@ -99,7 +117,7 @@ export async function pinStepContextInputs(
     seen.add(slot);
     const reference = artifactReference(value);
     if (reference === null) {
-      return refuse(slot, "its value is not an artifact reference");
+      return refuse(slot, "its value does not name an artifact version");
     }
     const found = await transaction.query<{
       id: string;
@@ -115,10 +133,13 @@ export async function pinStepContextInputs(
     );
     const version = found.rows[0];
     if (!version) return refuse(slot, "the artifact version does not exist");
-    if (version.artifact_id !== reference.artifactId) {
+    if (
+      reference.artifactId !== undefined &&
+      version.artifact_id !== reference.artifactId
+    ) {
       return refuse(slot, "the version belongs to another artifact");
     }
-    if (version.sha256 !== reference.sha256) {
+    if (reference.sha256 !== undefined && version.sha256 !== reference.sha256) {
       return refuse(slot, "the version no longer has the referenced digest");
     }
     const sizeBytes = Number(version.size_bytes);

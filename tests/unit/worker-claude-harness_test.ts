@@ -823,3 +823,68 @@ sleep 60`,
     assertEquals(second.status, "completed", JSON.stringify(second));
   },
 });
+
+Deno.test({
+  name:
+    "Claude gets a step's pinned inputs as files, an index in the prompt and --add-dir",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-claude-context-");
+    const argsPath = `${scratch.dir}/args.txt`;
+    const promptPath = `${scratch.dir}/prompt.txt`;
+    const fake = await fakeClaude(
+      scratch.dir,
+      `cat > '${promptPath}'
+printf '%s\\n' "$@" > '${argsPath}'
+printf '%s\\n' '{"type":"system","subtype":"init","session_id":"${SESSION_ID}","claude_code_version":"2.1.0","model":"claude-sonnet","capabilities":[]}'
+printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_id":"${SESSION_ID}","total_cost_usd":0}'`,
+    );
+    const bytes = new TextEncoder().encode("# The brief");
+    const digest = await sha256Hex(bytes);
+    const served = {
+      artifactVersionId: crypto.randomUUID(),
+      artifactId: crypto.randomUUID(),
+      digest,
+      sizeBytes: bytes.length,
+      mediaType: "text/markdown",
+      contentBase64: btoa("# The brief"),
+    };
+    const value = {
+      ...await assignment(scratch.dir),
+      contextInputs: [{
+        slot: "brief",
+        path: "brief.md",
+        digest,
+        sizeBytes: bytes.length,
+        mediaType: "text/markdown",
+      }],
+    } as JobAssignment;
+    const executor = createClaudeHarnessExecutor({
+      publishFor: () => async (request) => ({
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: await sha256Hex(request.bytes),
+      }),
+      repositoryFor: () => scratch.dir,
+      claudeExecutable: fake,
+      stateDir: `${scratch.dir}/worker-state`,
+      authSourceDir: `${scratch.dir}/auth-source`,
+      timeLimitMs: 5_000,
+      readAttemptContext: () => Promise.resolve([served]),
+    });
+    const outcome = await executor.execute(
+      value,
+      new AbortController().signal,
+    );
+    assertEquals(outcome.status, "completed");
+    const prompt = await Deno.readTextFile(promptPath);
+    const args = await Deno.readTextFile(argsPath);
+    assert(prompt.includes("Do not change any file."), "task text kept");
+    assert(prompt.includes("brief.md"), "the index names the path");
+    assert(prompt.includes(digest), "the index names the pinned digest");
+    const contextDir =
+      args.split("\n")[args.split("\n").indexOf("--add-dir") + 1];
+    assert(contextDir?.endsWith("/context"), "the context directory is added");
+    assert(prompt.includes(contextDir!), "the prompt says where it is");
+  },
+});
