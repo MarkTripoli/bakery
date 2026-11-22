@@ -38,6 +38,18 @@ export const IDS = {
   twoStates: uuid(110),
   /** More than one page of errors, then unscored results (only with `manyErrors`). */
   manyErrors: uuid(111),
+  /** Model scorer, within its limit, part of the cost estimated (only with `costRuns`). */
+  costWithin: uuid(120),
+  /** Two model calls with no cost: the limit cannot be shown to hold. */
+  costUnsettled: uuid(121),
+  /** The limit was reached. */
+  costExhausted: uuid(122),
+  /** Checks only: nothing to pay. */
+  checksOnly: uuid(123),
+  /** A sampled model scorer reported apart from the gate. */
+  sampled: uuid(124),
+  /** No limit, one cost not known. */
+  noLimit: uuid(125),
 } as const;
 
 const CASES = [
@@ -65,14 +77,51 @@ const SCORERS = [
     slug: "exact-answer",
     scorerRevision: 2,
     evaluatorType: "deterministic",
+    required: true,
   },
   {
     scorerId: IDS.scorerTone,
     slug: "polite-tone",
     scorerRevision: 1,
     evaluatorType: "model",
+    required: true,
   },
 ];
+
+/** The batch budget of a run with no model cost to speak of: no limit, nothing spent. */
+const NO_BUDGET = {
+  limitUsd: null,
+  settledUsd: "0",
+  estimatedUsd: "0",
+  unknownCount: 0,
+  status: "none",
+  blocksNewAttempts: false,
+  oldestUnknownAt: null,
+};
+
+/** The corpus report the server derives from a run's state counts (an attempt is not counted for a result never run). */
+const reportOf = (
+  counts: Record<string, number>,
+  total: number,
+  over: Record<string, unknown> = {},
+) => {
+  const unknown = counts.error + counts.unscored;
+  const attempted = counts.passed + counts.failed + unknown;
+  return {
+    total,
+    attempted,
+    passed: counts.passed,
+    failed: counts.failed,
+    unknown,
+    unrun: counts.missing + counts.canceled + counts.skipped,
+    interrupted: 0,
+    recovered: 0,
+    passedOfAttempted: attempted === 0 ? null : counts.passed / attempted,
+    failedOfAttempted: attempted === 0 ? null : counts.failed / attempted,
+    recoveredOfInterrupted: null,
+    ...over,
+  };
+};
 
 type State =
   | "passed"
@@ -104,38 +153,46 @@ const run = (
   id: string,
   at: number,
   extra: Record<string, unknown>,
-): Run =>
-  ({
-    id,
-    datasetId: IDS.dataset,
-    datasetName: "Support questions",
-    datasetDigest: "sha256:aaaa",
-    candidate: { kind: "workflowVersion", id: IDS.workflow, version: 5 },
-    candidateDefinition: {
-      definitionId: IDS.workflow,
-      name: "Reviewed coding",
-    },
-    baseline: null,
-    baselineDefinition: null,
-    scorers: SCORERS,
-    state: "completed",
-    requiredCount: 10,
-    measuredCount: 10,
-    counts: { ...ZERO, passed: 10 },
-    gate: {
-      decision: "met",
-      rule: "at least 80% of required results pass",
-      blockers: [],
-    },
-    hiddenCount: 0,
-    canceledAt: null,
-    canceledBy: null,
-    completedAt: STAMP,
-    createdAt: new Date(Date.UTC(2026, 10, 20, 12 - at)).toISOString(),
-    updatedAt: STAMP,
-    version: 2,
-    ...extra,
-  }) as Run;
+): Run => ({
+  id,
+  datasetId: IDS.dataset,
+  datasetName: "Support questions",
+  datasetDigest: "sha256:aaaa",
+  candidate: { kind: "workflowVersion", id: IDS.workflow, version: 5 },
+  candidateDefinition: {
+    definitionId: IDS.workflow,
+    name: "Reviewed coding",
+  },
+  baseline: null,
+  baselineDefinition: null,
+  scorers: SCORERS,
+  pinDigest: "b".repeat(64),
+  state: "completed",
+  requiredCount: 10,
+  measuredCount: 10,
+  counts: { ...ZERO, passed: 10 },
+  gate: {
+    decision: "met",
+    rule: "at least 80% of required results pass",
+    blockers: [],
+  },
+  hiddenCount: 0,
+  canceledAt: null,
+  canceledBy: null,
+  completedAt: STAMP,
+  createdAt: new Date(Date.UTC(2026, 10, 20, 12 - at)).toISOString(),
+  updatedAt: STAMP,
+  version: 2,
+  optionalReport: null,
+  budget: NO_BUDGET,
+  ...extra,
+} as Run);
+
+/** A run's corpus report, from its own counts unless the test names one. */
+const withReport = (made: Run): Run => ({
+  report: reportOf(made.counts, made.requiredCount as number),
+  ...made,
+});
 
 /** The states of a run's ten results, in order: five test cases times two scorers. */
 function statesOf(counts: Record<State, number>): State[] {
@@ -170,6 +227,10 @@ export type EvaluationsOptions = {
   holdGet?: boolean;
   /** The person is a viewer: reads, but may not stop a run. */
   viewer?: boolean;
+  /** Add the runs that show what a run cost (#75, revision 6). */
+  costRuns?: boolean;
+  /** Attempts carry what they cost, and the first one was interrupted. */
+  attemptCosts?: boolean;
 };
 
 export type Seen = {
@@ -199,7 +260,7 @@ export async function evaluationsFixture(
         }),
       }),
   );
-  const runs: Run[] = options.empty ? [] : [
+  const baseRuns: Run[] = options.empty ? [] : [
     run(IDS.gaps, 0, {
       state: "completed_with_errors",
       measuredCount: 7,
@@ -332,11 +393,103 @@ export async function evaluationsFixture(
         }),
       ]
       : []),
+    ...(options.costRuns === true
+      ? [
+        run(IDS.costWithin, 11, {
+          budget: {
+            limitUsd: "20.00",
+            settledUsd: "12.40",
+            estimatedUsd: "3.10",
+            unknownCount: 0,
+            status: "within",
+            blocksNewAttempts: false,
+            oldestUnknownAt: null,
+          },
+        }),
+        run(IDS.costUnsettled, 12, {
+          state: "completed_with_errors",
+          measuredCount: 8,
+          counts: { ...ZERO, passed: 8, error: 2 },
+          gate: {
+            decision: "cannot_be_judged",
+            rule: "at least 80% of required results pass",
+            blockers: [],
+          },
+          budget: {
+            limitUsd: "20.00",
+            settledUsd: "18.20",
+            estimatedUsd: "0",
+            unknownCount: 2,
+            status: "unsettled",
+            blocksNewAttempts: true,
+            oldestUnknownAt: STAMP,
+          },
+          report: reportOf({ ...ZERO, passed: 8, error: 2 }, 10, {
+            interrupted: 2,
+            recovered: 1,
+            recoveredOfInterrupted: 0.5,
+          }),
+        }),
+        run(IDS.costExhausted, 13, {
+          state: "completed_with_errors",
+          measuredCount: 6,
+          counts: { ...ZERO, passed: 6, missing: 4 },
+          gate: {
+            decision: "cannot_be_judged",
+            rule: "at least 80% of required results pass",
+            blockers: [],
+          },
+          budget: {
+            limitUsd: "20.00",
+            settledUsd: "20.00",
+            estimatedUsd: "5.00",
+            unknownCount: 0,
+            status: "exhausted",
+            blocksNewAttempts: true,
+            oldestUnknownAt: null,
+          },
+        }),
+        run(IDS.checksOnly, 14, {
+          scorers: [SCORERS[0]],
+          requiredCount: 5,
+          measuredCount: 5,
+          counts: { ...ZERO, passed: 5 },
+        }),
+        run(IDS.sampled, 15, {
+          scorers: [SCORERS[0], { ...SCORERS[1], required: false }],
+          budget: {
+            limitUsd: "20.00",
+            settledUsd: "1.60",
+            estimatedUsd: "0",
+            unknownCount: 0,
+            status: "within",
+            blocksNewAttempts: false,
+            oldestUnknownAt: null,
+          },
+          optionalReport: reportOf(
+            { ...ZERO, passed: 3, failed: 1, error: 1, missing: 0 },
+            5,
+          ),
+        }),
+        run(IDS.noLimit, 16, {
+          budget: {
+            limitUsd: null,
+            settledUsd: "4.20",
+            estimatedUsd: "0",
+            unknownCount: 1,
+            status: "none",
+            blocksNewAttempts: false,
+            oldestUnknownAt: STAMP,
+          },
+        }),
+      ]
+      : []),
     ...Array.from(
       { length: options.extra ?? 0 },
       (_, index) => run(uuid(1000 + index), 10 + index, {}),
     ),
   ];
+  const runs: Run[] = baseRuns.map(withReport);
   let release: () => void = () => {};
   const held = options.holdGet === true
     ? new Promise<void>((resolve) => {
@@ -464,8 +617,9 @@ export async function evaluationsFixture(
       if (found === undefined) return problem(route, 404, "RESOURCE_NOT_FOUND");
       const states = statesOf(found.counts);
       const rows = states.map((state, index) => {
-        const caseIndex = Math.floor(index / 2);
-        const scorer = SCORERS[index % 2];
+        const scorers = found.scorers as typeof SCORERS;
+        const caseIndex = Math.floor(index / scorers.length);
+        const scorer = scorers[index % scorers.length];
         const measured = state === "passed" || state === "failed";
         return {
           id: uuid(5000 + index),
@@ -477,7 +631,7 @@ export async function evaluationsFixture(
           scorerId: scorer.scorerId,
           scorerRevision: scorer.scorerRevision,
           repetition: 1,
-          required: true,
+          required: scorer.required,
           state,
           reason: state === "error"
             ? "The model did not answer in time."
@@ -510,8 +664,25 @@ export async function evaluationsFixture(
           id: uuid(7000 + attemptNo),
           resultId: result,
           attemptNo,
-          state: attemptNo === 3 ? "passed" : "error",
-          reason: attemptNo === 3 ? null : "The model did not answer in time.",
+          state: attemptNo === 3
+            ? "passed"
+            : options.attemptCosts === true && attemptNo === 1
+            ? "interrupted"
+            : "error",
+          reason: attemptNo === 3
+            ? null
+            : options.attemptCosts === true && attemptNo === 1
+            ? "The machine went away."
+            : "The model did not answer in time.",
+          ...(options.attemptCosts === true
+            ? {
+              usage: attemptNo === 1
+                ? { measurement: "unknown", costUsd: null }
+                : attemptNo === 2
+                ? { measurement: "estimated", costUsd: "0.04" }
+                : { measurement: "reported", costUsd: "0.06" },
+            }
+            : { usage: null }),
           score: attemptNo === 3 ? 1 : null,
           startedAt: `2026-11-20T09:0${attemptNo}:00.000Z`,
           endedAt: `2026-11-20T09:0${attemptNo}:30.000Z`,

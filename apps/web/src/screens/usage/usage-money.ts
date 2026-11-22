@@ -67,3 +67,20 @@ export function usd(
   const rest = (cents % 100n).toString().padStart(2, "0");
   return `${negative && cents > 0n ? "-" : ""}$${grouped}.${rest}`;
 }
+
+/** Compares two decimal strings exactly, in micro-dollars: negative, zero or positive. */
+export function compareDecimalStrings(left: string, right: string): number {
+  const difference = addDecimalStrings(left, negateDecimalString(right));
+  if (difference.startsWith("-")) return -1;
+  return difference === "0" ? 0 : 1;
+}
+
+/** Subtracts the second decimal string from the first, exactly. */
+export function subtractDecimalStrings(left: string, right: string): string {
+  return addDecimalStrings(left, negateDecimalString(right));
+}
+
+function negateDecimalString(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.startsWith("-") ? trimmed.slice(1) : `-${trimmed}`;
+}
