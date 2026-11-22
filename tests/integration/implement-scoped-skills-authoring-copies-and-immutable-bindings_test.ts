@@ -219,7 +219,7 @@ async function count(
   return result.rows[0].count;
 }
 
-Deno.test("another member's personal skill reaches no list, read, library folder, Used by or agent; its published organization copy does", async () => {
+Deno.test("another member's personal skill reaches no list, read, search, library folder, Used by or agent; its published organization copy does", async () => {
   const root = await Deno.makeTempDir({ prefix: "bakery-42-scoped-ac1-" });
   const f = await openPersonalSkillFixture({ skillFileRoot: root });
   try {
@@ -249,6 +249,15 @@ Deno.test("another member's personal skill reaches no list, read, library folder
     assertEquals(published.status, 201, await published.clone().text());
     const originalVersion = (await published.json() as { id: string }).id;
 
+    const searchIds = async (cookie: string) => {
+      const response = await f.read(
+        cookie,
+        "/v1/library/search?query=secret%20recipe",
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      return (await response.json() as { items: { id: string }[] }).items
+        .map((hit) => hit.id);
+    };
     const listIds = async (cookie: string) => {
       const response = await f.read(cookie, "/v1/skills?limit=100");
       assertEquals(response.status, 200, await response.clone().text());
@@ -276,12 +285,17 @@ Deno.test("another member's personal skill reaches no list, read, library folder
 
     // The owner finds it everywhere.
     assert((await listIds(owner)).includes(original.id));
+    assert((await searchIds(owner)).includes(original.id));
     assert((await libraryIds(f.ownerPrincipalId)).includes(original.id));
 
     // Nobody else does, by any path, and an agent cannot carry it, so it never
     // reaches a run's pinned skills or its prompt.
     for (const other of others) {
       assert(!(await listIds(other.cookie)).includes(original.id), other.name);
+      assert(
+        !(await searchIds(other.cookie)).includes(original.id),
+        other.name,
+      );
       assert(
         !(await libraryIds(other.principalId)).includes(original.id),
         other.name,
@@ -321,6 +335,9 @@ Deno.test("another member's personal skill reaches no list, read, library folder
     for (const other of others) {
       assert((await listIds(other.cookie)).includes(copy.id), other.name);
       assert(!(await listIds(other.cookie)).includes(original.id), other.name);
+      const hits = await searchIds(other.cookie);
+      assert(hits.includes(copy.id), other.name);
+      assert(!hits.includes(original.id), other.name);
       const library = await libraryIds(other.principalId);
       assert(library.includes(copy.id), other.name);
       assert(!library.includes(original.id), other.name);

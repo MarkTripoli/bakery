@@ -298,6 +298,9 @@ export function createCatalogRoutes(options: {
   app.use("/v1/skill-imports", options.browserSession);
   app.use("/v1/skills", options.browserSession);
   app.use("/v1/skills/*", options.browserSession);
+  // library.search is registered by the catalog too; without the session its
+  // caller has no principal and every person was refused (#42).
+  app.use("/v1/library/search", options.browserSession);
   app.route(
     "/",
     createApiRouter({
