@@ -1,4 +1,6 @@
 import type { ExecutionTelemetry } from "./telemetry.ts";
+import type { PluginBroker } from "../catalog/plugin-broker.ts";
+import type { ScopedOrganizationBlobStore } from "../catalog/blob-store.ts";
 import { type Context, type MiddlewareHandler } from "hono";
 import type {
   AgentSpawnConfig,
@@ -145,6 +147,17 @@ type ExecutionRouteOptions = {
    * refuse every call.
    */
   sessionTools?: SessionToolRegistry;
+  /**
+   * The install-scoped broker plugin jobs reach through their worker (#29).
+   * Absent leaves the relay route answering "not found".
+   */
+  pluginBroker?: PluginBroker;
+  /**
+   * Where plugin version bundles live, for the route that hands a contained job
+   * its code. Absent when no object store is configured; the route then fails
+   * closed.
+   */
+  pluginBundles?: Pick<ScopedOrganizationBlobStore, "stat" | "read">;
 };
 
 type HostRow = {

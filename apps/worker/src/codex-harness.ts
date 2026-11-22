@@ -2,8 +2,10 @@ import { join } from "node:path";
 import { withStepNotes } from "./step-notes-prompt.ts";
 import {
   executeRpiFreeform,
+  executeRpiResearch,
   isRpiFreeformAction,
   RPI_FREEFORM_ACTIONS,
+  RPI_RESEARCH_ACTION,
 } from "./harness-rpi.ts";
 import {
   conservativeCostUsd,
@@ -529,6 +531,8 @@ async function executeCodexFreeform(
   signal: AbortSignal,
   output: NativeOutputSink | undefined,
   options: CodexHarnessOptions,
+  /** A repository to read, for a step that reads one; otherwise an empty directory. */
+  workspace?: string,
 ): Promise<ExecutionOutcome> {
   await enforceWorkerFixedPolicy(assignment);
   const request = readFreeformRequest(assignment, CODEX_FREEFORM_NAMING);
@@ -569,8 +573,10 @@ async function executeCodexFreeform(
 
   const dirs = await codexAttemptDirectory(options, assignment);
   try {
-    const workDir = join(dirs.root, "work");
-    await Deno.mkdir(workDir, { recursive: true, mode: 0o700 });
+    const workDir = workspace ?? join(dirs.root, "work");
+    if (workspace === undefined) {
+      await Deno.mkdir(workDir, { recursive: true, mode: 0o700 });
+    }
     const context = await prepareHarnessContext({
       assignment,
       attemptRoot: dirs.root,
@@ -785,6 +791,7 @@ export function createCodexHarnessExecutor(
         HARNESS_REPAIR_ACTION,
         FREEFORM_ACTION,
         ...RPI_FREEFORM_ACTIONS,
+        RPI_RESEARCH_ACTION,
       ]),
     ],
     capturesNativeOutput: inner?.capturesNativeOutput ?? true,
@@ -796,7 +803,8 @@ export function createCodexHarnessExecutor(
       if (
         !isHarnessEditAction(assignment.action) &&
         assignment.action !== FREEFORM_ACTION &&
-        !isRpiFreeformAction(assignment.action)
+        !isRpiFreeformAction(assignment.action) &&
+        assignment.action !== RPI_RESEARCH_ACTION
       ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
@@ -816,6 +824,35 @@ export function createCodexHarnessExecutor(
       if (assignment.action === FREEFORM_ACTION) {
         // No repository is touched, so the shared worktree latch is not taken.
         return executeCodexFreeform(assignment, signal, output, options);
+      }
+      if (assignment.action === RPI_RESEARCH_ACTION) {
+        // Research reads the shared repository, so it waits for and holds the
+        // same latch an edit does: no edit runs in the tree while it reads.
+        return harnessBusy.settled().then(() => {
+          if (!harnessBusy.acquire()) {
+            return Promise.resolve(
+              codexHarnessFault(
+                "CODEX_HARNESS_BUSY",
+                "The Codex harness is already running one bounded assignment against this repository; retry later.",
+                503,
+                true,
+              ),
+            );
+          }
+          return (async () =>
+            await executeRpiResearch(assignment, {
+              worktree: await options.repositoryFor(assignment),
+              failurePrefix: "CODEX_HARNESS",
+              runFreeform: (derived, workspace) =>
+                executeCodexFreeform(
+                  derived,
+                  signal,
+                  output,
+                  options,
+                  workspace,
+                ),
+            }))().finally(harnessBusy.release);
+        });
       }
       if (isRpiFreeformAction(assignment.action)) {
         // A design or a plan is a bounded freeform session over a pinned artifact.
