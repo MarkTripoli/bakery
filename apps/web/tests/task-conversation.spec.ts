@@ -2306,6 +2306,7 @@ const stepFixture = {
   createdAt: "2026-01-01T00:00:02.000Z",
   updatedAt: "2026-01-01T00:02:00.000Z",
   version: 1,
+  handoffManifest: null,
 };
 const patchArtifact = {
   id: "00000000-0000-4000-8000-000000000050",

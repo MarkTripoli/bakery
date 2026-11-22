@@ -15,6 +15,7 @@ const step = (id: string, uses = "task.brief"): EditorStep => ({
   id,
   uses,
   agentVersionId: null,
+  skills: [],
 });
 
 const START = [step("brief"), step("implement", "harness.implement")];
@@ -184,6 +185,79 @@ Deno.test("a changed step keeps the keys the editor does not hold", () => {
   assertEquals(savedStep(saved, "implement"), {
     ...SEALED,
     uses: "harness.other",
+  });
+});
+
+Deno.test("setting a step's skills is one undoable change", () => {
+  const start = editorStateOf(START);
+  const attached = apply(start, {
+    kind: "skills",
+    id: "implement",
+    skills: ["v1"],
+  });
+  assertEquals(attached.steps[1].skills, ["v1"]);
+  assertEquals(attached.steps[0].skills, []);
+  assert(isDirty(attached));
+  // Setting the same skills again changes nothing and leaves no undo step.
+  assertEquals(
+    apply(attached, { kind: "skills", id: "implement", skills: ["v1"] }),
+    attached,
+  );
+  // An unknown step changes nothing.
+  assertEquals(
+    apply(start, { kind: "skills", id: "nope", skills: ["v1"] }),
+    start,
+  );
+  // Remove is the same action with fewer skills, and undo puts the skill back.
+  const removed = apply(attached, {
+    kind: "skills",
+    id: "implement",
+    skills: [],
+  });
+  assertEquals(removed.steps[1].skills, []);
+  assertEquals(apply(removed, { kind: "undo" }).steps[1].skills, ["v1"]);
+});
+
+Deno.test("a step's skills are saved as the skills key, and none means no key", () => {
+  const spec = {
+    steps: [
+      { id: "a", uses: "task.brief", retry: { attempts: 2 }, skills: ["x"] },
+      { id: "b", uses: "agent.review" },
+    ],
+  };
+  const start = editorStateOf([
+    { ...step("a"), skills: ["x"] },
+    step("b", "agent.review"),
+  ]);
+  // Untouched steps are the authored nodes themselves.
+  assertEquals(
+    JSON.stringify(definitionOf(spec, start.steps)),
+    JSON.stringify(spec),
+  );
+  const changed = definitionOf(spec, [
+    { ...start.steps[0], skills: ["x", "y"] },
+    { ...start.steps[1], skills: ["z"] },
+  ]);
+  assertEquals(savedStep(changed, "a"), {
+    id: "a",
+    uses: "task.brief",
+    retry: { attempts: 2 },
+    skills: ["x", "y"],
+  });
+  assertEquals(savedStep(changed, "b"), {
+    id: "b",
+    uses: "agent.review",
+    skills: ["z"],
+  });
+  // Removing the last skill drops the key; the other keys stay.
+  const cleared = definitionOf(spec, [
+    { ...start.steps[0], skills: [] },
+    start.steps[1],
+  ]);
+  assertEquals(savedStep(cleared, "a"), {
+    id: "a",
+    uses: "task.brief",
+    retry: { attempts: 2 },
   });
 });
 

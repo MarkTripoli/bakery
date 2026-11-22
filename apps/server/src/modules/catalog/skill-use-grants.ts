@@ -33,9 +33,10 @@ export function stepPointer(segments: readonly (string | number)[]): string {
 /**
  * Every skill version a step of the definition adds. A draft is saved even when
  * it does not compile, so this reads the authored JSON tolerantly instead of
- * compiling it: an object that names an `action` and carries a `skills` array
- * is a step, wherever it sits, and each UUID in the array is one version, in
- * the lower case the database stores it.
+ * compiling it: an object that names an `action` (a compiled step) or `uses`
+ * (a step as authored, which is what a draft holds) and carries a `skills`
+ * array is a step, wherever it sits, and each UUID in the array is one
+ * version, in the lower case the database stores it.
  *
  * A definition the walk cannot read to the end is refused, never truncated: a
  * step past the depth or reference limit would otherwise carry a personal skill
@@ -63,7 +64,10 @@ export function collectStepSkills(
       return;
     }
     const record = value as Record<string, unknown>;
-    if (typeof record.action === "string" && Array.isArray(record.skills)) {
+    if (
+      (typeof record.action === "string" || typeof record.uses === "string") &&
+      Array.isArray(record.skills)
+    ) {
       for (const id of record.skills) {
         if (typeof id !== "string" || !UUID.test(id)) continue;
         const versionId = id.toLowerCase();
