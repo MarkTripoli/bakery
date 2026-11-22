@@ -8,10 +8,20 @@
 -- could not record its message.
 --
 -- Removing an app revokes its two secrets rather than deleting them, so the role
--- needs update on the secret row and never delete on it or on its versions.
+-- needs to change the columns a save and a revocation write -- and no others:
+-- a table-wide update would also let the application rename or re-scope any
+-- secret. It never needs delete, on the secret or on its versions.
 
 grant select, insert, update, delete on bakery.slack_app_settings to bakery_app;
 
-grant update on bakery.secrets to bakery_app;
+grant update (
+  active_version_id,
+  active_version_revision,
+  generation,
+  invalidation_generation,
+  revoked_at,
+  version,
+  updated_at
+) on bakery.secrets to bakery_app;
 
 grant select, insert, update on bakery.slack_milestone_posts to bakery_app;
