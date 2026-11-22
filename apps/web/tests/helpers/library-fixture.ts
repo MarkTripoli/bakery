@@ -169,6 +169,8 @@ const versionBody = (row: VersionRow) => ({
       "T10:00:00.000Z",
   updatedAt: STAMP,
   version: 1,
+  // The version's own starts (#406): none, in these fixtures.
+  starts: [],
 });
 
 /** Stubs the session, the role and the three Library reads; returns what it saw and a switch to stop failing. */
@@ -411,6 +413,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
         version: 2,
+        starts: [],
       };
       if (options.saveDelayMs) {
         await new Promise((resolve) =>
