@@ -650,6 +650,23 @@ test("a clean run says nothing is waiting, offers no buttons and lists nothing t
   await expect(details).not.toHaveAttribute("open");
   await openLink(section, "delivery-details");
   await expect(details).toContainText("Commit 91d0aa3 on top of a7254e7");
+  // The commit in the sentence is a reference: keyboard focus opens its card
+  // with the whole id.
+  const head = details.locator(
+    '[data-ui-component="reference"][data-kind="commit"]',
+    { hasText: "91d0aa3" },
+  ).first();
+  await page.keyboard.press("Shift");
+  await head.locator(".ui-reference__plain").focus();
+  await expect(head.getByRole("group", { name: "Commit" })).toContainText(NEW);
+  if (STILLS !== undefined) {
+    const phone = (page.viewportSize()?.width ?? 1440) <= 743;
+    await details.screenshot({
+      path: `${STILLS}/delivery-reference-card-${
+        phone ? "phone" : "desktop"
+      }-light.png`,
+    });
+  }
   await expect(details.getByTestId("delivery-checks-rows")).toContainText(
     "tests",
   );

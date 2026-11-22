@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import * as UI from "@bakery/ui";
+import { knownCommits, ReferenceText } from "../../app/ReferenceText.tsx";
 import { formatDate, formatList, type MessageKey } from "@bakery/i18n";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -342,9 +343,15 @@ function Settled({ model }: Readonly<{ model: DeliveryModel }>) {
   );
 }
 
-function Tried({ fixing }: Readonly<{ fixing: DeliveryModel["fixing"] }>) {
+function Tried(
+  { fixing, commits }: Readonly<{
+    fixing: DeliveryModel["fixing"];
+    commits: DeliveryModel["commits"];
+  }>,
+) {
   const { locale, translate: t } = useI18n();
   if (fixing === null || fixing.tries.length === 0) return null;
+  const known = knownCommits(commits);
   const minutes = limitMinutes(fixing.limits.durationMs);
   const names = (all: readonly string[]) => {
     const { shown, more } = nameList(all);
@@ -393,7 +400,7 @@ function Tried({ fixing }: Readonly<{ fixing: DeliveryModel["fixing"] }>) {
               id: "commit",
               header: t("tasks.delivery.details.colCommit"),
               cell: (entry: Try) => (
-                <UI.DataText variant="code">{entry.sha}</UI.DataText>
+                <ReferenceText known={known} text={entry.sha} />
               ),
               width: "14%",
             },
@@ -401,7 +408,7 @@ function Tried({ fixing }: Readonly<{ fixing: DeliveryModel["fixing"] }>) {
           phone={(entry: Try) => ({
             title: t("tasks.delivery.fixing.tried.try", { n: entry.n }),
             // Content width, so the commit id never squeezes the title.
-            status: <UI.DataText fit variant="code">{entry.sha}</UI.DataText>,
+            status: <ReferenceText known={known} text={entry.sha} />,
             lines: [<UI.Text key="asked">{asked(entry)}</UI.Text>],
           })}
           rowKey={(entry: Try) => String(entry.n)}
@@ -550,12 +557,13 @@ function Details({ model }: Readonly<{ model: DeliveryModel }>) {
     ? t("tasks.delivery.changes.preparing")
     : model.baseSha === null
     ? t("tasks.delivery.changes.summaryNoBase", {
-      head: model.headSha.slice(0, 7),
+      head: UI.shortReference("commit", model.headSha),
     })
     : t("tasks.delivery.changes.summary", {
-      head: model.headSha.slice(0, 7),
-      base: model.baseSha.slice(0, 7),
+      head: UI.shortReference("commit", model.headSha),
+      base: UI.shortReference("commit", model.baseSha),
     });
+  const known = knownCommits(model.commits);
   const current = orderChecks(
     checks.rows.filter((row) => row.olderSha === null),
   );
@@ -613,7 +621,7 @@ function Details({ model }: Readonly<{ model: DeliveryModel }>) {
           <UI.Text variant="strong">
             {t("tasks.delivery.details.commit")}
           </UI.Text>{" "}
-          {commit}
+          <ReferenceText known={known} text={commit} />
         </UI.Text>
         {checks.rows.length === 0 ? null : (
           <UI.Stack gap="compact">
@@ -632,7 +640,10 @@ function Details({ model }: Readonly<{ model: DeliveryModel }>) {
             {olderShas.map((sha) => (
               <UI.Stack gap="compact" key={sha}>
                 <UI.Text variant="strong">
-                  {t("tasks.delivery.details.earlier", { sha })}
+                  <ReferenceText
+                    known={known}
+                    text={t("tasks.delivery.details.earlier", { sha })}
+                  />
                 </UI.Text>
                 <ChecksTable
                   caption={t("tasks.delivery.details.earlier", { sha })}
@@ -670,7 +681,9 @@ function Details({ model }: Readonly<{ model: DeliveryModel }>) {
         </UI.Stack>
         {after === null ? null : (
           <UI.Stack gap="compact">
-            <UI.Text>{mergeStep.summary}</UI.Text>
+            <UI.Text>
+              <ReferenceText known={known} text={mergeStep.summary} />
+            </UI.Text>
             {mergeCommit === null ? null : (
               <UI.Inline>
                 <UI.Button
@@ -741,7 +754,7 @@ export function DeliveryBody(
       {model.checks.rows.length === 0 && model.review === null ? null : (
         // Two closed links share one row; one that opens takes the whole row.
         <UI.Inline gap="standard">
-          <Tried fixing={model.fixing} />
+          <Tried commits={model.commits} fixing={model.fixing} />
           <Details model={model} />
         </UI.Inline>
       )}

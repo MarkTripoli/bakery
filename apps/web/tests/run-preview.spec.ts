@@ -741,6 +741,18 @@ test("a preview behind the change says so once, and still opens when the person 
   await openDetails(page);
   await expect(details(page).getByText("0123456, not released")).toBeVisible();
   await expect(details(page).getByText("fedcba9")).toBeVisible();
+  // The commit is a reference: keyboard focus opens its card with the whole id.
+  const newer = details(page).locator(
+    '[data-ui-component="reference"][data-kind="commit"]',
+    { hasText: "fedcba9" },
+  );
+  await page.keyboard.press("Shift");
+  await newer.locator(".ui-reference__plain").focus();
+  await expect(newer.getByRole("group", { name: "Commit" })).toContainText(
+    NEWER,
+  );
+  // The card opens past the preview card, so the shot is the whole page.
+  await still(page, "run-preview-reference-card");
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeVisible();
   await cardStill(page, "run-preview-behind-details");

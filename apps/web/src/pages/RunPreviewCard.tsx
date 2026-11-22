@@ -19,8 +19,8 @@ import {
   type PreviewCardState,
   previewCardState,
   sessionLength,
-  shortSha,
 } from "../app/run-preview.ts";
+import { ReferenceLink } from "../app/ReferenceLink.tsx";
 import type { MessageKey } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { choosePullRequest } from "./task-delivery/model.ts";
@@ -266,15 +266,18 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
                 <UI.DetailRow
                   label={translate("tasks.preview.details.preview")}
                 >
-                  <UI.DataText fit>{shortSha(preview.headSha)}</UI.DataText>
-                  {", "}
+                  <ReferenceLink
+                    kind="commit"
+                    trailing=","
+                    value={preview.headSha}
+                  />{" "}
                   {translate("tasks.preview.details.notReleased")}
                 </UI.DetailRow>
                 {older === null ? null : (
                   <UI.DetailRow
                     label={translate("tasks.preview.details.change")}
                   >
-                    <UI.DataText fit>{shortSha(older)}</UI.DataText>
+                    <ReferenceLink kind="commit" value={older} />
                   </UI.DetailRow>
                 )}
                 {state.kind === "running"

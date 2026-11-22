@@ -327,6 +327,18 @@ for (
       await expect.poll(() => said(rows.first())).toContain(
         "Bakery, by itself",
       );
+      // Every release id on the page is a reference: no identifier text sits outside one.
+      const page_ = page.locator("[data-page='installation-updates']");
+      expect(await page_.locator("[data-ui-component='reference']").count())
+        .toBeGreaterThan(10);
+      expect(
+        await page_.locator(
+          "[data-ui-component='dataText'][data-variant='identifier']",
+        ).evaluateAll((all) =>
+          all.filter((one) => !one.closest("[data-ui-component='reference']"))
+            .map((one) => one.textContent)
+        ),
+      ).toEqual([]);
       // The update a later choice stayed on reads as Not ready.
       await expect.poll(() => said(rows.nth(4))).toContain("Not ready");
       await expect.poll(() => said(rows.nth(4))).toContain(
@@ -629,6 +641,10 @@ for (
       await expect(card.getByRole("button", { name: "Copy" })).toBeFocused();
       await page.keyboard.press("Enter");
       await expect(card.getByRole("button", { name: "Copied" })).toBeVisible();
+      // Copy puts the WHOLE id on the clipboard, not the short form on screen.
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+        RUNNING,
+      );
       await page.keyboard.press("Escape");
       await expect(card).toHaveCount(0);
       await page.mouse.move(5, 5);
