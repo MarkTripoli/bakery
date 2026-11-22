@@ -7407,6 +7407,55 @@ export const clientManifest = {
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/runs/{id}/repair-allowances",
+      "action": "runRepairAllowances.create",
+      "access": "Admin",
+      "permission": "review:accept",
+      "input": "RepairAllowanceCreate",
+      "output": "DeliveryDecision",
+      "event": "",
+      "mcp": "bakery_runRepairAllowances_create",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/runs/{id}/repair-tries",
+      "action": "runRepairTries.list",
+      "access": "Developer",
+      "permission": "review:read",
+      "input": "CursorQuery",
+      "output": "Page<RepairTry>",
+      "event": "",
+      "mcp": "bakery_runRepairTries_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/runs/{id}/delivery-decisions",
       "action": "runDeliveryDecisions.list",
@@ -19731,6 +19780,8 @@ export const clientManifest = {
             "checks.list",
             "runReviews.list",
             "runReviews.accept",
+            "runRepairAllowances.create",
+            "runRepairTries.list",
             "runDeliveryDecisions.list",
             "mergeEntries.list",
             "mergeEntries.create",
@@ -31677,6 +31728,23 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "RepairAllowanceCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "tries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes. RepairAllowanceCreate.tries must be at least 1. RepairAllowanceCreate.tries must be at most 8."
+        }
+      },
+      "required": [
+        "tries"
+      ],
+      "additionalProperties": false,
+      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -48518,6 +48586,8 @@ export const clientManifest = {
                   "checks.list",
                   "runReviews.list",
                   "runReviews.accept",
+                  "runRepairAllowances.create",
+                  "runRepairTries.list",
                   "runDeliveryDecisions.list",
                   "mergeEntries.list",
                   "mergeEntries.create",
@@ -53572,6 +53642,226 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of DeliveryDecision."
     },
+    "Page<RepairTry>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the review cycle that judged this try."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow run the try belongs to."
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "One-based position of the try among the run's repair tries; try 1 is the first repair and the review that followed it. RepairTry.number must be at least 1."
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "proceed",
+                  "repair",
+                  "stop"
+                ],
+                "description": "What the loop did after this try's review: proceed when the candidate was clean, repair when another try was selected, stop when the loop ended. When a person allowed more tries after a stop, this is still the first decision the loop itself took."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "clean",
+                  "repair_selected",
+                  "policy_missing",
+                  "stale_evidence",
+                  "checks_unavailable",
+                  "repeated_blocker",
+                  "repair_cycles_exhausted",
+                  "repair_time_exhausted",
+                  "repair_budget_exhausted",
+                  "reviewer_unavailable",
+                  "review_failed"
+                ],
+                "description": "Machine-readable reason for that decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted."
+              },
+              "fixedFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings of the earlier review are gone from this try's review. RepairTry.fixedFindings must be at least 0."
+              },
+              "cameBackFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings of the earlier review are still there in this try's review, matched by fingerprint. RepairTry.cameBackFindings must be at least 0."
+              },
+              "newFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings this try's review reported that the earlier review did not. RepairTry.newFindings must be at least 0."
+              },
+              "blockingFindings": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "How many blocking findings this try's review reported in all. RepairTry.blockingFindings must be at least 0."
+              },
+              "checksPassed": {
+                "type": "boolean",
+                "description": "True when no required check was failing on the candidate this try produced."
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the try's first step started, or null when the run kept no start time for it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RepairTry.startedAt may be null in this transport value."
+              },
+              "durationMs": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Milliseconds from the start of the try to the end of its review, or null when the start is not known. RepairTry.durationMs must be at least 0."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RepairTry.durationMs may be null in this transport value."
+              },
+              "costUsd": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "US dollars the try's steps cost, as a decimal string, or null when no usage was recorded for them."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RepairTry.costUsd may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the try's review was recorded."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated; equals createdAt because a try is derived."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "Always 1 because a repair try is derived from immutable records. RepairTry.version must be at least 1."
+              }
+            },
+            "required": [
+              "id",
+              "runId",
+              "number",
+              "decision",
+              "reason",
+              "fixedFindings",
+              "cameBackFindings",
+              "newFindings",
+              "blockingFindings",
+              "checksPassed",
+              "startedAt",
+              "durationMs",
+              "costUsd",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One repair try of a run's review and repair loop, read from what the run already recorded: what the try fixed, whether a finding of the earlier review came back, what is still blocking, whether the required checks passed, and the time and money the try used. Try 1 is the first repair and its review; the first review before any repair is not a try. It is derived, never edited: updatedAt equals createdAt and version is always 1."
+          },
+          "description": "RepairTry items in this cursor page. Page<RepairTry>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<RepairTry>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<RepairTry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<RepairTry>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<RepairTry>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of RepairTry."
+    },
     "Page<ReviewFinding>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -57834,6 +58124,260 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1."
+    },
+    "DeliveryDecision": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the delivery decision record."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the workflow run this decision governs."
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Zero-based position of this decision among the run's decisions; the latest ordinal is the one that governs delivery. DeliveryDecision.ordinal must be at least 0."
+        },
+        "reviewCycleId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Review cycle the decision followed, or null for a stop taken without a recorded cycle such as an unavailable reviewer."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DeliveryDecision.reviewCycleId may be null in this transport value."
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "proceed",
+            "repair",
+            "stop"
+          ],
+          "description": "What the run does next: proceed when the candidate is clean, repair when a bounded repair iteration was appended, stop when the loop ended."
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "repair_selected",
+            "policy_missing",
+            "stale_evidence",
+            "checks_unavailable",
+            "repeated_blocker",
+            "repair_cycles_exhausted",
+            "repair_time_exhausted",
+            "repair_budget_exhausted",
+            "reviewer_unavailable",
+            "review_failed"
+          ],
+          "description": "Machine-readable reason for the decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted."
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Head commit SHA of the candidate the decision was taken for."
+        },
+        "baseSha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Base commit SHA pinned for the run, or null when it was not known to the decision."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DeliveryDecision.baseSha may be null in this transport value."
+        },
+        "policyDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Digest of the effective policy the decision was evaluated under, or null when it was not known to the decision."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DeliveryDecision.policyDigest may be null in this transport value."
+        },
+        "failedChecks": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "checkRunId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifier of the immutable check run row that recorded the failed observation; the repair evidence is this row, not the output text."
+              },
+              "checkId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "Fixed policy command id of the check that did not pass, as pinned in the repository profile. FailedCheck.checkId must contain at least 1 characters. FailedCheck.checkId must contain at most 100 characters."
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "failed",
+                  "unavailable",
+                  "canceled"
+                ],
+                "description": "Observed outcome of the check; never passed, because a passing check is not a failed check."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "exit_nonzero",
+                  "signal",
+                  "deadline",
+                  "output_limit",
+                  "rule_violation",
+                  "description_placeholder",
+                  "tool_missing",
+                  "unsupported_checker",
+                  "revision_unavailable",
+                  "skipped",
+                  "metadata_missing",
+                  "metadata_too_large",
+                  "rule_unbound",
+                  "rule_binding_ambiguous",
+                  "policy_missing",
+                  "awaiting_result",
+                  "canceled"
+                ],
+                "description": "Machine-readable reason for the result, such as exit_nonzero, deadline or tool_missing; verified is excluded because it explains only a pass."
+              },
+              "exitCode": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "description": "Process exit code the check produced, or null when it produced no exit status. FailedCheck.exitCode must be at least 0. FailedCheck.exitCode must be at most 255."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FailedCheck.exitCode may be null in this transport value."
+              }
+            },
+            "required": [
+              "checkRunId",
+              "checkId",
+              "result",
+              "reason",
+              "exitCode"
+            ],
+            "additionalProperties": false,
+            "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. Each array item follows this format."
+          },
+          "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. DeliveryDecision.failedChecks must contain at most 32 items."
+        },
+        "blockingFingerprints": {
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. Each array item follows this format."
+          },
+          "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. DeliveryDecision.blockingFingerprints must contain at most 25 items."
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "maxRepairCycles": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8,
+              "description": "Most repair iterations the run may spend; the loop stops with repair_cycles_exhausted once that many repairs were used and a blocker remains. DeliveryLoopLimits.maxRepairCycles must be at least 0. DeliveryLoopLimits.maxRepairCycles must be at most 8."
+            },
+            "maxLoopDurationMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400000,
+              "description": "Longest time in milliseconds from the first review cycle to the latest decision; the loop stops with repair_time_exhausted once it is reached. DeliveryLoopLimits.maxLoopDurationMs must be at least 1. DeliveryLoopLimits.maxLoopDurationMs must be at most 86400000."
+            },
+            "maxFindings": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25,
+              "description": "Most findings one review report may carry; the server rejects a longer report. DeliveryLoopLimits.maxFindings must be at least 1. DeliveryLoopLimits.maxFindings must be at most 25."
+            }
+          },
+          "required": [
+            "maxRepairCycles",
+            "maxLoopDurationMs",
+            "maxFindings"
+          ],
+          "additionalProperties": false,
+          "description": "Loop bounds the decision was taken under, frozen when the run was admitted."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Always 1 because delivery decision rows are immutable. DeliveryDecision.version must be at least 1."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "ordinal",
+        "reviewCycleId",
+        "decision",
+        "reason",
+        "headSha",
+        "baseSha",
+        "policyDigest",
+        "failedChecks",
+        "blockingFingerprints",
+        "limits",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One immutable decision the review and repair loop took for a run: proceed, repair or stop, with the reason, the candidate it was taken for, the failed checks and blocking fingerprints it acted on, and the limits it was bound by. A stop ends the run with this record as its durable explanation and never approves a candidate; proceed is not an approval either, because a merge still requires the candidate evidence to be current. Rows are never updated, so updatedAt equals createdAt and version is always 1."
     },
     "Application": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -70574,6 +71118,8 @@ export const clientManifest = {
             "checks.list",
             "runReviews.list",
             "runReviews.accept",
+            "runRepairAllowances.create",
+            "runRepairTries.list",
             "runDeliveryDecisions.list",
             "mergeEntries.list",
             "mergeEntries.create",
