@@ -825,8 +825,12 @@ acts for.
 | `/users/<member>`, including the starter's own | No, unless that member grants it | No |
 | `/trash`, `/system` | No | No |
 
-These defaults are O44 (read) and O45 (write). A definition, seat or step may
-carry a `files` section to change them:
+These defaults are O44 (read) and O45 (write). They describe what a `files`
+section may declare, not what a claim hands out: a step with no section, or a
+section without `write`, writes only its outputs and workspace. The run folder,
+`attachments`, `assets` and `workspaces` need a declared section or a person's
+grant (#448). A definition, seat or step may carry a `files` section to change
+them:
 
 - **Narrow freely.** `read: [inputs]` makes a **sealed step** that sees only its
   pinned inputs. Sealed steps are available to any definition and are the
@@ -981,9 +985,10 @@ Bakery templates that need them and always labelled as an agent's action.
 - **O44:** default read scope is the project tree, `/shared`, `/library` and the
   connections the definition binds; never a personal folder without that
   member's grant.
-- **O45:** default write scope is outputs, workspace, the step's own run folder,
-  `attachments`, and the project's `assets` and `workspaces`; `/shared` with a
-  grant; the library only through library operations.
+- **O45:** a step writes its outputs and workspace by default. The step's own run
+  folder, `attachments`, and the project's `assets` and `workspaces` need a
+  declared `files` section or a person's grant (#448); `/shared` with a grant;
+  the library only through library operations.
 - **O46:** a browsing read returns the version current at step admission; the
   latest on request; both recorded.
 - **O47:** reviewers never see side-writes of the work under review and write

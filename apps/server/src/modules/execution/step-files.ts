@@ -27,11 +27,6 @@ export type ResolvedStepFiles = Readonly<{
 }>;
 
 /**
- * The narrowest section: pinned inputs and declared outputs only. Used where
- * the step cannot be found in a plan that should name it, because a guess
- * would hand the session areas nobody declared.
- */
-/**
  * What a claim mints for a step that declared no files section. O44 and O45
  * describe the defaults a definition may narrow; minting them as session
  * scopes would hand every agent storage writes nobody granted. So a step with
@@ -47,6 +42,11 @@ export const UNDECLARED_STEP_FILES: ResolvedStepFiles = Object.freeze({
   write: OMITTED_STEP_FILES_WRITE,
 });
 
+/**
+ * The narrowest section: pinned inputs and declared outputs only. Used where
+ * the step cannot be found in a plan that should name it, because a guess
+ * would hand the session areas nobody declared.
+ */
 export const INPUTS_ONLY_STEP_FILES: ResolvedStepFiles = Object.freeze({
   read: Object.freeze(["inputs"] as const),
   write: Object.freeze(["outputs"] as const),
