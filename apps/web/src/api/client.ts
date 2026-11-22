@@ -2033,6 +2033,24 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** Renames, describes, turns on or off a skill; `version` is the skill's, sent as If-Match. */
+  readonly updateSkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: DefinitionUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  /** Copies a skill into a new organization or personal skill with its own identity. */
+  readonly copySkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly name: string;
+    readonly scope: "organization" | "personal";
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
   /** One agent definition of the organization. */
   readonly getAgent: (options: {
     readonly organizationId: string;
@@ -6769,6 +6787,46 @@ export function createBakeryApiClient({
             versionId: options.versionId,
             expectedDigest: options.expectedDigest,
           },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async copySkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.copy"](
+          { id: options.id, name: options.name, scope: options.scope },
           {
             idempotencyKey: options.idempotencyKey,
             signal: options.signal,
