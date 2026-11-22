@@ -82,6 +82,13 @@ def wait_effect(path, name, timeout=30):
 
 def start_app(path, bus=None, server=None, extra=None):
     global app
+    # One app at a time: a new one started while the last is still ending meets its single-instance name
+    # on the session bus, forwards its address and exits without reporting anything.
+    end = time.time() + 20
+    while time.time() < end and subprocess.run(["pgrep", "-f", BIN], capture_output=True).returncode == 0:
+        time.sleep(0.5)
+    subprocess.run(["pkill", "-9", "-f", BIN], capture_output=True)
+    time.sleep(1)
     os.makedirs(os.path.join(path, "cmd"), exist_ok=True)
     # A configuration folder of its own per phase: what one phase saves never leaks into the next.
     config = os.path.join(path, "config")
@@ -690,6 +697,8 @@ def phase_open_links():
     p = os.path.join(OUT, "k-links")
     clear_store()
     start_app(p)
+    # A link delivered while the app is still starting can be lost: wait for its first window.
+    check("[links] the app is up before the first link arrives", wait_window(p, "sign_in") is not None)
     deliver("bakery://open?path=%2Ftasks%2F7%3Ftab%3Dfiles")
     check("[links] an open link naming a page of the server is accepted with that path",
           wait_report(p, "link_open_requested", 1)
@@ -741,7 +750,9 @@ def phase_web_pages():
         Recorder("signin-to-signout")
     assert wait_window(p, "sign_in") is not None
     # A page link that arrives while nobody is signed in is kept, and opens after the sign-in.
-    deliver("bakery://open?path=%2Fissues")
+    # The start page with a query, not Issues: that page asks "leave this page?" whenever it is left, which is
+    # the web's own and would stop every later step.
+    deliver("bakery://open?path=%2F%3Fkept%3D1")
     check("[web] a page link while signed out is kept and the panel says why",
           wait_report(p, "link_open_requested", 1)
           and "Sign in to open the page from your link." in [e["data"].get("notice") for e in reports(p) if e["event"] == "view"])
@@ -751,7 +762,7 @@ def phase_web_pages():
     deliver(confirm(request_id_of(url), session_cookie()))
     check("[web] the app finishes and opens the server's page", wait_report(p, "server_page_opened", 1, timeout=40))
     check("[web] it opens the page the link named, not the start page",
-          [e["data"]["path"] for e in reports(p) if e["event"] == "server_page_opened"][:1] == ["/issues"])
+          [e["data"]["path"] for e in reports(p) if e["event"] == "server_page_opened"][:1] == ["/?kept=1"])
     end = time.time() + 40
     while time.time() < end and not any(h == host and not (pth or "").startswith("/sign-in") for h, pth in page_loads(p)):
         time.sleep(1)
@@ -788,10 +799,14 @@ def phase_web_pages():
           wait_until(lambda: count("link_to_browser") > before, timeout=20))
     check("[web] a browser that cannot open says so in the system's dialog",
           wait_until(lambda: count("system_dialog", kind="browser_did_not_open") >= 2, timeout=20))
-    before = len([1 for h, pth in page_loads(p) if pth == "/issues"])
-    eval_in_window(p, "window.open('/issues?from=popup', '_blank')")
+    before = len([1 for h, pth in page_loads(p) if pth == "/"])
+    eval_in_window(p, "window.open('/?from=popup', '_blank')")
+    # The start page asks "Are you sure you want to leave this page?" before any full load: that is the web's
+    # own question, and a person answers it. Leave Page is the right-hand button.
+    time.sleep(3)
+    x_click(569, 389)
     check("[web] window.open to a page of this server opens it in this window",
-          wait_until(lambda: len([1 for h, pth in page_loads(p) if pth == "/issues"]) > before, timeout=30))
+          wait_until(lambda: len([1 for h, pth in page_loads(p) if pth == "/"]) > before, timeout=30))
     before = count("system_dialog", kind="not_web")
     eval_in_window(p, "const f = document.createElement('a'); f.href = 'file:///etc/hostname'; "
                       "document.body.appendChild(f); f.click()")
@@ -800,7 +815,10 @@ def phase_web_pages():
           wait_until(lambda: count("system_dialog", kind="not_web") > before, timeout=20),
           str([e["data"] for e in reports(p) if e["event"] in ("link_refused", "system_dialog")][-4:]))
     # The web's own Sign out: a full navigation to the web's sign-out page, as its link does.
-    eval_in_window(p, "location.assign('/sign-out')")
+    # The web's own Sign out, reached the way its own links reach it: inside the page, by the router, with no
+    # full page load. (A full load would stop on the web's "Are you sure you want to leave this page?"
+    # question for a page with something unsaved, which is the web's own and asked of a person.)
+    eval_in_window(p, "history.pushState({}, '', '/sign-out'); window.dispatchEvent(new PopStateEvent('popstate'))")
     check("[web] signing out in the web ends the app's sign-in and returns to the sign-in panel",
           wait_report(p, "web_sign_out_seen", 1, timeout=40) and wait_window(p, "signed_out", timeout=40) is not None,
           str(views(p)[-3:]))

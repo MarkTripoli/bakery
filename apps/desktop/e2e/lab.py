@@ -70,7 +70,7 @@ os.makedirs(os.path.join(path, "cmd"), exist_ok=True)
 os.makedirs(os.path.join(path, "config"), exist_ok=True)
 env = dict(os.environ, BAKERY_SERVER=ORIGIN, BAKERY_DESKTOP_REPORT=os.path.join(path, "report.jsonl"),
            BAKERY_DESKTOP_COMMANDS=os.path.join(path, "cmd"), BAKERY_DESKTOP_CONFIG_DIR=os.path.join(path, "config"),
-           BAKERY_DESKTOP_DIALOG_ANSWER="none", TZ="UTC")
+           BAKERY_DESKTOP_DIALOG_ANSWER=os.environ.get("LAB_ANSWER", "none"), TZ="UTC")
 app = subprocess.Popen([BIN], env=env, stdout=open(os.path.join(path, "app.log"), "a"), stderr=subprocess.STDOUT)
 
 

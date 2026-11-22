@@ -17,7 +17,7 @@ docker run --rm -e CARGO_TARGET_DIR=/cache/target-desktop -v "$APP:/app" \
   -v "$CACHE/git:/opt/rust/cargo/git" -w /app "$IMAGE" cargo build -p bakery-desktop --offline 2>&1 | tail -1
 docker run --rm --network host -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   -v "$APP:/app:ro" -v "$OUT:/out" -v "$CACHE/target-desktop:/cache/target-desktop:ro" \
-  -e HOME=/tmp/labhome -e OUT=/out "$IMAGE" bash -c '
+  -e HOME=/tmp/labhome -e OUT=/out -e LAB_ANSWER="${LAB_ANSWER:-none}" "$IMAGE" bash -c '
     set -uo pipefail
     export HOME=/tmp/labhome; mkdir -p "$HOME"
     export XDG_DATA_HOME=$HOME/.local/share XDG_CONFIG_HOME=$HOME/.config XDG_RUNTIME_DIR=$HOME/run
