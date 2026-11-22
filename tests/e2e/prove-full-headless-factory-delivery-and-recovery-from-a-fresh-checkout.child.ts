@@ -77,6 +77,12 @@ import {
   sealWebhookSecret,
   seedAuthority,
 } from "../helpers/ticket-admission/e2e-seed.ts";
+import { cleanSeed } from "../helpers/review-repair/e2e-scenarios.ts";
+import {
+  onboardLoopRepository,
+  seedLoopAgents,
+  SubstituteWorker,
+} from "../helpers/review-repair/e2e-world.ts";
 import type { Stack } from "./helpers/stack.ts";
 
 const WEBHOOK_SECRET = "full-acceptance-webhook-secret-test-only";
@@ -338,6 +344,7 @@ async function main(): Promise<void> {
     | undefined;
   let worker: PresetWorkerHandle | undefined;
   let owner: PgDatabase | undefined;
+  let substitute: SubstituteWorker | undefined;
   const scriptFiles: string[] = [];
   const stateDirs: string[] = [];
   const harnessDir = await Deno.makeTempDir({
@@ -818,11 +825,18 @@ async function main(): Promise<void> {
 
     // 12. A signed GitHub simulator delivery starts an event automation; the
     // same delivery again changes nothing.
+    // The App's repository binds the world's funded agent, so the run the
+    // automation starts on it can admit its implement step (case 13).
+    const implementAgent = (await live.psql<{ id: string }>(
+      "select config->'agentBindings'->>'harness.implement' as id" +
+        " from bakery.repository_profiles where organization_id = $1 and id = $2",
+      [world.organizationId, world.repositoryProfileId],
+    ))[0]!.id;
     const authority: Authority = await seedAuthority(asStack(live), owner, {
       principalId: world.clients.identity.principalId,
       organizationId: world.organizationId,
       cookie: world.clients.producer.cookie ?? "",
-    });
+    }, { agentVersionId: implementAgent });
     await sealWebhookSecret(asStack(live), authority, WEBHOOK_SECRET);
     const create = async (path: string, body: unknown, status = 201) =>
       await responseJson(
@@ -969,7 +983,126 @@ async function main(): Promise<void> {
       firings: 1,
     });
 
-    // 13. The uncertain effect is held: listed for a person, never sent
+    // 13. The run the firing started completes on the worker and reads back
+    // through the run and the automation's firing list.
+    const fired = await until("the firing started a run", 120_000, async () => {
+      const rows = await live.psql<
+        {
+          status: string;
+          failureCode: string | null;
+          runId: string | null;
+          taskId: string | null;
+        }
+      >(
+        'select firing.status, firing.failure_code as "failureCode",' +
+          ' firing.run_id as "runId", run.task_id as "taskId"' +
+          " from bakery.automation_firings firing left join bakery.workflow_runs run" +
+          "   on run.organization_id = firing.organization_id and run.id = firing.run_id" +
+          " where firing.id = $1",
+        [firing.id],
+      );
+      const row = rows[0];
+      if (row?.status === "failed") {
+        throw new Error("the firing failed: " + JSON.stringify(row));
+      }
+      return row?.runId && row.taskId ? row : undefined;
+    });
+    const firedRun: PresetRun = {
+      taskId: fired.taskId!,
+      runId: fired.runId!,
+      briefStepId: await presetStepId(live, world, fired.runId!, "brief"),
+    };
+    await release(await started(firedRun));
+    assertEquals(await terminal(firedRun), {
+      run_status: "completed",
+      task_status: "completed",
+    });
+    const firedRunRead = await get(world, "/v1/runs/" + firedRun.runId);
+    assertEquals(firedRunRead.status, "completed");
+    const firingPage = await get(
+      world,
+      "/v1/automations/" + automation.id + "/firings",
+    );
+    const firingItems = firingPage.items as {
+      id: string;
+      runId: string | null;
+    }[];
+    assertEquals(
+      firingItems.map((item) => [item.id, item.runId]),
+      [[firing.id, firedRun.runId]],
+    );
+    record("automation-run-completes", {
+      automationId: automation.id,
+      firingId: firing.id,
+      runId: firedRun.runId,
+      runStatus: firedRunRead.status,
+      ...(await assertRanOnce(live, world, firedRun)),
+    });
+
+    // 14. Deterministic checks and an independent review on one candidate,
+    // read back through the run's check, review and decision reads. The
+    // preset worker (which holds the model capability) stops first; a
+    // production worker without it runs the brief and the checks for real,
+    // and a substitute worker answers implement and review over the real
+    // worker protocol (tests/helpers/review-repair/e2e-world.ts says why).
+    await stopPresetWorker(worker);
+    worker = undefined;
+    const loopAgents = await seedLoopAgents(live, world.clients);
+    const loopRepository = await onboardLoopRepository(
+      live,
+      {
+        organizationId: world.organizationId,
+        principalId: world.clients.identity.principalId,
+      },
+      harnessDir + "/loop-operator",
+      loopAgents,
+    );
+    const codexAuth = harnessDir + "/codex-auth";
+    await Deno.mkdir(codexAuth, { mode: 0o700 });
+    await Deno.writeTextFile(
+      codexAuth + "/auth.json",
+      '{"note":"placeholder for the e2e proof, not a credential"}\n',
+    );
+    const checkWorker = await launchPresetWorker(live, {
+      ...world,
+      applicationId: loopRepository.applicationId,
+      repositoryId: loopRepository.repositoryId,
+      repositoryProfileId: loopRepository.profileId,
+    }, {
+      cgroupRoot: lease!.root,
+      launcher: "run-worker",
+      capabilities: ["git", "shell", "browser"],
+      environment: {
+        BAKERY_CODEX_HARNESS: "1",
+        BAKERY_CODEX_HARNESS_REPOSITORY: loopRepository.commits.repository,
+        BAKERY_CODEX_HARNESS_EXECUTABLE: "/usr/bin/true",
+        BAKERY_CODEX_HARNESS_TIME_LIMIT_MS: "30000",
+        BAKERY_CODEX_AUTH_SOURCE_DIR: codexAuth,
+      },
+    });
+    worker = checkWorker;
+    stateDirs.push(checkWorker.stateDir);
+    substitute = await SubstituteWorker.register(live, world.clients, [
+      "git",
+      "shell",
+      "web",
+      "model",
+      "reviewer",
+    ]);
+    const reviewed = await cleanSeed({
+      stack: live,
+      organizationId: world.organizationId,
+      worker: substitute,
+      production: checkWorker,
+      clients: world.clients,
+      repository: loopRepository,
+      progress: (message) => console.error("full-acceptance " + message),
+    });
+    substitute.stop();
+    substitute = undefined;
+    record("checks-and-review-read-back", reviewed);
+
+    // 15. The uncertain effect is held: listed for a person, never sent
     // again across the server, worker and engine restarts above.
     const uncertain = await get(world, "/v1/installation/uncertain-actions");
     const kinds = uncertain.kinds as { operation: string; count: number }[];
@@ -996,6 +1129,7 @@ async function main(): Promise<void> {
     if (text) console.log("SERVER_LOG_TAIL\n" + text.slice(-6000));
     throw error;
   } finally {
+    substitute?.stop();
     if (worker) await stopPresetWorker(worker).catch(() => undefined);
     for (const path of scriptFiles) {
       await Deno.remove(path).catch(() => undefined);

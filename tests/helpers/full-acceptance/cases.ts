@@ -20,6 +20,8 @@ export const FULL_ACCEPTANCE_REQUIRED_CASES = Object.freeze(
     "cancellation-races-completion",
     "question-answer-turn",
     "signed-github-event-starts-automation",
+    "automation-run-completes",
+    "checks-and-review-read-back",
     "unknown-effect-held-not-repeated",
   ] as const,
 );

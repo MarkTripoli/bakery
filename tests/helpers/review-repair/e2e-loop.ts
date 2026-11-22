@@ -77,13 +77,19 @@ type StepRow = {
 };
 
 /** Steps of a run in the order the engine takes them. */
+/** A run step's key without the plan container prefix the engine adds. */
+const PLAN_STEP_KEY = "regexp_replace(step.step_key, '^flow\\.', '')";
+
 export async function readSteps(
   world: World,
   runId: string,
 ): Promise<StepRow[]> {
   return await world.stack.psql<StepRow>(
-    `select id, step_key, position, iteration, status, output, error
-       from bakery.run_steps
+    // The engine appends a compiled plan's rows under their container key
+    // (`flow.check`); the scenarios name the step itself.
+    `select id, ${PLAN_STEP_KEY} as step_key, position, iteration, status,
+            output, error
+       from bakery.run_steps step
       where organization_id = $1 and run_id = $2
       order by position, iteration, id`,
     [world.organizationId, runId],
@@ -131,7 +137,7 @@ async function stepOfJob(
   const rows = await world.stack.psql<
     { step_key: string; iteration: number }
   >(
-    `select step.step_key, step.iteration
+    `select ${PLAN_STEP_KEY} as step_key, step.iteration
        from bakery.jobs job
        join bakery.run_steps step
          on step.organization_id = job.organization_id
@@ -352,7 +358,7 @@ export async function readSessions(
   const rows = await world.stack.psql<
     { id: string; step_key: string; iteration: number }
   >(
-    `select session.id, step.step_key, step.iteration
+    `select session.id, ${PLAN_STEP_KEY} as step_key, step.iteration
        from bakery.agent_sessions session
        join bakery.run_steps step
          on step.organization_id = session.organization_id
