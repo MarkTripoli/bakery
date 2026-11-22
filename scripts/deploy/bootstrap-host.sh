@@ -75,8 +75,11 @@ done
 cat > /usr/local/sbin/bakery-release <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-case "${1:-}" in bootstrap|deploy|rollback|recover|status) ;; *) exit 64;; esac
+case "${1:-}" in bootstrap|deploy|rollback|recover|status|approve-gate) ;; *) exit 64;; esac
 [[ "${1:-}" != bootstrap || "${SUDO_USER:-}" != bakery-deploy ]] || exit 77
+# The deploy user runs updates from CI. It must never approve a change to the
+# checks or the launcher that its own update makes.
+[[ "${1:-}" != approve-gate || "${SUDO_USER:-}" != bakery-deploy ]] || exit 77
 # status only reads the journal, so it takes no lock and works mid-switch.
 [[ "${1:-}" != status ]] || exec /usr/bin/node /opt/bakery/deploy/release.mjs status
 # A person at a terminal gets one, so the question "go back?" can be asked; a
