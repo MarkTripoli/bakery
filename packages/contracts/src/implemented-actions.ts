@@ -194,6 +194,7 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationAccessList: "conversationAccess.list",
     ConversationAccessRevoke: "conversationAccess.revoke",
     ConversationAccessSharers: "conversationAccess.sharers",
+    WorkflowDefinitionProposalsList: "workflowDefinitionProposals.list",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -400,6 +401,9 @@ export const DeliveryImplementedAction = Object.freeze(
     PullRequestsMerge: "pullRequests.merge",
     MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
+    DeploymentsList: "deployments.list",
+    DeploymentsCreate: "deployments.create",
+    DeploymentsRollback: "deployments.rollback",
     MetricsGet: "metrics.get",
     MetricsSources: "metrics.sources",
   } as const satisfies Record<string, CatalogActionName>,
@@ -1072,12 +1076,34 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     EvaluationCheck: "evaluation.check",
     EvaluationScore: "evaluation.score",
     SecretIdentityRead: "secret.identity.read",
+    // Settled by the engine itself, like a projection but over time: the step
+    // calls the deployment target and completes when the deployment is terminal.
+    DeliveryPrepare: "delivery.prepare",
+    DeliveryDeploy: "delivery.deploy",
+    DeliveryHealth: "delivery.health",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
 export const workflowRuntimeImplementedActions = Object.freeze(
   Object.values(WorkflowRuntimeImplementedAction),
 );
+
+/**
+ * Actions the engine settles in its own admission, over time, through a runner a
+ * pack registers: no worker job. A projection finishes in one pass; these may
+ * answer "not yet" and are looked at again.
+ */
+export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
+  [
+    WorkflowRuntimeImplementedAction.DeliveryPrepare,
+    WorkflowRuntimeImplementedAction.DeliveryDeploy,
+    WorkflowRuntimeImplementedAction.DeliveryHealth,
+  ] as const,
+);
+
+export function isEngineSettledStepAction(action: string): boolean {
+  return (ENGINE_SETTLED_STEP_ACTIONS as readonly string[]).includes(action);
+}
 
 /** Proves a workflow action registry holds exactly its assigned subset. */
 export function assertImplementedWorkflowActionRegistry(

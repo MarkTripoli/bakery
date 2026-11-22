@@ -162,6 +162,8 @@
 }
 
 .ui-toast {
+  /* One line of text sits on the middle of the dismiss button's row, not above empty space. */
+  align-items: center;
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-subtle);
 }

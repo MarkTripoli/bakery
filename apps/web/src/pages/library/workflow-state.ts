@@ -3,6 +3,7 @@ import type {
   AgentVersionResponse,
   WorkflowVersionResponse,
 } from "../../api/client.ts";
+import type { TreeStep } from "./workflow-tree.ts";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -182,3 +183,18 @@ export const ACTION_LINES: Readonly<Record<string, string>> = {
   "quality.check": "library.workflow.actionLine.qualityCheck",
   "delivery.merge": "library.workflow.actionLine.deliveryMerge",
 };
+
+/** The name a card carries, for a problem row that names it. */
+export function stepName(
+  step: TreeStep,
+  translate: (key: never, values?: Record<string, string>) => string,
+): string {
+  if (step.problem === "unknown") {
+    return translate("library.editor.card.unknown" as never);
+  }
+  if (step.problem === "unreadable") {
+    return translate("library.editor.card.unreadable" as never);
+  }
+  const key = ACTION_TITLES[step.uses];
+  return key === undefined ? step.uses : translate(key as never);
+}

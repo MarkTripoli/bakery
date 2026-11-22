@@ -6557,7 +6557,7 @@ export const clientManifest = {
       "permission": "preview:access",
       "input": "IdPath",
       "output": "Preview",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
       "errors": [
@@ -7478,6 +7478,81 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/deployments",
+      "action": "deployments.list",
+      "access": "Developer",
+      "permission": "deployment:read",
+      "input": "RepositoryQuery",
+      "output": "Page<Deployment>",
+      "event": "",
+      "mcp": "bakery_deployments_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/deployments",
+      "action": "deployments.create",
+      "access": "Developer+deploy grant",
+      "permission": "deployment:promote",
+      "input": "DeploymentCreate",
+      "output": "Deployment",
+      "event": "deployment.queued",
+      "mcp": "bakery_deployments_create",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/deployments/{id}/rollbacks",
+      "action": "deployments.rollback",
+      "access": "Developer+deploy grant",
+      "permission": "deployment:promote",
+      "input": "DeploymentRollback",
+      "output": "Deployment",
+      "event": "deployment.rollback_requested",
+      "mcp": "bakery_deployments_rollback",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/usage",
@@ -8054,6 +8129,29 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/workflow-definition-proposals",
+      "action": "workflowDefinitionProposals.list",
+      "access": "Developer",
+      "permission": "conversation:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkflowDefinitionProposal>",
+      "event": "",
+      "mcp": "bakery_workflowDefinitionProposals_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -16551,6 +16649,68 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Path identifying one task-dependency edge to remove, addressed by its owning task and its own dependency record id."
     },
+    "DeploymentCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Repository whose release is being deployed."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow run whose merge produced the commit and artifact being deployed, tying this deployment back to its originating evidence."
+        },
+        "environment": {
+          "type": "string",
+          "enum": [
+            "preview",
+            "staging",
+            "production"
+          ],
+          "description": "Target for this release: preview for an ephemeral review environment, staging for pre-production validation, or production for live traffic. Deployments to the same environment are serialized."
+        },
+        "commitSha": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{40}(?:[a-fA-F0-9]{24})?$",
+          "description": "Commit SHA of the merged revision being deployed; must match the commit the merge step produced for this repository."
+        },
+        "artifactDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 digest of the built release artifact being deployed, verified against the stored artifact before the delivery adapter runs prepare."
+        }
+      },
+      "required": [
+        "repositoryId",
+        "runId",
+        "environment",
+        "commitSha",
+        "artifactDigest"
+      ],
+      "additionalProperties": false,
+      "description": "Registers a release for deployment to one environment; deployments to the same environment are serialized and only a merged, tested revision is accepted."
+    },
+    "DeploymentRollback": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Operator-supplied explanation for the rollback, kept with the deployment record for audit; it does not affect which prior release is restored. DeploymentRollback.reason must contain at most 2000 characters."
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false,
+      "description": "Requests reverting an environment to its previous deployment; the adapter issues a new stable effect key and the restored commit becomes the new current release."
+    },
     "Empty": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -19613,6 +19773,7 @@ export const clientManifest = {
             "conversations.mentionCandidates",
             "conversationAccess.list",
             "conversationAccess.sharers",
+            "workflowDefinitionProposals.list",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -48399,6 +48560,7 @@ export const clientManifest = {
                   "conversations.mentionCandidates",
                   "conversationAccess.list",
                   "conversationAccess.sharers",
+                  "workflowDefinitionProposals.list",
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
@@ -52505,6 +52667,20 @@ export const clientManifest = {
                 ],
                 "description": "Preview.stoppedBy may be null in the safe projection."
               },
+              "stoppedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedByName may be null in the safe projection."
+              },
               "stoppedAt": {
                 "anyOf": [
                   {
@@ -52553,6 +52729,7 @@ export const clientManifest = {
               "status",
               "stopReason",
               "stoppedBy",
+              "stoppedByName",
               "stoppedAt",
               "expiresAt",
               "createdAt",
@@ -54212,6 +54389,200 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of MergeEntry."
+    },
+    "Page<Deployment>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the deployment record."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related repository entity."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related run entity."
+              },
+              "environment": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Deployment environment targeted by the record."
+              },
+              "commitSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Commit SHA deployed by the record."
+              },
+              "artifactDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Digest of the artifact deployed by the record."
+              },
+              "previousDeploymentId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related previous deployment entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Deployment.previousDeploymentId may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "deploying",
+                  "verifying",
+                  "healthy",
+                  "degraded",
+                  "failed",
+                  "unknown",
+                  "rolling_back",
+                  "rolled_back"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "externalEffectId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related external effect entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Deployment.externalEffectId may be null in this transport value."
+              },
+              "healthEvidenceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related health evidence entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Deployment.healthEvidenceId may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "repositoryId",
+              "runId",
+              "environment",
+              "commitSha",
+              "artifactDigest",
+              "previousDeploymentId",
+              "status",
+              "externalEffectId",
+              "healthEvidenceId",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks."
+          },
+          "description": "Deployment items in this cursor page. Page<Deployment>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<Deployment>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Deployment>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<Deployment>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<Deployment>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of Deployment."
     },
     "Page<EvaluationDefinition>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -61625,6 +61996,388 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
     },
+    "Page<WorkflowDefinitionProposal>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the proposal."
+              },
+              "conversationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Conversation whose coordinator made the proposal."
+              },
+              "turnId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Coordinator turn that emitted the definitionProposal effect."
+              },
+              "workflowId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Unlisted definition the proposal edits, or that accepting it created; null for a new-definition proposal not yet accepted."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.workflowId may be null in this transport value."
+              },
+              "baseDraftVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Draft version the proposal was made against; accepting refuses with PRECONDITION_FAILED when the draft has moved on. Null when the target had no draft."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.baseDraftVersion may be null in this transport value."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Plain-language name the coordinator gave the proposed workflow."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Complete proposed workflow definition document, stored as canonical JSON."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 of the canonical proposed definition."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "waiting",
+                  "accepted",
+                  "rejected",
+                  "superseded"
+                ],
+                "description": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled."
+              },
+              "decidedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Person who decided the proposal; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedBy may be null in this transport value."
+              },
+              "decidedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedByName may be null in this transport value."
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the proposal was decided or superseded; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
+              },
+              "supersededByVersionId": {
+                "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the proposal was recorded."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the proposal last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version a decision must name in If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "conversationId",
+              "turnId",
+              "workflowId",
+              "baseDraftVersion",
+              "name",
+              "definition",
+              "digest",
+              "state",
+              "decidedBy",
+              "decidedByName",
+              "decidedAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates."
+          },
+          "description": "WorkflowDefinitionProposal items in this cursor page. Page<WorkflowDefinitionProposal>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<WorkflowDefinitionProposal>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkflowDefinitionProposal>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<WorkflowDefinitionProposal>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<WorkflowDefinitionProposal>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of WorkflowDefinitionProposal.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "WorkflowDefinitionProposal": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -61751,6 +62504,20 @@ export const clientManifest = {
           ],
           "description": "WorkflowDefinitionProposal.decidedBy may be null in this transport value."
         },
+        "decidedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Current display name of the person who decided, read from their principal at request time; null while waiting, when superseded, or when the principal has no name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowDefinitionProposal.decidedByName may be null in this transport value."
+        },
         "decidedAt": {
           "anyOf": [
             {
@@ -61811,6 +62578,7 @@ export const clientManifest = {
         "digest",
         "state",
         "decidedBy",
+        "decidedByName",
         "decidedAt",
         "createdAt",
         "updatedAt",
@@ -69848,6 +70616,7 @@ export const clientManifest = {
             "conversations.mentionCandidates",
             "conversationAccess.list",
             "conversationAccess.sharers",
+            "workflowDefinitionProposals.list",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -71779,6 +72548,20 @@ export const clientManifest = {
           ],
           "description": "Preview.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -71827,6 +72610,7 @@ export const clientManifest = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -72301,6 +73085,140 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."
+    },
+    "Deployment": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the deployment record."
+        },
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related repository entity."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related run entity."
+        },
+        "environment": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Deployment environment targeted by the record."
+        },
+        "commitSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Commit SHA deployed by the record."
+        },
+        "artifactDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Digest of the artifact deployed by the record."
+        },
+        "previousDeploymentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related previous deployment entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Deployment.previousDeploymentId may be null in this transport value."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "deploying",
+            "verifying",
+            "healthy",
+            "degraded",
+            "failed",
+            "unknown",
+            "rolling_back",
+            "rolled_back"
+          ],
+          "description": "Current lifecycle status of the record."
+        },
+        "externalEffectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related external effect entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Deployment.externalEffectId may be null in this transport value."
+        },
+        "healthEvidenceId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related health evidence entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Deployment.healthEvidenceId may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "repositoryId",
+        "runId",
+        "environment",
+        "commitSha",
+        "artifactDigest",
+        "previousDeploymentId",
+        "status",
+        "externalEffectId",
+        "healthEvidenceId",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks."
     },
     "MetricSeries": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

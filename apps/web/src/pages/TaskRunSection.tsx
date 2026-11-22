@@ -18,6 +18,7 @@ import { usePublishNowLine } from "./now-line-slot.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { formatDate } from "@bakery/i18n";
 import { RouterLink } from "../app/router-link.tsx";
 import { TaskRunRevision } from "./TaskRunRevision.tsx";
 import { TaskRunOutput } from "./TaskRunOutput.tsx";
@@ -170,7 +171,7 @@ export function TaskRunSection(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
-  const { translate: t } = useI18n();
+  const { locale, timeZone, translate: t } = useI18n();
   const [outputStepId, setOutputStepId] = useState<string | null>(null);
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const authority =
@@ -472,6 +473,12 @@ export function TaskRunSection(
                         [offer.runStepId, stepRowCopy(offer, t)] as const
                       ),
                     ),
+                    (iso) =>
+                      formatDate(new Date(iso), locale, {
+                        timeZone,
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }),
                   ),
                   ...(receipts.authority === authority ? receipts.events : []),
                 ]}

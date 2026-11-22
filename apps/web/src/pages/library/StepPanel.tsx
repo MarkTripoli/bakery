@@ -34,8 +34,17 @@ export type StepSkillRow = {
   readonly mine: boolean;
   /** Whether the skill can be used at this step now, or why it cannot. */
   readonly status: "available" | "stopped" | "unavailable" | "missing";
-  /** Takes the skill off the step; absent when the page cannot edit or the row is a slot. */
+  /** Where the row sits and which skill version it names (null for a slot with no skill at all). */
+  readonly stepPath?: string;
+  readonly versionId?: string | null;
+  /** Takes the skill (or the placeholder for one) off the step; absent when the page cannot edit. */
   readonly onRemove?: () => void;
+};
+
+/** The place a chosen skill takes over from: a slot's step and the skill it named, if any. */
+export type SlotReplaces = {
+  readonly stepPath: string;
+  readonly versionId: string | null;
 };
 
 /** One skill the picker offers: the active version people attach (#431). */
@@ -56,7 +65,7 @@ export type StepAttach = {
   /** How many skills fit this step before the attached ones are taken out of the choices. */
   readonly offered: number;
   readonly onRetry: () => void;
-  readonly onChoose: (value: string) => void;
+  readonly onChoose: (value: string, replaces?: SlotReplaces) => void;
 };
 
 /** What the Skills list of a step shows: not at all, while it reads, when it failed, or the rows. */
@@ -74,6 +83,9 @@ export type PanelTarget =
     readonly name: string;
     /** The problem's sentence, shown above the code-only sentence. */
     readonly problem: string | undefined;
+    /** The Skills section of an agent step written in code: a skill is not part of that code (#431). */
+    readonly skills?: StepSkills;
+    readonly attach?: StepAttach | null;
     /** What a "Fix until it passes" block does (#62). The limit is said once, on the block. */
     readonly help?: string;
   }
@@ -141,6 +153,9 @@ export function StepPanel(
         }
       >
         <UI.Stack gap="compact">
+          {target.skills === undefined || target.skills.kind === "hidden"
+            ? null
+            : <Skills skills={target.skills} attach={target.attach ?? null} />}
           {target.problem === undefined
             ? null
             : (
@@ -150,7 +165,11 @@ export function StepPanel(
             )}
           {target.help === undefined ? null : <UI.Text>{target.help}</UI.Text>}
           <UI.Text>
-            {translate("library.editor.panel.codeOnly" as never)}
+            {translate(
+              (target.skills === undefined || target.skills.kind === "hidden"
+                ? "library.editor.panel.codeOnly"
+                : "library.editor.panel.codeOnlyRest") as never,
+            )}
           </UI.Text>
         </UI.Stack>
       </UI.InspectorPanel>
@@ -273,6 +292,7 @@ function Skills(
           <UI.Stack gap="comfortable" role="list">
             {skills.rows.map((row) => (
               <SkillRow
+                attach={attach}
                 key={row.key}
                 row={row}
                 t={t}
@@ -308,8 +328,6 @@ function AttachSkill(
   },
 ) {
   const { translate } = useI18n();
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
   if (attach.state === "failed") {
     return (
       <UI.InlineNotice
@@ -342,6 +360,30 @@ function AttachSkill(
       </UI.Button>
     );
   }
+  return (
+    <SkillPicker
+      attach={attach}
+      onPick={(value) => attach.onChoose(value)}
+      t={t}
+      trigger={t("picker.placeholder")}
+    />
+  );
+}
+
+/**
+ * The popover that picks a skill: a search field and the two groups. It adds a
+ * skill from the Skills panel and replaces one from a slot's row.
+ */
+function SkillPicker(
+  { attach, onPick, t, trigger }: {
+    readonly attach: StepAttach;
+    readonly onPick: (value: string) => void;
+    readonly t: Say;
+    readonly trigger: string;
+  },
+) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const needle = query.trim().toLocaleLowerCase();
   const matches = (choice: SkillChoice) =>
     needle === "" ||
@@ -357,7 +399,7 @@ function AttachSkill(
           onClick={() => {
             setOpen(false);
             setQuery("");
-            attach.onChoose(choice.value);
+            onPick(choice.value);
           }}
           variant="quiet"
         >
@@ -380,7 +422,7 @@ function AttachSkill(
         if (!next) setQuery("");
       }}
       open={open}
-      trigger={t("picker.placeholder")}
+      trigger={trigger}
       triggerAppearance="toolbar"
       variant="interactive"
     >
@@ -420,7 +462,8 @@ function AttachSkill(
 }
 
 function SkillRow(
-  { row, t }: {
+  { attach, row, t }: {
+    readonly attach: StepAttach | null;
     readonly row: StepSkillRow;
     readonly t: (
       key: string,
@@ -442,13 +485,48 @@ function SkillRow(
               ? t(`slot.${row.status}.titleUnnamed`)
               : t(`slot.${row.status}.title`, { name })}
           </UI.Text>
-          <UI.Badge tone="warning">{t("slot.badge")}</UI.Badge>
         </UI.Inline>
         <UI.Text variant="muted">
           {row.status === "missing" && row.name === null
             ? t("slot.missing.bodyUnnamed")
             : t(`slot.${row.status}.body`, { name })}
         </UI.Text>
+        {
+          /* Its own two actions, so no badge: Choose takes the place, Remove drops it. Nothing
+            is drawn that cannot apply (no picker to offer, or a page that cannot edit). */
+        }
+        {row.onRemove === undefined && attach === null
+          ? null
+          : (
+            <UI.Inline gap="compact">
+              {attach === null || attach.state !== "ready" ||
+                  attach.choices.length === 0 || row.stepPath === undefined
+                ? null
+                : (
+                  <SkillPicker
+                    attach={attach}
+                    onPick={(value) =>
+                      attach.onChoose(value, {
+                        stepPath: row.stepPath!,
+                        versionId: row.versionId ?? null,
+                      })}
+                    t={t}
+                    trigger={t("slot.choose")}
+                  />
+                )}
+              {row.onRemove === undefined ? null : (
+                <UI.Button
+                  aria-label={row.name === null
+                    ? t("slot.removeMissing")
+                    : t("remove.label", { name })}
+                  onClick={row.onRemove}
+                  variant="text"
+                >
+                  {t("remove.action")}
+                </UI.Button>
+              )}
+            </UI.Inline>
+          )}
       </UI.Stack>
     );
   }

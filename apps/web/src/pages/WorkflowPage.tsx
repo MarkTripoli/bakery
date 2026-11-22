@@ -19,6 +19,7 @@ import {
   effectiveAccessQueryOptions,
   libraryAgentsQueryOptions,
   workflowQueryOptions,
+  workflowVersionSkillsQueryOptions,
   workflowVersionsQueryOptions,
 } from "../api/query.ts";
 import {
@@ -43,6 +44,7 @@ import {
   defaultVersion,
   exportFileName,
   newestFirst,
+  stepName,
   versionState,
 } from "./library/workflow-state.ts";
 import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
@@ -113,6 +115,8 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   const [name, setName] = useState("");
   const [tried, setTried] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // What an export left out, said once after the file is saved (#431).
+  const [exported, setExported] = useState<string | null>(null);
   const opener = useRef<HTMLElement | null>(null);
 
   const date = (value: string) =>
@@ -257,6 +261,47 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    void sayWhatExportLeftOut(version);
+  };
+
+  // A private skill is not in the file: say how many, and for which steps the
+  // person who imports it will be asked to choose one. The file is already saved,
+  // so a failed read says nothing rather than getting in the way.
+  const sayWhatExportLeftOut = async (version: WorkflowVersionResponse) => {
+    setExported(null);
+    try {
+      const read = await queryClient.fetchQuery(
+        workflowVersionSkillsQueryOptions(
+          api,
+          scope,
+          workflowId,
+          version.id,
+          version.digest,
+        ),
+      );
+      const left = read.items.filter((item) => item.scope === "personal");
+      if (left.length === 0) return;
+      const paths = new Set(left.map((item) => item.stepPath));
+      const spec = version.normalizedSpec as { steps?: unknown } | null;
+      const ids = Array.isArray(spec?.steps)
+        ? spec.steps.map((raw: unknown) => (raw as { id?: unknown })?.id)
+        : [];
+      const drawn = stepsOfTree(treeOf(version.normalizedSpec));
+      const names = [...paths].map((path) => {
+        const index = Number(path.replace("/steps/", ""));
+        const step = drawn.find((one) => one.id === ids[index]);
+        return step === undefined ? null : stepName(step, translate);
+      });
+      setExported(
+        translate("library.workflow.export.privateSkills" as never, {
+          count: left.length,
+          steps: paths.size,
+          step: names[0] ?? "",
+        } as never),
+      );
+    } catch {
+      // The file is saved; the note is a courtesy.
+    }
   };
 
   const stateBadge = (version: WorkflowVersionResponse) => {
@@ -674,6 +719,16 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               </UI.InlineNotice>
             )
             : null}
+          {
+            /* With the page's other notices, at the top: a page this long scrolls a note at its end out of sight. */
+          }
+          {exported === null
+            ? null
+            : (
+              <UI.Toast tone="success" onDismiss={() => setExported(null)}>
+                {exported}
+              </UI.Toast>
+            )}
           {dialog === null ? failureNotice : null}
           {noneInUse
             ? (

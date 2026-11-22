@@ -6508,7 +6508,7 @@
     {
       "group": "Workers",
       "access": "Developer",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": null,
       "method": "POST",
       "path": "/v1/previews/{id}/stop",
@@ -7790,6 +7790,7 @@
       "action": "deployments.list",
       "access": "Developer",
       "permission": "deployment:read",
+      "organizationContext": "required_authenticated_context",
       "input": "RepositoryQuery",
       "output": "Page<Deployment>",
       "event": "",
@@ -7799,6 +7800,7 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ]
@@ -7810,6 +7812,7 @@
       "action": "deployments.create",
       "access": "Developer+deploy grant",
       "permission": "deployment:promote",
+      "organizationContext": "required_authenticated_context",
       "input": "DeploymentCreate",
       "output": "Deployment",
       "event": "deployment.queued",
@@ -7819,6 +7822,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
@@ -7832,6 +7837,7 @@
       "action": "deployments.rollback",
       "access": "Developer+deploy grant",
       "permission": "deployment:promote",
+      "organizationContext": "required_authenticated_context",
       "input": "DeploymentRollback",
       "output": "Deployment",
       "event": "deployment.rollback_requested",
@@ -7841,6 +7847,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
@@ -8636,6 +8644,28 @@
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/workflow-definition-proposals",
+      "action": "workflowDefinitionProposals.list",
+      "access": "Developer",
+      "permission": "conversation:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkflowDefinitionProposal>",
+      "event": "",
+      "mcp": "bakery_workflowDefinitionProposals_list",
+      "idempotency": "read",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ]
     },
