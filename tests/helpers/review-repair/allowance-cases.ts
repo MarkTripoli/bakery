@@ -111,6 +111,7 @@ export function registerAllowanceCases(): void {
         );
 
         // The engine asks the pinned plan again: a third repair is next.
+        await world.resumeEngine();
         assertEquals(await world.nextKey(), "repair@3.repair_implement");
         await world.repair(3, HEADS[3]);
         await world.check(3, HEADS[3]);
@@ -131,6 +132,7 @@ export function registerAllowanceCases(): void {
       withReviewedRun(async (world) => {
         await runOutOfTries(world);
         await allow(world, 1);
+        await world.resumeEngine();
         await world.nextKey();
         await world.repair(3, HEADS[3]);
         await world.check(3, HEADS[3]);

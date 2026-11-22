@@ -37,14 +37,13 @@ export async function reopenFailedRun(
       application_id: string;
       repository_id: string | null;
       conversation_id: string;
-      admission_trace_id: string | null;
       run_status: string;
       task_status: string;
       coordinated: boolean;
     }
   >(
     `select run.task_id, task.application_id, task.repository_id,
-            task.conversation_id, run.admission_trace_id,
+            task.conversation_id,
             run.status as run_status, task.status as task_status,
             exists (
               select 1 from bakery.coordination_lanes lane
@@ -102,7 +101,7 @@ export async function reopenFailedRun(
       params: { reason: "run_not_failed" },
     });
   }
-  const traceId = row.admission_trace_id ?? input.traceId;
+  const traceId = input.traceId;
   await appendAudit(transaction, {
     organizationId,
     principalId: input.principalId,
