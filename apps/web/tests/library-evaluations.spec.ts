@@ -522,7 +522,15 @@ for (
       await evaluationsFixture(page, { costRuns: true });
       await page.goto(run(IDS.costWithin));
       const cost = page.getByTestId("evaluation-cost");
-      await expect(cost.getByRole("heading", { name: "Cost" })).toBeVisible();
+      // The same heading scale as Results and What this run used.
+      await expect(cost.getByRole("heading", { name: "Cost", level: 2 }))
+        .toBeVisible();
+      await expect(
+        page.getByTestId("evaluation-results").getByRole("heading", {
+          name: "Results",
+          level: 2,
+        }),
+      ).toBeVisible();
       await expect(cost).toContainText("Spent");
       await expect(cost).toContainText("$12.40");
       await expect(cost).toContainText(
@@ -625,6 +633,12 @@ for (
       await expect(sampled).toContainText("1 failed");
       await expect(sampled).toContainText("1 could not be scored");
       await expect(sampled).toContainText("0 not run");
+      // The rows of the sampled scorer say the same as the numbers above them.
+      const sampledRows = page.getByTestId("evaluation-results");
+      await expect(sampledRows.getByText(/polite-tone: Passed/)).toHaveCount(3);
+      await expect(sampledRows.getByText(/polite-tone: Failed/)).toHaveCount(1);
+      await expect(sampledRows.getByText(/polite-tone: Could not be scored/))
+        .toHaveCount(1);
       await expect(sampled).toContainText(
         "These never count toward the quality gate.",
       );
@@ -649,6 +663,11 @@ for (
       await evaluationsFixture(page, { attemptCosts: true });
       await page.goto(run(IDS.gaps));
       await page.getByRole("button", { name: "3 attempts" }).first().click();
+      // The run's cost agrees with its attempts: $0.06 + $0.04, one not known.
+      const spent = page.getByTestId("evaluation-cost");
+      await expect(spent).toContainText("At least $0.10");
+      await expect(spent).toContainText("not in this figure");
+      await expect(spent).not.toContainText("No model call has finished yet.");
       const list = page.getByRole("list", { name: "Attempts at exact-answer" });
       await expect(list.getByRole("listitem").first()).toContainText(
         "Passed · $0.06",

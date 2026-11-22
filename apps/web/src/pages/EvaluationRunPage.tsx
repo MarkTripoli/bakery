@@ -178,15 +178,18 @@ function CostSection({ batch }: { readonly batch: EvaluationBatch }) {
       ),
     });
   return (
-    <UI.Stack data-testid="evaluation-cost" gap="standard">
-      <UI.Inline gap="compact">
-        <UI.Heading level="section">
+    <UI.SettingsSection
+      data-testid="evaluation-cost"
+      title={
+        <>
           {translate("library.evaluation.cost.title")}
-        </UI.Heading>
-        <UI.HelpTip label={translate("library.evaluation.cost.helpLabel")}>
-          {translate("library.evaluation.cost.help")}
-        </UI.HelpTip>
-      </UI.Inline>
+          <UI.HelpTip label={translate("library.evaluation.cost.helpLabel")}>
+            {translate("library.evaluation.cost.help")}
+          </UI.HelpTip>
+        </>
+      }
+      variant="stack"
+    >
       <UI.Inline gap="standard" variant="thirds">
         <UI.StatTile
           detail={spentDetail}
@@ -268,7 +271,7 @@ function CostSection({ batch }: { readonly batch: EvaluationBatch }) {
           </UI.InlineNotice>
         )
         : null}
-    </UI.Stack>
+    </UI.SettingsSection>
   );
 }
 
@@ -278,15 +281,18 @@ function SampledSection({ batch }: { readonly batch: EvaluationBatch }) {
   const report = batch.optionalReport;
   if (report === null) return null;
   return (
-    <UI.Stack data-testid="evaluation-sampled" gap="standard">
-      <UI.Inline gap="compact">
-        <UI.Heading level="section">
+    <UI.SettingsSection
+      data-testid="evaluation-sampled"
+      title={
+        <>
           {translate("library.evaluation.sampled.title")}
-        </UI.Heading>
-        <UI.HelpTip label={translate("library.evaluation.sampled.helpLabel")}>
-          {translate("library.evaluation.sampled.help")}
-        </UI.HelpTip>
-      </UI.Inline>
+          <UI.HelpTip label={translate("library.evaluation.sampled.helpLabel")}>
+            {translate("library.evaluation.sampled.help")}
+          </UI.HelpTip>
+        </>
+      }
+      variant="stack"
+    >
       <UI.Inline gap="standard">
         {(["passed", "failed", "unknown", "unrun"] as const).map((id) => (
           <UI.Text key={id}>
@@ -299,7 +305,7 @@ function SampledSection({ batch }: { readonly batch: EvaluationBatch }) {
       <UI.Text variant="muted">
         {translate("library.evaluation.sampled.note")}
       </UI.Text>
-    </UI.Stack>
+    </UI.SettingsSection>
   );
 }
 

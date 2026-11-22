@@ -270,6 +270,21 @@ export async function evaluationsFixture(
         rule: "at least 80% of required results pass",
         blockers: [],
       },
+      // The attempts that carry a cost add up to the run's cost: $0.06 reported,
+      // $0.04 estimated and one attempt whose cost is not known.
+      ...(options.attemptCosts === true
+        ? {
+          budget: {
+            limitUsd: null,
+            settledUsd: "0.10",
+            estimatedUsd: "0.04",
+            unknownCount: 1,
+            status: "none",
+            blocksNewAttempts: false,
+            oldestUnknownAt: STAMP,
+          },
+        }
+        : {}),
     }),
     run(IDS.running, 1, {
       state: "running",
@@ -616,10 +631,24 @@ export async function evaluationsFixture(
       const found = runs.find((entry) => entry.id === id);
       if (found === undefined) return problem(route, 404, "RESOURCE_NOT_FOUND");
       const states = statesOf(found.counts);
-      const rows = states.map((state, index) => {
+      // A sampled scorer's rows follow the run's own sampled report, so the
+      // numbers above them and the rows agree.
+      const sampledReport = found.optionalReport as
+        | ReturnType<typeof reportOf>
+        | null;
+      const sampledStates = sampledReport === null ? null : [
+        ...Array<State>(sampledReport.passed).fill("passed"),
+        ...Array<State>(sampledReport.failed).fill("failed"),
+        ...Array<State>(sampledReport.unknown).fill("error"),
+        ...Array<State>(sampledReport.unrun).fill("missing"),
+      ];
+      const rows = states.map((countedState, index) => {
         const scorers = found.scorers as typeof SCORERS;
         const caseIndex = Math.floor(index / scorers.length);
         const scorer = scorers[index % scorers.length];
+        const state: State = !scorer.required && sampledStates !== null
+          ? sampledStates[caseIndex] ?? "passed"
+          : countedState;
         const measured = state === "passed" || state === "failed";
         return {
           id: uuid(5000 + index),
