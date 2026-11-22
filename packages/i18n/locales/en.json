@@ -4408,7 +4408,7 @@
   "machines.wizard.install.connectedSignIn": "{name} is connected. One thing left: sign in to {agent}.",
   "machines.wizard.install.signInButton": "Sign in to {agent}",
   "library.title": "Library",
-  "library.description": "The workflows, agents and remembered facts Bakery uses to do work.",
+  "library.description": "The workflows, agents, skills and remembered facts Bakery uses to do work.",
   "library.tabs.label": "Library sections",
   "library.tab.workflows": "Workflows",
   "library.tab.agents": "Agents",

@@ -2972,7 +2972,6 @@
   "issues.choose.failed": "⟦Ŧĥïš ðïð ñôŧ šàṽë. Ŧŕÿ àĝàïñ. ŧëšŧ çôþ⟧",
   "issues.choose.save": "⟦Šàṽë⟧",
   "library.title": "⟦Ļïƀŕàŕÿ…⟧",
-  "library.description": "⟦Ŧĥë ŵôŕķƒļôŵš àñð àĝëñŧš Ɓàķëŕÿ ûšëš ŧô ðô ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.tabs.label": "⟦Ļïƀŕàŕÿ šëçŧïôñš ŧëš⟧",
   "library.tab.workflows": "⟦Ŵôŕķƒļôŵš ŧ⟧",
   "library.tab.agents": "⟦Àĝëñŧš…⟧",
@@ -6252,5 +6251,6 @@
   "library.skill.origin.publisher": "⟦Þûƀļïšĥëŕ ŧ⟧",
   "library.skill.origin.license": "⟦Ļïçëñçë…⟧",
   "library.skill.origin.checked": "⟦Ļàšŧ çĥëçķëð ŧë⟧",
-  "library.skill.origin.neverChecked": "⟦Ñôŧ çĥëçķëð ÿëŧ ŧëš⟧"
+  "library.skill.origin.neverChecked": "⟦Ñôŧ çĥëçķëð ÿëŧ ŧëš⟧",
+  "library.description": "⟦Ŧĥë ŵôŕķƒļôŵš, àĝëñŧš, šķïļļš àñð ŕëɱëɱƀëŕëð ƒàçŧš Ɓàķëŕÿ ûšëš ŧô ðô ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

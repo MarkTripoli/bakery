@@ -2969,7 +2969,6 @@
   "issues.choose.failed": "⟪This did not save. Try again.⟫",
   "issues.choose.save": "⟪Save⟫",
   "library.title": "⟪Library⟫",
-  "library.description": "⟪The workflows and agents Bakery uses to do work.⟫",
   "library.tabs.label": "⟪Library sections⟫",
   "library.tab.workflows": "⟪Workflows⟫",
   "library.tab.agents": "⟪Agents⟫",
@@ -6252,5 +6251,6 @@
   "library.skill.origin.publisher": "⟪Publisher⟫",
   "library.skill.origin.license": "⟪Licence⟫",
   "library.skill.origin.checked": "⟪Last checked⟫",
-  "library.skill.origin.neverChecked": "⟪Not checked yet⟫"
+  "library.skill.origin.neverChecked": "⟪Not checked yet⟫",
+  "library.description": "⟪The workflows, agents, skills and remembered facts Bakery uses to do work.⟫"
 }

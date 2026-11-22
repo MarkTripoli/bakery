@@ -377,5 +377,68 @@ for (
       await page.getByRole("button", { name: "Back to Skills" }).click();
       await expect(page).toHaveURL(/tab=skills/);
     });
+
+    test("the Library tab strip shows that it scrolls and keeps the selected tab in view", async ({ page }) => {
+      await skillsFixture(page);
+      const list = page.getByRole("tablist", { name: "Library sections" });
+      const selectedInView = () =>
+        list.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const tab = element.querySelector(
+            '[role="tab"][aria-selected="true"]',
+          )!
+            .getBoundingClientRect();
+          return tab.left >= box.left - 1 && tab.right <= box.right + 1;
+        });
+      const pageScroll = () => page.evaluate(() => globalThis.scrollY);
+      // The tab the page opens on is fully inside the strip; a fade shows only
+      // on a side that has more tabs, and never when every tab fits.
+      for (
+        const [tab, left, right] of [
+          ["skills", false, true],
+          ["evaluations", true, false],
+          ["workflows", false, true],
+        ] as const
+      ) {
+        await page.goto(`/library?tab=${tab}`);
+        await expect.poll(selectedInView).toBe(true);
+        if (viewport.phone) {
+          if (left) {
+            await expect(list).toHaveAttribute("data-fade-left", "true");
+          } else await expect(list).not.toHaveAttribute("data-fade-left", /.*/);
+          if (right) {
+            await expect(list).toHaveAttribute("data-fade-right", "true");
+          } else {await expect(list).not.toHaveAttribute(
+              "data-fade-right",
+              /.*/,
+            );}
+          await page.mouse.move(700, 700);
+          // Only the strip: the other tabs' lists are not stubbed in this spec.
+          await still(page, `library-tabs-${tab}`, list.locator("xpath=.."));
+        } else {
+          await expect(list).not.toHaveAttribute("data-fade-left", /.*/);
+          await expect(list).not.toHaveAttribute("data-fade-right", /.*/);
+        }
+      }
+      // Arrow keys keep working, and the page itself never moves sideways or down.
+      await page.goto("/library?tab=skills");
+      await page.getByRole("tab", { name: "Skills" }).focus();
+      await page.keyboard.press("ArrowRight");
+      await page.keyboard.press("ArrowRight");
+      await expect(page.getByRole("tab", { name: "Evaluations" }))
+        .toHaveAttribute("aria-selected", "true");
+      await expect.poll(selectedInView).toBe(true);
+      expect(await pageScroll()).toBe(0);
+    });
+
+    test("the Library lede names the skills it now holds", async ({ page }) => {
+      await skillsFixture(page);
+      await page.goto(LIST);
+      await expect(
+        page.getByText(
+          "The workflows, agents, skills and remembered facts Bakery uses to do work.",
+        ),
+      ).toBeVisible();
+    });
   });
 }
