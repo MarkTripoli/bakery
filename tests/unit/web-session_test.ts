@@ -360,6 +360,7 @@ function fakeApi(
     listEvaluationAttempts: rejecting,
     updateMemory: rejecting,
     createMemoryRevision: rejecting,
+    listSkills: rejecting,
     listWorkflowVersions: rejecting,
     listWorkflowVersionSkills: rejecting,
     activateWorkflowVersion: rejecting,

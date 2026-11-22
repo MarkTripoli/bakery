@@ -57,6 +57,7 @@ const step = {
   createdAt: "2026-01-01T00:00:02.000Z",
   updatedAt: "2026-01-01T00:00:03.000Z",
   version: 1,
+  handoffManifest: null,
 };
 const task = {
   id,
