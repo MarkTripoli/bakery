@@ -2,6 +2,7 @@ import type {
   PgDatabase,
   PgTransactionClient,
 } from "../../../platform/database.ts";
+import { appendDomainEvent } from "@bakery/persistence/event-audit";
 import { sha256Hex } from "../../../platform/canonical-json.ts";
 import {
   type CursorBinding,
@@ -34,6 +35,7 @@ export type PreviewView = {
   status: PreviewStatus;
   stopReason: PreviewStopReason | null;
   stoppedBy: string | null;
+  stoppedByName: string | null;
   stoppedAt: string | null;
   expiresAt: string;
   createdAt: string;
@@ -49,6 +51,7 @@ type PreviewRow = {
   status: PreviewStatus;
   stop_reason: PreviewStopReason | null;
   stopped_by: string | null;
+  stopped_by_name: string | null;
   stopped_at: string | null;
   expires_at: string;
   created_at: string;
@@ -108,7 +111,7 @@ const PREVIEW_COLUMNS = `
   p.id, p.run_id, p.attempt_id, p.head_sha,
   ${STATE} as status,
   ${STOP_REASON} as stop_reason,
-  p.stopped_by,
+  p.stopped_by, who.display_name as stopped_by_name,
   ${iso(`(${STOPPED_AT})`)} as stopped_at,
   ${iso("p.expires_at")} as expires_at,
   ${iso("p.created_at")} as created_at,
@@ -120,7 +123,8 @@ export const PREVIEW_FROM = `
   join bakery.job_attempts a
     on a.organization_id = p.organization_id and a.id = p.attempt_id
   join bakery.jobs j
-    on j.organization_id = a.organization_id and j.id = a.job_id`;
+    on j.organization_id = a.organization_id and j.id = a.job_id
+  left join bakery.principals who on who.id = p.stopped_by`;
 
 function toPreview(row: PreviewRow): PreviewView {
   return {
@@ -132,6 +136,7 @@ function toPreview(row: PreviewRow): PreviewView {
     stopReason: row.stop_reason,
     // Only a person's stop names a person.
     stoppedBy: row.stop_reason === "person" ? row.stopped_by : null,
+    stoppedByName: row.stop_reason === "person" ? row.stopped_by_name : null,
     stoppedAt: row.stopped_at,
     expiresAt: row.expires_at,
     createdAt: row.created_at,
@@ -153,12 +158,50 @@ export async function readPreview(
   return result.rows[0] ? toPreview(result.rows[0]) : null;
 }
 
+/**
+ * Tells everyone watching the run's task that a preview changed, so an open
+ * task page re-reads it. The event carries no state: the page fetches the
+ * preview through its own authorized read. Only changes a writer makes send
+ * one; a preview that ends by itself is derived when it is read.
+ */
+async function announcePreview(
+  transaction: PgTransactionClient,
+  input: {
+    organizationId: string;
+    previewId: string;
+    runId: string;
+    version: number;
+    eventType: "preview.ready" | "preview.stopped";
+    /** The trace of the request that caused the change, so the event joins it. */
+    traceId: string;
+  },
+): Promise<void> {
+  const run = await transaction.query<{ task_id: string }>(
+    `select task_id from bakery.workflow_runs
+      where organization_id = $1 and id = $2`,
+    [input.organizationId, input.runId],
+  );
+  const taskId = run.rows[0]?.task_id;
+  if (taskId === undefined) return;
+  await appendDomainEvent(transaction, {
+    organizationId: input.organizationId,
+    taskId,
+    eventType: input.eventType,
+    aggregateId: input.previewId,
+    aggregateVersion: input.version,
+    payload: { resourceId: input.previewId, resourceVersion: input.version },
+    traceId: input.traceId,
+  });
+}
+
 export type RegisterPreviewInput = {
   organizationId: string;
   attemptId: string;
   routeKey: string;
   upstreamPort: number;
   headSha: string;
+  /** Trace of the registering request; the preview.ready event carries it. */
+  traceId: string;
 };
 
 export type RegisteredPreview =
@@ -251,7 +294,16 @@ export async function registerPreview(
     input.organizationId,
     inserted.rows[0].id,
   );
-  return preview ? { kind: "created", preview } : { kind: "conflict" };
+  if (!preview) return { kind: "conflict" };
+  await announcePreview(transaction, {
+    organizationId: input.organizationId,
+    previewId: preview.id,
+    runId: found.run_id,
+    version: preview.version,
+    eventType: "preview.ready",
+    traceId: input.traceId,
+  });
+  return { kind: "created", preview };
 }
 
 const PREVIEWS_ORDERING = "createdAt:desc,id:desc";
@@ -332,6 +384,7 @@ export async function stopPreview(
   organizationId: string,
   principalId: string,
   previewId: string,
+  traceId: string,
 ): Promise<StopOutcome> {
   const locked = await transaction.query<{ status: string }>(
     `select status from bakery.previews
@@ -353,7 +406,16 @@ export async function stopPreview(
   );
   await revokePreviewAccess(transaction, organizationId, previewId);
   const after = await readPreview(transaction, organizationId, previewId);
-  return after ? { kind: "stopped", preview: after } : { kind: "missing" };
+  if (!after) return { kind: "missing" };
+  await announcePreview(transaction, {
+    organizationId,
+    previewId,
+    runId: after.runId,
+    version: after.version,
+    eventType: "preview.stopped",
+    traceId,
+  });
+  return { kind: "stopped", preview: after };
 }
 
 /** Ends every grant and session of one preview. Safe to repeat. */

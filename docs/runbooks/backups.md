@@ -528,6 +528,53 @@ quarantined and their jobs wait for reconciliation.
 The server keeps the order: no step opens a later door while an earlier one is
 closed. Each step is audited with the step and the backup's name.
 
+## Restore to a minute (Restore to any minute is on)
+
+While the installation setting "Restore to any minute" is on, Postgres archives
+its WAL (at least one segment a minute) into `/var/lib/bakery/wal-spool`, each
+backup set also holds `base.tar.age` (a `pg_basebackup` of the cluster), and the
+runner encrypts every segment and uploads it to `<prefix>wal/<segment>.age` at
+the off-site destination. The window shown in the setting is the range of
+minutes a restore can reach.
+
+To restore to a minute inside that window:
+
+1. Pick the newest set that has `base.tar.age` and finished **before** the
+   minute you want.
+2. Download the off-site WAL into an empty directory with any S3 client and the
+   bucket credentials you hold, for example
+   `aws s3 sync s3://<bucket>/<prefix>wal/ /root/wal-restore/`. Segments still
+   in the local spool (not shipped yet) are read too.
+3. Run, as root, with the minute in UTC:
+
+```sh
+sudo bash /opt/bakery/deploy/restore-to-time.sh /var/backups/bakery/<set> /root/backup-identity.txt \
+  --to 2026-11-21T10:15:00Z --wal /root/wal-restore --confirm <set>
+```
+
+It runs the restore drill of the set, takes a backup of the current
+installation, stops everything that writes, moves the Postgres data directory
+aside (`/var/lib/bakery/postgres.pre-restore-<time>`), rebuilds it from the base
+backup and replays the WAL up to the minute. Redis and the skills come from the
+set. The restore fence then treats everything after the minute as uncertain,
+and only the api is started: re-enable the installation as after any restore
+("After a restore" above).
+
+| exit | meaning |
+| --- | --- |
+| 0 | restored to the minute and held |
+| 64 | bad arguments (`--to`, `--wal` and `--confirm` are required) |
+| 65 | the confirmation was not the set's name; nothing changed |
+| 66 | the set has no base backup (taken while the switch was off); nothing changed |
+| 67 | the pre-restore backup could not be taken; nothing changed |
+| 68 | the minute is not a UTC instant, or is before the set finished; nothing changed |
+| 69 | the WAL ends before the minute: the old database is put back and services stay stopped; fetch the missing segments and run it again |
+| 70 | the host lacks Deno or the release checkout; nothing changed |
+| 71 | the restore drill of the set did not pass; nothing changed |
+| 72 | Postgres stopped for another reason during the replay, or never finished it: the old database is put back, services stay stopped, and the message shows Postgres's last log lines |
+| 77 | not run as root; nothing changed |
+| 1 | failed after the stores were touched; the message names the pre-restore backup |
+
 ## What the runner does when something goes wrong
 
 The order of a pass is: claim, hold the installation, wait for quiet, read

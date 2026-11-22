@@ -47,6 +47,12 @@ export type HeartbeatRepository = {
     protocolVersion: number;
     metadata: RequestMetadata;
     makeResponse: (value: unknown) => unknown;
+    /**
+     * Maintenance hand-off for this heartbeat (issue #25), run after the host
+     * receipt is written and inside the same transaction; its list is stored
+     * with the response so a duplicate delivery replays the same assignments.
+     */
+    maintenanceAssignments?: (heartbeatTime: Date) => Promise<unknown[]>;
   }): Promise<HeartbeatResult>;
 };
 
@@ -522,6 +528,9 @@ export function createHeartbeatRepository(
       if (inventoryRevision === undefined) {
         throw new Error("WORKER_HEARTBEAT_HOST_MISSING");
       }
+      const maintenanceAssignments = options.maintenanceAssignments
+        ? await options.maintenanceAssignments(heartbeatTime)
+        : undefined;
       const response = options.makeResponse({
         workerHostId: identity.host.id,
         status: "accepted",
@@ -538,6 +547,9 @@ export function createHeartbeatRepository(
         ...(protocolVersion >= 2 ? { reconciledAttemptIds } : {}),
         serverTime: new Date(heartbeatTime).toISOString(),
         inventoryRevision: Number(inventoryRevision),
+        ...(maintenanceAssignments === undefined
+          ? {}
+          : { maintenanceAssignments }),
       });
       await transaction.query(
         `insert into bakery.worker_heartbeat_replays (

@@ -66,6 +66,7 @@ Deno.test("clean tenant creates, publishes, and reads exact local skill bytes an
     const sourceBefore = await sourceBeforeResponse.json();
     assertEquals(sourceBefore, {
       id: skill.sourceId,
+      name: "Skill phase3-clean-tenant",
       sourceType: "local_bundle",
       locator:
         `bakery://organizations/${context.organizationId}/skills/${skill.id}`,

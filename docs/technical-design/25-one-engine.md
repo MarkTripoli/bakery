@@ -1,9 +1,9 @@
 # One engine: the Bakery kernel and its extension points
 
-Status: design accepted by the product owner on 14 November 2026. Nothing here is
-implemented yet. This chapter is the canonical statement of the one-system design.
-Where another chapter disagrees with it, this chapter wins and the other chapter
-should be corrected. No decision here is pending.
+Status: design accepted by the product owner on 14 November 2026. Nothing here
+is implemented yet. This chapter is the canonical statement of the one-system
+design. Where another chapter disagrees with it, this chapter wins and the other
+chapter should be corrected. No decision here is pending.
 
 Companion documents, kept for their detail, live in [one-system/](one-system/):
 
@@ -34,20 +34,20 @@ level: describe it in words, use the visual editor, copy a template, or write
 code with the SDK. All four produce the same stored definition through the same
 compiler.
 
-**Domain-neutral kernel.** Bakery is not code-only. People build factories
-for any kind of work, for example producing videos, and MCP servers, skills and
+**Domain-neutral kernel.** Bakery is not code-only. People build factories for
+any kind of work, for example producing videos, and MCP servers, skills and
 integrations all have a place inside workflows. The kernel knows work items,
 documents, steps, sessions and rules; it does not know repositories, pull
-requests or checks. Software delivery is one module and template pack beside
-the kernel (O16), not part of it.
+requests or checks. Software delivery is one module and template pack beside the
+kernel (O16), not part of it.
 
 **Agent-first parity.** Everything a person can do in Bakery, an agent can do
 through the same operations (API, CLI or MCP), subject to the same grants,
 budgets and audit. There is one operation registry, and the web app is one
 client of it among several. An agent's action is attributed to the principal it
-acts for (the person or start that began the run, or the seat's own identity) and
-is always labelled as an agent's action (O50). Four things stay with people on
-purpose (O51): entering secrets and giving consent, administering who holds
+acts for (the person or start that began the run, or the seat's own identity)
+and is always labelled as an agent's action (O50). Four things stay with people
+on purpose (O51): entering secrets and giving consent, administering who holds
 authority, irreversible destruction (an agent prepares, a person confirms), and
 nothing for oneself. Some agent powers are off by default and switched on per
 workflow or seat (O52): decisions, publishing, "Use this version", switching on
@@ -74,12 +74,12 @@ gap is closed for everyone.
 
 ### Layers
 
-| Layer | Holds | Owner |
-| --- | --- | --- |
-| 4. Templates | Template packs. The software-delivery pack: Deliver (four sizes), Product team, Review pair, Triage desk, Board pipeline, the coordinator's factory skill | Bakery ships them; anyone copies them |
-| 3. Compositions | Workflows, teams, boards, factories | Customers |
-| 2. Primitives | The eleven primitives, one compiler, one interpreter, eight extension points | The kernel |
-| 1. Infrastructure | Durable execution, workers and worktrees, sessions, artifact store, events and outbox, budgets, grants, effect ledger, audit, integration broker | Bakery runs it |
+| Layer             | Holds                                                                                                                                                     | Owner                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| 4. Templates      | Template packs. The software-delivery pack: Deliver (four sizes), Product team, Review pair, Triage desk, Board pipeline, the coordinator's factory skill | Bakery ships them; anyone copies them |
+| 3. Compositions   | Workflows, teams, boards, factories                                                                                                                       | Customers                             |
+| 2. Primitives     | The eleven primitives, one compiler, one interpreter, eight extension points                                                                              | The kernel                            |
+| 1. Infrastructure | Durable execution, workers and worktrees, sessions, artifact store, events and outbox, budgets, grants, effect ledger, audit, integration broker          | Bakery runs it                        |
 
 ### How a run works
 
@@ -123,33 +123,33 @@ plan; extension point E6), whose output the engine validates before acting.
 
 ### Kernel rules
 
-| Rule | Meaning |
-| --- | --- |
-| K1 Pin at admission | A run freezes every version it uses. Nothing resolves "latest" later |
-| K2 Record, then act | The step row exists before dispatch; an effect is prepared in the ledger before it is sent; a firing is recorded before its run |
-| K3 Results are data | Conditions read only typed action outputs and validated facts. No branch asks a model, reads free text or runs supplied code |
-| K4 Nothing ambient | Every artifact, skill, capability, secret and dollar a step uses is declared and checked at admission and again at the effect |
-| K5 Everything bounded | Steps, loops, hops, fan-out, time, money, context and artifact size have ceilings known before the run starts |
-| K6 No silent influence | Every session can be watched, and every change to its course by a person or an agent is a recorded input |
+| Rule                   | Meaning                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| K1 Pin at admission    | A run freezes every version it uses. Nothing resolves "latest" later                                                            |
+| K2 Record, then act    | The step row exists before dispatch; an effect is prepared in the ledger before it is sent; a firing is recorded before its run |
+| K3 Results are data    | Conditions read only typed action outputs and validated facts. No branch asks a model, reads free text or runs supplied code    |
+| K4 Nothing ambient     | Every artifact, skill, capability, secret and dollar a step uses is declared and checked at admission and again at the effect   |
+| K5 Everything bounded  | Steps, loops, hops, fan-out, time, money, context and artifact size have ceilings known before the run starts                   |
+| K6 No silent influence | Every session can be watched, and every change to its course by a person or an agent is a recorded input                        |
 
 Extensions attach only at five checkpoints (run admission, step admission,
 result, effect, run end) plus compile time.
 
 ## 3. The eleven primitives
 
-| # | Primitive | Responsibility |
-| --- | --- | --- |
-| 1 | Work item (task) | Carries intent and continuity: brief, scope (the workspaces its steps declare, which may be none; repository links are the software-delivery pack's workspace kind, O23), tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
-| 2 | Definition (workflow and its immutable versions; listed or unlisted) | Steps, order rules, inputs and outputs, limits, default agents, seats and starts. A version never changes. Bounded before it runs |
-| 3 | Run | One execution of one pinned version on one work item, with snapshot, budget, status and a named outcome. Runs form a tree |
-| 4 | Step (with attempts) | One invocation of one action with a frozen input and a typed result. Exactly one completer finishes it: a worker job, a timer, a person, or child runs |
-| 5 | Session | One sitting of an agent. Every session has a live feed and accepts recorded steering (section 9) |
-| 6 | Action | The contract of a step type: schemas, capabilities, effect policy, cancellation, retries, timeout, cost ceiling |
-| 7 | Agent and skill | Immutable agent versions and digest-pinned skill versions. A seat is a standing role declared in a definition |
-| 8 | Artifact | The only handoff channel: named documents with immutable versions. A kind says what a document must contain and which facts the engine may read. People and tools browse artifacts as files in one tree (section 17) |
-| 9 | Event and start | Events record what happened; a start matches an event to a definition and creates a run through normal admission |
-| 10 | Envelope | Grants, budgets, the effect ledger, rules (repository rules come from the software-delivery pack), human decisions and audit |
-| 11 | Interpreter | Decides what happens next inside a run |
+| #  | Primitive                                                            | Responsibility                                                                                                                                                                                                                                                                     |
+| -- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1  | Work item (task)                                                     | Carries intent and continuity: brief, scope (the workspaces its steps declare, which may be none; repository links are the software-delivery pack's workspace kind, O23), tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
+| 2  | Definition (workflow and its immutable versions; listed or unlisted) | Steps, order rules, inputs and outputs, limits, default agents, seats and starts. A version never changes. Bounded before it runs                                                                                                                                                  |
+| 3  | Run                                                                  | One execution of one pinned version on one work item, with snapshot, budget, status and a named outcome. Runs form a tree                                                                                                                                                          |
+| 4  | Step (with attempts)                                                 | One invocation of one action with a frozen input and a typed result. Exactly one completer finishes it: a worker job, a timer, a person, or child runs                                                                                                                             |
+| 5  | Session                                                              | One sitting of an agent. Every session has a live feed and accepts recorded steering (section 9)                                                                                                                                                                                   |
+| 6  | Action                                                               | The contract of a step type: schemas, capabilities, effect policy, cancellation, retries, timeout, cost ceiling                                                                                                                                                                    |
+| 7  | Agent and skill                                                      | Immutable agent versions and digest-pinned skill versions. A seat is a standing role declared in a definition                                                                                                                                                                      |
+| 8  | Artifact                                                             | The only handoff channel: named documents with immutable versions. A kind says what a document must contain and which facts the engine may read. People and tools browse artifacts as files in one tree (section 17)                                                               |
+| 9  | Event and start                                                      | Events record what happened; a start matches an event to a definition and creates a run through normal admission                                                                                                                                                                   |
+| 10 | Envelope                                                             | Grants, budgets, the effect ledger, rules (repository rules come from the software-delivery pack), human decisions and audit                                                                                                                                                       |
+| 11 | Interpreter                                                          | Decides what happens next inside a run                                                                                                                                                                                                                                             |
 
 Seat, team, board, Deliver, the coordinator and the review loop are not
 primitives. They are compositions or modules built on these eleven. Software
@@ -161,44 +161,46 @@ it, so incident, evaluation, content or video factories are peers of software
 delivery, not guests.
 
 The user-facing vocabulary stays small (O12). "Workflow" (or "definition") is
-what the engine runs. "Plan" means only the document an agent writes.
-"Proposal" is what the coordinator suggests. "Split" and "lanes" replace
-"coordination plan". "Execution plan" stays internal. O32 adds "Connection" to the user
+what the engine runs. "Plan" means only the document an agent writes. "Proposal"
+is what the coordinator suggests. "Split" and "lanes" replace "coordination
+plan". "Execution plan" stays internal. O32 adds "Connection" to the user
 vocabulary and says "revision" rather than "candidate" and "scope profile"
 rather than "repository profile" in the kernel.
 
 ## 4. The eight extension points
 
-| # | Extension point | What plugs in | Authored as |
-| --- | --- | --- | --- |
-| E1 | Actions | What a step does, including `tool.call` on a connection's tool | Data (an agent step preset), a workflow (`call`), a granted tool, or code in a package |
-| E2 | Artifact kinds | What a document must contain and which facts it yields | Data: template, rules from platform rule types, fact schema |
-| E3 | Start sources | What begins a run | Data (schedule, generic signed webhook) or a provider module |
+| #  | Extension point                                  | What plugs in                                                                                                                                           | Authored as                                                                                                 |
+| -- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| E1 | Actions                                          | What a step does, including `tool.call` on a connection's tool                                                                                          | Data (an agent step preset), a workflow (`call`), a granted tool, or code in a package                      |
+| E2 | Artifact kinds                                   | What a document must contain and which facts it yields                                                                                                  | Data: template, rules from platform rule types, fact schema                                                 |
+| E3 | Start sources                                    | What begins a run                                                                                                                                       | Data (schedule, generic signed webhook) or a provider module                                                |
 | E4 | Connections (integration families and providers) | Native providers: trackers, chat, and pack-specific families such as code hosts and deploy (software delivery). MCP servers as a second connection kind | A provider module implementing a family port, or an MCP server definition with a pinned capability snapshot |
-| E5 | Library | Agents, skills, seats, workflows, templates, step presets | Data, one lifecycle: draft, immutable version, copy with lineage, "update available", used-by |
-| E6 | Decision actions | Who supplies a choice: route, assign, plan | An action whose output fits one of three contracts |
-| E7 | Guards and counters | Limits across runs | A closed guard library; counters as data from kernel events, family projections, or values a step publishes |
-| E8 | Execution environments | Where a session executes | A provider module of a `compute` family (section 8) |
+| E5 | Library                                          | Agents, skills, seats, workflows, templates, step presets                                                                                               | Data, one lifecycle: draft, immutable version, copy with lineage, "update available", used-by               |
+| E6 | Decision actions                                 | Who supplies a choice: route, assign, plan                                                                                                              | An action whose output fits one of three contracts                                                          |
+| E7 | Guards and counters                              | Limits across runs                                                                                                                                      | A closed guard library; counters as data from kernel events, family projections, or values a step publishes |
+| E8 | Execution environments                           | Where a session executes                                                                                                                                | A provider module of a `compute` family (section 8)                                                         |
 
 Closed on purpose, extended only by a platform release: node forms and the
 interpreter, step completers, guard types, validator rule types, feed item
 kinds, steer kinds, the effect ledger and the checkpoints.
 
-Extensions are data only for now (O6/O7, section 6). MCP needs no ninth extension point: under O24 it is a connection kind (E4) whose tools are actions (E1) bound through the library (E5).
+Extensions are data only for now (O6/O7, section 6). MCP needs no ninth
+extension point: under O24 it is a connection kind (E4) whose tools are actions
+(E1) bound through the library (E5).
 
 ## 5. Coordination plans become split (O2)
 
 Coordination plans stop being a separate system. They become the engine's
 **split** primitive: child work items joined by typed artifacts. Five changes:
 
-1. A lane names what it runs (`run: {workflow}` plus inputs). Its
-   `instructions` stay as the child's brief.
+1. A lane names what it runs (`run: {workflow}` plus inputs). Its `instructions`
+   stay as the child's brief.
 2. The engine starts ready lanes itself, bounded by a capacity key. Nobody else
    has to start them.
-3. A parent run step owns the plan. A `parallel` whose lanes need separate
-   child items (for example lanes on several repositories, in the software
-   pack) and a split decision both create one, and the step completes
-   from the plan's terminal projection.
+3. A parent run step owns the plan. A `parallel` whose lanes need separate child
+   items (for example lanes on several repositories, in the software pack) and a
+   split decision both create one, and the step completes from the plan's
+   terminal projection.
 4. The prose mapper that flattens lane steps into instruction text is replaced
    by a lossless lowering in both directions.
 5. The plan spec becomes the fact schema of the `bakery.split` kind, so an
@@ -216,21 +218,21 @@ creates child work items.
 contract (declared inputs and outputs, own limits counted in the parent's worst
 case, a named outcome, shared budget and cancel). The compiler inlines it first;
 a child-run binding follows when workflow seats and split need it. An author
-cannot tell the two apart. A parent pins a published child version, so
-recursion is impossible by construction; nesting is limited to two levels.
+cannot tell the two apart. A parent pins a published child version, so recursion
+is impossible by construction; nesting is limited to two levels.
 
 ## 6. Extensions are data only for now (O6, O7)
 
-| Tier | Contents | Where it runs | Status |
-| --- | --- | --- | --- |
-| T0 Data | Definitions, kinds, skills, agents, step presets, start templates, generic webhook sources | Nowhere: it is validated data | Buildable now |
-| T1 Sandboxed code | Code actions and checks, decision actions in code | Only in a worker sandbox, one step at a time | After the isolation tests pass |
-| T2 Native | Platform modules and native providers | In the server process | Bakery, or the operator of a self-hosted installation |
+| Tier              | Contents                                                                                   | Where it runs                                | Status                                                |
+| ----------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- | ----------------------------------------------------- |
+| T0 Data           | Definitions, kinds, skills, agents, step presets, start templates, generic webhook sources | Nowhere: it is validated data                | Buildable now                                         |
+| T1 Sandboxed code | Code actions and checks, decision actions in code                                          | Only in a worker sandbox, one step at a time | After the isolation tests pass                        |
+| T2 Native         | Platform modules and native providers                                                      | In the server process                        | Bakery, or the operator of a self-hosted installation |
 
-- Customers may not supply validator code in the publication path (O6). A
-  kind's validator is a composition of platform rule types. Custom logic is a
-  sandboxed check action whose typed output drives control flow. Pure
-  WebAssembly validators may come later if demand is real.
+- Customers may not supply validator code in the publication path (O6). A kind's
+  validator is a composition of platform rule types. Custom logic is a sandboxed
+  check action whose typed output drives control flow. Pure WebAssembly
+  validators may come later if demand is real.
 - Customer code arrives as T1 only once worker isolation is proven by
   hostile-fixture tests (O7). A self-hosted operator may enable T1 and deploy T2
   earlier, because operator and tenant are the same party.
@@ -278,29 +280,29 @@ refs, tear down, and report cost. Six v1 choices keep the door open:
 4. The context directory and the output directory are a step's only file
    contract.
 5. Credentials are attempt-scoped and brokered; an agent can use the
-   `api_metered` route, so no step depends on a host login unless its agent
-   says so.
+   `api_metered` route, so no step depends on a host login unless its agent says
+   so.
 6. The session feed and steers travel over the lease-protected attempt routes,
    never a host-local socket. The usage ledger accepts a compute kind beside
    model usage.
 
-Under O23, "repository at a pinned commit" reads "each declared
-workspace at its pinned revision". The repository, commit and candidate details
-above belong to the software-delivery pack; a non-code step's whole file contract is its context and
-output directories.
+Under O23, "repository at a pinned commit" reads "each declared workspace at its
+pinned revision". The repository, commit and candidate details above belong to
+the software-delivery pack; a non-code step's whole file contract is its context
+and output directories.
 
 An ephemeral box needs the `api_metered` route, and the provider is a
 subprocessor that an Admin enables per repository scope.
 
-In the software-delivery pack there is one linear candidate per repository per run tree (O15). Named
-candidates for tournaments come later.
+In the software-delivery pack there is one linear candidate per repository per
+run tree (O15). Named candidates for tournaments come later.
 
 ## 9. Watching and steering
 
 Every session, in a workflow or not, has a live feed and a steering inbox (O17).
 They are the same for a workflow step, a team seat visit, a plain task and the
-coordinator. The shipped output envelope and steering are extended, not
-replaced by a separate console.
+coordinator. The shipped output envelope and steering are extended, not replaced
+by a separate console.
 
 **Live watch.** You can watch any running work live in the browser or elsewhere.
 Click a running node to see its agent output streaming, like Claude Code, and
@@ -316,9 +318,8 @@ These rules replace O18 to O21 where they differ:
   exactly like a person's. This overrides the earlier O19 ("agents only message
   and interrupt").
 - **Agents and decisions.** Agents use the same steering operations as people.
-  Agents may make decisions (approve, raise a limit,
-  redirect, take over) only where a workflow explicitly grants it. Otherwise
-  decisions are human-only.
+  Agents may make decisions (approve, raise a limit, redirect, take over) only
+  where a workflow explicitly grants it. Otherwise decisions are human-only.
 - **Reviewer messaging (O18).** Messaging a reviewer is off by default. If a
   workflow turns it on, the review is labelled "steered" and does not count
   where an independent review is required. To overrule a reviewer, the owner
@@ -329,10 +330,10 @@ These rules replace O18 to O21 where they differ:
   and a note. Attaching live to the agent's session or terminal comes later,
   with workspaces and remote VMs.
 - **Slack (O21).** Slack posts at milestones: started, waiting on you (with
-  Approve and Reject buttons), stuck, failed, and done (with a link to the result, for example a PR). Each
-  post links to the live view. Replying in the thread steers the agent, and the
-  reply is recorded under the person's linked identity. The raw stream is not
-  posted to Slack.
+  Approve and Reject buttons), stuck, failed, and done (with a link to the
+  result, for example a PR). Each post links to the live view. Replying in the
+  thread steers the agent, and the reply is recorded under the person's linked
+  identity. The raw stream is not posted to Slack.
 
 Every steer is recorded before delivery, in the session's inputs and in the work
 item's decisions ledger. The interpreter never reads a message steer; it reads
@@ -341,20 +342,20 @@ add tools, grants, skills or a role.
 
 ## 10. Shapes built from the same parts
 
-| Shape | Built from |
-| --- | --- |
-| Scripted workflow | Steps, if/otherwise, repeat, `forEach`, at the same time, `call` |
-| Team (O4) | Seats plus a `route` node in the same definition format; fresh sessions per visit; no `mode` key and no long-lived seat sessions. No warm rework in the first version (O5) |
-| Board (O9) | Starts bound to tracker statuses, steps per status, a set-status step |
-| Described pipeline | An unlisted definition the coordinator proposed through the same edit operations as the editor |
-| Deliver | Four templates (`deliver-oneshot`, `-lean`, `-full`, `-prd`) sharing two called workflows, built only from public primitives |
-| Evaluations (O14) | Kernel runs with an `offline` environment, not a separate durable workflow |
+| Shape              | Built from                                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scripted workflow  | Steps, if/otherwise, repeat, `forEach`, at the same time, `call`                                                                                                           |
+| Team (O4)          | Seats plus a `route` node in the same definition format; fresh sessions per visit; no `mode` key and no long-lived seat sessions. No warm rework in the first version (O5) |
+| Board (O9)         | Starts bound to tracker statuses, steps per status, a set-status step                                                                                                      |
+| Described pipeline | An unlisted definition the coordinator proposed through the same edit operations as the editor                                                                             |
+| Deliver            | Four templates (`deliver-oneshot`, `-lean`, `-full`, `-prd`) sharing two called workflows, built only from public primitives                                               |
+| Evaluations (O14)  | Kernel runs with an `offline` environment, not a separate durable workflow                                                                                                 |
 
 ### Loops
 
-Every loop (`repeat`, the editor's prepared "Fix until it passes", and the
-loops inside Deliver) has an optional **minimum** and **maximum** iteration
-count, set in the loop's panel.
+Every loop (`repeat`, the editor's prepared "Fix until it passes", and the loops
+inside Deliver) has an optional **minimum** and **maximum** iteration count, set
+in the loop's panel.
 
 - **Minimum** means "run at least N times even if the exit condition is already
   met". The engine's `repeat` has no minimum today; `repeat.min` is a model gap.
@@ -377,18 +378,18 @@ count, set in the loop's panel.
   left-to-right Paper reference; #67's visual check needs a new approved
   reference.
 - Agents author through the editor's own operations: drafts, edits and
-  validation by default; publish and "Use this version" only where a workflow
-  or seat grants them (O52).
+  validation by default; publish and "Use this version" only where a workflow or
+  seat grants them (O52).
 - Publish is never disabled. Pressed with problems, it lists them with "Show me"
   beside each. "Publish and use" is the primary button, with "Publish only" as a
   secondary option.
 - The editor shows and edits the workflow's starts as a list at the top.
 - Approvals offer Approve, Request changes (sent back with notes) and Reject.
   The workflow owner is the default approver. A wait lasts up to 7 days.
-- Two parallel steps that may both write to the same repository or workspace
-  are blocked in v1, with a clear message. The rule is decided by what each
-  step is allowed to write, whatever its action type: an Implement step and a
-  custom agent task with write access both count.
+- Two parallel steps that may both write to the same repository or workspace are
+  blocked in v1, with a clear message. The rule is decided by what each step is
+  allowed to write, whatever its action type: an Implement step and a custom
+  agent task with write access both count.
 - The step picker shows step types first. Skills and saved workflows appear
   under "From your library". Step names follow the editor spec, for example
   "Implement" and "Fix problems".
@@ -407,44 +408,45 @@ count, set in the loop's panel.
 
 ## 12. Integration seams
 
-Under O24, integrations and MCP servers are both **connections**
-(section 15.4): one broker, one grant model and one effect ledger.
-
+Under O24, integrations and MCP servers are both **connections** (section 15.4):
+one broker, one grant model and one effect ledger.
 
 Issue handling is provider-neutral. Providers come in this order: GitHub, then
-Linear, then GitLab, then Jira. Users set up integrations in the UI.
-Self-hosted providers (GitLab self-managed, GitHub Enterprise Server, Jira Data
-Center) are in scope, but not for v1. API tokens are allowed as well as OAuth
-and app installs.
+Linear, then GitLab, then Jira. Users set up integrations in the UI. Self-hosted
+providers (GitLab self-managed, GitHub Enterprise Server, Jira Data Center) are
+in scope, but not for v1. API tokens are allowed as well as OAuth and app
+installs.
 
 Each integration is a self-contained module in `packages/integration-<slug>/`,
 with UI, backend and manifest together. Boundaries are enforced mechanically:
 import rules, no provider names in core code, a conformance suite and registry
 checks. Providers are pure adapters (O13): core owns all the neutral tables, and
 provider packages contain no SQL. Families are `tickets` and `chat`, plus the
-software-delivery pack's `code` and `deploy`; other packs add their own. Provider webhooks normalize into the neutral event vocabulary that the
-one start mechanism reads.
+software-delivery pack's `code` and `deploy`; other packs add their own.
+Provider webhooks normalize into the neutral event vocabulary that the one start
+mechanism reads.
 
 The detailed design is section 12 of [Integrations](09-integrations.md).
 
 ## 13. Convergence plan
 
 In dependency order. Each step leaves everything before it working. Steps 2, 3
-and the Deliver proof are software-delivery pack work; the rest is kernel. Steps 1 to 3
-are the keystone: they make "one engine" true and remove four private paths.
+and the Deliver proof are software-delivery pack work; the rest is kernel. Steps
+1 to 3 are the keystone: they make "one engine" true and remove four private
+paths.
 
 1. **Declare the kernel.** Record one interpreter, the flat executor frozen and
    coordination plans as split. Add rails tests: every built-in definition
    compiles with `apiVersion`; engine modules never compare a template slug or
-   import the presets; ticket admission names no preset. Fix the vocabulary
-   (O1, O2, O12).
+   import the presets; ticket admission names no preset. Fix the vocabulary (O1,
+   O2, O12).
 2. **Review decision in compiled workflows.** Resolve `$delivery` for plan runs;
    run the review hook and independence check for every reviewer step; let the
    plan's `repeat` drive repair (#62) (O1, O16).
 3. **Presets become compiled templates.** Repository rules read compiled plans;
-   republish `fixed-coding` and `fixed-coding-reviewed` as ordinary
-   definitions; point ticket admission and the stage policy at them; drain and
-   delete the flat path (O1).
+   republish `fixed-coding` and `fixed-coding-reviewed` as ordinary definitions;
+   point ticket admission and the stage policy at them; drain and delete the
+   flat path (O1).
 4. **Artifacts reach sessions.** A read-only context directory, named input and
    output slots, step skills, step roles, and a real `agent.freeform` on the
    harness adapters.
@@ -465,8 +467,8 @@ are the keystone: they make "one engine" true and remove four private paths.
 10. **Steer any session.** Steering keyed on the session; steers recorded as
     step inputs and decisions; notes for steps not yet started; take over as
     completer; the reviewer rule; agent steering and spawning under permission,
-    budget, count and depth checks; Slack milestones with linked identities
-    (O18 to O21, as replaced in section 9).
+    budget, count and depth checks; Slack milestones with linked identities (O18
+    to O21, as replaced in section 9).
 11. **Kinds and facts.** The kind definition API for organizations, rule types,
     facts and validation at publication (O6).
 12. **`forEach`, `call` and loop bounds.** Interpreter revision 3; `call`
@@ -478,8 +480,8 @@ are the keystone: they make "one engine" true and remove four private paths.
     keys and the dispatcher (O2).
 15. **Teams.** `route` (revision 4), seats, the handoff kind, guards and
     counters, person and workflow seats, stuck signals, seat memory (O4, O5).
-16. **Boards.** Status starts, overlap per work item, event provenance, the board
-    view (O9). After V2.
+16. **Boards.** Status starts, overlap per work item, event provenance, the
+    board view (O9). After V2.
 17. **Packages.** T0 export and import with lineage now; T1 after the sandbox is
     proven (O7).
 18. **Evaluations on the kernel.** Offline run environment enforced by the
@@ -515,18 +517,18 @@ owner approved its decisions, O23 to O33, as recommended.
 
 ### 15.1 Code-only assumptions and their neutral form (O23)
 
-| Assumption today | Neutral form in the kernel | Software-delivery pack keeps |
-| --- | --- | --- |
-| A run needs a repository; four fixed task types | A run needs exactly the workspaces its steps declare, which may be none. Work type is an organization label the kernel never branches on | The four software work types as default labels |
-| Every session gets "the repository at a pinned revision" | Each declared workspace at a pinned **revision**, an opaque content address the workspace kind supplies | Git commits as the `repository` kind's revision |
-| Worktrees | A workspace **mount** per attempt: read-only or writable, prepared at a revision, captured into a new revision | Clones, worktrees and run refs |
-| One candidate per repository (O15) | One linear revision chain per workspace per run tree | "Candidate", `$delivery.*`, checks, review and merge gate |
-| Actions are code verbs | Neutral actions: the agent step, `tool.call`, `human.approval`, `workflow.stop`, `workflow.noop`, `task.brief`, `artifact.publish`, `counter.set`, `memory.promote`. Packs register others under their namespace | `harness.*`, `quality.check`, `review.independent`, `delivery.*`; `rpi.*` become step presets |
-| Artifacts are small text | Binary formats, large bytes in the object store, media rule types checked by a platform probe, a subject that names a workspace revision | Deliver's document kinds |
-| Lanes name a repository | A lane names a workspace alias, or none | Repository aliases and roles |
-| Step defaults come from the repository profile | A **scope profile** at project level; a repository profile is its code form | Check commands, repository rules |
-| Effect policy `repository_revision` | `workspace_revision` | none |
-| The review loop is about code | A neutral **review loop module** (O30): findings and status facts, rounds per checkpoint, a progress rule, caps and `limit` decisions | Repository checks as evidence; the merge gate |
+| Assumption today                                         | Neutral form in the kernel                                                                                                                                                                                       | Software-delivery pack keeps                                                                  |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| A run needs a repository; four fixed task types          | A run needs exactly the workspaces its steps declare, which may be none. Work type is an organization label the kernel never branches on                                                                         | The four software work types as default labels                                                |
+| Every session gets "the repository at a pinned revision" | Each declared workspace at a pinned **revision**, an opaque content address the workspace kind supplies                                                                                                          | Git commits as the `repository` kind's revision                                               |
+| Worktrees                                                | A workspace **mount** per attempt: read-only or writable, prepared at a revision, captured into a new revision                                                                                                   | Clones, worktrees and run refs                                                                |
+| One candidate per repository (O15)                       | One linear revision chain per workspace per run tree                                                                                                                                                             | "Candidate", `$delivery.*`, checks, review and merge gate                                     |
+| Actions are code verbs                                   | Neutral actions: the agent step, `tool.call`, `human.approval`, `workflow.stop`, `workflow.noop`, `task.brief`, `artifact.publish`, `counter.set`, `memory.promote`. Packs register others under their namespace | `harness.*`, `quality.check`, `review.independent`, `delivery.*`; `rpi.*` become step presets |
+| Artifacts are small text                                 | Binary formats, large bytes in the object store, media rule types checked by a platform probe, a subject that names a workspace revision                                                                         | Deliver's document kinds                                                                      |
+| Lanes name a repository                                  | A lane names a workspace alias, or none                                                                                                                                                                          | Repository aliases and roles                                                                  |
+| Step defaults come from the repository profile           | A **scope profile** at project level; a repository profile is its code form                                                                                                                                      | Check commands, repository rules                                                              |
+| Effect policy `repository_revision`                      | `workspace_revision`                                                                                                                                                                                             | none                                                                                          |
+| The review loop is about code                            | A neutral **review loop module** (O30): findings and status facts, rounds per checkpoint, a progress rule, caps and `limit` decisions                                                                            | Repository checks as evidence; the merge gate                                                 |
 
 Readiness stays as decided: a label AND a workflow status (section 7).
 
@@ -534,11 +536,11 @@ Readiness stays as decided: a label AND a workflow status (section 7).
 
 A workspace is where a step reads or changes files. It is optional.
 
-| Kind | What it is | Revision |
-| --- | --- | --- |
-| `repository` (software-delivery pack) | A git checkout | A commit |
-| `files` (kernel) | A plain tree of files, such as a video project folder or a dataset; a folder in the storage tree (section 17) | The digest of a manifest of paths, artifact versions and hashes (a folder snapshot) |
-| none | Tool calls and documents only | n/a |
+| Kind                                  | What it is                                                                                                    | Revision                                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `repository` (software-delivery pack) | A git checkout                                                                                                | A commit                                                                            |
+| `files` (kernel)                      | A plain tree of files, such as a video project folder or a dataset; a folder in the storage tree (section 17) | The digest of a manifest of paths, artifact versions and hashes (a folder snapshot) |
+| none                                  | Tool calls and documents only                                                                                 | n/a                                                                                 |
 
 A workspace kind implements four verbs: prepare a mount at a revision, capture a
 writable mount into a new revision, describe the difference between two
@@ -559,20 +561,20 @@ document on the work item, already versioned with compare-and-swap.
 
 ### 15.3 Kernel, review loop module and packs
 
-| Layer | Owns |
-| --- | --- |
-| Kernel | The primitives, the workspace contract and the `files` kind, the revision chain and one-writer rule, roles and reviewer isolation, the neutral actions, blob-backed artifacts and media probes, the scope profile, connections, tools and bindings |
-| Review loop module (native, neutral; O30) | Findings convention, checkpoints and rounds, the progress rule, caps |
-| Software-delivery pack (native) | The `repository` workspace kind, candidates and `$delivery.*`, `harness.*`, `quality.check`, `review.independent`, `delivery.*`, repository profiles and rules, the `code` family port, Deliver's kinds and templates |
-| Other packs, later | For example a media pack: media kinds, a render check, a publish family |
+| Layer                                     | Owns                                                                                                                                                                                                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kernel                                    | The primitives, the workspace contract and the `files` kind, the revision chain and one-writer rule, roles and reviewer isolation, the neutral actions, blob-backed artifacts and media probes, the scope profile, connections, tools and bindings |
+| Review loop module (native, neutral; O30) | Findings convention, checkpoints and rounds, the progress rule, caps                                                                                                                                                                               |
+| Software-delivery pack (native)           | The `repository` workspace kind, candidates and `$delivery.*`, `harness.*`, `quality.check`, `review.independent`, `delivery.*`, repository profiles and rules, the `code` family port, Deliver's kinds and templates                              |
+| Other packs, later                        | For example a media pack: media kinds, a render check, a publish family                                                                                                                                                                            |
 
 The boundary test: no kernel module imports the delivery pack, and no kernel
 table has a column that only means something for git (today `tasks.base_sha` and
 `artifact_versions.subject_head_sha` fail it).
 
-The review loop module landed in `apps/server/src/modules/review-loop/` (#440): the
-findings convention, the progress rule and caps, the rounds a decision appends,
-the step lookup of a loop and reviewer isolation. A rail
+The review loop module landed in `apps/server/src/modules/review-loop/` (#440):
+the findings convention, the progress rule and caps, the rounds a decision
+appends, the step lookup of a loop and reviewer isolation. A rail
 (`tests/unit/review-loop-module-stays-neutral_test.ts`) fails if it imports the
 delivery pack or integrations, names a git-only field, or exports a repository
 concept. The pack keeps the review tables' single writer (`review-store.ts`),
@@ -588,28 +590,28 @@ snapshot; no events, so a start still needs a provider, a generic webhook or a
 schedule). An MCP server can stand in for a family port only through a declared
 mapping from port verbs to tools.
 
-| Concern | Rule |
-| --- | --- |
-| Registering | A server definition and connections. An agent with the grant registers a server, drafts a connection and requests tools; entering the secret and the consent step stay with a person (O51). Global catalog of known servers (no credentials); Organization connections registered by an Admin; Personal connections usable in a member's own runs. A personal connection on a shared workflow needs the owner's explicit use grant, is labelled as acting for that person, and is refused for unattended starts (O27) |
-| Pinning | Server definition revision, capability snapshot digest (names, schemas, descriptions) and, for local servers, the launch artifact digest. A workflow version pins the snapshot. Drift on a used tool refuses admission and shows "update available"; nothing updates on its own |
-| Credentials | Only through the broker; no credential enters the session |
-| Grants | Exact tool names against the pinned schema, never wildcards: tools an Admin enabled, the subset a workflow, agent, seat or step binds, and what the run principal may invoke. A grant may fix arguments. Reviewer-role sessions get read tools only unless the definition says otherwise |
-| Reaching a session | Brokered only (O25). The worker exposes a **tool gateway**, a local MCP endpoint listing exactly the session's effective tools; every call goes through the lease-protected tool route. Native integration actions reach agents through the same gateway |
-| `tool.call` | A deterministic step with no agent. `with` is type-checked against the pinned input schema; output is typed when the tool declares a schema, otherwise opaque until published as an artifact of a kind. `tool.call` replaces `integration.action` |
-| Side effects | An Admin classifies each enabled tool (O26): read; write, idempotent (names its effect-key argument); write, reconcilable (paired with a read tool); write, opaque (default: at most once, an unknown outcome waits for a person). Server hints are suggestions only |
-| Long-running tools | The grant declares the asynchronous form; one step waits durably and the ledger's reconcile read polls |
-| Feed and cost | A `tool` feed item per call; produced files as `artifact` items. A per-call cost ceiling is reserved and settled like model usage |
-| Local or remote | Remote servers are called by the server-side broker; local (`stdio`) servers are launched by the worker from a pinned command, as a placement requirement. Third-party local servers run under the T1 sandbox or an operator allowlist |
-| Trust | Results never carry authority, are schema-validated and size-bounded. Tools only first (O31): resources later as read tools; sampling, elicitation and roots stay off |
+| Concern            | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Registering        | A server definition and connections. An agent with the grant registers a server, drafts a connection and requests tools; entering the secret and the consent step stay with a person (O51). Global catalog of known servers (no credentials); Organization connections registered by an Admin; Personal connections usable in a member's own runs. A personal connection on a shared workflow needs the owner's explicit use grant, is labelled as acting for that person, and is refused for unattended starts (O27) |
+| Pinning            | Server definition revision, capability snapshot digest (names, schemas, descriptions) and, for local servers, the launch artifact digest. A workflow version pins the snapshot. Drift on a used tool refuses admission and shows "update available"; nothing updates on its own                                                                                                                                                                                                                                       |
+| Credentials        | Only through the broker; no credential enters the session                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Grants             | Exact tool names against the pinned schema, never wildcards: tools an Admin enabled, the subset a workflow, agent, seat or step binds, and what the run principal may invoke. A grant may fix arguments. Reviewer-role sessions get read tools only unless the definition says otherwise                                                                                                                                                                                                                              |
+| Reaching a session | Brokered only (O25). The worker exposes a **tool gateway**, a local MCP endpoint listing exactly the session's effective tools; every call goes through the lease-protected tool route. Native integration actions reach agents through the same gateway                                                                                                                                                                                                                                                              |
+| `tool.call`        | A deterministic step with no agent. `with` is type-checked against the pinned input schema; output is typed when the tool declares a schema, otherwise opaque until published as an artifact of a kind. `tool.call` replaces `integration.action`                                                                                                                                                                                                                                                                     |
+| Side effects       | An Admin classifies each enabled tool (O26): read; write, idempotent (names its effect-key argument); write, reconcilable (paired with a read tool); write, opaque (default: at most once, an unknown outcome waits for a person). Server hints are suggestions only                                                                                                                                                                                                                                                  |
+| Long-running tools | The grant declares the asynchronous form; one step waits durably and the ledger's reconcile read polls                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Feed and cost      | A `tool` feed item per call; produced files as `artifact` items. A per-call cost ceiling is reserved and settled like model usage                                                                                                                                                                                                                                                                                                                                                                                     |
+| Local or remote    | Remote servers are called by the server-side broker; local (`stdio`) servers are launched by the worker from a pinned command, as a placement requirement. Third-party local servers run under the T1 sandbox or an operator allowlist                                                                                                                                                                                                                                                                                |
+| Trust              | Results never carry authority, are schema-validated and size-bounded. Tools only first (O31): resources later as read tools; sampling, elicitation and roots stay off                                                                                                                                                                                                                                                                                                                                                 |
 
 ### 15.5 Skills, integrations and MCP tools in a workflow
 
-| Building block | Attaches to | Pinned by |
-| --- | --- | --- |
-| Skill | Agent version, seat, or step (adds to the agent's) | Skill version and digest |
-| Integration action | A `tool.call` step; an agent, seat or step as a tool; a start as its event source; the engine for family write-backs | Action id and version, connection and resource |
-| MCP tool | A `tool.call` step, or a binding on an agent, seat or step | Server revision and snapshot digest |
-| Workflow `tools` section | Named connections with allowed tools, referenced by steps and seats | The workflow digest |
+| Building block           | Attaches to                                                                                                          | Pinned by                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Skill                    | Agent version, seat, or step (adds to the agent's)                                                                   | Skill version and digest                       |
+| Integration action       | A `tool.call` step; an agent, seat or step as a tool; a start as its event source; the engine for family write-backs | Action id and version, connection and resource |
+| MCP tool                 | A `tool.call` step, or a binding on an agent, seat or step                                                           | Server revision and snapshot digest            |
+| Workflow `tools` section | Named connections with allowed tools, referenced by steps and seats                                                  | The workflow digest                            |
 
 One record backs every binding: the designed `capability_bindings` table, with
 its repository owner generalised to a scope and seats addressed as a workflow
@@ -631,20 +633,21 @@ by name, recorded and keyed where it writes, and the person can watch and steer.
 
 ### 15.7 Gaps and slices
 
-| Slice | Closes |
-| --- | --- |
-| A | Runs without a repository; scope profile defaults |
-| B | MCP connections: tables, discovery, snapshots, drift; `tool.call` for remote servers; effect classification; feed items. `paper` on `rpi.design` becomes an ordinary binding |
-| C | Tool gateway; bindings on agents, seats and steps; the `tools` section |
-| D | Blob-backed artifacts, binary kinds, probes, previews |
-| E | The workspace contract and the `files` kind; neutral names; kernel free of git columns |
-| F | Asynchronous tools, per-call cost, `forEach` with `collect` and parallel iterations |
-| G | Review loop module split from delivery (with #62) |
-| H | Local stdio servers; third-party local servers under the T1 sandbox |
-| I | The non-code proof: a text-only content factory first, then the video factory (O33) |
+| Slice | Closes                                                                                                                                                                       |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A     | Runs without a repository; scope profile defaults                                                                                                                            |
+| B     | MCP connections: tables, discovery, snapshots, drift; `tool.call` for remote servers; effect classification; feed items. `paper` on `rpi.design` becomes an ordinary binding |
+| C     | Tool gateway; bindings on agents, seats and steps; the `tools` section                                                                                                       |
+| D     | Blob-backed artifacts, binary kinds, probes, previews                                                                                                                        |
+| E     | The workspace contract and the `files` kind; neutral names; kernel free of git columns                                                                                       |
+| F     | Asynchronous tools, per-call cost, `forEach` with `collect` and parallel iterations                                                                                          |
+| G     | Review loop module split from delivery (with #62)                                                                                                                            |
+| H     | Local stdio servers; third-party local servers under the T1 sandbox                                                                                                          |
+| I     | The non-code proof: a text-only content factory first, then the video factory (O33)                                                                                          |
 
-Families stay `tickets`, `code`, `chat` and `deploy`; `storage` (section 17.4) and `publish` are
-added when the first template needs them, and the long tail goes through MCP.
+Families stay `tickets`, `code`, `chat` and `deploy`; `storage` (section 17.4)
+and `publish` are added when the first template needs them, and the long tail
+goes through MCP.
 
 ## 16. Decisions O23 to O33
 
@@ -654,8 +657,8 @@ Approved by the owner on 14 November 2026, as recommended.
   kernel gains the workspace, the revision chain and the one-writer rule.
 - **O24:** MCP is a second connection kind under E4, with tools as actions (E1)
   bound through the library (E5); no new extension point.
-- **O25:** harnesses never connect to MCP servers directly; tools reach a session
-  only through Bakery's gateway.
+- **O25:** harnesses never connect to MCP servers directly; tools reach a
+  session only through Bakery's gateway.
 - **O26:** an Admin classifies each tool's side effects when enabling it;
   unclassified tools are writes that run at most once.
 - **O27:** personal MCP connections on shared workflows only with the owner's
@@ -668,8 +671,8 @@ Approved by the owner on 14 November 2026, as recommended.
 - **O30:** a neutral review loop module, split from the software-delivery pack.
 - **O31:** MCP tools only first; resources later as read tools; sampling,
   elicitation and roots off.
-- **O32:** add "Connection" to the vocabulary; say "revision" and "scope profile"
-  in the kernel.
+- **O32:** add "Connection" to the vocabulary; say "revision" and "scope
+  profile" in the kernel.
 - **O33:** the first non-code proof is a text-only content factory, then the
   video factory.
 
@@ -678,25 +681,25 @@ Approved by the owner on 14 November 2026, as recommended.
 Bakery's storage looks and navigates like a file system, though it is not
 literally one: a virtual, hierarchical tree over the object store, with folders,
 paths and sensible default top-level areas. Users, agents, the API and CLI, and
-the UI navigate the same tree. Agents browse by default within their grants,
-and can upload and write files (O39, section 17.6). Underneath, bytes stay immutable and
-content-addressed, runs pin versions and never paths, and every area has a
+the UI navigate the same tree. Agents browse by default within their grants, and
+can upload and write files (O39, section 17.6). Underneath, bytes stay immutable
+and content-addressed, runs pin versions and never paths, and every area has a
 policy for who writes, what is kept and what may be deleted. This is the owner's
 callout on O28, designed in section 11 of `one-system.md`.
 
 ### 17.1 The model
 
-| Layer | What it is | Changes? |
-| --- | --- | --- |
-| Entry | A folder or file at a place in the tree: stable id, name, parent, a pointer to its current version, its history | Name, parent and pointer change; the id never does |
-| Version | One immutable state of a file: digest, size, media type, kind, facts, producer | Never |
-| Blob | The bytes, stored once per organization under their SHA-256 | Never |
+| Layer   | What it is                                                                                                      | Changes?                                           |
+| ------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Entry   | A folder or file at a place in the tree: stable id, name, parent, a pointer to its current version, its history | Name, parent and pointer change; the id never does |
+| Version | One immutable state of a file: digest, size, media type, kind, facts, producer                                  | Never                                              |
+| Blob    | The bytes, stored once per organization under their SHA-256                                                     | Never                                              |
 
-**A path is a name, not an identity (O34).** A path resolves to an entry, and the
-entry's pointer to a version. So:
+**A path is a name, not an identity (O34).** A path resolves to an entry, and
+the entry's pointer to a version. So:
 
-- Runs pin versions (`ArtifactRef` has no path). A path in a workflow or start is
-  stored as the entry id with the path as a label, resolved at admission and
+- Runs pin versions (`ArtifactRef` has no path). A path in a workflow or start
+  is stored as the entry id with the path as a label, resolved at admission and
   frozen (K1).
 - A rename or move changes one row; no pinned reference, history, comment or
   "used by" list breaks.
@@ -708,13 +711,13 @@ entry's pointer to a version. So:
 Every write makes a new version. Areas differ only by the **folder policy**
 their children inherit:
 
-| Policy | Record areas (artifacts, run outputs) | Working areas (assets, shared, personal, attachments) | Scratch |
-| --- | --- | --- | --- |
-| Who writes | Steps through declared outputs; people only into `attachments` | People and granted steps | Its owner |
-| Versions kept | All, under retention | Last 20 by default, plus any a run pinned | Latest only |
-| Rename and move | No: names are the workflow's document names | Yes | Yes |
-| Delete | No; an Admin purge leaves a tombstone | To trash, then removed | Expires |
-| Retention | Evidence or transient | Kept until deleted | 30 days |
+| Policy          | Record areas (artifacts, run outputs)                          | Working areas (assets, shared, personal, attachments) | Scratch     |
+| --------------- | -------------------------------------------------------------- | ----------------------------------------------------- | ----------- |
+| Who writes      | Steps through declared outputs; people only into `attachments` | People and granted steps                              | Its owner   |
+| Versions kept   | All, under retention                                           | Last 20 by default, plus any a run pinned             | Latest only |
+| Rename and move | No: names are the workflow's document names                    | Yes                                                   | Yes         |
+| Delete          | No; an Admin purge leaves a tombstone                          | To trash, then removed                                | Expires     |
+| Retention       | Evidence or transient                                          | Kept until deleted                                    | 30 days     |
 
 Folders are real entries, so empty folders exist and policies and grants have
 somewhere to attach.
@@ -768,29 +771,31 @@ somewhere to attach.
   placeholder in the tree for everyone but its owner.
 - A session's declared inputs are a mount of the versions pinned at admission,
   where the run principal's read and write rights are checked. Beyond the mount,
-  an agent browses and writes within its own grants (O39), never with a
-  person's authority unless it acts for them under a recorded grant. Kind rules (writer-private kinds) still bind reviewer steps.
+  an agent browses and writes within its own grants (O39), never with a person's
+  authority unless it acts for them under a recorded grant. Kind rules
+  (writer-private kinds) still bind reviewer steps.
 - Secrets and credentials are never in the tree. No public links in the first
   version; previews use the separate preview origin.
 
 ### 17.4 Access paths over the same tree
 
-| Path | What it offers |
-| --- | --- |
-| File browser | Navigate, preview (video and audio by byte range), version history, "Produced by" (run, step, session), "Used by" (every pinned reference), kind, validator verdict and facts, comments on a version |
-| API and CLI | `ls`, `stat`, `cat`, `get`, `put`, `cp`, `mv`, `rm`, `history`, `pin`. A path reads the current version; `path@<version>` or a digest reads an immutable one. `put` uses `If-Match`, `cp` is by reference, `mv` changes only the entry, `rm` trashes in working areas and is refused in record areas |
-| Agent sessions | The context directory is a read-only mounted subtree of pinned versions and snapshots, with an index of kind, size, digest and headings. A workspace is a mounted snapshot of its folder. Outputs become new versions at the step's declared destinations. Large files are fetched lazily by range; nothing outside the mount is visible |
-| MCP inward | A built-in connection, "Bakery Files", through the tool gateway (section 15.4): list, stat, read by range, search, upload and write within the agent's grants. On by default (O39); every read and write is recorded on the step with its version and digest. Agents also use the CLI, the API and step outputs; writes are versioned and stay within grants and quotas |
-| MCP outward | Bakery's own MCP server exposes the tree under its OAuth scopes |
-| Integrations | A `storage` family: list, stat, read by range, write, change events. Connections mount under `/connections`, read through. Using an outside file ingests it into a version; one-way sync is a workflow; writing out is a keyed effect; no two-way sync in the first version (O38) |
+| Path           | What it offers                                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File browser   | Navigate, preview (video and audio by byte range), version history, "Produced by" (run, step, session), "Used by" (every pinned reference), kind, validator verdict and facts, comments on a version                                                                                                                                                                    |
+| API and CLI    | `ls`, `stat`, `cat`, `get`, `put`, `cp`, `mv`, `rm`, `history`, `pin`. A path reads the current version; `path@<version>` or a digest reads an immutable one. `put` uses `If-Match`, `cp` is by reference, `mv` changes only the entry, `rm` trashes in working areas and is refused in record areas                                                                    |
+| Agent sessions | The context directory is a read-only mounted subtree of pinned versions and snapshots, with an index of kind, size, digest and headings. A workspace is a mounted snapshot of its folder. Outputs become new versions at the step's declared destinations. Large files are fetched lazily by range; nothing outside the mount is visible                                |
+| MCP inward     | A built-in connection, "Bakery Files", through the tool gateway (section 15.4): list, stat, read by range, search, upload and write within the agent's grants. On by default (O39); every read and write is recorded on the step with its version and digest. Agents also use the CLI, the API and step outputs; writes are versioned and stay within grants and quotas |
+| MCP outward    | Bakery's own MCP server exposes the tree under its OAuth scopes                                                                                                                                                                                                                                                                                                         |
+| Integrations   | A `storage` family: list, stat, read by range, write, change events. Connections mount under `/connections`, read through. Using an outside file ingests it into a version; one-way sync is a workflow; writing out is a keyed effect; no two-way sync in the first version (O38)                                                                                       |
 
 ### 17.5 Lifecycle
 
 - **Retention** follows folder policy. Record areas keep today's rules (30 days
   transient, 180 days evidence, collected only when expired, terminal, unpinned
   and unreferenced, leaving a tombstone).
-- **Deleting a pinned file** removes the entry from the tree; the pinned versions
-  stay for their runs, shown as "deleted from <path>; kept for this run".
+- **Deleting a pinned file** removes the entry from the tree; the pinned
+  versions stay for their runs, shown as "deleted from <path>; kept for this
+  run".
 - **Purge** is an audited Admin action for leaked secrets or legal demands, and
   the only early removal from a record area.
 - **Large files** use resumable uploads with a server-checked digest, and range
@@ -813,20 +818,24 @@ An agent is not limited to its step's mount. By default it can browse and write
 as a person in its position could, cut down by the grants of the principal it
 acts for.
 
-| Area | Read by default | Write by default |
-| --- | --- | --- |
-| Declared inputs and context directory | Yes, pinned | No |
-| The step's outputs and writable workspace | Yes | Yes |
-| The work item's folder | Yes | Free-form files under `runs/<run>/<step>/`, and `attachments`. Named documents only through a declared output |
-| The rest of the project (other items' artifacts, `assets`, `workspaces`) | Yes | `assets` and `workspaces`, under the one-writer rule |
-| `/shared` | Yes | Only with a grant |
-| `/library` | Published items the principal may read | Not by file write; drafts through the library's own operations |
-| `/connections/<connection>` | Only connections the definition binds | Only as a keyed external effect |
-| `/users/<member>`, including the starter's own | No, unless that member grants it | No |
-| `/trash`, `/system` | No | No |
+| Area                                                                     | Read by default                        | Write by default                                                                                                                                    |
+| ------------------------------------------------------------------------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Declared inputs and context directory                                    | Yes, pinned                            | No                                                                                                                                                  |
+| The step's outputs and writable workspace                                | Yes                                    | Yes                                                                                                                                                 |
+| The work item's folder                                                   | Yes                                    | No. With a declared section or grant: free-form files under `runs/<run>/<step>/`, and `attachments`. Named documents only through a declared output |
+| The rest of the project (other items' artifacts, `assets`, `workspaces`) | Yes                                    | No. With a declared section or grant: `assets` and `workspaces`, under the one-writer rule                                                          |
+| `/shared`                                                                | Yes                                    | Only with a grant                                                                                                                                   |
+| `/library`                                                               | Published items the principal may read | Not by file write; drafts through the library's own operations                                                                                      |
+| `/connections/<connection>`                                              | Only connections the definition binds  | Only as a keyed external effect                                                                                                                     |
+| `/users/<member>`, including the starter's own                           | No, unless that member grants it       | No                                                                                                                                                  |
+| `/trash`, `/system`                                                      | No                                     | No                                                                                                                                                  |
 
-These defaults are O44 (read) and O45 (write). A definition, seat or step may
-carry a `files` section to change them:
+These defaults are O44 (read) and O45 (write). They describe what a `files`
+section may declare, not what a claim hands out: a step with no section, or a
+section without `write`, writes only its outputs and workspace. The run folder,
+`attachments`, `assets` and `workspaces` need a declared section or a person's
+grant (#448). A definition, seat or step may carry a `files` section to change
+them:
 
 - **Narrow freely.** `read: [inputs]` makes a **sealed step** that sees only its
   pinned inputs. Sealed steps are available to any definition and are the
@@ -846,14 +855,14 @@ only writes the engine can branch on, K3), the workspace captured at step end,
 and Bakery Files (the gateway's tools, the `bakery` CLI and the API: make a
 folder, upload, write, copy, move, rename, delete to trash).
 
-| Topic | Rule |
-| --- | --- |
-| Versioning | `If-Match` on the version read; a conflict returns to the agent. Identical bytes change nothing, so a retried step is idempotent |
-| Limits (O49) | 2 GiB and 2,000 files per step by default, as organization settings, counted with the step's bounds; quotas apply; exceeding one is a typed fault, never truncation |
-| Large binaries | Staged, digest-checked, probed, then current. A step cannot complete while a declared output is staged or invalid |
+| Topic           | Rule                                                                                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Versioning      | `If-Match` on the version read; a conflict returns to the agent. Identical bytes change nothing, so a retried step is idempotent                                                                            |
+| Limits (O49)    | 2 GiB and 2,000 files per step by default, as organization settings, counted with the step's bounds; quotas apply; exceeding one is a typed fault, never truncation                                         |
+| Large binaries  | Staged, digest-checked, probed, then current. A step cannot complete while a declared output is staged or invalid                                                                                           |
 | Recording (O48) | The step's **write set** (entry, operation, previous and new version), feed items, provenance and audit. Writes inside Bakery are not external effects; writes to outside storage are, keyed and reconciled |
-| Undo | "Revert this step's writes" restores previous versions and trashes created files; a failed attempt's stray writes are reverted the same way |
-| Kinds | A file written by path has a kind only when its folder or the write names one; then the validator runs before it becomes current |
+| Undo            | "Revert this step's writes" restores previous versions and trashes created files; a failed attempt's stray writes are reverted the same way                                                                 |
+| Kinds           | A file written by path has a kind only when its folder or the write names one; then the validator runs before it becomes current                                                                            |
 
 A later step pins a written version either as a wired declared output or by
 opening it, which records it in that step's read set. Only declared outputs with
@@ -868,18 +877,18 @@ folder location or name.
 
 ### 17.7 Slices
 
-| Slice | Delivers |
-| --- | --- |
-| F1 | Organization blob store keyed by digest (skills become one user); versions that name a blob; resumable upload; range download |
-| F2 | Entries and folders; the default layout; existing artifacts projected under their work items with no data moved |
-| F3 | Read-only file browser, API and CLI |
-| F4 | Session mounts from pinned versions and snapshots; lazy large files; outputs to destinations |
-| F5 | Working areas: upload, move, rename, trash, folder policies, `kept` and `scratch` retention classes, quotas |
-| F6 | Folder grants and restricted folders |
-| F7 | File workspaces as folder snapshots |
-| F8 | "Bakery Files" tools through the gateway |
-| F9 | The `storage` family: mount, ingest, one-way sync, export as an effect |
-| F10 | Search and metadata; the `/library` mirror |
+| Slice | Delivers                                                                                                                      |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------- |
+| F1    | Organization blob store keyed by digest (skills become one user); versions that name a blob; resumable upload; range download |
+| F2    | Entries and folders; the default layout; existing artifacts projected under their work items with no data moved               |
+| F3    | Read-only file browser, API and CLI                                                                                           |
+| F4    | Session mounts from pinned versions and snapshots; lazy large files; outputs to destinations                                  |
+| F5    | Working areas: upload, move, rename, trash, folder policies, `kept` and `scratch` retention classes, quotas                   |
+| F6    | Folder grants and restricted folders                                                                                          |
+| F7    | File workspaces as folder snapshots                                                                                           |
+| F8    | "Bakery Files" tools through the gateway                                                                                      |
+| F9    | The `storage` family: mount, ingest, one-way sync, export as an effect                                                        |
+| F10   | Search and metadata; the `/library` mirror                                                                                    |
 
 F2 and F3 are useful without large files and can ship before F1. F1 to F4 are
 what the video factory needs.
@@ -921,75 +930,76 @@ operations. The fix is one credential and one connection:
   and the API inside the session use the same credential. Nothing new is
   exposed: these are the operations the web app already calls.
 
-Budgets apply as to a person's actions. A call that starts work reserves from the
-parent run or the principal's allowance, and the engine checks permission,
+Budgets apply as to a person's actions. A call that starts work reserves from
+the parent run or the principal's allowance, and the engine checks permission,
 budget, count and depth before it acts.
 
 ### 18.2 The audit
 
-| Capability | An agent today | With this design |
-| --- | --- | --- |
-| Browse and read files | Cannot read any artifact | On by default within its scope; every read recorded (17.6) |
-| Upload, create and edit files and folders | Publishes its own attempt's artifacts only | Outputs, workspace and Bakery Files (17.6) |
-| Search | Not available to anyone | The same search, same permission filter |
-| Create and edit workflows | The coordinator cannot | Drafts with the editor's own operations; publish and "Use this version" where granted |
-| Create and edit skills, agents and document kinds | None from a session | Drafts by default; publishing where granted. A run is pinned, so an agent cannot change itself mid-run |
-| Start runs and spawn work | None | Where authorized, with permission, budget, count and depth checks |
-| Steer a session; pause, cancel, retry runs | None | Where authorized, recorded exactly like a person's |
-| Approve and decide | Human-only in code | Only where a workflow grants it, and never on its own output |
-| Ask a person a question | Coordinator only, to all participants | Any step, addressed to a role or audience the definition names |
-| Create and update work items; comment on documents | Child tasks only through split | The same operations as people |
-| Manage connections | None | Register a server, draft a connection, request tools; secret and consent stay with a person |
-| Manage starts | Automation subjects are refused grants | Where granted; off by default |
-| Watch a session, read a transcript | None | With `session:observe` (for example a watchdog or PM seat); never for a reviewer-role step |
-| Raise a limit or budget | n/a | Only for another role's work, where granted; never its own |
-| Members, roles, organization, billing | None | Stays with people |
-| Purge bytes, delete a project or organization, revoke a machine | None | An agent prepares; a person confirms |
+| Capability                                                      | An agent today                             | With this design                                                                                       |
+| --------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Browse and read files                                           | Cannot read any artifact                   | On by default within its scope; every read recorded (17.6)                                             |
+| Upload, create and edit files and folders                       | Publishes its own attempt's artifacts only | Outputs, workspace and Bakery Files (17.6)                                                             |
+| Search                                                          | Not available to anyone                    | The same search, same permission filter                                                                |
+| Create and edit workflows                                       | The coordinator cannot                     | Drafts with the editor's own operations; publish and "Use this version" where granted                  |
+| Create and edit skills, agents and document kinds               | None from a session                        | Drafts by default; publishing where granted. A run is pinned, so an agent cannot change itself mid-run |
+| Start runs and spawn work                                       | None                                       | Where authorized, with permission, budget, count and depth checks                                      |
+| Steer a session; pause, cancel, retry runs                      | None                                       | Where authorized, recorded exactly like a person's                                                     |
+| Approve and decide                                              | Human-only in code                         | Only where a workflow grants it, and never on its own output                                           |
+| Ask a person a question                                         | Coordinator only, to all participants      | Any step, addressed to a role or audience the definition names                                         |
+| Create and update work items; comment on documents              | Child tasks only through split             | The same operations as people                                                                          |
+| Manage connections                                              | None                                       | Register a server, draft a connection, request tools; secret and consent stay with a person            |
+| Manage starts                                                   | Automation subjects are refused grants     | Where granted; off by default                                                                          |
+| Watch a session, read a transcript                              | None                                       | With `session:observe` (for example a watchdog or PM seat); never for a reviewer-role step             |
+| Raise a limit or budget                                         | n/a                                        | Only for another role's work, where granted; never its own                                             |
+| Members, roles, organization, billing                           | None                                       | Stays with people                                                                                      |
+| Purge bytes, delete a project or organization, revoke a machine | None                                       | An agent prepares; a person confirms                                                                   |
 
 ### 18.3 The deliberate exceptions (O51)
 
-| Exception | Why |
-| --- | --- |
-| Secrets and consent. An agent prepares the connection and asks; a person completes it | A secret must never enter model context, and consent binds a person's or an organization's legal identity |
-| Who holds authority: members, roles, organizations, billing | These define every other grant |
-| Irreversible destruction: purge, deleting a project or organization, revoking a machine. An agent prepares; a person confirms | It cannot be undone, and the write-set undo does not cover it |
-| Nothing for oneself: an agent cannot grant itself access, raise its own limit or budget, approve its own output, or steer its own reviewer | Separation of duties. It binds people too |
+| Exception                                                                                                                                  | Why                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Secrets and consent. An agent prepares the connection and asks; a person completes it                                                      | A secret must never enter model context, and consent binds a person's or an organization's legal identity |
+| Who holds authority: members, roles, organizations, billing                                                                                | These define every other grant                                                                            |
+| Irreversible destruction: purge, deleting a project or organization, revoking a machine. An agent prepares; a person confirms              | It cannot be undone, and the write-set undo does not cover it                                             |
+| Nothing for oneself: an agent cannot grant itself access, raise its own limit or budget, approve its own output, or steer its own reviewer | Separation of duties. It binds people too                                                                 |
 
 Everything else is a matter of grants. The off-by-default powers (O52) are on in
 Bakery templates that need them and always labelled as an agent's action.
 
 ### 18.4 Earlier wording, read through parity
 
-| Where | Read it as |
-| --- | --- |
+| Where                                                                                 | Read it as                                                                                                                    |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | "A person accepts a proposal, presses Run and saves" (describe it, E6 plan decisions) | A person by default; an agent with the grant may accept, run and save. Publishing and switching on a start are off by default |
-| "Decision rows carrying authority come only from people" | From people, or from an agent the workflow explicitly authorized, labelled as such |
-| "A human can reorder an inbox; agents cannot" (factory modes) | A seat with the grant can |
+| "Decision rows carrying authority come only from people"                              | From people, or from an agent the workflow explicitly authorized, labelled as such                                            |
+| "A human can reorder an inbox; agents cannot" (factory modes)                         | A seat with the grant can                                                                                                     |
 
 ### 18.5 Slices
 
-| Slice | Adds |
-| --- | --- |
-| P1 | Session operation credential; Bakery as a connection in the gateway, read operations first: browse, search, read work items, runs and library items from inside a session |
-| P2 | Write operations for agents: files, folders, comments, work items, connection drafts |
-| P3 | Library drafts by agents: workflows, skills, agents and document kinds through the editor's own operations |
-| P4 | Spawn, steer, run control and granted decisions, with count, depth and budget checks and the "agent's action" label |
-| P5 | The `bakery` CLI in the session image |
+| Slice | Adds                                                                                                                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1    | Session operation credential; Bakery as a connection in the gateway, read operations first: browse, search, read work items, runs and library items from inside a session |
+| P2    | Write operations for agents: files, folders, comments, work items, connection drafts                                                                                      |
+| P3    | Library drafts by agents: workflows, skills, agents and document kinds through the editor's own operations                                                                |
+| P4    | Spawn, steer, run control and granted decisions, with count, depth and budget checks and the "agent's action" label                                                       |
+| P5    | The `bakery` CLI in the session image                                                                                                                                     |
 
 ### 18.6 Decisions O44 to O53
 
 - **O44:** default read scope is the project tree, `/shared`, `/library` and the
   connections the definition binds; never a personal folder without that
   member's grant.
-- **O45:** default write scope is outputs, workspace, the step's own run folder,
-  `attachments`, and the project's `assets` and `workspaces`; `/shared` with a
-  grant; the library only through library operations.
+- **O45:** a step writes its outputs and workspace by default. The step's own
+  run folder, `attachments`, and the project's `assets` and `workspaces` need a
+  declared `files` section or a person's grant (#448); `/shared` with a grant;
+  the library only through library operations.
 - **O46:** a browsing read returns the version current at step admission; the
   latest on request; both recorded.
 - **O47:** reviewers never see side-writes of the work under review and write
   only their declared outputs, enforced from provenance.
-- **O48:** writes inside Bakery go to the step's write set, with undo; the effect
-  ledger is for writes that leave Bakery.
+- **O48:** writes inside Bakery go to the step's write set, with undo; the
+  effect ledger is for writes that leave Bakery.
 - **O49:** 2 GiB and 2,000 files per step by default, as organization settings.
 - **O50:** an agent acts with the run's principal or the seat's own identity,
   always labelled as an agent's action.
@@ -1015,12 +1025,12 @@ recipient.
 
 ### 19.1 The tag (O54)
 
-| Part | Meaning |
-| --- | --- |
-| Who | A member, a group or role (`@design-reviewers`), or a recipient worked out from the run: the starter, the workflow's owner, the task's owner, a seat's owner, the last person who steered the step |
-| What you need | One of five intents: FYI, review, approve, answer, take over |
-| Link | The exact run, step, approval, question, document version or comment |
-| Note, due time | Optional |
+| Part           | Meaning                                                                                                                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Who            | A member, a group or role (`@design-reviewers`), or a recipient worked out from the run: the starter, the workflow's owner, the task's owner, a seat's owner, the last person who steered the step |
+| What you need  | One of five intents: FYI, review, approve, answer, take over                                                                                                                                       |
+| Link           | The exact run, step, approval, question, document version or comment                                                                                                                               |
+| Note, due time | Optional                                                                                                                                                                                           |
 
 - A tag is a typed operation, never a pattern in text: `@Sam` in an agent's
   message or a pasted document does nothing.
@@ -1032,12 +1042,12 @@ recipient.
 
 Where a tag appears:
 
-| Place | How |
-| --- | --- |
-| A human step | The approver or assignee is a tag: `audience: ["@design-reviewers"]` |
-| A Notify step | `uses: people.tag`, which may wait for the response or carry on |
-| A steer or comment on a live run or step, an artifact comment, a chat message | The same @ picker as chat; a chat mention is a tag with intent FYI |
-| An agent, during a run | `people.tag` through Bakery's own connection (section 18.1) |
+| Place                                                                         | How                                                                  |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| A human step                                                                  | The approver or assignee is a tag: `audience: ["@design-reviewers"]` |
+| A Notify step                                                                 | `uses: people.tag`, which may wait for the response or carry on      |
+| A steer or comment on a live run or step, an artifact comment, a chat message | The same @ picker as chat; a chat mention is a tag with intent FYI   |
+| An agent, during a run                                                        | `people.tag` through Bakery's own connection (section 18.1)          |
 
 **Agents (O55).** Agent-first applies: an agent tags under the same grants as a
 person, and the tag is labelled as the agent's action. By default it tags people
@@ -1051,16 +1061,16 @@ off-by-default power under O52.
 Observe on that run, plus the one power the intent needs, on the one thing the
 tag is about.
 
-| Intent | The recipient may |
-| --- | --- |
-| FYI | Observe |
-| Review | Observe and comment |
-| Approve | Observe and make that one decision: approve, request changes or reject |
-| Answer | Observe and answer that one question |
-| Take over | Observe, steer that session and take over that one step (O20) |
+| Intent    | The recipient may                                                      |
+| --------- | ---------------------------------------------------------------------- |
+| FYI       | Observe                                                                |
+| Review    | Observe and comment                                                    |
+| Approve   | Observe and make that one decision: approve, request changes or reject |
+| Answer    | Observe and answer that one question                                   |
+| Take over | Observe, steer that session and take over that one step (O20)          |
 
-- **Bounded by the tagger.** Nobody hands over what they do not hold; bringing in
-  someone without access needs sharing authority on the run. A tag-only
+- **Bounded by the tagger.** Nobody hands over what they do not hold; bringing
+  in someone without access needs sharing authority on the run. A tag-only
   recipient cannot share onward, and a tag cannot gain a power for oneself.
 - **Narrow.** Nothing beyond that run and that power.
 - **Stated before sending:** "Sam will be able to see this run and approve this
@@ -1091,12 +1101,12 @@ tag is about.
 
 ### 19.4 Slices
 
-| Slice | Delivers |
-| --- | --- |
-| TG1 | Chapter 24's inbox, bell and page, with targets widened to runs, steps, approvals, questions, document versions and comments |
-| TG2 | The tag record, `people.tag`, scoped grants and withdrawal; tags as the audience of human steps, and in steers and comments |
-| TG3 | Agents tag people already involved, with limits and the label |
-| TG4 | Groups; Slack and email delivery; one escalation; the `expired` result |
+| Slice | Delivers                                                                                                                     |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------- |
+| TG1   | Chapter 24's inbox, bell and page, with targets widened to runs, steps, approvals, questions, document versions and comments |
+| TG2   | The tag record, `people.tag`, scoped grants and withdrawal; tags as the audience of human steps, and in steers and comments  |
+| TG3   | Agents tag people already involved, with limits and the label                                                                |
+| TG4   | Groups; Slack and email delivery; one escalation; the `expired` result                                                       |
 
 Later, not designed here: guests and other people outside the organization
 (O58), group tags needing all or a number of members, push, custom intents,

@@ -41,6 +41,12 @@ import {
 import { takeCutoff } from "./cutoff.ts";
 import { listBackupDrills, recordDrill } from "./drill.ts";
 import { getRestore, takeRestoreStep } from "./restore-release.ts";
+import { readUncertainActions } from "./uncertain-actions.ts";
+import {
+  dismissUpdateEvent,
+  listUpdateEvents,
+  readUpdateStatus,
+} from "./update-history.ts";
 import { maintainRun } from "./maintenance.ts";
 import {
   type BackupSettingsDependencies,
@@ -76,6 +82,11 @@ export type BackupRouteOptions = {
   readonly secret: string;
   /** What the off-site destination and the runner's settings read need. */
   readonly settings: BackupSettingsDependencies;
+  /** The release this server runs and its own health check, for the Updates page. */
+  readonly running: () => {
+    release: string;
+    healthy: () => Promise<boolean>;
+  };
 };
 
 /** backups.list */
@@ -112,6 +123,63 @@ function listDrills(
 function getInstallationRestore(context: ActionContext) {
   const { context: value } = installationActor(context);
   return getRestore(value.transaction);
+}
+
+/** installationUncertainActions.get */
+function getInstallationUncertainActions(context: ActionContext) {
+  const { context: value } = installationActor(context);
+  return readUncertainActions(value.transaction);
+}
+
+/** installationUpdates.status */
+async function getInstallationUpdateStatus(
+  context: ActionContext,
+  running: () => { release: string; healthy: () => Promise<boolean> },
+) {
+  const { context: value } = installationActor(context);
+  const { release, healthy } = running();
+  return readUpdateStatus(value.transaction, {
+    release,
+    healthy: await healthy(),
+  });
+}
+
+/** installationUpdates.list */
+function listInstallationUpdates(
+  context: ActionContext,
+  input: { cursor?: string; limit?: number },
+  secret: string,
+) {
+  const { context: value, actor } = installationActor(context);
+  return listUpdateEvents(
+    value.transaction,
+    actor.subject.principalId,
+    input,
+    secret,
+  );
+}
+
+/** installationUpdates.dismiss */
+async function dismissInstallationUpdate(
+  context: ActionContext,
+  input: { id: string },
+) {
+  const { context: value, actor } = installationActor(context);
+  const principalId = actor.subject.principalId;
+  const event = await dismissUpdateEvent(
+    value.transaction,
+    input.id,
+    principalId,
+  );
+  await recordAuthAudit(value.transaction, value, {
+    organizationId: null,
+    principalId,
+    operation: Action.InstallationUpdatesDismiss,
+    resourceType: "installation_update_history",
+    resourceId: input.id,
+    details: { kind: event.kind },
+  });
+  return event;
 }
 
 /** installationRestore.step */
@@ -175,6 +243,10 @@ const ADMIN_ACTIONS = [
   Action.BackupsDrillsList,
   Action.InstallationRestoreGet,
   Action.InstallationRestoreStep,
+  Action.InstallationUncertainActionsGet,
+  Action.InstallationUpdatesStatus,
+  Action.InstallationUpdatesList,
+  Action.InstallationUpdatesDismiss,
   Action.BackupsStatus,
   Action.BackupsStart,
   Action.BackupRunnerCredentialIssue,
@@ -191,6 +263,7 @@ export function createBackupActionRegistry(
   database: PgDatabase,
   secret: string,
   settings: BackupSettingsDependencies,
+  running: () => { release: string; healthy: () => Promise<boolean> },
 ): ActionRegistry {
   const registry = new ActionRegistry(
     createBackupSettingsAuthorityRunner(
@@ -229,6 +302,43 @@ export function createBackupActionRegistry(
     output: contractSchemas.InstallationRestore,
     policy: { ...policy, type: ActionKind.Query },
     handler: getInstallationRestore,
+  }).register({
+    name: Action.InstallationUncertainActionsGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/uncertain-actions",
+    input: contractSchemas.Empty,
+    output: contractSchemas.InstallationUncertainActions,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getInstallationUncertainActions,
+  }).register({
+    name: Action.InstallationUpdatesStatus,
+    method: HttpMethod.Get,
+    path: "/v1/installation/updates/status",
+    input: contractSchemas.Empty,
+    output: contractSchemas.InstallationUpdateStatus,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: (context) => getInstallationUpdateStatus(context, running),
+  }).register({
+    name: Action.InstallationUpdatesList,
+    method: HttpMethod.Get,
+    path: "/v1/installation/updates",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<InstallationUpdateEvent>"],
+    policy: { ...policy, type: ActionKind.Query },
+    handler: (context, input) =>
+      listInstallationUpdates(context, input, secret),
+  }).register({
+    name: Action.InstallationUpdatesDismiss,
+    method: HttpMethod.Post,
+    path: "/v1/installation/updates/:id/dismiss",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.InstallationUpdateEvent,
+    // Idempotency-Key is required. A browser session only, like the other
+    // installation settings: a notice is never dismissed with a token.
+    explicitIdempotency: "key",
+    successStatus: 200,
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: dismissInstallationUpdate,
   }).register({
     name: Action.InstallationRestoreStep,
     method: HttpMethod.Post,
@@ -597,6 +707,9 @@ export function createBackupRoutes(options: BackupRouteOptions) {
   app.use("/v1/installation/backup-offsite", options.browserSession);
   app.use("/v1/installation/backup-offsite/*", options.browserSession);
   app.use("/v1/installation/backup-runner/*", options.browserSession);
+  app.use("/v1/installation/uncertain-actions", options.browserSession);
+  app.use("/v1/installation/updates", options.browserSession);
+  app.use("/v1/installation/updates/*", options.browserSession);
   app.use("/v1/installation/restore", options.browserSession);
   app.use("/v1/installation/restore/*", options.browserSession);
   app.route(
@@ -606,6 +719,7 @@ export function createBackupRoutes(options: BackupRouteOptions) {
         options.database,
         options.secret,
         options.settings,
+        options.running,
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

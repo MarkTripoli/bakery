@@ -54,7 +54,7 @@ export function declaredArtifactVersionIds(inputs: unknown): string[] {
 }
 
 /** Pins one version for a run: the row a worker's read is checked against. */
-async function insertRunInputPin(
+export async function insertRunInputPin(
   transaction: PgTransactionClient,
   pin: {
     organizationId: string;

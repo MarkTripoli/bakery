@@ -16,9 +16,11 @@ import {
   type AvailablePlugin,
   availablePlugins,
   installedPlugins,
+  isApprovalRefusal,
   mayChangeInstall,
   mayInstall,
   type PluginActor,
+  type PluginCapability,
   type PluginVersion,
   updateFailureOf,
 } from "../app/plugins.ts";
@@ -179,19 +181,30 @@ export function PluginsPage() {
       setFailure(changeFailureOf(error));
     }
   };
-  const doUpdate = async (row: InstalledRow) => {
+  const doUpdate = async (
+    row: InstalledRow,
+    approval?: readonly PluginCapability[],
+  ) => {
     if (row.update === null) return;
     setFailure(null);
     try {
       const result = await changes.update.mutateAsync({
         id: row.installId,
         version: row.installVersion,
-        change: { versionId: row.update.versionId },
+        change: {
+          versionId: row.update.versionId,
+          ...(approval === undefined
+            ? {}
+            : { approveCapabilities: [...approval] }),
+        },
       });
       // The server answers a refused update as the install with the failure
       // recorded on it, so a 200 is not yet a success.
-      if (updateFailureOf(result)?.versionId === row.update.versionId) {
-        setFailure("failed");
+      const refused = updateFailureOf(result);
+      if (refused?.versionId === row.update.versionId) {
+        // A changed list of new permissions keeps the dialog open with one line;
+        // any other refusal is the notice the page already has.
+        setFailure(isApprovalRefusal(refused.reason) ? "changed" : "failed");
         return;
       }
       setFailedUpdates((previous) => {
@@ -379,7 +392,7 @@ export function PluginsPage() {
             pending={changes.update.isPending}
             failure={failure}
             onCancel={close}
-            onConfirm={() => void doUpdate(updateRow)}
+            onConfirm={(approval) => void doUpdate(updateRow, approval)}
             onShowOrigin={() =>
               setOrigin(
                 versionOf(updateRow.packageId, updateRow.update!.versionId) ??

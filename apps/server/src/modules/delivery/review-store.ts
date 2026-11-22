@@ -1,4 +1,5 @@
 import { StandardError } from "@bakery/contracts/http";
+import { REVIEW_LOOP_LIMITS } from "@bakery/contracts/review-evidence";
 import type {
   DeliveryDecisionKind,
   DeliveryDecisionReason,
@@ -25,8 +26,8 @@ import type {
 } from "../review-loop/decision.ts";
 
 /**
- * The only module that writes `review_cycles`, `review_findings` and
- * `delivery_decisions` (a rail pins that). The three tables are insert-only
+ * The only module that writes `review_cycles`, `review_findings`,
+ * `delivery_decisions` and `repair_allowances` (a rail pins that). The tables are insert-only
  * evidence for the review and repair loop (issue #94): the application role has
  * no update or delete grant, so a row cannot be edited after the fact, and
  * resolution of a finding is derived from the run's latest cycle when it is
@@ -331,7 +332,11 @@ export async function loadRunLoopFacts(
     runId,
     snapshot: runRow.snapshot,
   });
-  const reviewLoop = reviewLoopFromSnapshot(snapshot);
+  // The policy frozen at admission, raised by what a person allowed since.
+  const reviewLoop = withAllowances(
+    reviewLoopFromSnapshot(snapshot),
+    await loadRepairAllowances(transaction, input),
+  );
   const stepOutputs = await loadStepOutputs(transaction, input);
 
   const cycles = await transaction.query<{ count: string }>(
@@ -668,4 +673,133 @@ export async function readCycleJobInput(
     [input.organizationId, input.cycleId],
   );
   return result.rows[0]?.input ?? null;
+}
+
+/** One allowance of more repair tries, as stored. */
+export type StoredRepairAllowance = {
+  readonly id: string;
+  readonly runId: string;
+  /** The stop decision this allowance answers. */
+  readonly answersDecisionOrdinal: number;
+  /** The repair decision recorded with it. */
+  readonly decisionOrdinal: number;
+  /** Step key of the repeat whose bound it raises. */
+  readonly repeatKey: string;
+  readonly addedTries: number;
+  /** The effective bound after this allowance. */
+  readonly maxRepairCycles: number;
+  readonly requestedBy: string;
+  readonly createdAt: Date;
+};
+
+type RepairAllowanceRow = {
+  id: string;
+  run_id: string;
+  answers_decision_ordinal: number;
+  decision_ordinal: number;
+  repeat_key: string;
+  added_tries: number;
+  max_repair_cycles: number;
+  requested_by: string;
+  created_at: Date;
+};
+
+const REPAIR_ALLOWANCE_COLUMNS = `id, run_id, answers_decision_ordinal,
+  decision_ordinal, repeat_key, added_tries, max_repair_cycles, requested_by,
+  created_at`;
+
+function toRepairAllowance(row: RepairAllowanceRow): StoredRepairAllowance {
+  return {
+    id: row.id,
+    runId: row.run_id,
+    answersDecisionOrdinal: row.answers_decision_ordinal,
+    decisionOrdinal: row.decision_ordinal,
+    repeatKey: row.repeat_key,
+    addedTries: row.added_tries,
+    maxRepairCycles: row.max_repair_cycles,
+    requestedBy: row.requested_by,
+    createdAt: row.created_at,
+  };
+}
+
+/** The allowances of a run, oldest first. */
+export async function loadRepairAllowances(
+  transaction: PgTransactionClient,
+  input: { readonly organizationId: string; readonly runId: string },
+): Promise<readonly StoredRepairAllowance[]> {
+  const result = await transaction.query<RepairAllowanceRow>(
+    `select ${REPAIR_ALLOWANCE_COLUMNS}
+       from bakery.repair_allowances
+      where organization_id = $1 and run_id = $2
+      order by answers_decision_ordinal`,
+    [input.organizationId, input.runId],
+  );
+  return result.rows.map(toRepairAllowance);
+}
+
+/**
+ * The loop bound in force: the policy frozen at admission plus every try a
+ * person allowed since, never past the contract ceiling. The frozen policy
+ * itself is not rewritten, so what the run started with stays readable.
+ */
+export function withAllowances(
+  frozen: ReviewLoopLimits | null,
+  allowances: readonly StoredRepairAllowance[],
+): ReviewLoopLimits | null {
+  if (frozen === null || allowances.length === 0) return frozen;
+  const added = allowances.reduce((sum, { addedTries }) => sum + addedTries, 0);
+  return {
+    ...frozen,
+    maxRepairCycles: Math.min(
+      frozen.maxRepairCycles + added,
+      REVIEW_LOOP_LIMITS.maxRepairCyclesCeiling,
+    ),
+  };
+}
+
+export type NewRepairAllowance = {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly runId: string;
+  readonly answersDecisionOrdinal: number;
+  readonly repeatKey: string;
+  readonly addedTries: number;
+  readonly maxRepairCycles: number;
+  readonly requestedBy: string;
+  /** The repair decision that lets the run go on; its ordinal follows the stop. */
+  readonly decision: NewDeliveryDecision;
+};
+
+/**
+ * Records an allowance and the repair decision it buys, together. A second
+ * allowance for the same stop hits the unique key and is refused as
+ * `STATE_CONFLICT`, so asking twice never allows twice.
+ */
+export async function recordRepairAllowance(
+  transaction: PgTransactionClient,
+  allowance: NewRepairAllowance,
+): Promise<StoredRepairAllowance> {
+  const inserted = await transaction.query<RepairAllowanceRow>(
+    `insert into bakery.repair_allowances (
+       id, organization_id, run_id, answers_decision_ordinal, decision_ordinal,
+       repeat_key, added_tries, max_repair_cycles, requested_by
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     on conflict do nothing
+     returning ${REPAIR_ALLOWANCE_COLUMNS}`,
+    [
+      allowance.id,
+      allowance.organizationId,
+      allowance.runId,
+      allowance.answersDecisionOrdinal,
+      allowance.decision.ordinal,
+      allowance.repeatKey,
+      allowance.addedTries,
+      allowance.maxRepairCycles,
+      allowance.requestedBy,
+    ],
+  );
+  const row = inserted.rows[0];
+  if (row === undefined) conflict("repair_allowance_conflict");
+  await insertDeliveryDecision(transaction, allowance.decision);
+  return toRepairAllowance(row);
 }

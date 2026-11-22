@@ -199,7 +199,38 @@ export async function authorizeActionGrant(
     });
   }
   const { resourceId } = splitInvocationArguments(value.arguments);
-  const granted = await authorized.transaction.query(
+  if (
+    !await holdsExternalActionGrant(authorized.transaction, {
+      organizationId: actor.organizationId as string,
+      connectionId,
+      capability: value.action,
+      resourceId,
+      principalId: actor.subject.principalId as string,
+      role: actor.role ?? null,
+    })
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+}
+
+/**
+ * Whether the principal, directly or through its organization role, holds a
+ * live out-of-Bakery grant for one capability (an action id) on one resource
+ * of one connection. The gate re-reads the whole snapshot per invocation; this
+ * is the guard that runs before it.
+ */
+export async function holdsExternalActionGrant(
+  transaction: PgTransactionClient,
+  grant: Readonly<{
+    organizationId: string;
+    connectionId: string;
+    capability: string;
+    resourceId: string;
+    principalId: string;
+    role: string | null;
+  }>,
+): Promise<boolean> {
+  const granted = await transaction.query(
     `select 1 from bakery.integration_grants
       where organization_id = $1 and connection_id = $2
         and direction = 'out_of_bakery'
@@ -211,17 +242,15 @@ export async function authorizeActionGrant(
           or (subject_type = 'organization_role' and subject_role = $6)
         )`,
     [
-      actor.organizationId,
-      connectionId,
-      value.action,
-      resourceId,
-      actor.subject.principalId,
-      actor.role ?? null,
+      grant.organizationId,
+      grant.connectionId,
+      grant.capability,
+      grant.resourceId,
+      grant.principalId,
+      grant.role,
     ],
   );
-  if (granted.rows.length === 0) {
-    throw new StandardError({ code: "AUTH_FORBIDDEN" });
-  }
+  return granted.rows.length > 0;
 }
 
 /**

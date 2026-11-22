@@ -13,6 +13,8 @@ export type EmptyStateProps =
     inset?: "none" | "page";
     /** `centered` fills its container with a quiet centered message. */
     layout?: "block" | "centered";
+    /** `heading` makes the centered title a headline; `quiet` is the default. */
+    titleStyle?: "quiet" | "heading";
     title: ReactNode;
     variant?: "firstUse" | "filtered" | "complete";
   };
@@ -26,6 +28,7 @@ export function EmptyState(
     inset = "none",
     layout = "block",
     title,
+    titleStyle = "quiet",
     variant = "firstUse",
     ...props
   }: EmptyStateProps,
@@ -40,6 +43,7 @@ export function EmptyState(
       {...props}
       data-inset={inset === "page" ? "page" : undefined}
       data-state="default"
+      data-title-style={titleStyle}
       data-ui-component="emptyState"
       data-variant={variant}
     >

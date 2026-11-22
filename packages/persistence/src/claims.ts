@@ -2,6 +2,7 @@ import type { PgTransactionClient } from "./postgres.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { jobAssignmentPayloadSchema } from "@bakery/contracts/contracts";
 import { admitRepositoryExecutionJob } from "./repository-admission.ts";
+import { hostMeetsJobRequirements } from "./job-platform.ts";
 import {
   admitCoordinatorTurnJob,
   hasHeldCoordinatorTurnReservation,
@@ -11,6 +12,7 @@ import {
   connectivityState,
   type DispatchGate,
   dispatchGate,
+  openMutatingMaintenance,
 } from "./machine-readiness.ts";
 import { appendAudit, appendDomainEvent } from "./event-audit.ts";
 import { executionActionCapabilities } from "./action-admission.ts";
@@ -104,6 +106,8 @@ export type ClaimableJob = {
   currentCheckpoints: unknown;
   agentConfig: unknown;
   skillRefs: unknown;
+  /** Input slots pinned when the job was admitted; `[]` for a step with none. */
+  contextInputs: unknown;
   agentVersionId: string | null;
   billing: unknown;
   installationReservationId: string | null;
@@ -278,7 +282,7 @@ export function createClaimsRepository(
          order by check_id asc, id asc`,
         [identity.host.id],
       );
-      return dispatchGate({
+      const gate = dispatchGate({
         now,
         connectivity: connectivityState(identity.host.lastHeartbeatAt, now),
         status: identity.host.status,
@@ -295,6 +299,18 @@ export function createClaimsRepository(
           expiresAt: row.expires_at,
         })),
       });
+      // An unfinished mutating maintenance operation closes the claim gate
+      // (issue #25). The host row is already locked FOR UPDATE by
+      // loadWorkerIdentity, the same lock the Admin create path takes.
+      // needs_attention reopens claims: a busy host waits, it is never bricked.
+      if (
+        await openMutatingMaintenance(transaction, identity.host.id, {
+          forClaims: true,
+        })
+      ) {
+        return { ...gate, allBlocked: true };
+      }
+      return gate;
     },
     async acquireClaimLock(workerHostId, claimKey) {
       await transaction.query(
@@ -384,8 +400,8 @@ export function createClaimsRepository(
       await transaction.query(
         `declare claim_candidates no scroll cursor for
        select id, action, requirements, input,
-          current_checkpoints, agent_config, skill_refs, agent_version_id,
-          billing, installation_reservation_id, current_fence,
+          current_checkpoints, agent_config, skill_refs, context_inputs,
+          agent_version_id, billing, installation_reservation_id, current_fence,
           ${assignedAgentSessionSql("jobs")} as agent_session_id,
           (
             select candidate_run.requested_by
@@ -516,6 +532,7 @@ export function createClaimsRepository(
           current_checkpoints: unknown;
           agent_config: unknown;
           skill_refs: unknown;
+          context_inputs: unknown;
           agent_version_id: string | null;
           billing: unknown;
           installation_reservation_id: string | null;
@@ -545,12 +562,10 @@ export function createClaimsRepository(
                 row.id,
               );
             if (
-              requirements.capabilities.some((capability) =>
-                !authenticatedCapabilities.includes(capability)
-              ) ||
-              ("platform" in requirements &&
-                requirements.platform !== undefined &&
-                requirements.platform !== identity.host.os)
+              !hostMeetsJobRequirements(requirements, {
+                os: identity.host.os,
+                capabilities: authenticatedCapabilities,
+              })
             ) {
               await transaction.query("rollback to savepoint claim_candidate");
               await transaction.query("release savepoint claim_candidate");
@@ -653,6 +668,7 @@ export function createClaimsRepository(
           currentCheckpoints: row.current_checkpoints,
           agentConfig: row.agent_config,
           skillRefs: row.skill_refs,
+          contextInputs: row.context_inputs,
           agentVersionId: row.agent_version_id,
           billing: row.billing,
           installationReservationId: row.installation_reservation_id,

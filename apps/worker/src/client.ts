@@ -30,6 +30,8 @@ import type {
   WorkerHeartbeatResult,
   WorkerInventoryReceipt,
   WorkerInventoryReport,
+  WorkerMaintenanceOperation,
+  WorkerMaintenanceReport,
   WorkerOutputBinding,
   WorkerOutputClose,
   WorkerOutputFinalization,
@@ -59,7 +61,7 @@ export type WorkerArtifactPublishRequest = {
   workerSessionId: string;
   workerSessionGeneration: string;
   idempotencyKey: string;
-  artifactType: "plan" | "patch" | "check";
+  artifactType: "plan" | "patch" | "check" | "other";
   mediaType: string;
   name: string;
   bytes: Uint8Array;
@@ -1262,6 +1264,39 @@ export class WorkerApiClient {
       contractSchemas.WorkerInventoryReceipt,
       response,
       "WORKER_RESPONSE_INVENTORY_INVALID",
+    );
+  }
+
+  /**
+   * Reports one maintenance phase. The caller journals `body` and the
+   * idempotency key first; an identical resend replays the stored answer.
+   */
+  async reportMaintenance(
+    operationId: string,
+    body: WorkerMaintenanceReport,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<WorkerMaintenanceOperation>> {
+    const wireBody = { ...body };
+    validateLegacyCompatibleRequest(
+      contractSchemas.WorkerMaintenanceReport,
+      wireBody,
+    );
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/maintenance/${encodeURIComponent(operationId)}/reports`,
+      {
+        body: wireBody,
+        idempotencyKey,
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      contractSchemas.WorkerMaintenanceOperation,
+      response,
+      "WORKER_RESPONSE_MAINTENANCE_INVALID",
     );
   }
 

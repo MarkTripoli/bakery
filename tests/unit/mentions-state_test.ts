@@ -92,27 +92,23 @@ Deno.test("the same person is one chip, and chosen people are not offered again"
   assertEquals(offered(rows, [sam]).map((row) => row.principalId), ["p3"]);
 });
 
-Deno.test("a conversation row is ordinary or no access yet; a comment never gives access", () => {
+Deno.test("a row is ordinary or no access yet, the same in a conversation and on a document", () => {
   const has = { hasAccess: true, gainsAccessOnSend: false };
   const gains = { hasAccess: false, gainsAccessOnSend: true };
   const none = { hasAccess: false, gainsAccessOnSend: false };
-  assertEquals(rowKind(has, "conversation"), "ready");
-  assertEquals(rowKind(gains, "conversation"), "gains");
+  assertEquals(rowKind(has), "ready");
+  assertEquals(rowKind(gains), "gains");
   // Anyone without access can be chosen; whether the writer may share decides what sending does.
-  assertEquals(rowKind(none, "conversation"), "gains");
-  assertEquals(rowKind(has, "comment"), "ready");
-  assertEquals(rowKind(gains, "comment"), "blocked");
-  assertEquals(rowKind(none, "comment"), "blocked");
+  assertEquals(rowKind(none), "gains");
 });
 
-Deno.test("only a conversation person without access and without the writer's right to share needs a sharer", () => {
+Deno.test("only a person without access and without the writer's right to share needs a sharer", () => {
   const has = { hasAccess: true, gainsAccessOnSend: false };
   const gains = { hasAccess: false, gainsAccessOnSend: true };
   const none = { hasAccess: false, gainsAccessOnSend: false };
-  assertEquals(needsSharer(none, "conversation"), true);
-  assertEquals(needsSharer(gains, "conversation"), false);
-  assertEquals(needsSharer(has, "conversation"), false);
-  assertEquals(needsSharer(none, "comment"), false);
+  assertEquals(needsSharer(none), true);
+  assertEquals(needsSharer(gains), false);
+  assertEquals(needsSharer(has), false);
 });
 
 Deno.test("a refusal that says the writer may not share marks only the refused people", () => {

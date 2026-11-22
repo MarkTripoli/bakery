@@ -367,7 +367,11 @@ type StoredComment = {
   user: { id: number; type: string } | null;
 };
 
-type StoredIssue = StoredComment & { number: number };
+type StoredIssue = StoredComment & {
+  number: number;
+  /** The labels the creating POST carried, when it named any. */
+  labels?: string[];
+};
 
 /** In-memory GitHub that records every request the broker sends. */
 export type FakeGithub = {
@@ -446,12 +450,16 @@ export function fakeGithub(): FakeGithub {
         if (fake.post === "unparseable") {
           return Promise.resolve(new Response("not json", { status: 201 }));
         }
-        const body = JSON.parse(String(init?.body)) as { body: string };
+        const body = JSON.parse(String(init?.body)) as {
+          body: string;
+          labels?: string[];
+        };
         if (forIssues) {
           const issue: StoredIssue = {
             id: 9000 + fake.issues.length + 1,
             number: 100 + fake.issues.length,
             body: body.body,
+            ...(body.labels === undefined ? {} : { labels: body.labels }),
             user: { id: GITHUB_BINDING.botUserId, type: "Bot" },
           };
           fake.issues.push(issue);

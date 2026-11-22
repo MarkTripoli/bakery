@@ -37,6 +37,9 @@ const totpPassword = `Browser-Totp-${totpSuffix}`;
 const passkeySuffix = crypto.randomUUID();
 const passkeyEmail = `browser-passkey-${passkeySuffix}@example.test`;
 const passkeyPassword = `Browser-Passkey-${passkeySuffix}`;
+const webauthnSuffix = crypto.randomUUID();
+const webauthnEmail = `browser-webauthn-${webauthnSuffix}@example.test`;
+const webauthnPassword = `Browser-Webauthn-${webauthnSuffix}`;
 const fixture = await openAuthFixture({
   publicOrigin: origin,
   secret: required("BAKERY_BROWSER_AUTH_SECRET"),
@@ -133,6 +136,16 @@ try {
       rememberMe: false,
     },
   });
+  // The replay/origin/step-up spec (#52) owns this person, so it never races
+  // the passkey ceremonies spec over one account's passkeys and TOTP.
+  await fixture.auth.api.signUpEmail({
+    body: {
+      email: webauthnEmail,
+      name: "Browser WebAuthn",
+      password: webauthnPassword,
+      rememberMe: false,
+    },
+  });
   // OAuth for the MCP spec: one pre-registered public client whose redirect
   // URI is the callback fixture, the consent page at the provider's
   // configured path, and the callback that shows the code or error.
@@ -187,6 +200,13 @@ try {
     "/__test__/passkeys/credentials",
     (context) =>
       context.json({ email: passkeyEmail, password: passkeyPassword }, 200, {
+        "cache-control": "no-store",
+      }),
+  );
+  fixture.app.get(
+    "/__test__/webauthn/credentials",
+    (context) =>
+      context.json({ email: webauthnEmail, password: webauthnPassword }, 200, {
         "cache-control": "no-store",
       }),
   );
@@ -254,6 +274,7 @@ try {
     email,
     totpEmail,
     passkeyEmail,
+    webauthnEmail,
   ]);
   await fixture.close();
 }

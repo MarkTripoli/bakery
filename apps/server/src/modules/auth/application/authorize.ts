@@ -22,7 +22,39 @@ type PermissionPrincipal = Readonly<{
   capabilities: readonly string[];
   /** Present only for an access-token request: the token's scope bundles. */
   tokenScopes?: readonly string[];
+  /** A live direct grant on the one document the request is about. */
+  artifactGrant?: OrganizationActor["artifactGrant"];
 }>;
+
+/**
+ * What a direct document grant permits, by level. The grant is for one document;
+ * callers set it only for a request about that document. `read_comment` reads it
+ * and comments; `edit` also works its draft and publishes it. Nothing here
+ * reaches the task, agents, other documents or resharing.
+ */
+const READ_COMMENT_PERMISSIONS: ReadonlySet<CatalogPermissionKey> = new Set([
+  "artifact:read",
+  "artifactVersion:read",
+  "artifactComment:read",
+  "artifactComment:write",
+]);
+const EDIT_PERMISSIONS: ReadonlySet<CatalogPermissionKey> = new Set([
+  ...READ_COMMENT_PERMISSIONS,
+  "draft:read",
+  "draft:write",
+  "draftCheckpoint:read",
+  "draftSlice:read",
+  "artifactVersion:write",
+]);
+
+function documentGrantPermits(
+  grant: OrganizationActor["artifactGrant"],
+  permission: CatalogPermissionKey,
+): boolean {
+  if (grant === undefined) return false;
+  return (grant.level === "edit" ? EDIT_PERMISSIONS : READ_COMMENT_PERMISSIONS)
+    .has(permission);
+}
 
 export type AuthorizationResource = Readonly<{
   action?: CatalogActionName;
@@ -69,8 +101,9 @@ export function authorize(
     roleHasPermission(principal.role, permission);
   const customAllows = principal.customRole?.permissions.includes(permission) ??
     false;
-  const grantAllows = resource.action !== undefined &&
-    principal.capabilities.includes(resource.action);
+  const grantAllows = (resource.action !== undefined &&
+    principal.capabilities.includes(resource.action)) ||
+    documentGrantPermits(principal.artifactGrant, permission);
   const humanWithoutRole =
     principal.subject.principalType === PrincipalType.Human &&
     principal.role === undefined;
