@@ -1236,6 +1236,7 @@ export type ContractInputName =
   | "TicketTaskLinkCreate"
   | "TicketTaskLinkNoteSync"
   | "TicketTaskLinkQuery"
+  | "ToolCallInput"
   | "TranscriptStatusQuery"
   | "UsageQuery"
   | "UsageReceipt"

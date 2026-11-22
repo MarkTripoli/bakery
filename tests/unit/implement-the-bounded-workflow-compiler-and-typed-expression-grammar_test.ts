@@ -2098,7 +2098,7 @@ Deno.test("JSON Schema subset converts to value types", () => {
   });
   assertEquals(
     convert(
-      (designSchemas["IntegrationActionInput"] as {
+      (designSchemas["ToolCallInput"] as {
         properties: Record<string, unknown>;
       }).properties["arguments"],
     ),
@@ -2785,10 +2785,11 @@ Deno.test("reference resolution: inputs, steps, task and typed fields", async ()
       workflow([
         {
           id: "call",
-          uses: "integration.action",
+          uses: "tool.call",
           with: {
-            actionId: "ping",
-            actionVersion: 1,
+            connectionId: "00000000-0000-4000-8000-000000000001",
+            tool: "ping",
+            toolVersion: 1,
             resourceId: "$input.repositoryId",
             arguments: { any: 1 },
           },
@@ -3548,10 +3549,11 @@ Deno.test("with values are type checked without coercion", async () => {
     rev("second", { evidence: ["$input.repositoryId"] }),
     {
       id: "call",
-      uses: "integration.action",
+      uses: "tool.call",
       with: {
-        actionId: "ping",
-        actionVersion: 1,
+        connectionId: "00000000-0000-4000-8000-000000000001",
+        tool: "ping",
+        toolVersion: 1,
         resourceId: "$input.repositoryId",
         arguments: { sha: "$step.verify.headSha", nested: ["$input.target"] },
       },

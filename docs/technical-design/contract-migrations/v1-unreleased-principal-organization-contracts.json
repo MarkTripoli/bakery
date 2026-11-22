@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "fb86250aba2f328ad26671377a9ad2008aedf496"
+    "1905d2af6760f58cb4524134d52bfcee9510ef93"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:770002e627c102f3452a904db4196bd79dcc9f44933000d6814e1067193e04ca",
-  "reason": "#24 bounded RPI actions by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main fb86250aba2f328ad26671377a9ad2008aedf496: rpi.plan joins the worker action table (it was an unavailable server handler with no worker contract), so the worker job input union gains its PlanInput variant and the variants after it move one place; nothing could claim or send an rpi.plan job before. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:d3aa7dbfeaf4a75f58e9091c627979fec4a85a0e96f072d9a352fa8aae2e8700",
+  "reason": "#435 tool.call step by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 1905d2af6760f58cb4524134d52bfcee9510ef93: tool.call replaces integration.action (the one-engine design, 25-one-engine.md 15.4). The workflow action name integration.action and its IntegrationActionInput and IntegrationActionOutput step contracts are replaced by tool.call with ToolCallInput (connectionId, tool, toolVersion, resourceId, arguments) and ToolCallOutput (the ActionResult shape); no server runtime or worker ever ran integration.action (it had no execution table entry), so no stored run or definition can have used it. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "fb86250aba2f328ad26671377a9ad2008aedf496"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:770002e627c102f3452a904db4196bd79dcc9f44933000d6814e1067193e04ca",
+      "reason": "Displaced by the #435 tool.call rebind onto main 1905d2af6: main's own approval, kept unchanged. #24 bounded RPI actions by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main fb86250aba2f328ad26671377a9ad2008aedf496: rpi.plan joins the worker action table (it was an unavailable server handler with no worker contract), so the worker job input union gains its PlanInput variant and the variants after it move one place; nothing could claim or send an rpi.plan job before. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

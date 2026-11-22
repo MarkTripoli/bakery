@@ -1083,6 +1083,9 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     DeliveryPrepare: "delivery.prepare",
     DeliveryDeploy: "delivery.deploy",
     DeliveryHealth: "delivery.health",
+    // A deterministic call of one pinned tool on a connection, run by the server
+    // for the person who started the run (docs/technical-design/25-one-engine.md 15.4).
+    ToolCall: "tool.call",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
@@ -1100,6 +1103,7 @@ export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
     WorkflowRuntimeImplementedAction.DeliveryPrepare,
     WorkflowRuntimeImplementedAction.DeliveryDeploy,
     WorkflowRuntimeImplementedAction.DeliveryHealth,
+    WorkflowRuntimeImplementedAction.ToolCall,
   ] as const,
 );
 

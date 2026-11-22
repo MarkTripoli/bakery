@@ -1,5 +1,7 @@
 import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
+import { createToolCallStepRunner } from "./modules/tool-call/tool-call-step.ts";
+import { composeEngineStepRunners } from "./modules/workflow-adapter/engine-steps.ts";
 import { createLocalDeliveryTargets } from "./modules/delivery/local-delivery-targets.ts";
 import {
   createSkillObjectStore,
@@ -784,15 +786,21 @@ export function createApp(options: {
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
-      // Delivery steps run only where the install configured a target.
-      ...(options.config.deliveryTarget
-        ? {
-          engineSteps: createDeliveryStepRunner({
+      // The engine settles a tool call itself, over the integration door; the
+      // delivery steps run only where the install configured a target.
+      engineSteps: composeEngineStepRunners([
+        createToolCallStepRunner({
+          database: options.pgDatabase,
+          registry: integrationRegistry,
+          providerRequests,
+        }),
+        ...(options.config.deliveryTarget
+          ? [createDeliveryStepRunner({
             database: options.pgDatabase,
             targets: createLocalDeliveryTargets(options.config.deliveryTarget),
-          }),
-        }
-        : {}),
+          })]
+          : []),
+      ]),
       // The tool gateway's operations: whatever these registries already
       // implement, narrowed to the operation map a session is defined by.
       // Composed rather than re-registered so a session calls the same handler

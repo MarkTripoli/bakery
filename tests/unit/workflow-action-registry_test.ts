@@ -283,6 +283,7 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
       "rpi.plan",
       "secret.identity.read",
       "task.brief",
+      "tool.call",
       "workflow.noop",
       "workflow.stop",
     ],
