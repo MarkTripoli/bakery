@@ -94,18 +94,29 @@ Deno.test("every foreign key to plugin_versions is classified, so collection can
   );
 });
 
-Deno.test("the install reference is the only one that keeps a bundle alive", () => {
+Deno.test("only an install and the snapshot an install keeps keep a bundle alive", () => {
   // Stated as a test because it is the whole retention rule: everything that
   // is not `active` is collectable once the version is withdrawn or unpublished.
+  // A snapshot is the way back to the version it came from (#34), so it wants
+  // the bytes for as long as its install can still be moved.
   const active = pluginBundleReferences.filter((entry) =>
     entry.protection === "active"
   );
-  assertEquals(active.length, 1);
-  assertEquals(active[0].table, "plugin_installs");
+  assertEquals(active.map((entry) => entry.table).sort(), [
+    "plugin_install_snapshots",
+    "plugin_installs",
+  ]);
   assertEquals(
     pluginBundleProtection(
       "plugin_installs",
       "plugin_installs_package_version_fk",
+    ),
+    "active",
+  );
+  assertEquals(
+    pluginBundleProtection(
+      "plugin_install_snapshots",
+      "plugin_install_snapshots_version_fk",
     ),
     "active",
   );

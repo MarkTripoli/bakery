@@ -625,10 +625,12 @@ function bounded<T extends Schema>(
   // A declared pattern is a constraint, not a note. Until this applied it, a
   // descriptor could promise a shape (0172 moved `taskType` from a closed set
   // to a kebab-case token here) and the only enforcement was min/max length.
+  // Unicode mode, as the client checks it, so a pattern can name code points
+  // past U+FFFF and the server and client agree on every string.
   if (boundedKind === "string" && typeof bounds.pattern === "string") {
     result = constrained(
       (result as z.ZodString).regex(
-        new RegExp(bounds.pattern),
+        new RegExp(bounds.pattern, "u"),
         `${path} must match the pattern ${bounds.pattern}.`,
       ),
       `${path} must match the pattern ${bounds.pattern}.`,

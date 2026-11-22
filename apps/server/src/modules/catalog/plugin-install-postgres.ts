@@ -9,6 +9,19 @@ import {
   PluginManifestError,
   satisfiesSdkRange,
 } from "@bakery/contracts/plugin-sdk";
+import {
+  addedCapabilities,
+  approvalMatches,
+  type InstallReadExtras,
+  installReadExtras,
+  issueStateCasVersion,
+  liveStateRange,
+  loadSnapshot,
+  restoreSnapshotState,
+  snapshotLiveState,
+  stateReadableBy,
+  type StateSnapshot,
+} from "./plugin-install-upgrade.ts";
 import { isOrganizationAdministratorRole } from "../auth/application/authorize.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
@@ -104,7 +117,11 @@ type PluginStateItem = z.output<typeof contractSchemas.PluginStateItem>;
 const iso = (value: Date | string | null): string | null =>
   value === null ? null : new Date(value).toISOString();
 
-function toInstall(row: InstallRow, organizationId: string): PluginInstall {
+function toInstall(
+  row: InstallRow,
+  organizationId: string,
+  extras: InstallReadExtras,
+): PluginInstall {
   return {
     id: row.id,
     organizationId,
@@ -123,7 +140,19 @@ function toInstall(row: InstallRow, organizationId: string): PluginInstall {
         row.last_update_failure === undefined
       ? null
       : row.last_update_failure as PluginInstall["lastUpdateFailure"],
+    stateCopy: extras.stateCopy,
+    cannotReadVersionIds: extras.cannotReadVersionIds,
   };
+}
+
+/** A page of installs as the contract names them, with what each keeps and which versions cannot read it. */
+async function toInstalls(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  rows: readonly InstallRow[],
+): Promise<PluginInstall[]> {
+  const extras = await installReadExtras(transaction, organizationId, rows);
+  return rows.map((row) => toInstall(row, organizationId, extras.get(row.id)!));
 }
 
 function toStateItem(row: StateRow): PluginStateItem {
@@ -374,7 +403,7 @@ export async function listPluginInstalls(
   const visible = rows.rows.slice(0, limit);
   const last = visible.at(-1);
   return {
-    items: visible.map((row) => toInstall(row, organizationId)),
+    items: await toInstalls(transaction, organizationId, visible),
     nextCursor: rows.rows.length > limit && last
       ? await encodeCursor(secret, binding, {
         createdAt: last.cursor_created_at,
@@ -400,7 +429,7 @@ export async function getPluginInstall(
       params: { reason: "plugin_install_not_found" },
     });
   }
-  return toInstall(row, organizationId);
+  return (await toInstalls(transaction, organizationId, [row]))[0];
 }
 
 /**
@@ -550,16 +579,30 @@ export async function createPluginInstall(
     );
   }
 
-  return toInstall(installed, organizationId);
+  return (await toInstalls(transaction, organizationId, [installed]))[0];
 }
 
 /**
- * Change an install: upgrade it, disable it, or uninstall it.
+ * Change an install: move it to another version, disable it, or uninstall it.
  *
  * Disabling and uninstalling revoke the grants in the same transaction, which is
  * AC3: authority stops with the lifecycle change rather than at the next sweep.
  * Retained state is untouched, because uninstall retains data under policy and
  * deletion is a separate decision.
+ *
+ * Moving to another version (#34) is staged, then activated in this one
+ * transaction, and it happens only when all of these hold; the first that does
+ * not is recorded as the reason and the install stays on its version with its
+ * state:
+ *
+ * - the version is published, runs on this host's SDK and has a valid manifest;
+ * - every capability it asks for beyond the pinned version's was approved by the
+ *   caller in this request, and nothing else was;
+ * - it can read the state the install holds, or, for a rollback the caller asked
+ *   to restore, the snapshot taken as the install left that version can.
+ *
+ * The install row is locked for the whole request, and so is every state write,
+ * so state cannot change between the check and the move.
  */
 export async function updatePluginInstall(
   context: ActionContext,
@@ -584,12 +627,34 @@ export async function updatePluginInstall(
   );
 
   const nextStatus = input.status ?? row.status;
+  const approved = input.approveCapabilities ?? [];
+  const restoreState = input.restoreState === true;
+  // An approval or a restore is about a move to another version. Sent with none,
+  // the caller believes something happened that cannot, and an error says so
+  // where a quiet success would not.
+  if (
+    (approved.length > 0 || restoreState) &&
+    (input.versionId === undefined || input.versionId === row.plugin_version_id)
+  ) {
+    throw new StandardError({
+      code: "VALIDATION_FAILED",
+      params: { reason: "plugin_update_fields_need_another_version" },
+    });
+  }
   // A version that does not pass its checks is not switched to: the install
   // keeps running on its prior version and the refusal is noted on it. The rest
   // of the same request (a status change, a dismissal) still applies, so a
   // refused update never swallows a disable and its revocation.
   let refused:
-    | { versionId: string; versionName: string; reason: string }
+    | {
+      versionId: string;
+      versionName: string;
+      reason: string;
+      /** Whether the caller asked for a restore with this try. */
+      restoreState: boolean;
+      /** Set when the reason is that capabilities were not approved. */
+      addedCapabilities?: string[];
+    }
     | null = null;
   let nextVersionId = row.plugin_version_id;
 
@@ -634,6 +699,7 @@ export async function updatePluginInstall(
         versionId: input.versionId,
         versionName: versionRow.version_name,
         reason: "plugin_sdk_incompatible",
+        restoreState,
       };
     } else {
       try {
@@ -644,33 +710,106 @@ export async function updatePluginInstall(
           versionId: input.versionId,
           versionName: versionRow.version_name,
           reason: `plugin_manifest_${error.code.toLowerCase()}`,
+          restoreState,
         };
       }
     }
 
     if (refused === null && manifest !== undefined) {
-      nextVersionId = input.versionId;
-      // Replace the grant set rather than adding to it: the install's authority
-      // is the new version's manifest, not the union with the old one.
-      await transaction.query(
-        `delete from bakery.plugin_install_grants
-          where organization_id = $1 and plugin_install_id = $2`,
-        [organizationId, installId],
+      const pinned = await pinnedManifest(
+        transaction,
+        organizationId,
+        row.plugin_version_id,
       );
-      for (const capability of manifest.requestedCapabilities) {
+      const added = addedCapabilities(pinned, manifest);
+      let restoring: StateSnapshot | null = null;
+      const refusal = (
+        reason: string,
+        extra: { addedCapabilities?: string[] } = {},
+      ) => ({
+        versionId: input.versionId!,
+        versionName: versionRow.version_name,
+        reason,
+        restoreState,
+        ...extra,
+      });
+      if (!approvalMatches(added, approved)) {
+        // A version that asks for more than the pinned one did is a different
+        // request for authority, and the answer to it is the caller's, given
+        // for exactly the capabilities shown. It is never carried over.
+        refused = refusal(
+          approved.length === 0
+            ? "plugin_capabilities_not_approved"
+            : "plugin_capability_approval_mismatch",
+          { addedCapabilities: added },
+        );
+      } else if (restoreState) {
+        const snapshot = await loadSnapshot(
+          transaction,
+          organizationId,
+          installId,
+        );
+        if (snapshot === null || snapshot.fromVersionId !== input.versionId) {
+          // The copy is of what one particular version left behind. Applying it
+          // under another would be restoring state nobody checked against it.
+          refused = refusal("plugin_state_snapshot_not_for_version");
+        } else if (!stateReadableBy(snapshot.range, manifest)) {
+          refused = refusal("plugin_state_incompatible");
+        } else {
+          restoring = snapshot;
+        }
+      } else if (
+        !stateReadableBy(
+          await liveStateRange(transaction, organizationId, installId),
+          manifest,
+        )
+      ) {
+        // The state holds something the version cannot read: a downgrade past a
+        // schema change, or an upgrade it never promised to read. Moving anyway
+        // would hand it data it would misread and rewrite.
+        refused = refusal("plugin_state_incompatible");
+      }
+      if (refused === null) {
+        nextVersionId = input.versionId;
+        // The copy of state is taken before anything moves and in this same
+        // transaction: if it cannot be made, the move is not made.
+        await snapshotLiveState(
+          transaction,
+          organizationId,
+          installId,
+          row.plugin_version_id,
+          row.state_schema_version,
+        );
+        if (restoring !== null) {
+          await restoreSnapshotState(
+            transaction,
+            organizationId,
+            installId,
+            restoring.rows,
+          );
+        }
+        // Replace the grant set rather than adding to it: the install's authority
+        // is the new version's manifest, not the union with the old one.
         await transaction.query(
-          `insert into bakery.plugin_install_grants
+          `delete from bakery.plugin_install_grants
+          where organization_id = $1 and plugin_install_id = $2`,
+          [organizationId, installId],
+        );
+        for (const capability of manifest.requestedCapabilities) {
+          await transaction.query(
+            `insert into bakery.plugin_install_grants
              (organization_id, plugin_install_id, capability)
            values ($1, $2, $3)`,
-          [organizationId, installId, capability],
-        );
-      }
-      await transaction.query(
-        `update bakery.plugin_installs
+            [organizationId, installId, capability],
+          );
+        }
+        await transaction.query(
+          `update bakery.plugin_installs
             set state_schema_version = $3
           where organization_id = $1 and id = $2`,
-        [organizationId, installId, manifest.stateSchemaVersion],
-      );
+          [organizationId, installId, manifest.stateSchemaVersion],
+        );
+      }
     }
   }
   const upgraded = nextVersionId !== row.plugin_version_id;
@@ -744,7 +883,32 @@ export async function updatePluginInstall(
       failureNote,
     ],
   );
-  return toInstall(rows.rows[0], organizationId);
+  return (await toInstalls(transaction, organizationId, [rows.rows[0]]))[0];
+}
+
+/** The manifest of the version an install pins now, which the next one is compared with. */
+async function pinnedManifest(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  versionId: string,
+) {
+  const result = await transaction.query<{ manifest: unknown }>(
+    `select v.manifest
+       from bakery.plugin_versions v
+      where v.organization_id = $1 and v.id = $2`,
+    [organizationId, versionId],
+  );
+  try {
+    return parsePluginManifest(result.rows[0]?.manifest);
+  } catch (error) {
+    if (error instanceof PluginManifestError) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: `plugin_manifest_${error.code.toLowerCase()}` },
+      });
+    }
+    throw error;
+  }
 }
 
 /**
@@ -999,11 +1163,18 @@ export async function putPluginState(
         params: { reason: "plugin_state_key_limit_reached" },
       });
     }
+    // The first number of a new key comes from the install's mark, not 1: a
+    // restore may have deleted this key at a number a stale writer still holds.
+    const casVersion = await issueStateCasVersion(
+      transaction,
+      organizationId,
+      installId,
+    );
     const inserted = await transaction.query<StateRow>(
       `insert into bakery.plugin_state
          (organization_id, plugin_install_id, owner_principal_id, namespace, key,
           schema_version, cas_version, value)
-       values ($1, $2, $3, $4, $5, $6, 1, $7::jsonb)
+       values ($1, $2, $3, $4, $5, $6, $8, $7::jsonb)
        returning ${STATE_COLUMNS.replaceAll("s.", "")}`,
       [
         organizationId,
@@ -1013,15 +1184,21 @@ export async function putPluginState(
         input.key,
         input.schemaVersion,
         JSON.stringify(input.value),
+        casVersion,
       ],
     );
     return toState(inserted.rows[0], organizationId);
   }
 
+  const nextCas = await issueStateCasVersion(
+    transaction,
+    organizationId,
+    installId,
+  );
   const updated = await transaction.query<StateRow>(
     `update bakery.plugin_state s
         set value = $3::jsonb, schema_version = $4,
-            cas_version = s.cas_version + 1, updated_at = now(),
+            cas_version = $6, updated_at = now(),
             version = s.version + 1
       where s.organization_id = $1 and s.id = $2
         and s.cas_version = $5
@@ -1032,6 +1209,7 @@ export async function putPluginState(
       JSON.stringify(input.value),
       input.schemaVersion,
       input.expectedCasVersion,
+      nextCas,
     ],
   );
   if (updated.rows.length !== 1) {

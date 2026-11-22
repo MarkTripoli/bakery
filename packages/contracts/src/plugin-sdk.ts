@@ -330,6 +330,16 @@ export type PluginManifest = Readonly<{
   requestedCapabilities: readonly PluginInstallCapability[];
   locales: readonly string[];
   stateSchemaVersion: number;
+  /**
+   * The oldest state schema this version reads exactly as it was saved (#34).
+   *
+   * An upgrade moves an install to a version whose reader can still make sense
+   * of what the old one saved, or it does not move. It defaults to the version's
+   * own `stateSchemaVersion`, which says "I read only what I wrote": a version
+   * that does not say otherwise is never assumed to read older state, because
+   * assuming it would corrupt data the first time the guess was wrong.
+   */
+  stateCompatibleFrom: number;
   stateNamespaces: readonly string[];
   pages: readonly PluginPage[];
 }>;
@@ -470,6 +480,7 @@ const MANIFEST_KEYS = new Set([
   "requestedCapabilities",
   "locales",
   "stateSchemaVersion",
+  "stateCompatibleFrom",
   "stateNamespaces",
   "pages",
 ]);
@@ -573,6 +584,19 @@ export function parsePluginManifest(manifest: unknown): PluginManifest {
     );
   }
 
+  const stateCompatibleFrom = record.stateCompatibleFrom ?? stateSchemaVersion;
+  if (
+    typeof stateCompatibleFrom !== "number" ||
+    !Number.isInteger(stateCompatibleFrom) ||
+    stateCompatibleFrom < 1 ||
+    stateCompatibleFrom > stateSchemaVersion
+  ) {
+    throw new PluginManifestError(
+      "STATE_SCHEMA_VERSION_INVALID",
+      "stateCompatibleFrom must be a positive integer no greater than stateSchemaVersion",
+    );
+  }
+
   const namespaces = record.stateNamespaces ?? [];
   if (!Array.isArray(namespaces)) {
     throw new PluginManifestError(
@@ -597,6 +621,7 @@ export function parsePluginManifest(manifest: unknown): PluginManifest {
     requestedCapabilities: Object.freeze(requested),
     locales: Object.freeze(localesOut),
     stateSchemaVersion,
+    stateCompatibleFrom,
     stateNamespaces: Object.freeze(namespacesOut),
     pages: parsePluginPages(record.pages, requested),
   });
