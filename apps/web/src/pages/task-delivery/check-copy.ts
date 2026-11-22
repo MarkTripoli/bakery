@@ -30,48 +30,10 @@ const REASON_KEY: Readonly<
 
 /** One sentence about why a check ended as it did, else null (a pass says nothing). */
 export function reasonSentence(
-  row: Pick<CheckRow, "reason" | "exitCode">,
-): { key: MessageKey; values?: { code: number } } | null {
-  if (row.reason === null || row.reason === "verified") return null;
-  if (row.reason === "exit_nonzero") {
-    return row.exitCode === null
-      ? { key: "tasks.delivery.check.reason.exit_nonzero_bare" }
-      : {
-        key: "tasks.delivery.check.reason.exit_nonzero",
-        values: { code: row.exitCode },
-      };
-  }
-  return { key: REASON_KEY[row.reason] };
-}
-
-/** A result of "could not run" is not a pass, and the row says so. */
-export const countsAsNotPassed = (row: Pick<CheckRow, "result">): boolean =>
-  row.result === "unavailable";
-
-/** How long a command check took, as the parts the copy wants; null for a rule or no time. */
-export function took(
-  row: Pick<CheckRow, "rule" | "durationMs">,
-):
-  | { key: "tasks.delivery.check.tookInstant" }
-  | { key: "tasks.delivery.check.tookSeconds"; values: { seconds: number } }
-  | {
-    key: "tasks.delivery.check.tookMinutes";
-    values: { minutes: number; seconds: number };
-  }
-  | null {
-  if (row.rule || row.durationMs === null || row.durationMs < 0) return null;
-  const whole = Math.round(row.durationMs / 1000);
-  if (row.durationMs < 1000) return { key: "tasks.delivery.check.tookInstant" };
-  if (whole < 60) {
-    return {
-      key: "tasks.delivery.check.tookSeconds",
-      values: { seconds: whole },
-    };
-  }
-  return {
-    key: "tasks.delivery.check.tookMinutes",
-    values: { minutes: Math.floor(whole / 60), seconds: whole % 60 },
-  };
+  reason: Exclude<CheckReason, "exit_nonzero"> | null,
+): { key: MessageKey } | null {
+  if (reason === null || reason === "verified") return null;
+  return { key: REASON_KEY[reason] };
 }
 
 /** How long a check took as a table cell ("2 s", "2 min 14 s"), else null for a rule or no time. */
@@ -118,10 +80,6 @@ export function orderChecks(rows: readonly CheckRow[]): CheckRow[] {
     )
     .map(({ row }) => row);
 }
-
-/** Every check but a pass needs a look, so the list opens by itself for any of them. */
-export const needsAttention = (rows: readonly CheckRow[]): boolean =>
-  rows.some((row) => row.result !== "passed" || row.olderSha !== null);
 
 /** The first three names, and how many more there are. */
 export function nameList(

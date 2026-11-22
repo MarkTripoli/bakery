@@ -50,7 +50,8 @@ export function whyNotPassed(
   if (row.reason === "exit_nonzero") {
     return { key: "tasks.delivery.check.reason.exit_nonzero_bare" };
   }
-  return reasonSentence(row) ?? { key: "tasks.delivery.check.couldNotRun" };
+  return reasonSentence(row.reason) ??
+    { key: "tasks.delivery.check.couldNotRun" };
 }
 
 /** Every item that needs attention, in the order the list shows them. */
