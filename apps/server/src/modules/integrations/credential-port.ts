@@ -185,6 +185,15 @@ export function createInstallationCredentialPort(
 ): CredentialPort {
   return {
     async resolve(request) {
+      // An offline run never receives a brokered credential, whatever the
+      // invocation was authorized for: refused before any row or key is read.
+      if (request.runEnvironment === "offline") {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          detail: "environment_offline",
+          params: { reason: "environment_offline" },
+        });
+      }
       // The generation was captured BEFORE the authority snapshot this request
       // was authorized against, upstream in the broker. Reading it here instead
       // would compare a fresh value against itself and see no change, so an edit

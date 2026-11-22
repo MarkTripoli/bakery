@@ -495,7 +495,7 @@ export function fakeGithub(): FakeGithub {
 }
 
 /** Shared testing broker over the fake GitHub and the rig's authority port. */
-function testBroker(
+export function testBroker(
   rig: EffectRig,
   github: FakeGithub,
 ): { broker: ProviderRequestPort } {

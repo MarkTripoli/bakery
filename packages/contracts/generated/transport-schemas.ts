@@ -3813,6 +3813,16 @@ const transportSchemas = {
           "description": "Execution environment for this run: `repository` requires repositoryProfileId and runs inside a cloned repository worktree; `cloud_only` must omit repositoryProfileId and runs without a repository checkout."
         },
         {
+          "name": "environment",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "live",
+            "offline"
+          ],
+          "description": "Where this run may reach, pinned at creation: `live` (the default) admits external effects and brokered integration credentials; `offline` refuses every external effect and brokered credential while metered model calls stay allowed. A run an agent spawns inherits the spawning run's environment when omitted, and an offline run may not spawn a live one (409 `environment_offline_parent`)."
+        },
+        {
           "name": "budgetLimitUsd",
           "type": "decimal",
           "required": false,
@@ -22902,6 +22912,7 @@ const transportSchemas = {
         "inngestRunId",
         "status",
         "budgetLimitUsd",
+        "environment",
         "startedAt",
         "finishedAt",
         "createdAt",
@@ -22929,6 +22940,7 @@ const transportSchemas = {
         "inngestRunId": "string|null",
         "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
         "budgetLimitUsd": "decimal",
+        "environment": "enum(live|offline)",
         "startedAt": "timestamp|null",
         "finishedAt": "timestamp|null",
         "createdAt": "timestamp",
@@ -22986,6 +22998,7 @@ const transportSchemas = {
         "inngestRunId": "Stable UUID linking this record to the related inngest run entity.",
         "status": "Current lifecycle status of the record.",
         "budgetLimitUsd": "Maximum execution budget measured in US dollars.",
+        "environment": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline.",
         "startedAt": "UTC timestamp when processing started.",
         "finishedAt": "UTC timestamp when processing finished.",
         "createdAt": "UTC timestamp when the record was created.",
