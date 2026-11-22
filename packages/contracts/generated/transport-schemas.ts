@@ -35286,6 +35286,7 @@ const transportSchemas = {
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35303,7 +35304,8 @@ const transportSchemas = {
         "stepPath": "string",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "revisionDigest": "string"
       },
       "nullableFields": [],
       "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
@@ -35312,6 +35314,7 @@ const transportSchemas = {
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
         "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
+        "revisionDigest": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",

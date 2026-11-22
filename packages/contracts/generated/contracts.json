@@ -271574,6 +271574,11 @@
               "maximum": 9007199254740991,
               "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
             },
+            "revisionDigest": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+            },
             "workflowId": {
               "type": "string",
               "format": "uuid",
@@ -271614,6 +271619,7 @@
             "skillId",
             "skillVersionId",
             "revision",
+            "revisionDigest",
             "workflowId",
             "workflowName",
             "stepPath",
@@ -272587,6 +272593,11 @@
                     "maximum": 9007199254740991,
                     "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
                   },
+                  "revisionDigest": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+                  },
                   "workflowId": {
                     "type": "string",
                     "format": "uuid",
@@ -272627,6 +272638,7 @@
                   "skillId",
                   "skillVersionId",
                   "revision",
+                  "revisionDigest",
                   "workflowId",
                   "workflowName",
                   "stepPath",
@@ -289410,7 +289422,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:31c11df1e68e06b4961905fa4b3f452a304d1f8e20b4da6d415236e497c176cc",
+  "compatibilityDigest": "sha256:efdefddd74d7df9cb0173f66b12b36a00ddffd017d8b85a5f0872c21c7195c1b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -509381,6 +509393,11 @@
           "maximum": 9007199254740991,
           "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
         },
+        "revisionDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+        },
         "workflowId": {
           "type": "string",
           "format": "uuid",
@@ -509421,6 +509438,7 @@
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -510400,6 +510418,11 @@
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -510440,6 +510463,7 @@
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",

@@ -111551,6 +111551,11 @@ export const clientManifest = {
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -111591,6 +111596,7 @@ export const clientManifest = {
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",

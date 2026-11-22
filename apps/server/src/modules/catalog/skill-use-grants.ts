@@ -120,6 +120,8 @@ type PersonalVersionRow = {
   version_id: string;
   skill_id: string;
   owner_principal_id: string;
+  revision: number;
+  digest: string;
 };
 
 function issue(
@@ -152,7 +154,7 @@ export async function reconcilePersonalSkillUse(
   const versionIds = [...new Set(refs.map((ref) => ref.versionId))];
   const personal = await transaction.query<PersonalVersionRow>(
     `select version.id as version_id, skill.id as skill_id,
-            skill.owner_principal_id
+            skill.owner_principal_id, version.revision, version.digest
        from bakery.skill_versions as version
        join bakery.skills as skill
          on skill.organization_id = version.organization_id
@@ -218,11 +220,14 @@ export async function reconcilePersonalSkillUse(
   for (const { ref, row } of toGrant) {
     const id = crypto.randomUUID();
     const pointer = stepPointer(ref.segments);
+    // The revision and its digest are copied from the immutable version row at
+    // this moment, so the grant records what the owner was shown rather than
+    // what a later read of the version happens to say.
     await transaction.query(
       `insert into bakery.skill_use_grants (
          id, organization_id, skill_id, skill_version_id, workflow_id,
-         step_path, granted_by
-       ) values ($1, $2, $3, $4, $5, $6, $7)`,
+         step_path, granted_by, revision, revision_digest
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         id,
         facts.organizationId,
@@ -231,6 +236,8 @@ export async function reconcilePersonalSkillUse(
         facts.workflowId,
         pointer,
         facts.principalId,
+        row.revision,
+        row.digest,
       ],
     );
     await appendAudit(transaction, {
@@ -266,6 +273,7 @@ type GrantRow = {
   skill_id: string;
   skill_version_id: string;
   revision: number;
+  revision_digest: string;
   workflow_id: string;
   workflow_name: string;
   step_path: string;
@@ -281,6 +289,7 @@ function toGrant(row: GrantRow) {
     skillId: row.skill_id,
     skillVersionId: row.skill_version_id,
     revision: row.revision,
+    revisionDigest: row.revision_digest,
     workflowId: row.workflow_id,
     workflowName: row.workflow_name,
     stepPath: row.step_path,
@@ -350,7 +359,7 @@ export async function listSkillUseGrants(
   const limit = input.limit ?? 25;
   const result = await transaction.query<GrantRow>(
     `select grant_row.id, grant_row.skill_id, grant_row.skill_version_id,
-            version.revision,
+            grant_row.revision, grant_row.revision_digest,
             grant_row.workflow_id, workflow.name as workflow_name,
             grant_row.step_path, grant_row.granted_by, grant_row.created_at,
             to_char(grant_row.created_at at time zone 'UTC',
@@ -360,9 +369,6 @@ export async function listSkillUseGrants(
        join bakery.workflow_definitions as workflow
          on workflow.organization_id = grant_row.organization_id
         and workflow.id = grant_row.workflow_id
-       join bakery.skill_versions as version
-         on version.organization_id = grant_row.organization_id
-        and version.id = grant_row.skill_version_id
       where grant_row.organization_id = $1 and grant_row.skill_id = $2
         and ($3::timestamptz is null
           or (grant_row.created_at, grant_row.id) < ($3, $4::uuid))

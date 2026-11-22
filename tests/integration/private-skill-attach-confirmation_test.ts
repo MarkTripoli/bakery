@@ -318,6 +318,7 @@ Deno.test("attaching a personal skill to a shared workflow needs its owner's con
         stepPath: string;
         skillVersionId: string;
         revision: number;
+        revisionDigest: string;
         version: number;
       }[];
       nextCursor: string | null;
@@ -329,6 +330,14 @@ Deno.test("attaching a personal skill to a shared workflow needs its owner's con
     // #74: the grant names the revision too, so a reader names the exact version
     // the workflow uses without listing the skill's versions to find it.
     assertEquals(grantPage.items[0].revision, 1);
+    // #74: the grant names the digest it was published with, copied from the
+    // immutable version row at grant time. A binding therefore names the bytes a
+    // page showed without a second read, and cannot agree with a version row
+    // that has since moved.
+    assertEquals(
+      grantPage.items[0].revisionDigest,
+      `sha256:${"b".repeat(64)}`,
+    );
     assertEquals((await read(adminCookie, grantsPath)).status, 404);
 
     // Stopping is the owner's act, needs the grant's version, and deletes it.
