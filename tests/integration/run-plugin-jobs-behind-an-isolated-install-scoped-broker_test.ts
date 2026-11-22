@@ -57,6 +57,7 @@ Deno.test("the broker follows the install: allowed while on, refused the moment 
       operations: [read, write],
     });
     const { token } = await mintBrokerToken(KEY, {
+      runEnvironment: "live",
       epoch: EPOCH,
       organizationId: fixture.organizationId,
       installId,
@@ -131,6 +132,7 @@ Deno.test("a token minted for another organization finds no install here", () =>
       }],
     });
     const { token } = await mintBrokerToken(KEY, {
+      runEnvironment: "live",
       epoch: EPOCH,
       organizationId: crypto.randomUUID(),
       installId,

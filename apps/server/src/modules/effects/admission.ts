@@ -38,12 +38,18 @@ const TERMINAL_JOB_STATUSES: readonly string[] = [
   "canceled",
 ];
 
-/** Run, step and job state: terminal run or step, a canceled job, or only terminal jobs block. */
+/**
+ * Run, step and job state: an offline run, a terminal run or step, a canceled
+ * job, or only terminal jobs block. An offline run is refused before anything
+ * else: no external effect of it may ever leave Bakery, so the provider is never
+ * called. Anything other than `live` is treated as offline.
+ */
 export function runAdmission(
   run: RunScopeFacts | null,
   jobs: readonly StepJobFacts[],
 ): EffectFailureCode | null {
   if (run === null) return null;
+  if (run.environment !== "live") return "environment_offline";
   if (
     TERMINAL_STATUSES.includes(run.runStatus) ||
     TERMINAL_STATUSES.includes(run.stepStatus)
