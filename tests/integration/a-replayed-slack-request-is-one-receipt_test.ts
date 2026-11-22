@@ -72,6 +72,39 @@ Deno.test("a replayed signed request is a duplicate of the first, not a second e
   });
 });
 
+Deno.test("two copies that arrive together still make one receipt", async () => {
+  await withWorkerFixture(async (fixture) => {
+    await clearOwnReceipts(fixture.pgDatabase);
+    // The module's promise is that the unique index decides, not a read before
+    // the write: two workers can both find no receipt and both insert. Without
+    // the conflict clause the loser raises a unique violation instead of
+    // reporting the duplicate it is.
+    const claims = await Promise.all([
+      claimSlackRequest(fixture.pgDatabase, {
+        replayKey: FRESH_KEY,
+        bodyDigest: "f".repeat(64),
+        requestedAt: 1_760_000_100,
+        teamId: null,
+      }),
+      claimSlackRequest(fixture.pgDatabase, {
+        replayKey: FRESH_KEY,
+        bodyDigest: "f".repeat(64),
+        requestedAt: 1_760_000_100,
+        teamId: null,
+      }),
+    ]);
+    const dispositions = claims.map((claim) => claim.disposition).sort();
+    assertEquals(dispositions, ["accepted", "duplicate"]);
+    assertEquals(claims[0]?.receiptId, claims[1]?.receiptId);
+    const { rows } = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.slack_request_receipts
+        where replay_key = $1`,
+      [FRESH_KEY],
+    );
+    assertEquals(rows[0]?.count, "1");
+  });
+});
+
 Deno.test("the table refuses a key that is not a signature", async () => {
   await withWorkerFixture(async (fixture) => {
     // The receipt is only meaningful if the key really is the MAC output; a

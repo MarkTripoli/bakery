@@ -6218,5 +6218,7 @@
   "integrations.slack.credentials.removeStale": "⟦Ŧĥëšë ðëŧàïļš çĥàñĝëð šïñçë ŧĥïš þàĝë ļôàðëð. Ñôŧĥïñĝ ŵàš ŕëɱôṽëð. Çĥëçķ ŧĥë çûŕŕëñŧ ðëŧàïļš, ŧĥëñ ŕëɱôṽë àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "integrations.slack.credentials.checkFailed": "⟦Ŧĥë çĥëçķ çôûļð ñôŧ ƀë ŕûñ. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "integrations.slack.credentials.checkStale": "⟦Ŧĥëšë ðëŧàïļš çĥàñĝëð šïñçë ŧĥïš þàĝë ļôàðëð. Ŧĥë çĥëçķ ðïð ñôŧ ŕûñ. Þŕëšš Çĥëçķ ñôŵ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "integrations.slack.credentials.notAccepted": "⟦Šļàçķ ðôëš ñôŧ àççëþŧ ŧĥëšë ðëŧàïļš. ŧëšŧ çôþÿŧ⟧"
+  "integrations.slack.credentials.notAccepted": "⟦Šļàçķ ðôëš ñôŧ àççëþŧ ŧĥëšë ðëŧàïļš. ŧëšŧ çôþÿŧ⟧",
+  "integrations.slack.credentials.status.clientIdRefusedOn": "⟦Client ID refused on {time}. — ŧëšŧ⟧",
+  "integrations.slack.credentials.status.clientSecretRefusedOn": "⟦Client secret refused on {time}. — ŧëšŧ⟧"
 }

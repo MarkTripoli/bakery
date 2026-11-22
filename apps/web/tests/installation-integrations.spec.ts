@@ -873,15 +873,21 @@ test("check now asks Slack and shows what it answered", async ({ page }) => {
   expect(f.slack.checks[0]!["if-match"]).toBe('"v1"');
 });
 
-test("a check Slack refused names the secret to replace", async ({ page }) => {
+test("a check Slack refused says so once, and names the field", async ({ page }) => {
   const f = await integrationsFixture(page);
   f.slack.current = { ...slackSet };
   f.slack.checkAnswer = "client_id_refused";
   await page.goto(PAGE_PATH);
   const slack = slackSection(page);
   await slack.getByRole("button", { name: "Check now" }).click();
-  await expect(slack.getByText(/does not recognise this client ID/))
+  // The block's top line carries the verdict, so the row names the field and
+  // the time instead of repeating it (#7 audit, QA round 5).
+  await expect(slack.getByText("Slack does not accept these details."))
     .toBeVisible();
+  await expect(slack.getByTestId("slack-signin-state"))
+    .toHaveText(/Client ID refused on/);
+  await expect(slack.getByText(/does not recognise this client ID/))
+    .toHaveCount(0);
 });
 
 test("removing the Slack app asks first and then says it was removed", async ({ page }) => {

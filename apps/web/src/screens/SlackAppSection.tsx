@@ -204,10 +204,17 @@ export function SlackAppSection(
         return translate(key("status.accepted"), {
           time: stamp(saved.detailsCheckedAt),
         });
+      // The block's top line already says Slack refused the pair, so the row
+      // names which field and when, in the same shape as the accepted row. The
+      // design's longer sentences would say the refusal a second time.
       case "client_id_refused":
-        return translate(key("status.clientIdRefused"));
+        return translate(key("status.clientIdRefusedOn"), {
+          time: stamp(saved.detailsCheckedAt),
+        });
       case "client_secret_refused":
-        return translate(key("status.clientSecretRefused"));
+        return translate(key("status.clientSecretRefusedOn"), {
+          time: stamp(saved.detailsCheckedAt),
+        });
       default:
         return translate(key("status.unreachable"));
     }
@@ -225,8 +232,9 @@ export function SlackAppSection(
         time: stamp(saved.lastRequestAt),
       });
   })();
-  const signInFaulted = saved?.detailsCheckResult === "client_id_refused" ||
-    saved?.detailsCheckResult === "client_secret_refused" ||
+  const pairRefused = saved?.detailsCheckResult === "client_id_refused" ||
+    saved?.detailsCheckResult === "client_secret_refused";
+  const signInFaulted = pairRefused ||
     saved?.detailsCheckResult === "unreachable";
   const requestFaulted = saved !== null && saved.lastRequestFailedAt !== null;
   return (
@@ -281,34 +289,38 @@ export function SlackAppSection(
                         set up, whatever the stored row still says. */
                     }
                     <UI.Text>
-                      {translate(key(signInFaulted ? "notAccepted" : "setUp"))}
+                      {translate(key(pairRefused ? "notAccepted" : "setUp"))}
                     </UI.Text>
-                    <UI.DescriptionList>
-                      <UI.DescriptionItem
-                        description={saved.appId ?? ""}
-                        title={translate("integrations.slack.fields.app_id")}
-                      />
-                      <UI.DescriptionItem
-                        description={saved.clientId ?? ""}
-                        title={translate("integrations.slack.fields.client_id")}
-                      />
-                      <UI.DescriptionItem
-                        description={translate(key("secretSaved"), {
-                          date: date(saved.clientSecretSavedAt),
-                        })}
-                        title={translate(
-                          "integrations.slack.fields.client_secret",
-                        )}
-                      />
-                      <UI.DescriptionItem
-                        description={translate(key("secretSaved"), {
-                          date: date(saved.signingSecretSavedAt),
-                        })}
-                        title={translate(
-                          "integrations.slack.fields.signing_secret",
-                        )}
-                      />
-                    </UI.DescriptionList>
+                    {replacing ? null : (
+                      <UI.DescriptionList>
+                        <UI.DescriptionItem
+                          description={saved.appId ?? ""}
+                          title={translate("integrations.slack.fields.app_id")}
+                        />
+                        <UI.DescriptionItem
+                          description={saved.clientId ?? ""}
+                          title={translate(
+                            "integrations.slack.fields.client_id",
+                          )}
+                        />
+                        <UI.DescriptionItem
+                          description={translate(key("secretSaved"), {
+                            date: date(saved.clientSecretSavedAt),
+                          })}
+                          title={translate(
+                            "integrations.slack.fields.client_secret",
+                          )}
+                        />
+                        <UI.DescriptionItem
+                          description={translate(key("secretSaved"), {
+                            date: date(saved.signingSecretSavedAt),
+                          })}
+                          title={translate(
+                            "integrations.slack.fields.signing_secret",
+                          )}
+                        />
+                      </UI.DescriptionList>
+                    )}
                     <UI.DescriptionList>
                       <UI.DescriptionItem
                         actionPlacement="below"
@@ -323,12 +335,18 @@ export function SlackAppSection(
                             {translate(key("checkNow"))}
                           </UI.Button>
                         }
-                        icon={signInFaulted
+                        icon={signInFaulted && !pairRefused
                           ? <UI.IconGlyph name="alert" size="large" />
                           : undefined}
                         description={
                           <span data-testid="slack-signin-state">
-                            {signInState}
+                            {signInFaulted && !pairRefused
+                              ? (
+                                <UI.Text variant="error">
+                                  {signInState}
+                                </UI.Text>
+                              )
+                              : signInState}
                           </span>
                         }
                         title={translate(key("signInRow"))}

@@ -210,6 +210,12 @@ for (const { state, prepare } of INTERACTIONS) {
         await section.waitFor({ state: "visible", timeout: 45_000 });
         await expect(section).toContainText("Slack is set up.");
         await prepare(page);
+        if (state === "replace-form") {
+          // The form holds the same values the summary showed, so the summary
+          // goes while it is open: one App ID, one Client ID, one set of dates.
+          await expect(section.getByText("Client ID", { exact: true }))
+            .toHaveCount(0);
+        }
 
         // The dialog is its own layer, so a still of the section would miss it:
         // the viewport is what a person sees, and that is what is captured.
