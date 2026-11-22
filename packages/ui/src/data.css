@@ -2162,6 +2162,7 @@
   color: var(--color-fg-muted);
   font: var(--type-row-title);
 }
+
 .ui-stat-tile__value {
   /* Section heading, not hero: the figure is one of three, and a page heading
      size would make an unknown count look like the point of the page. */
