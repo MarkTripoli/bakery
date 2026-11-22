@@ -9,6 +9,7 @@ import {
 } from "@bakery/persistence";
 import { claimJob } from "./claim.ts";
 import {
+  archiveWorker,
   cancelWorkerEnrollment,
   dispatchBlockers,
   getWorker,
@@ -23,6 +24,13 @@ import {
   updateWorker,
   workerEnrollmentStatus,
 } from "./machines.ts";
+import {
+  cancelWorkerMaintenance,
+  createWorkerMaintenance,
+  getWorkerMaintenance,
+  listWorkerMaintenance,
+} from "./maintenance.ts";
+import { reportMaintenance } from "./maintenance-delivery.ts";
 import {
   cancelProviderAuthAttempt,
   createProviderAuthAttempt,
@@ -302,6 +310,32 @@ export function createExecutionRoutes(
     routeHandler(options, (context) => revokeWorker(context, options)),
   );
   app.post(
+    "/v1/workers/:id/archives",
+    routeHandler(options, (context) => archiveWorker(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/maintenance",
+    routeHandler(
+      options,
+      (context) => createWorkerMaintenance(context, options),
+    ),
+  );
+  app.get(
+    "/v1/workers/:id/maintenance",
+    routeHandler(options, (context) => listWorkerMaintenance(context, options)),
+  );
+  app.get(
+    "/v1/workers/:id/maintenance/:operationId",
+    routeHandler(options, (context) => getWorkerMaintenance(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/maintenance/:operationId/cancellations",
+    routeHandler(
+      options,
+      (context) => cancelWorkerMaintenance(context, options),
+    ),
+  );
+  app.post(
     "/v1/workers/:id/enrollments",
     routeHandler(
       options,
@@ -357,6 +391,13 @@ export function createExecutionRoutes(
     workerRouteHandler(
       options,
       (context) => reportProviderAuth(context, options),
+    ),
+  );
+  app.post(
+    "/v1/worker/maintenance/:operationId/reports",
+    workerRouteHandler(
+      options,
+      (context) => reportMaintenance(context, options),
     ),
   );
   app.post(

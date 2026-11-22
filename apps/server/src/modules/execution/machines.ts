@@ -10,6 +10,7 @@ import {
 } from "@bakery/persistence/machine-readiness";
 import { IDEMPOTENCY_REPLAY_TTL_SECONDS } from "@bakery/persistence";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
+import { cancelOpenMaintenanceOnRevoke } from "./maintenance.ts";
 import { jsonResponse, parseContract } from "./http.ts";
 import type { AuthVariables } from "../auth/middleware.ts";
 import { authorize } from "../auth/application/authorize.ts";
@@ -170,6 +171,10 @@ async function safeWorkerProjection(
     last_heartbeat_at: Date | null;
     credential_generation: number;
     inventory_revision: number;
+    archived_at: Date | null;
+    cleanup_state: string;
+    cleanup_requested_at: Date | null;
+    cleanup_confirmed_at: Date | null;
     created_at: Date;
     updated_at: Date;
     version: number;
@@ -178,6 +183,8 @@ async function safeWorkerProjection(
     `select id, organization_id, principal_id, name, os, architecture,
             capabilities, toolchain_versions, slots, status, desired_mode,
             last_heartbeat_at, credential_generation, inventory_revision,
+            archived_at, cleanup_state, cleanup_requested_at,
+            cleanup_confirmed_at,
             created_at, updated_at, version, clock_timestamp() as now
      from bakery.worker_hosts
      where id = $1`,
@@ -244,6 +251,16 @@ async function safeWorkerProjection(
       ? iso(host.last_heartbeat_at)
       : null,
     credentialGeneration: host.credential_generation,
+    archivedAt: host.archived_at ? iso(host.archived_at) : null,
+    cleanup: {
+      state: host.cleanup_state,
+      requestedAt: host.cleanup_requested_at
+        ? iso(host.cleanup_requested_at)
+        : null,
+      confirmedAt: host.cleanup_confirmed_at
+        ? iso(host.cleanup_confirmed_at)
+        : null,
+    },
     createdAt: iso(host.created_at),
     updatedAt: iso(host.updated_at),
     version: host.version,
@@ -545,18 +562,29 @@ export async function revokeWorker(
       if (host.status === "revoked") {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      // Terminal for the credential generation: claims deny immediately, and
-      // offline cleanup stays unconfirmed until the host is seen again.
+      // Terminal for the credential generation: claims and heartbeats deny
+      // immediately. The host can no longer report, online or not, so its
+      // local cleanup is requested and stays unconfirmed: only host evidence
+      // may ever mark it confirmed, never the act of revoking.
       const updated = await transaction.query<{ version: number }>(
         `update bakery.worker_hosts
          set status = 'revoked', desired_mode = 'revoked',
              credential_generation = credential_generation + 1,
+             cleanup_state = 'unconfirmed',
+             cleanup_requested_at = clock_timestamp(),
              updated_at = current_timestamp, version = version + 1
          where organization_id = $1 and id = $2
          returning version`,
         [organization, workerHostId],
       );
       const version = updated.rows[0]?.version ?? 1;
+      await cancelOpenMaintenanceOnRevoke(
+        transaction,
+        organization,
+        principal.principalId,
+        workerHostId,
+        metadata,
+      );
       await appendWorkerEvent(
         transaction,
         organization,
@@ -586,6 +614,102 @@ export async function revokeWorker(
   );
 }
 
+/**
+ * Archives a revoked host: hides it from the default machine list while every
+ * historical reference (attempts, billing, maintenance history) keeps pointing
+ * at the same row. Archiving an archived host returns its archived state.
+ */
+export async function archiveWorker(
+  context: Context<{ Variables: AuthVariables }>,
+  options: ExecutionRouteOptions,
+): Promise<Response> {
+  const workerHostId = context.req.param("id") ?? "";
+  parseIdempotencyKey(context.req.header("Idempotency-Key"));
+  const metadata = requestMetadata(context);
+  return await machineTransaction(
+    context,
+    options,
+    "worker:manage",
+    "workers.archive",
+    async (transaction, organization, principal) => {
+      const hosts = await transaction.query<{
+        status: string;
+        archived_at: Date | null;
+      }>(
+        `select status, archived_at from bakery.worker_hosts
+         where organization_id = $1 and id = $2
+         for update`,
+        [organization, workerHostId],
+      );
+      const host = hosts.rows[0];
+      if (!host) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      if (host.archived_at === null) {
+        if (host.status !== "revoked") {
+          throw new StandardError({
+            code: "STATE_CONFLICT",
+            params: { reason: "not_revoked" },
+          });
+        }
+        const updated = await transaction.query<{ version: number }>(
+          `update bakery.worker_hosts
+           set archived_at = clock_timestamp(),
+               updated_at = current_timestamp, version = version + 1
+           where organization_id = $1 and id = $2
+           returning version`,
+          [organization, workerHostId],
+        );
+        await appendWorkerEvent(
+          transaction,
+          organization,
+          "worker.updated",
+          workerHostId,
+          updated.rows[0]?.version ?? 1,
+          metadata.traceId,
+        );
+        await transaction.query(
+          `insert into bakery.audit_events (
+             organization_id, principal_id, operation, resource_type,
+             resource_id, outcome, request_id, trace_id, details
+           ) values ($1, $2, 'workers.archive', 'worker_host', $3,
+             'succeeded', $4, $5, '{}'::jsonb)`,
+          [
+            organization,
+            principal.principalId,
+            workerHostId,
+            metadata.requestId,
+            metadata.traceId,
+          ],
+        );
+      }
+      const projection = await safeWorkerProjection(transaction, workerHostId);
+      const response = contractSchemas.WorkerHost.parse(projection);
+      return jsonResponse(response, 200, host.archived_at !== null);
+    },
+  );
+}
+
+/** cursor, limit and includeArchived only; includeArchived is true|false. */
+function parseWorkerListQuery(
+  context: Context<{ Variables: AuthVariables }>,
+): { cursor?: string; limit: number; includeArchived: boolean } {
+  const search = new URL(context.req.url).searchParams;
+  const flags = search.getAll("includeArchived");
+  const flag = flags[0];
+  if (
+    flags.length > 1 ||
+    (flag !== undefined && flag !== "true" && flag !== "false")
+  ) {
+    throw new StandardError({ code: "MALFORMED_REQUEST" });
+  }
+  const cursor = search.get("cursor") ?? undefined;
+  const limit = Math.min(Number(search.get("limit") ?? 25), 100);
+  return {
+    ...(cursor === undefined ? {} : { cursor }),
+    limit,
+    includeArchived: flag === "true",
+  };
+}
+
 export async function listWorkers(
   context: Context<{ Variables: AuthVariables }>,
   options: ExecutionRouteOptions,
@@ -596,20 +720,27 @@ export async function listWorkers(
     "worker:read",
     "workers.list",
     async (transaction, organization, principal) => {
+      const query = parseWorkerListQuery(context);
       const binding: CursorBinding = {
         action: "workers.list",
         organizationId: organization,
         principalId: principal.principalId,
         ordering: "createdAt:asc,id:asc",
-        filters: JSON.stringify({}),
+        filters: JSON.stringify({ includeArchived: query.includeArchived }),
         schemaVersion: 1,
       };
-      const cursor = context.req.query("cursor") ?? undefined;
-      const limit = Math.min(Number(context.req.query("limit") ?? 25), 100);
-      const position = await decodeCursor(options.secret, cursor, binding);
+      const limit = query.limit;
+      const position = await decodeCursor(
+        options.secret,
+        query.cursor,
+        binding,
+      );
+      // Archived hosts are hidden unless the caller asks for them; the
+      // cursor is bound to that choice so a page cannot switch views.
       const rows = await transaction.query<{ id: string; created_at: Date }>(
         `select id, created_at from bakery.worker_hosts
          where organization_id = $1
+           and ($5::boolean or archived_at is null)
            and ($2::timestamptz is null or (created_at, id) > ($2, $3::uuid))
          order by created_at asc, id asc
          limit $4`,
@@ -618,6 +749,7 @@ export async function listWorkers(
           position?.createdAt ?? null,
           position?.id ?? null,
           limit + 1,
+          query.includeArchived,
         ],
       );
       const visible = rows.rows.slice(0, limit);
