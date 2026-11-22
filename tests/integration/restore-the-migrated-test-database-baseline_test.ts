@@ -196,6 +196,32 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a baseline captured before the code digest existed is refused and rebuilt",
+  async () => {
+    await withDatabase(async (owner, ownerPg) => {
+      await resetToMigratedBaseline(owner, ownerPg, resetOptions);
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "restored",
+      );
+      // The shape of a baseline from before the digest was recorded.
+      await owner.unsafe(
+        "alter table bakery_baseline.meta drop column code_digest",
+      );
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "rebuilt",
+      );
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "restored",
+        "the rebuild captured a baseline with the digest",
+      );
+    });
+  },
+);
+
 Deno.test("a full reset drops the baseline so it can never outlive a rebuild", async () => {
   await withDatabase(async (owner, ownerPg) => {
     await resetToMigratedBaseline(owner, ownerPg, resetOptions);
