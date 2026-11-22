@@ -1,14 +1,13 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import {
-  DELIVERY_GATE_STEP_KEY,
-  DELIVERY_LOOP_STOPPED_CODE,
   findingFingerprint,
   REVIEW_LOOP_LIMITS,
 } from "../../../packages/contracts/src/review-evidence.ts";
 import {
   assertDeliveryCandidateMergeable,
 } from "../../../apps/server/src/modules/delivery/index.ts";
+import { PLAN_DELIVERY_STOPPED_CODE } from "../../../apps/server/src/modules/delivery/plan-host.ts";
 import {
   closePgDatabase,
   openPgDatabase,
@@ -126,28 +125,59 @@ async function taskStatus(
 }
 
 /** Distinct sessions per model-backed step, and the cycle rows' provenance. */
+/**
+ * The step names of one review cycle: the step whose session produced the
+ * candidate and the review step that judged it. A repair round's steps are the
+ * plan's own, nested under the round (`repair@1.repair_implement@0`).
+ */
+type CycleSteps = { readonly implement: string; readonly review: string };
+
+const SEED_CYCLE: CycleSteps = { implement: "implement@0", review: "review@0" };
+const REPAIR_CYCLE: CycleSteps = {
+  implement: "repair@1.repair_implement@0",
+  review: "repair@1.repair_review@0",
+};
+
 async function assertProvenance(
   ctx: ScenarioContext,
   runId: string,
-  implementing: readonly string[],
+  cycleSteps: readonly CycleSteps[],
 ): Promise<void> {
   const sessions = await readSessions(ctx, runId);
   const ids = [...sessions.values()];
   assertEquals(new Set(ids).size, ids.length, "every step has its own session");
   const cycles = await readCycles(ctx, runId);
   const principal = await hostPrincipal(ctx, ctx.worker.workerHostId);
+  assertEquals(cycles.length, cycleSteps.length);
   cycles.forEach((cycle, ordinal) => {
-    assertEquals(cycle.reviewer_session_id, sessions.get(`review@${ordinal}`));
-    assertEquals(
-      cycle.implementer_session_id,
-      sessions.get(implementing[ordinal]),
-    );
+    const names = cycleSteps[ordinal];
+    assert(sessions.get(names.review), `${names.review} has no session`);
+    assert(sessions.get(names.implement), `${names.implement} has no session`);
+    assertEquals(cycle.reviewer_session_id, sessions.get(names.review));
+    assertEquals(cycle.implementer_session_id, sessions.get(names.implement));
     assertNotEquals(cycle.reviewer_session_id, cycle.implementer_session_id);
     // The substitute is one host, so reviewer and implementer share a
     // principal. That is allowed; what the server records is both.
     assertEquals(cycle.reviewer_principal_id, principal);
     assertEquals(cycle.implementer_principal_id, principal);
   });
+}
+
+/**
+ * The failure codes the engine audited for a plan run. A recorded stop halts a
+ * compiled plan with `delivery_loop_stopped`; it gets no delivery_gate row.
+ */
+async function planFailures(
+  ctx: ScenarioContext,
+  runId: string,
+): Promise<string[]> {
+  const rows = await ctx.stack.psql<{ code: string }>(
+    `select details ->> 'code' as code from bakery.audit_events
+      where organization_id = $1 and operation = 'workflow.plan_failed'
+        and resource_id = $2 order by created_at, id`,
+    [ctx.organizationId, runId],
+  );
+  return rows.map(({ code }) => code);
 }
 
 async function mergeRefusal(
@@ -203,8 +233,8 @@ export async function repairThenProceed(ctx: ScenarioContext) {
   assertEquals(jobsOf(observed), [
     "implement@0:harness.implement",
     "review@0:review.independent",
-    "repair@1:harness.repair",
-    "review@1:review.independent",
+    "repair@1.repair_implement@0:harness.repair",
+    "repair@1.repair_review@0:review.independent",
   ]);
   const steps = await readSteps(ctx, run.runId);
   assertEquals(
@@ -214,9 +244,9 @@ export async function repairThenProceed(ctx: ScenarioContext) {
       "implement@0:completed",
       "check@0:completed",
       "review@0:completed",
-      "repair@1:completed",
-      "check@1:completed",
-      "review@1:completed",
+      "repair@1.repair_implement@0:completed",
+      "repair@1.repair_check@0:completed",
+      "repair@1.repair_review@0:completed",
     ],
   );
   const stepId = (name: string) =>
@@ -226,7 +256,7 @@ export async function repairThenProceed(ctx: ScenarioContext) {
   const checks = await readChecks(ctx, run.runId);
   await assertChecksRanOnProductionHost(ctx, run.runId);
   const first = rowsOf(checks, stepId("check@0"));
-  const second = rowsOf(checks, stepId("check@1"));
+  const second = rowsOf(checks, stepId("repair@1.repair_check@0"));
   const outcome = (rows: readonly CheckRow[]) =>
     Object.fromEntries(
       rows.map((row) => [row.check_id, `${row.result}/${row.reason}`]),
@@ -243,7 +273,9 @@ export async function repairThenProceed(ctx: ScenarioContext) {
   assert(second.every((row) => row.head_sha === commits.fixed));
   const failedUnit = first.find((row) => row.check_id === "unit")!;
   assertEquals(failedUnit.exit_code, 3);
-  const checkOutputs = steps.filter((step) => step.step_key === "check");
+  const checkOutputs = ["check@0", "repair@1.repair_check@0"].map((name) =>
+    steps.find((step) => stepName(step) === name)!
+  );
   assertEquals(checkOutputs[0].output?.allRequired, false);
   assertEquals(checkOutputs[0].output?.failedCheckIds, [failedUnit.id]);
   assertEquals(checkOutputs[1].output?.allRequired, true);
@@ -291,9 +323,9 @@ export async function repairThenProceed(ctx: ScenarioContext) {
   );
   assertEquals(cycles.map((cycle) => cycle.run_step_id), [
     stepId("review@0"),
-    stepId("review@1"),
+    stepId("repair@1.repair_review@0"),
   ]);
-  await assertProvenance(ctx, run.runId, ["implement@0", "repair@1"]);
+  await assertProvenance(ctx, run.runId, [SEED_CYCLE, REPAIR_CYCLE]);
   const decisions = await readDecisions(ctx, run.runId);
   assertEquals(
     decisions.map(({ ordinal, decision, reason, head_sha }) => [
@@ -406,7 +438,10 @@ export async function cleanSeed(ctx: ScenarioContext) {
     ],
   );
   // Zero repair rows: the on-demand step was never created.
-  assertEquals(steps.filter((step) => step.step_key === "repair").length, 0);
+  assertEquals(
+    steps.filter((step) => step.step_key.startsWith("repair@")).length,
+    0,
+  );
   const checks = await readChecks(ctx, run.runId);
   await assertChecksRanOnProductionHost(ctx, run.runId);
   assertEquals(checks.length, 2);
@@ -418,7 +453,7 @@ export async function cleanSeed(ctx: ScenarioContext) {
   assertEquals(cycles.map((cycle) => [cycle.ordinal, cycle.status]), [
     [0, "approved"],
   ]);
-  await assertProvenance(ctx, run.runId, ["implement@0"]);
+  await assertProvenance(ctx, run.runId, [SEED_CYCLE]);
   const decisions = await readDecisions(ctx, run.runId);
   assertEquals(
     decisions.map(({ ordinal, decision, reason }) => [
@@ -480,8 +515,8 @@ export async function repeatedBlocker(ctx: ScenarioContext) {
   assertEquals(jobsOf(observed), [
     "implement@0:harness.implement",
     "review@0:review.independent",
-    "repair@1:harness.repair",
-    "review@1:review.independent",
+    "repair@1.repair_implement@0:harness.repair",
+    "repair@1.repair_review@0:review.independent",
   ]);
   const fingerprint = await findingFingerprint({
     path: BLOCKER.path,
@@ -497,10 +532,9 @@ export async function repeatedBlocker(ctx: ScenarioContext) {
       "implement@0:completed",
       "check@0:completed",
       "review@0:completed",
-      "repair@1:completed",
-      "check@1:completed",
-      "review@1:completed",
-      `${DELIVERY_GATE_STEP_KEY}@1:failed`,
+      "repair@1.repair_implement@0:completed",
+      "repair@1.repair_check@0:completed",
+      "repair@1.repair_review@0:completed",
     ],
   );
   const decisions = await readDecisions(ctx, run.runId);
@@ -516,12 +550,10 @@ export async function repeatedBlocker(ctx: ScenarioContext) {
     [fingerprint],
     [fingerprint],
   ]);
-  const gateStep = steps.at(-1)!;
-  assertEquals(gateStep.error, {
-    code: DELIVERY_LOOP_STOPPED_CODE,
-    reason: "repeated_blocker",
-    decisionId: decisions[1].id,
-  });
+  // The recorded stop halts the plan: no delivery_gate row, one plan failure.
+  assert(!steps.some((step) => step.step_key === "delivery_gate"));
+  const failures = await planFailures(ctx, run.runId);
+  assertEquals(failures, [PLAN_DELIVERY_STOPPED_CODE]);
 
   // The repair was handed the blocker, not a failed check (the checks passed).
   const repair = observed[2];
@@ -541,7 +573,7 @@ export async function repeatedBlocker(ctx: ScenarioContext) {
     commits.fixed,
     commits.followUp,
   ]);
-  await assertProvenance(ctx, run.runId, ["implement@0", "repair@1"]);
+  await assertProvenance(ctx, run.runId, [SEED_CYCLE, REPAIR_CYCLE]);
   await assertChecksRanOnProductionHost(ctx, run.runId);
 
   // Nothing approved the candidate: no approved cycle, no proceed decision,
@@ -588,7 +620,7 @@ export async function repeatedBlocker(ctx: ScenarioContext) {
     decisions: decisions.map((row) =>
       `${row.ordinal}:${row.decision}/${row.reason}`
     ),
-    deliveryGateError: gateStep.error,
+    planFailures: failures,
     gate: { mergeBlocked: gate.mergeBlocked, reasons: gate.reasons },
     approvedCycles: Number(approved[0].count),
   };
@@ -622,7 +654,6 @@ export async function reviewerUnavailable(ctx: ScenarioContext) {
       "implement@0:completed",
       "check@0:completed",
       "review@0:failed",
-      `${DELIVERY_GATE_STEP_KEY}@0:failed`,
     ],
   );
   await assertChecksRanOnProductionHost(ctx, run.runId);
@@ -641,11 +672,10 @@ export async function reviewerUnavailable(ctx: ScenarioContext) {
     ]),
     [[0, "stop", "reviewer_unavailable", null, commits.fixed]],
   );
-  assertEquals(steps.at(-1)!.error, {
-    code: DELIVERY_LOOP_STOPPED_CODE,
-    reason: "reviewer_unavailable",
-    decisionId: decisions[0].id,
-  });
+  assert(!steps.some((step) => step.step_key === "delivery_gate"));
+  assertEquals(await planFailures(ctx, run.runId), [
+    PLAN_DELIVERY_STOPPED_CODE,
+  ]);
   const gate = await readGate(ctx, run.runId);
   assertEquals(gate.mergeBlocked, true);
   assertEquals(gate.reasons, ["decision_stop:reviewer_unavailable"]);
