@@ -1,22 +1,32 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "6383ab14bf813b5f3e2ded3af9c8eaad892343bc"
+    "c0f886bf8ac73fe9333f75534360e8a7a383db72"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:5f16d7f48787470071291253f26f4d4b264d63f6242da3d8e5708560a6cd0fe7",
-  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 6383ab14bf813b5f3e2ded3af9c8eaad892343bc: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:0ed6daa30949e9c443962b73fc84c0b890c7bf69466af9dc1eff0568e1b82cd2",
+  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main c0f886bf8ac73fe9333f75534360e8a7a383db72: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
-        "268affb09af43ea637472f898fbe9f420263da39"
+        "6383ab14bf813b5f3e2ded3af9c8eaad892343bc"
       ],
       "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:4f244b6c82e9cda25d7f7d5183bed226a2ad1ef8a8b107d8cc4655dff5341795",
-      "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 27ba7621c7a2d02f2caa7b61b169b85e56eaf491: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below."
+      "targetCompatibilityDigest": "sha256:e2186db90c4ab331ef2d618e8a37454155a10040e69f5a1367165582e5edb32f",
+      "reason": "#42 and #74 by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 6383ab14bf813b5f3e2ded3af9c8eaad892343bc: Skill carries its description and SkillSource its name; skills.list takes a name search; skillVersions.list is implemented; skills.setActiveVersion, skillImports.get, skills.takeSourceUpdate and skillDraftFiles.rename are new; SkillVersion carries publishedAt and label; skills.import takes an optional revision (a web-address archive is pinned by its digest), label and scope. My earlier approval on main b750d78a4 is kept first below, then main's own #431 approval it displaced."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b750d78a4c2b196d70369f8d2900057c3109609b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c3794204f1e29bc7ea756ede5cbe7bcd8301df62f8bfdb1292386ace01dfa748",
+      "reason": "#42 and #74 by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main b750d78a4c2b196d70369f8d2900057c3109609b: Skill carries its description and SkillSource its name; skills.list takes a name search; skillVersions.list is implemented; skills.setActiveVersion, skillImports.get, skills.takeSourceUpdate and skillDraftFiles.rename are new; SkillVersion carries publishedAt and label; skills.import takes an optional revision (a web-address archive is pinned by its digest), label and scope. Main's own #431 approval it displaces is kept unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
