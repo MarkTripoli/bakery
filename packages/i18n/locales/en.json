@@ -18,7 +18,7 @@
   "core.reference.copied": "Copied",
   "core.reference.copyFailed": "Could not copy. Select the id above.",
   "core.reference.opensNewTab": "(opens in a new tab)",
-  "core.reference.opensOnGitHub": "Opens on GitHub in a new tab.",
+  "core.reference.opensOutside": "Opens in a new tab.",
   "core.actions.switchOrganization": "Switch organization",
   "core.actions.signOut": "Sign out",
   "core.actions.signIn": "Sign in",
