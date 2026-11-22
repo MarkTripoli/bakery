@@ -195,3 +195,37 @@ Deno.test("a rollback cut before the switch reads back failed, after it reads ba
     await Deno.remove(w.parent, { recursive: true });
   }
 });
+
+Deno.test("a rollback cut after the switch answers the same by status and by its repeated key (#43 AC2)", async () => {
+  const w = await world();
+  try {
+    const first = await prepared(w.target, SHA_A);
+    await w.target.deploy({ releaseId: first.releaseId, effectKey: "first" });
+    const second = await prepared(w.target, SHA_B);
+    const live = await w.target.deploy({
+      releaseId: second.releaseId,
+      effectKey: "second",
+    });
+    await w.target.rollback({
+      deploymentId: live.deploymentId,
+      effectKey: "back",
+    });
+    // The crash: the pointer is back on the first release, the record write was lost.
+    const recordPath = join(w.root, "deployments", `${live.deploymentId}.json`);
+    const record = await readJson(recordPath);
+    await Deno.writeTextFile(
+      recordPath,
+      JSON.stringify({ ...record, status: "rolling_back" }),
+    );
+    const byStatus = await w.target.status({ effectKey: "back" });
+    const byKey = await w.target.rollback({
+      deploymentId: live.deploymentId,
+      effectKey: "back",
+    });
+    assertEquals(byStatus.status, "rolled_back");
+    assertEquals(byKey.status, "rolled_back");
+    assertEquals(byKey.restoredCommitSha, SHA_A);
+  } finally {
+    await Deno.remove(w.parent, { recursive: true });
+  }
+});

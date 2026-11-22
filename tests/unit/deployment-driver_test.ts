@@ -384,3 +384,20 @@ Deno.test("the same effect key answers with the first call, and nothing from out
   assertEquals(unknownEffect.status, "failed");
   assertEquals(unknownEffect.deploymentId, null);
 });
+
+Deno.test("a deployment whose digest is not sha256:<64 hex> fails before anything is prepared (#43 AC3)", async () => {
+  const h = await harness();
+  const driver = createDeploymentDriver({
+    ledger: h.ledger,
+    adapter: h.target,
+  });
+  const queued = await h.queue(SHA_A);
+  h.rows.set(queued.id, { ...queued, artifactDigest: "sha256:short" });
+  const outcome = await driver.deploy(queued.id, { profileRevision: 1 });
+  assertEquals(outcome.deployment.status, "failed");
+  await assertRejects(
+    () => Deno.stat(join(h.root, "releases")),
+    Deno.errors.NotFound,
+  );
+  assertEquals(await h.served(), null);
+});

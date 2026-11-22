@@ -59,6 +59,10 @@ export type DeploymentDriver = Readonly<{
   settle(deploymentId: string, effectKey: string): Promise<DriveOutcome>;
 }>;
 
+function isSha256Digest(value: string): value is `sha256:${string}` {
+  return /^sha256:[0-9a-f]{64}$/.test(value);
+}
+
 export function createDeploymentDriver(
   deps: Readonly<{ ledger: DeploymentLedger; adapter: ReleaseAdapter }>,
 ): DeploymentDriver {
@@ -132,6 +136,11 @@ export function createDeploymentDriver(
     let record = await ledger.read(deploymentId);
     // Already driven: nothing to start. An unknown one is settled, not redone.
     if (record.status !== "queued") return done(record);
+    // The store keeps the digest as text; a malformed one is no artifact to verify.
+    if (!isSha256Digest(record.artifactDigest)) {
+      return done(await move(record, "failed"));
+    }
+    const artifactDigest = record.artifactDigest;
 
     let prepared;
     try {
@@ -139,13 +148,13 @@ export function createDeploymentDriver(
         repositoryId: record.repositoryId,
         headSha: record.commitSha,
         profileRevision: input.profileRevision,
-        expectedDigest: record.artifactDigest as `sha256:${string}`,
+        expectedDigest: artifactDigest,
       });
     } catch {
       // Preparing changes nothing in the environment: a failed prepare is final.
       return done(await move(record, "failed"));
     }
-    if (prepared.artifactDigest !== record.artifactDigest) {
+    if (prepared.artifactDigest !== artifactDigest) {
       return done(await move(record, "failed"));
     }
 

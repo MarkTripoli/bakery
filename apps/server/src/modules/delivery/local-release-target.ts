@@ -112,6 +112,13 @@ type JournalFile = {
   releaseId: string;
 };
 
+/** A rollback applied: the record says so, or the pointer is already back on the previous release. */
+function isRestored(record: DeploymentFile, pointer: Pointer | null): boolean {
+  return record.status === "rolled_back" ||
+    (record.previous !== null &&
+      pointer?.deploymentId === record.previous.deploymentId);
+}
+
 function sha256(bytes: Uint8Array | string): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -346,9 +353,7 @@ export function createLocalReleaseTarget(
         };
       }
       // A rollback effect: applied once the pointer is back on the previous one.
-      const restored = record.status === "rolled_back" ||
-        (record.previous !== null &&
-          pointer?.deploymentId === record.previous.deploymentId);
+      const restored = isRestored(record, pointer);
       return {
         deploymentId: record.deploymentId,
         effectId: journal.effectId,
@@ -411,13 +416,21 @@ export function createLocalReleaseTarget(
         ) {
           throw new ReleaseRefused("effect_key_reused");
         }
-        const restored = record.status === "rolled_back";
+        if (record.previous === null) {
+          throw new ReleaseRefused("no_previous_release");
+        }
+        // The same test status() uses: a crash after the switch and before the
+        // record write must not read differently by the two calls.
+        const restored = isRestored(
+          record,
+          await readJson<Pointer>(pointerPath),
+        );
         return {
           deploymentId: record.deploymentId,
-          restoredCommitSha: record.previous?.commitSha ?? record.commitSha,
+          restoredCommitSha: record.previous.commitSha,
           effectId: journal.effectId,
           status: restored ? "rolled_back" : "unknown",
-        } as RollbackResult;
+        };
       }
       if (record.previous === null) {
         throw new ReleaseRefused("no_previous_release");
