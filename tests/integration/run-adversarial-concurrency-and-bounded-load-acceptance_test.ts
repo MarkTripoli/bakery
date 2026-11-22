@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { authTestOrigin } from "../helpers/auth.ts";
 import { seedOrganization } from "../helpers/coordinator-turns.ts";
 import {
   countRows,
@@ -13,8 +14,12 @@ import {
   closeWorkerScope,
   createWorkerScope,
   openWorkerFixture,
+  registeredWorker,
+  workerFixtureCapabilities,
+  workerRequest,
   type WorkerScope,
 } from "../helpers/worker-execution.ts";
+import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
 import {
   admitFundedModelRun as admit,
   fundedModelPolicy,
@@ -277,4 +282,188 @@ Deno.test("AC1: two admins demoting each other at once get a clean answer, never
         2 - statuses.filter((status) => status === 200).length,
       );
     }
+  }));
+
+Deno.test("AC2: a flooded organization's queue never delays another organization's claim", async () => {
+  const fixture = await openWorkerFixture();
+  const database = fixture.pgDatabase;
+  let quiet: WorkerScope | undefined;
+  try {
+    quiet = await createWorkerScope(fixture, "fair-quiet-tenant", fixture);
+    // A noisy organization queues a backlog at the highest priority.
+    for (let index = 0; index < 40; index++) {
+      await seedEligibleNonmodelJob(
+        database,
+        fixture.organizationId,
+        fixture.principalId,
+        { priority: 100 },
+      );
+    }
+    const quietJob = await seedEligibleNonmodelJob(
+      database,
+      quiet.organizationId,
+      fixture.principalId,
+      { priority: 1 },
+    );
+    const noisyWorker = await registeredWorker(fixture, {
+      name: "fair-noisy",
+      slots: 4,
+    });
+    const quietWorker = await registeredWorker(fixture, {
+      name: "fair-quiet",
+      slots: 1,
+      scope: quiet,
+    });
+    const claim = (worker: typeof quietWorker) => {
+      const claimKey = crypto.randomUUID();
+      return workerRequest(
+        fixture,
+        worker.credential,
+        "/v1/worker/claims",
+        {
+          claimKey,
+          workerHostId: worker.registration.workerHostId,
+          capabilities: [...workerFixtureCapabilities],
+          supportedActions: ["quality.check"],
+        },
+        { idempotencyKey: claimKey },
+      );
+    };
+    // The noisy worker drains its own backlog while the quiet one claims.
+    const [quietClaim, ...noisyClaims] = await Promise.all([
+      claim(quietWorker),
+      ...Array.from({ length: 4 }, () => claim(noisyWorker)),
+    ]);
+    assertEquals(quietClaim.status, 200);
+    await quietClaim.body?.cancel();
+    await Promise.all(noisyClaims.map((response) => response.body?.cancel()));
+    const attempts = (await database.query<
+      { organization_id: string; job_id: string; worker_host_id: string }
+    >(
+      `select organization_id, job_id, worker_host_id from bakery.job_attempts
+        where worker_host_id = any($1::uuid[])`,
+      [[
+        quietWorker.registration.workerHostId,
+        noisyWorker.registration.workerHostId,
+      ]],
+    )).rows;
+    // The quiet organization's only job went to its own worker at once, and
+    // no worker ever crossed into the other organization's queue.
+    const quietAttempts = attempts.filter((row) =>
+      row.worker_host_id === quietWorker.registration.workerHostId
+    );
+    assertEquals(quietAttempts.map((row) => row.job_id), [quietJob.jobId]);
+    for (const row of attempts) {
+      const expected = row.worker_host_id ===
+          quietWorker.registration.workerHostId
+        ? quiet.organizationId
+        : fixture.organizationId;
+      assertEquals(row.organization_id, expected);
+    }
+  } finally {
+    if (quiet) await closeWorkerScope(fixture, quiet);
+    await closeWorkerFixture(fixture);
+  }
+});
+
+Deno.test("AC2: oversized bodies from a hostile tenant are refused at the cap while healthy writes proceed", () =>
+  withFixture(async (fixture) => {
+    const hostile = await seedOrganization(fixture, "flood-hostile", {
+      role: "admin",
+      agent: false,
+    });
+    const healthy = await seedOrganization(fixture, "flood-healthy", {
+      role: "admin",
+      agent: false,
+    });
+    const capBytes = 1024 * 1024;
+    const oversized = JSON.stringify({
+      slug: "flood",
+      name: "flood",
+      description: "x".repeat(2 * capBytes),
+    });
+    const flood = (declared: boolean) => {
+      const headers = new Headers({
+        cookie: hostile.cookie,
+        "Bakery-Organization-Id": hostile.organizationId,
+        origin: authTestOrigin,
+        "content-type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      });
+      // Half declare their size; half stream it with no length, so the cap
+      // must hold while reading, not only on the header.
+      if (declared) {
+        headers.set("content-length", String(oversized.length));
+      }
+      const bytes = new TextEncoder().encode(oversized);
+      const body = declared ? bytes : new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (let offset = 0; offset < bytes.length; offset += 64 * 1024) {
+            controller.enqueue(bytes.slice(offset, offset + 64 * 1024));
+          }
+          controller.close();
+        },
+      });
+      return fixture.app.fetch(
+        new Request(`${authTestOrigin}/v1/workflows`, {
+          method: "POST",
+          headers,
+          body,
+        }),
+      );
+    };
+    const started = performance.now();
+    const [hostileResponses, healthyResponses] = await Promise.all([
+      Promise.all(
+        Array.from({ length: 24 }, (_, index) => flood(index % 2 === 0)),
+      ),
+      Promise.all(
+        Array.from(
+          { length: 4 },
+          (_, index) =>
+            send(fixture, { seed: healthy }, "POST", "/v1/workflows", {
+              body: {
+                slug: `healthy-${index}`,
+                name: `healthy ${index}`,
+                description: "",
+              },
+            }),
+        ),
+      ),
+    ]);
+    const elapsedMs = performance.now() - started;
+    for (const response of hostileResponses) {
+      const problem = await response.json() as {
+        code?: string;
+        limit?: number;
+      };
+      assertEquals(response.status, 413);
+      assertEquals(problem.code, "BODY_TOO_LARGE");
+      assertEquals(problem.limit, capBytes);
+    }
+    for (const response of healthyResponses) {
+      assertEquals(response.status, 201, await response.clone().text());
+      await response.body?.cancel();
+    }
+    // Bounded: the healthy tenant's writes are not held behind the flood.
+    assert(
+      elapsedMs < 15_000,
+      `healthy writes took ${Math.round(elapsedMs)} ms`,
+    );
+    assertEquals(
+      await countRows(
+        fixture,
+        "select count(*) from bakery.workflow_definitions where organization_id = $1",
+        [hostile.organizationId],
+      ),
+      0,
+    );
+    assertEquals(
+      await countRows(
+        fixture,
+        "select count(*) from bakery.workflow_definitions where organization_id = $1",
+        [healthy.organizationId],
+      ),
+      4,
+    );
   }));

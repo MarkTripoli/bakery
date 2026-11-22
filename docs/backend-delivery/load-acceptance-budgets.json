@@ -1,0 +1,30 @@
+{
+  "$comment": "Issue #48 bounded-load acceptance. Committed before any measurement. A missed budget fails the load lane; budgets change only in a reviewed commit, never after observing a run.",
+  "referenceHost": {
+    "description": "Single developer host, one throwaway Postgres container, server in-process.",
+    "cpu": "AMD Ryzen 5 7640HS, 12 threads",
+    "memoryGiB": 25,
+    "postgres": "postgres:16-alpine, default settings",
+    "note": "CI nightly runners must be at least this size; a slower host that misses a budget is a failure, not a reason to raise the budget."
+  },
+  "workload": {
+    "tasks": 10000,
+    "domainEvents": 100000,
+    "eventClients": 50,
+    "workerSlots": 4,
+    "organizations": {
+      "noisyShare": 0.9,
+      "quietShare": 0.1
+    }
+  },
+  "budgets": {
+    "taskListFirstPageP95Ms": 250,
+    "taskListDeepPageP95Ms": 250,
+    "eventReplayPageP95Ms": 250,
+    "eventFanoutAllClientsMs": 5000,
+    "workerClaimP95Ms": 500,
+    "maxActiveAttemptsPerWorker": 4,
+    "serverHeapGrowthMiB": 256,
+    "seqScanOnLargeTablesAllowed": false
+  }
+}
