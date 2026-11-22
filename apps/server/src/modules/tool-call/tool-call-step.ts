@@ -7,6 +7,7 @@ import type {
   ProviderRequestPort,
 } from "../catalog/integration-gate.ts";
 import { invokeIntegration } from "../catalog/integration-invoke.ts";
+import type { EffectExecutorDeps } from "../effects/index.ts";
 import {
   connectionInvokeDeps,
   toConnectionInvokeResponse,
@@ -45,6 +46,13 @@ export type ToolCallStepDeps = Readonly<{
   providerRequests: ProviderRequestPort;
   /** Reads authority from here instead of the database. For tests that fake the authority. */
   snapshots?: AuthoritySnapshotPort;
+  /** Lease, deadline and generation bounds of the effect ledger; the defaults unless a test narrows them. */
+  effects?: Partial<
+    Pick<
+      EffectExecutorDeps,
+      "leaseSeconds" | "deadlineMs" | "maxDispatchGenerations"
+    >
+  >;
   /** Finds which kind of connection an id names. Defaults to the connection tables. */
   connectionKind?: (
     organizationId: string,
@@ -144,13 +152,17 @@ export function createToolCallStepRunner(
             connection.snapshotsFor(transaction).load(snapshotKey),
         ),
     };
+    const snapshotsFor = deps.snapshots === undefined
+      ? connection.snapshotsFor
+      : () => deps.snapshots!;
     try {
       const result = await invokeIntegration({
         database: deps.database,
         registry: deps.registry,
-        snapshotsFor: connection.snapshotsFor,
+        snapshotsFor,
         providerRequests: deps.providerRequests,
         snapshots,
+        ...deps.effects,
       }, {
         organizationId: request.organizationId,
         actorRef: request.requestedBy,
