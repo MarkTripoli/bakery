@@ -55,7 +55,7 @@ type FiringFacts = {
 };
 
 /** Refusals that waiting does not change: the firing fails instead of retrying. */
-const DETERMINISTIC = new Set([
+export const DETERMINISTIC = new Set([
   "UNPROCESSABLE",
   "VALIDATION_FAILED",
   "STATE_CONFLICT",
@@ -80,7 +80,7 @@ export function failureCodeOf(error: StandardError): string {
 }
 
 /** Live actor holding `task:write` and `run:write` in the organization, or null. */
-async function liveActor(
+export async function liveActor(
   transaction: PgTransactionClient,
   organizationId: string,
   principalId: string,
@@ -100,7 +100,7 @@ async function liveActor(
   }
 }
 
-function internalContext(
+export function internalContext(
   transaction: PgTransactionClient,
   actor: OrganizationActor,
   trace: { requestId: string; traceId: string },
