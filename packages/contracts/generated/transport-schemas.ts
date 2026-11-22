@@ -12453,9 +12453,9 @@ const transportSchemas = {
       "fields": [
         {
           "name": "power",
-          "type": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
+          "type": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection|ask)",
           "required": true,
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) draft_connection (draft a personal connection with no secret that a person completes) or ask (ask, on the agent's own run, the one role or group the grant names, through run requests)."
         },
         {
           "name": "workflowId",
@@ -12468,12 +12468,35 @@ const transportSchemas = {
           "type": "uuid|null",
           "required": false,
           "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp|null",
+          "required": false,
+          "description": "When the grant stops working. Null or absent means it never expires; once past, every use is refused with AUTH_FORBIDDEN agent_power_grant_expired, checked live on each call. Must be in the future."
+        },
+        {
+          "name": "roleKey",
+          "type": "string|null",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "For an ask grant only: the role the agent may ask (admin, developer or a custom role's key). An ask grant names exactly one of roleKey and groupId."
+        },
+        {
+          "name": "groupId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "For an ask grant only: the organization group the agent may ask. An ask grant names exactly one of roleKey and groupId."
         }
       ],
       "rules": [
         "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
         "An unknown or foreign workflow and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
-        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
+        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists.",
+        "An ask grant names exactly one of roleKey and groupId (agent_power_grant_audience_required); any other power names neither (agent_power_grant_audience_unexpected). An unknown role or group answers RESOURCE_NOT_FOUND. An expiresAt in the past is agent_power_grant_expiry_past."
       ],
       "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
     },
@@ -13533,8 +13556,8 @@ const transportSchemas = {
         {
           "name": "recipientId",
           "type": "uuid",
-          "required": true,
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+          "required": false,
+          "description": "The one person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it. Name exactly one of recipientId, recipientRoleKey and recipientGroupId."
         },
         {
           "name": "intent",
@@ -13572,12 +13595,30 @@ const transportSchemas = {
           "type": "uuid",
           "required": false,
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to ask instead of one person. Every active member of the group, other than the asker, is asked, each with their own request, resolved and frozen when the request is made. An agent may ask only a group its live ask grant names."
         }
       ],
       "rules": [
-        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request.",
+        "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
+        "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
       ],
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
     },
     "StorageFileContentQuery": {
       "fields": [
@@ -14749,6 +14790,38 @@ const transportSchemas = {
         "rpoSeconds is present exactly when cutoffAt is."
       ],
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "PluginBrokerRequest": {
+      "fields": [
+        {
+          "name": "requestId",
+          "type": "string<=128bytes",
+          "required": true,
+          "description": "Names one effect. A repeat of an id that already ran returns the recorded result and does not run the operation again."
+        },
+        {
+          "name": "sequence",
+          "type": "positiveInteger",
+          "required": true,
+          "description": "Strictly higher than the last request the broker accepted for this attempt; a reused or lower number is refused."
+        },
+        {
+          "name": "operation",
+          "type": "string<=64bytes",
+          "required": true,
+          "description": "Dotted name of a typed operation the host registered. The install must hold the grant of the same name."
+        },
+        {
+          "name": "args",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "The operation's arguments, an object. Identity is never taken from here: the install and organization come from the job the server wrote."
+        }
+      ],
+      "description": "One request from a contained plugin job, relayed by its worker to the install-scoped broker. The whole body is bounded to 64 KiB."
     },
     "BackupWalReport": {
       "fields": [
@@ -33722,31 +33795,48 @@ const transportSchemas = {
         "accessTokenId",
         "grantedBy",
         "createdAt",
-        "version"
+        "version",
+        "expiresAt",
+        "roleKey",
+        "groupId"
       ],
       "fieldTypes": {
         "id": "uuid",
-        "power": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection|ask)",
         "workflowId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "expiresAt": "timestamp|null",
+        "roleKey": "string|null",
+        "groupId": "uuid|null"
       },
       "nullableFields": [
         "workflowId",
-        "accessTokenId"
+        "accessTokenId",
+        "expiresAt",
+        "roleKey",
+        "groupId"
       ],
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection.",
+        "power": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work, draft_connection or ask.",
         "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
         "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
+        "version": "Optimistic-concurrency version a revoke must name in If-Match.",
+        "expiresAt": "When the grant stops working, or null when it never expires.",
+        "roleKey": "The role an ask grant lets the agent ask, otherwise null.",
+        "groupId": "The group an ask grant lets the agent ask, otherwise null."
+      },
+      "optionalFields": [
+        "expiresAt",
+        "roleKey",
+        "groupId"
+      ]
     },
     "RouteContinuationTarget": {
       "fields": [
@@ -35352,6 +35442,28 @@ const transportSchemas = {
         "displayName": "The person's saved display name."
       }
     },
+    "RunRequestAudience": {
+      "fields": [
+        "roleKey",
+        "groupId",
+        "name"
+      ],
+      "fieldTypes": {
+        "roleKey": "string|null",
+        "groupId": "uuid|null",
+        "name": "string"
+      },
+      "nullableFields": [
+        "roleKey",
+        "groupId"
+      ],
+      "description": "The role or group a request was asked of, frozen when the request was made with its members.",
+      "fieldDescriptions": {
+        "roleKey": "The role asked (admin, developer or a custom role's key), or null when a group was asked.",
+        "groupId": "The group asked, or null when a role was asked or the group has since been deleted.",
+        "name": "The role's or group's name when the request was made."
+      }
+    },
     "RunRequest": {
       "projection": "person_requests",
       "fields": [
@@ -35371,7 +35483,8 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "questionId"
+        "questionId",
+        "audience"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -35390,7 +35503,8 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "questionId": "uuid|null"
+        "questionId": "uuid|null",
+        "audience": "RunRequestAudience|null"
       },
       "nullableFields": [
         "stepKey",
@@ -35398,7 +35512,8 @@ const transportSchemas = {
         "note",
         "neededBy",
         "fallbackForName",
-        "questionId"
+        "questionId",
+        "audience"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -35418,10 +35533,12 @@ const transportSchemas = {
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
-        "questionId": "The approval or question the request asks about, or null when it asks for none."
+        "questionId": "The approval or question the request asks about, or null when it asks for none.",
+        "audience": "The role or group this request was asked of, or null when one person was asked."
       },
       "optionalFields": [
-        "questionId"
+        "questionId",
+        "audience"
       ]
     },
     "RunRequests": {
@@ -37685,6 +37802,63 @@ const transportSchemas = {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
+    "PluginBrokerOutcome": {
+      "fields": [
+        "ok",
+        "result",
+        "replayed",
+        "denial"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "result": "json|null",
+        "replayed": "boolean|null",
+        "denial": "string|null"
+      },
+      "description": "The broker's answer to one relayed plugin job request: the operation's result, or a typed denial. Exactly one of result and denial is non-null.",
+      "fieldDescriptions": {
+        "ok": "True when the broker ran the operation (or returned the recorded result of an earlier run of the same request id).",
+        "result": "The operation's result when ok is true; otherwise null.",
+        "replayed": "True when the request id had already run and this is its recorded result; null when ok is false.",
+        "denial": "Why the broker refused when ok is false, a short code such as install_off or not_granted; otherwise null."
+      }
+    },
+    "PluginJobFile": {
+      "fields": [
+        "path",
+        "contentBase64"
+      ],
+      "fieldTypes": {
+        "path": "string",
+        "contentBase64": "base64"
+      },
+      "description": "One file of the bundle a contained plugin job runs from.",
+      "fieldDescriptions": {
+        "path": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing.",
+        "contentBase64": "The file's exact bytes, base64 encoded."
+      }
+    },
+    "PluginJobFiles": {
+      "fields": [
+        "bundleDigest",
+        "entry",
+        "files"
+      ],
+      "fieldTypes": {
+        "bundleDigest": "sha256",
+        "entry": "string",
+        "files": "PluginJobFile[]"
+      },
+      "bounds": {
+        "filesMaxItems": 256
+      },
+      "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
+      "fieldDescriptions": {
+        "bundleDigest": "SHA-256 of the install's pinned bundle archive.",
+        "entry": "The path inside the bundle that the job was admitted to run.",
+        "files": "Every file of the bundle, at most 256 and 8 MiB in all."
+      }
+    },
     "Page<InstallationUpdateEvent>": {
       "pageOf": "InstallationUpdateEvent",
       "description": "Cursor page of the update history returned by `GET /v1/installation/updates`, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
@@ -39552,6 +39726,15 @@ const transportSchemas = {
       ],
       "description": "Built-in bounded trusted-source inspection with finite code-owned argv templates. Initial admission requires Git; other policy tools are inspected and recorded as missing rather than preventing an honest blocked observation."
     },
+    "rpi.research": {
+      "inputSchema": "ResearchInput",
+      "outputSchema": "ResearchOutput",
+      "schemaSource": "06-workflows-delivery-and-acceptance.md action schema registry",
+      "capabilities": [
+        "model",
+        "web"
+      ]
+    },
     "rpi.design": {
       "inputSchema": "DesignInput",
       "outputSchema": "ArtifactOutput",
@@ -39688,6 +39871,19 @@ const transportSchemas = {
         "storage"
       ],
       "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored. The worker makes one bounded judge call (rubric, output text and answer schema; no tools, no worktree) and reports its usage against the job's budget reservation; a worker with no judge provider, a timeout, or a schema-invalid answer reports unscored with the reason."
+    },
+    "plugin.job": {
+      "inputFields": {
+        "installId": "uuid",
+        "entry": "string"
+      },
+      "outputFields": {
+        "resultJson": "string<=65536"
+      },
+      "capabilities": [
+        "plugin.job.contained"
+      ],
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {

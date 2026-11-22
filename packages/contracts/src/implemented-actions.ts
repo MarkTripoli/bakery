@@ -1067,6 +1067,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Noop: "workflow.noop",
     Stop: "workflow.stop",
     HumanApproval: "human.approval",
+    Research: "rpi.research",
     Plan: "rpi.plan",
     Design: "rpi.design",
     Implement: "harness.implement",

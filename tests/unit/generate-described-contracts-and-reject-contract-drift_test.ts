@@ -884,15 +884,17 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "1905d2af6760f58cb4524134d52bfcee9510ef93",
+    "83d93c791db223b74ef780c491daacc88b6186eb",
   ];
   const approvedDigest =
-    "sha256:d3aa7dbfeaf4a75f58e9091c627979fec4a85a0e96f072d9a352fa8aae2e8700";
+    "sha256:6b1a1527439ecf302401efbce680bde4a1358991921c0003e0a95bce24564a7e";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #435 tool.call rebind onto main 1905d2af6: main's own #24 rpi.plan approval, kept unchanged.
+    // Displaced by the #435 tool.call rebind onto main 83d93c791: main's own #24 rpi.research approval, kept unchanged.
+    "sha256:cba657d3b5e61ad4d178963a28b853b3413fa520ea24aa07bbf57d0c42fb6e6e",
+    // Displaced by the #24 rpi.research rebind onto main 1905d2af6: main's own #24 rpi.plan approval, kept unchanged.
     "sha256:770002e627c102f3452a904db4196bd79dcc9f44933000d6814e1067193e04ca",
     // Displaced by the #24 rpi.plan rebind onto main fb86250ab: main's own #406 approval, kept unchanged.
     "sha256:d39302ddce6dc9fda8e6a4a80f4b854b604e12c2f749a38b7252831a291f58ea",

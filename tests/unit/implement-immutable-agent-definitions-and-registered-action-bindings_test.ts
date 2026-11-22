@@ -542,6 +542,7 @@ const runtimeSet = [
   "review.independent",
   "rpi.design",
   "rpi.plan",
+  "rpi.research",
   "secret.identity.read",
   "task.brief",
   "tool.call",

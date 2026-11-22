@@ -66,6 +66,17 @@ Deno.test("resolved input validation fails closed for an unavailable action", ()
   );
 });
 
+Deno.test("rpi.research is admitted with its registered worker capabilities and input (#24)", () => {
+  assertEquals(workflowActionCapabilities("rpi.research"), ["model", "web"]);
+  assertActionInput("rpi.research", {
+    taskId: crypto.randomUUID(),
+    repositoryId: crypto.randomUUID(),
+  });
+  assertThrows(
+    () => assertActionInput("rpi.research", { taskId: crypto.randomUUID() }),
+  );
+});
+
 Deno.test("workflow producer retains registry capabilities when requirements are empty or additive", () => {
   assertEquals(workflowActionCapabilities("quality.check"), quality);
   assertEquals(workflowActionCapabilities("quality.check", []), quality);
@@ -75,10 +86,9 @@ Deno.test("workflow producer retains registry capabilities when requirements are
   ]);
 });
 
-// `rpi.research` is in the registry but in neither execution table, so it is
-// still refused. `workflow.noop` moved OUT of this list: it is
-// runtime-implemented, so admission answers for it now.
-for (const action of ["unknown.action", "rpi.research"]) {
+// `workflow.noop` and `rpi.research` moved OUT of this list: both are
+// runtime-implemented, so admission answers for them now.
+for (const action of ["unknown.action"]) {
   Deno.test(`workflow producer rejects unavailable or control-only action ${action}`, () => {
     assertThrows(
       () => workflowActionCapabilities(action),
