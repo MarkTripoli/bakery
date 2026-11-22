@@ -2774,8 +2774,8 @@
       "method": "POST",
       "path": "/v1/skill-imports",
       "action": "skills.import",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
       "organizationContext": "required_authenticated_context",
       "input": "SkillImport",
       "output": "Run",
@@ -2795,6 +2795,27 @@
         "INSTALLATION_QUIESCED",
         "INSTALLATION_RESTORING"
       ]
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-imports/{id}",
+      "action": "skillImports.get",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "IdPath",
+      "output": "SkillImportResult",
+      "event": "",
+      "mcp": "bakery_skillImports_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Skills",
@@ -2969,6 +2990,32 @@
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/active-version",
+      "action": "skills.setActiveVersion",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillActiveVersionSet",
+      "output": "Skill",
+      "event": "skills.updated",
+      "mcp": "bakery_skills_setActiveVersion",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft",
       "action": "skillDrafts.open",
       "access": "Owner for personal; Admin for organization",
@@ -3090,6 +3137,33 @@
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/source-update/take",
+      "action": "skills.takeSourceUpdate",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillSourceUpdateTake",
+      "output": "Run",
+      "event": "skill.import.requested",
+      "mcp": "bakery_skills_takeSourceUpdate",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/check",
       "action": "skillDrafts.check",
       "access": "Owner for personal; Admin for organization",
@@ -3165,6 +3239,33 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/files/rename",
+      "action": "skillDraftFiles.rename",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFileRename",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "bakery_skillDraftFiles_rename",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context"
     },
@@ -3280,8 +3381,10 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
-      ]
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Skills",
@@ -6405,7 +6508,7 @@
     {
       "group": "Workers",
       "access": "Developer",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": null,
       "method": "POST",
       "path": "/v1/previews/{id}/stop",
@@ -7687,6 +7790,7 @@
       "action": "deployments.list",
       "access": "Developer",
       "permission": "deployment:read",
+      "organizationContext": "required_authenticated_context",
       "input": "RepositoryQuery",
       "output": "Page<Deployment>",
       "event": "",
@@ -7707,6 +7811,7 @@
       "action": "deployments.create",
       "access": "Developer+deploy grant",
       "permission": "deployment:promote",
+      "organizationContext": "required_authenticated_context",
       "input": "DeploymentCreate",
       "output": "Deployment",
       "event": "deployment.queued",
@@ -7729,6 +7834,7 @@
       "action": "deployments.rollback",
       "access": "Developer+deploy grant",
       "permission": "deployment:promote",
+      "organizationContext": "required_authenticated_context",
       "input": "DeploymentRollback",
       "output": "Deployment",
       "event": "deployment.rollback_requested",
@@ -8533,6 +8639,28 @@
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/workflow-definition-proposals",
+      "action": "workflowDefinitionProposals.list",
+      "access": "Developer",
+      "permission": "conversation:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkflowDefinitionProposal>",
+      "event": "",
+      "mcp": "bakery_workflowDefinitionProposals_list",
+      "idempotency": "read",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ]
     },

@@ -86,6 +86,8 @@ export type PanelTarget =
     /** The Skills section of an agent step written in code: a skill is not part of that code (#431). */
     readonly skills?: StepSkills;
     readonly attach?: StepAttach | null;
+    /** What a "Fix until it passes" block does (#62). The limit is said once, on the block. */
+    readonly help?: string;
   }
   | {
     readonly kind: "step";
@@ -161,6 +163,7 @@ export function StepPanel(
                 {target.problem}
               </UI.InlineNotice>
             )}
+          {target.help === undefined ? null : <UI.Text>{target.help}</UI.Text>}
           <UI.Text>
             {translate(
               (target.skills === undefined || target.skills.kind === "hidden"

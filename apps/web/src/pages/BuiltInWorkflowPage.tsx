@@ -18,6 +18,7 @@ import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import { presetSource } from "./library/copy-workflow.ts";
+import { presetDefinition } from "./library/preset-tree.ts";
 import { treeOf } from "./library/workflow-tree.ts";
 import { WorkflowDiagram } from "./library/WorkflowDiagram.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
@@ -48,11 +49,9 @@ export function BuiltInWorkflowPage(
 
   const preset = presets.data?.items.find((row) => row.id === presetId);
   // The same tree the editor draws, so no step is dropped from this page.
-  const tree = treeOf({
-    steps: preset === undefined
-      ? []
-      : preset.steps.map((step) => ({ id: step.id, uses: step.uses })),
-  });
+  const tree = treeOf(
+    presetDefinition(preset === undefined ? [] : preset.steps),
+  );
   const labels = preset === undefined
     ? undefined
     : presetCopy(translate, preset.id);

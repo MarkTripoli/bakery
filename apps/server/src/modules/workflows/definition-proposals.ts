@@ -6,6 +6,12 @@ import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
+import { lockConversationScope } from "../conversation/postgres.ts";
 import { MAX_WORKFLOW_DEFINITION_BYTES } from "./validation.ts";
 import { DefinitionProposalState } from "./proposal-supersession.ts";
 import {
@@ -46,6 +52,7 @@ type ProposalRow = {
   digest: string;
   state: string;
   decided_by: string | null;
+  decided_by_name: string | null;
   decided_at: Date | string | null;
   superseded_by_version_id: string | null;
   created_at: Date | string;
@@ -53,10 +60,14 @@ type ProposalRow = {
   version: number;
 };
 
+// The decider's current display name rides on every read and write; a
+// subquery keeps it valid in a RETURNING list too.
 const PROPOSAL_COLUMNS =
   `id, conversation_id, turn_id, workflow_id, base_draft_version, name,
-   definition, digest, state, decided_by, decided_at, superseded_by_version_id,
-   created_at, updated_at, version`;
+   definition, digest, state, decided_by,
+   (select principal.display_name from bakery.principals as principal
+     where principal.id = decided_by) as decided_by_name,
+   decided_at, superseded_by_version_id, created_at, updated_at, version`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -78,6 +89,7 @@ function toProposal(row: ProposalRow) {
       | "rejected"
       | "superseded",
     decidedBy: row.decided_by,
+    decidedByName: row.decided_by_name,
     decidedAt: row.decided_at === null ? null : iso(row.decided_at),
     supersededByVersionId: row.superseded_by_version_id,
     createdAt: iso(row.created_at),
@@ -222,13 +234,103 @@ async function readProposal(
   return row;
 }
 
+/**
+ * A proposal is read and decided with its conversation: the same scope check
+ * the conversation's own reads and the proposal list run, so a proposal whose
+ * conversation the caller cannot reach answers as an unknown id would.
+ */
+async function requireProposalConversation(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: ProposalRow,
+): Promise<void> {
+  await lockConversationScope(
+    transaction,
+    organizationId,
+    row.conversation_id,
+    "share",
+  );
+}
+
 export async function getWorkflowDefinitionProposal(context: ActionContext) {
   const { transaction, organizationId } = requireWorkTransaction(context);
   const proposalId = context.params.id;
   if (!proposalId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return toProposal(
-    await readProposal(transaction, organizationId, proposalId, false),
+  const row = await readProposal(
+    transaction,
+    organizationId,
+    proposalId,
+    false,
   );
+  await requireProposalConversation(transaction, organizationId, row);
+  return toProposal(row);
+}
+
+/**
+ * `workflowDefinitionProposals.list`: one conversation's proposals in the
+ * order they were proposed, keyset-paged. It reads exactly as the
+ * conversation does: the authority runner checks conversation:read (or a
+ * live mention grant on this conversation), and the scope check answers
+ * 404 for a conversation the reader cannot see.
+ */
+export function createConversationProposalsListHandler(secret: string) {
+  return async (context: ActionContext, rawInput: unknown) => {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const conversationId = context.params.id;
+    if (!conversationId) {
+      throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    }
+    await lockConversationScope(
+      transaction,
+      organizationId,
+      conversationId,
+      "share",
+    );
+    const input = rawInput as { cursor?: string; limit?: number };
+    const binding: CursorBinding = {
+      action: "workflowDefinitionProposals.list",
+      principalId,
+      organizationId,
+      ordering: "createdAt:asc,id:asc",
+      filters: JSON.stringify({ conversationId }),
+      schemaVersion: 1,
+    };
+    const position = await decodeCursor(secret, input.cursor, binding);
+    const limit = input.limit ?? 25;
+    const result = await transaction.query<
+      ProposalRow & { cursor_created_at: string }
+    >(
+      `select ${PROPOSAL_COLUMNS},
+              to_char(created_at at time zone 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
+         from bakery.workflow_definition_proposals
+        where organization_id = $1 and conversation_id = $2
+          and ($3::timestamptz is null
+            or (created_at, id) > ($3::timestamptz, $4::uuid))
+        order by created_at, id
+        limit $5`,
+      [
+        organizationId,
+        conversationId,
+        position?.createdAt ?? null,
+        position?.id ?? null,
+        limit + 1,
+      ],
+    );
+    const page = result.rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      items: page.map(toProposal),
+      nextCursor: result.rows.length > limit && last
+        ? await encodeCursor(secret, binding, {
+          createdAt: last.cursor_created_at,
+          id: last.id,
+        })
+        : null,
+    };
+  };
 }
 
 /**
@@ -261,12 +363,14 @@ export async function decideWorkflowDefinitionProposal(
   // settles waiting proposals, so a decision racing a publish waits instead
   // of deadlocking. workflow_id only ever moves from null to a definition, by
   // an accept, which the state check below then refuses.
-  const target = (await readProposal(
+  const observed = await readProposal(
     transaction,
     organizationId,
     proposalId,
     false,
-  )).workflow_id;
+  );
+  await requireProposalConversation(transaction, organizationId, observed);
+  const target = observed.workflow_id;
   if (target !== null) {
     await transaction.query(
       `select 1 from bakery.workflow_definitions

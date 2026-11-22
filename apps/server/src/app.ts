@@ -183,6 +183,7 @@ import {
   createGlobalSkillAuthority,
   withGlobalSkillInstall,
 } from "./modules/catalog/global-skills.ts";
+import { createArchiveRevisionAuthority } from "./modules/catalog/archive-revision.ts";
 import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
 import { createAgentsHandlers } from "./modules/agents/postgres.ts";
 import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
@@ -490,9 +491,14 @@ export function createApp(options: {
     {
       // Listing skills installs Bakery's own skills the first time: it needs
       // the file store, so the install runs in stages under this authority.
-      authorityRunner: createGlobalSkillAuthority(
-        new PostgresAuthorityRunner(options.pgDatabase),
-        skillFileStore,
+      // An import of a web-address archive that names no version is pinned by
+      // its content digest, fetched between two passes with no connection held.
+      authorityRunner: createArchiveRevisionAuthority(
+        createGlobalSkillAuthority(
+          new PostgresAuthorityRunner(options.pgDatabase),
+          skillFileStore,
+        ),
+        skillSourceAdapter,
       ),
       commandRunner: createPostgresCommandRunner(),
       includeSkillVersionPublication: false,

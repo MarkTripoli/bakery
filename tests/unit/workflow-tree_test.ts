@@ -68,6 +68,75 @@ Deno.test("parallel lanes and a repeat draw as one group each", () => {
   );
 });
 
+const fixLoop = (extra: Record<string, unknown> = {}) => ({
+  kind: "repeat",
+  max: 2,
+  seed: { form: "sequence", steps: [step("seed")] },
+  steps: [
+    step("repair", "harness.repair"),
+    step("check", "quality.check"),
+    step("review", "review.independent"),
+  ],
+  ...extra,
+});
+
+const groupOf = (definition: unknown) => {
+  const node = treeOf(definition).nodes[0];
+  if (node.kind !== "group") throw new Error("expected a group");
+  return node;
+};
+
+Deno.test("a repeat that repairs and ends in an independent review is a fix block with its limit", () => {
+  const group = groupOf({ steps: [fixLoop()] });
+  assertEquals(group.label, "fix");
+  assertEquals(group.max, 2);
+  assertEquals(group.editedInCode, true);
+  assertEquals(treeOf({ steps: [fixLoop()] }).stepCount, 4);
+});
+
+Deno.test("every other repeat keeps the word Repeat and carries no limit", () => {
+  const plain = groupOf({
+    steps: [{ kind: "repeat", max: 3, steps: [step("body")] }],
+  });
+  assertEquals(plain.label, "repeat");
+  assertEquals(plain.max, undefined);
+  // A repair with no review at the end, a review with no repair, and a review
+  // that is not last are not the fix block.
+  const noReview = groupOf({
+    steps: [fixLoop({ steps: [step("repair", "harness.repair")] })],
+  });
+  assertEquals(noReview.label, "repeat");
+  const noRepair = groupOf({
+    steps: [fixLoop({ steps: [step("review", "review.independent")] })],
+  });
+  assertEquals(noRepair.label, "repeat");
+  const reviewFirst = groupOf({
+    steps: [fixLoop({
+      steps: [
+        step("review", "review.independent"),
+        step("repair", "harness.repair"),
+      ],
+    })],
+  });
+  assertEquals(reviewFirst.label, "repeat");
+  // The seed does not count as the block's own steps.
+  const seeded = groupOf({
+    steps: [fixLoop({
+      seed: { form: "sequence", steps: [step("repair", "harness.repair")] },
+      steps: [step("review", "review.independent")],
+    })],
+  });
+  assertEquals(seeded.label, "repeat");
+});
+
+Deno.test("a fix block with no readable limit is not named, so it never states a limit it lacks", () => {
+  for (const max of [undefined, 0, -1, 2.5, "3", null]) {
+    const group = groupOf({ steps: [fixLoop({ max })] });
+    assertEquals(group.label, "repeat", String(max));
+    assertEquals(group.max, undefined, String(max));
+  }
+});
+
 Deno.test("a sequence inside a sequence is flattened, not nested needlessly", () => {
   const tree = treeOf({
     steps: [{
