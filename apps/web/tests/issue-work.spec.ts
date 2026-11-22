@@ -541,6 +541,23 @@ for (
       },
     );
 
+    test("an issue whose number cannot be read asks the question without a number", async ({ page }) => {
+      // Number 0 is not a usable issue number, so the page shows no "#".
+      await issuesFixture(page, {
+        open: [{ ...ISSUE, number: 0, request: { disposition: "active" } }],
+        work: { ...WITH_RUN, issue: 0 },
+      });
+      await page.goto(`/issues/${uuid(0)}`);
+      await expect(stopButton(page)).toBeVisible();
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByRole("heading", {
+        name: "Stop work on this issue?",
+      })).toBeVisible();
+      await expect(dialog.getByText(/#/)).toHaveCount(0);
+      await still(page, "issue-work-stop-dialog-no-number");
+    });
+
     test("a person who may not stop the run sees no Stop work", async ({ page }) => {
       await open(page, { ...ONE_REPOSITORY, run: { mayStop: false } });
       await expect(section(page).getByRole("button", { name: "Open task" }))

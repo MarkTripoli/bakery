@@ -43,6 +43,13 @@ import {
   type WorkStartedBy,
 } from "./issues/work-model.ts";
 
+/** Focus the element with this test id once the screen has settled: where each exit of the Stop work question lands. */
+function focusTestId(testId: string): void {
+  focusAfterPaint(() =>
+    document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
+  );
+}
+
 type Translate = ReturnType<typeof useI18n>["translate"];
 
 /** The catalog key for who started the work: a known person is named, an unknown one is "a teammate". */
@@ -648,17 +655,15 @@ export function IssueWork(
                   onOpenChange={(open) => {
                     if (!open && !stop.isPending) {
                       setConfirming(false);
-                      focusAfterPaint(() =>
-                        document.querySelector<HTMLElement>(
-                          '[data-testid="issue-stop-work"]',
-                        )
-                      );
+                      focusTestId("issue-stop-work");
                     }
                   }}
                   state={stop.isPending ? "confirming" : "open"}
-                  title={translate("issues.work.stop.title" as never, {
-                    number: issueNumber ?? "",
-                  })}
+                  title={issueNumber === null
+                    ? translate("issues.work.stop.titleNoNumber" as never)
+                    : translate("issues.work.stop.title" as never, {
+                      number: issueNumber,
+                    })}
                   variant="destructive"
                   cancelAction={
                     <UI.Button
@@ -666,11 +671,7 @@ export function IssueWork(
                       disabled={stop.isPending}
                       onClick={() => {
                         setConfirming(false);
-                        focusAfterPaint(() =>
-                          document.querySelector<HTMLElement>(
-                            '[data-testid="issue-stop-work"]',
-                          )
-                        );
+                        focusTestId("issue-stop-work");
                       }}
                     >
                       {translate("issues.work.stop.keep" as never)}
@@ -685,11 +686,7 @@ export function IssueWork(
                         stop.mutateAsync({ requestId: request.id, runId }).then(
                           () => {
                             setConfirming(false);
-                            focusAfterPaint(() =>
-                              document.querySelector<HTMLElement>(
-                                '[data-testid="issue-work-progress"]',
-                              )
-                            );
+                            focusTestId("issue-work-progress");
                           },
                           // The notice under the row says it failed; the row is unchanged.
                           () => setConfirming(false),

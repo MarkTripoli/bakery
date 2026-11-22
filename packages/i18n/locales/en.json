@@ -4247,6 +4247,7 @@
   "issues.work.openTask": "Open task",
   "issues.work.stop.button": "Stop work",
   "issues.work.stop.title": "Stop work on #{number}?",
+  "issues.work.stop.titleNoNumber": "Stop work on this issue?",
   "issues.work.stop.body": "Bakery stops at the next safe point. The task, its plan and any pull request stay as they are, and nothing is deleted on GitHub. To work on this issue again, press Start work; that begins a new task.",
   "issues.work.stop.keep": "Keep working",
   "issues.work.stop.confirm": "Stop work",

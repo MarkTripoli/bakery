@@ -6343,5 +6343,6 @@
   "settings.plugins.restore.done": "⟦{name} ïš ôñ ṽëŕšïôñ {version} ŵïŧĥ ïŧš ðàŧà ƒŕôɱ {date}. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "settings.plugins.restore.noCopy": "⟦Ɓàķëŕÿ ĥàš ñô çôþÿ ôƒ ṽëŕšïôñ {version}'š ðàŧà. Ïŧ ķëëþš ôñë çôþÿ, ƒŕôɱ ŧĥë ṽëŕšïôñ {name} ļàšŧ ļëƒŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "settings.plugins.update.failed.bodyUnknown": "⟦Ŧĥë ïñšŧàļļëð ṽëŕšïôñ ïš šŧïļļ ŕûññïñĝ àñð ñôŧĥïñĝ ŵàš ļôšŧ. Ɓàķëŕÿ çĥëçķëð {next} ƀëƒôŕë šŵïŧçĥïñĝ àñð ïŧ ðïð ñôŧ þàšš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "settings.plugins.versions.restoreNamed": "⟦Ĝô ƀàçķ ŧô {version} àñð ŕëšŧôŕë ïŧš ðàŧà ŧëšŧ çôþÿ ŧë⟧"
+  "settings.plugins.versions.restoreNamed": "⟦Ĝô ƀàçķ ŧô {version} àñð ŕëšŧôŕë ïŧš ðàŧà ŧëšŧ çôþÿ ŧë⟧",
+  "issues.work.stop.titleNoNumber": "⟦Šŧôþ ŵôŕķ ôñ ŧĥïš ïššûë? ŧëšŧ ç⟧"
 }
