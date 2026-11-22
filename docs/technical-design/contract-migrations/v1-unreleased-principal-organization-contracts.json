@@ -1,7 +1,8 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8cad16fd684a429cb8026ca22c26945ab8eb8511"
+    "8cad16fd684a429cb8026ca22c26945ab8eb8511",
+    "3b0330664f195cf0ec6e938a1291771a8f16a7ff"
   ],
   "status": "approved",
   "allowBreaking": true,
