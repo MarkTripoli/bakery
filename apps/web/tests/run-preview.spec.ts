@@ -254,15 +254,17 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
 const card = (page: Page) => page.getByTestId("run-preview");
 
 /**
- * A still of the card alone, with the card centred first so the sticky header of
- * the run pane (on a phone it sits over the top of the column) never covers its
- * heading.
+ * A still of the card alone. On a phone the run pane keeps a sticky header at
+ * the top and a sticky composer at the bottom of the window, and either can lie
+ * over the card; the window is made tall first (as stills do on a wide screen)
+ * so nothing needs scrolling and nothing overlaps it.
  */
 async function cardStill(page: Page, name: string) {
-  await card(page).evaluate((element) =>
-    element.scrollIntoView({ block: "center" })
-  );
-  await still(page, name, card(page), { scrollTo: card(page) });
+  const size = page.viewportSize();
+  if (size !== null && size.width <= 743) {
+    await page.setViewportSize({ width: size.width, height: 3200 });
+  }
+  await still(page, name, card(page));
 }
 
 test.beforeEach(async ({ page }, testInfo) => {
