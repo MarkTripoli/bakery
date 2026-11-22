@@ -683,8 +683,10 @@ export async function assertCompleted(
   await expect(copyScope.getByText(/\b(reviewed|merged)\b/i)).toHaveCount(0);
   const usage = attempt.outcome.usage;
   if (usage === null || usage === undefined) {
-    await expect(page.getByText("Provider usage: unknown")).toBeVisible();
+    await expect(page.getByText(/^Provider usage/)).toHaveCount(0);
   } else {
+    // Known usage sits under the run's Details.
+    await page.locator("#run-details > summary").click();
     await expect(page.getByText(/^Provider usage: \d|input tokens/).first())
       .toBeVisible();
   }

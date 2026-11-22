@@ -12,6 +12,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 // A shared machine can be slow to answer; give each assertion and test room.
 const expect = baseExpect.configure({ timeout: 15_000 });
@@ -142,7 +143,10 @@ type Fixture = {
   /** Status the next write answers with, once. */
   refuseNextWrite: { status: number; code: string; reason?: string } | null;
   /** The next version change is refused the way the server does: answered as the install, failure recorded. */
-  failNextUpdate: boolean;
+  failNextUpdate: boolean | {
+    readonly reason: string;
+    readonly addedCapabilities: readonly string[];
+  };
   /** What the plugin has saved, and the status the read answers with. */
   saved: SavedItem[];
   savedStatus: number;
@@ -315,13 +319,18 @@ async function pluginsFixture(
     );
     if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
     if (body?.versionId && state.failNextUpdate) {
+      const refusal = typeof state.failNextUpdate === "object"
+        ? state.failNextUpdate
+        : { reason: "plugin_sdk_incompatible", addedCapabilities: [] };
       state.failNextUpdate = false;
       target.lastUpdateFailure = {
         versionId: String(body.versionId),
         versionName: "1.1.0",
-        reason: "plugin_sdk_incompatible",
+        reason: refusal.reason,
         at: "2026-11-19T21:00:00.000Z",
-      };
+        restoreState: false,
+        addedCapabilities: [...refusal.addedCapabilities],
+      } as Install["lastUpdateFailure"];
       target.version += 1;
       return route.fulfill(json(target));
     }
@@ -789,8 +798,29 @@ for (
         .click();
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByText("1.0.0 → 1.1.0")).toBeVisible();
+      await expect(dialog.getByText("New in 1.1.0: it also asks to"))
+        .toBeVisible();
+      await expect(dialog.getByRole("listitem")).toHaveText([
+        "Run on a schedule",
+      ]);
       await expect(
-        dialog.getByText("Version 1.1.0 can also: Run on a schedule."),
+        dialog.getByText("It keeps the 2 permissions it already has."),
+      ).toBeVisible();
+      // The caption sits close under its list; the next block is set apart.
+      const [listBox, captionBox, noLongerBox] = [
+        await dialog.getByRole("listitem").boundingBox(),
+        await dialog.getByText("It keeps the 2 permissions it already has.")
+          .boundingBox(),
+        await dialog.getByText("It will no longer: Save its own data.")
+          .boundingBox(),
+      ];
+      expect(
+        noLongerBox!.y - (captionBox!.y + captionBox!.height),
+      ).toBeGreaterThan(captionBox!.y - (listBox!.y + listBox!.height));
+      await expect(
+        dialog.getByText(
+          "If 1.1.0 asks for anything else, Bakery does not switch and asks you again.",
+        ),
       ).toBeVisible();
       await expect(
         dialog.getByText("It will no longer: Save its own data."),
@@ -803,11 +833,16 @@ for (
       await shot(page, `plugins-update-${viewport.name}`, [], {
         windowOnly: true,
       });
-      await dialog.getByRole("button", { name: "Update and allow" }).click();
+      await still(page, "plugin-update-approve");
+      await dialog.getByRole("button", { name: "Update and allow 1" }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
       expect(state.writes).toHaveLength(1);
       expect(state.writes[0].method).toBe("PATCH");
-      expect(state.writes[0].body).toEqual({ versionId: NOTES_V2 });
+      // Exactly the permission the dialog showed as new is what is allowed.
+      expect(state.writes[0].body).toEqual({
+        versionId: NOTES_V2,
+        approveCapabilities: ["jobs.schedule"],
+      });
       expect(state.writes[0].ifMatch).toBe('"v3"');
     });
 
@@ -818,7 +853,7 @@ for (
       await page.getByRole("button", { name: "Review update of Notes" })
         .click();
       const dialog = page.getByRole("dialog");
-      await dialog.getByRole("button", { name: "Update and allow" }).click();
+      await dialog.getByRole("button", { name: "Update and allow 1" }).click();
       await expect(dialog.getByText("The update to 1.1.0 did not start."))
         .toBeVisible();
       await expect(
@@ -1007,6 +1042,350 @@ for (
       expect(state.installs[0].status).toBe("enabled");
     });
 
+    test("a version that cannot read the saved data says so on its row and draws no button", async ({ page }) => {
+      await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: NOTES_V2,
+            cannotReadVersionIds: [NOTES_V1],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const row = page.locator(`[data-plugin-version="${NOTES_V1}"]`);
+      await expect(row).toContainText("Cannot read the saved data");
+      await expect(row).toContainText(
+        "Ask the plugin's author for a version that can read this data.",
+      );
+      // No button, not a faded one: there is nothing the person can do here.
+      await expect(page.getByRole("button", { name: "Go back to 1.0.0" }))
+        .toHaveCount(0);
+      await shot(page, `plugin-cannot-read-${viewport.name}`, [], {
+        windowOnly: true,
+      });
+      await still(page, "plugin-cannot-read-row");
+    });
+
+    test("a version that could not read the saved data is said once, and restoring its data asks first", async ({ page }) => {
+      const state = await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: NOTES_V1,
+            lastUpdateFailure: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              reason: "plugin_state_incompatible",
+              at: "2026-11-20T00:00:00.000Z",
+              restoreState: false,
+              addedCapabilities: [],
+            },
+            stateCopy: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              takenAt: "2026-11-19T10:30:00.000Z",
+              itemCount: 3,
+            },
+            cannotReadVersionIds: [NOTES_V2],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const notice = page.getByRole("alert");
+      await expect(notice).toContainText(
+        "Bakery did not switch to version 1.1.0",
+      );
+      await expect(notice).toContainText(
+        "It cannot read the data Notes has saved. Version 1.0.0 is still running with its data.",
+      );
+      await shot(page, `plugin-cannot-read-notice-${viewport.name}`, [], {
+        windowOnly: true,
+      });
+      await still(page, "plugin-cannot-read-notice");
+      // The row says what the notice says, once: not "Did not start".
+      const keptRow = page.locator(`[data-plugin-version="${NOTES_V2}"]`);
+      await expect(keptRow).toContainText("Cannot read the saved data");
+      await expect(keptRow).not.toContainText("Did not start");
+      // Its button opens the restore dialog, so it says that, in the notice's words.
+      await expect(
+        keptRow.getByRole("button", {
+          name: "Go back to 1.1.0 and restore its data",
+        }),
+      ).toHaveText("Go back and restore its data");
+      await notice.getByRole("button", { name: "Go back and restore its data" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText(
+        "Go back to 1.1.0 and restore its data?",
+      );
+      await expect(dialog).toContainText(": 3 items.");
+      // The permission it allows is a label and a row, as in the Update dialog,
+      // and not a second caption; going back removes data, so the button says so.
+      await expect(dialog.getByText("New in 1.1.0: it also asks to", {
+        exact: true,
+      })).toBeVisible();
+      await expect(dialog.getByRole("listitem")).toHaveText([
+        "Run on a schedule",
+      ]);
+      await expect(
+        dialog.getByRole("button", { name: "Go back, restore and allow 1" }),
+      ).toHaveAttribute("data-variant", "destructive");
+      // Three blocks at the Update dialog's gap: the sentences, the permission
+      // and its label together, then the caption.
+      const [removed, label, item, caption] = [
+        await dialog.getByText(
+          "Everything it saved after that, on 1.0.0, is removed.",
+        ).boundingBox(),
+        await dialog.getByText("New in 1.1.0: it also asks to", { exact: true })
+          .boundingBox(),
+        await dialog.getByRole("listitem").boundingBox(),
+        await dialog.getByText(/Bakery keeps one copy of the data/)
+          .boundingBox(),
+      ];
+      const within = label!.height === 0
+        ? 0
+        : item!.y - (label!.y + label!.height);
+      expect(label!.y - (removed!.y + removed!.height)).toBeGreaterThan(within);
+      expect(caption!.y - (item!.y + item!.height)).toBeGreaterThan(within);
+      await expect(dialog).toContainText(
+        "Everything it saved after that, on 1.0.0, is removed.",
+      );
+      await shot(page, `plugin-restore-${viewport.name}`, [], {
+        windowOnly: true,
+      });
+      await still(page, "plugin-restore");
+      // The version it goes back to asks for a permission the installed one lacks: the button says so.
+      await dialog.getByRole("button", { name: "Go back, restore and allow 1" })
+        .click();
+      expect(state.writes[0].body).toMatchObject({
+        versionId: NOTES_V2,
+        restoreState: true,
+      });
+      expect(
+        (state.writes[0].body as { approveCapabilities?: string[] })
+          .approveCapabilities,
+      ).toEqual(["jobs.schedule"]);
+    });
+
+    test("a refused approval in the restore dialog says what the Update dialog says, and nothing else", async ({ page }) => {
+      const state = await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: NOTES_V1,
+            lastUpdateFailure: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              reason: "plugin_state_incompatible",
+              at: "2026-11-20T00:00:00.000Z",
+              restoreState: false,
+              addedCapabilities: [],
+            },
+            stateCopy: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              takenAt: "2026-11-19T10:30:00.000Z",
+              itemCount: 3,
+            },
+            cannotReadVersionIds: [NOTES_V2],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      await page.getByRole("alert").getByRole("button", {
+        name: "Go back and restore its data",
+      }).click();
+      const dialog = page.getByRole("alertdialog");
+      // The list changed under the person: the server refuses what they approved.
+      state.failNextUpdate = {
+        reason: "plugin_capabilities_not_approved",
+        addedCapabilities: ["jobs.schedule"],
+      };
+      const confirm = dialog.getByRole("button", {
+        name: "Go back, restore and allow 1",
+      });
+      await confirm.click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("alert")).toHaveCount(1);
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "Version 1.1.0 now asks for a different list. Check it and allow again.",
+      );
+      await expect(confirm).toBeEnabled();
+      await still(page, "plugin-restore-refused");
+    });
+
+    test("the restore dialog never leaves a blank where the installed version's name goes", async ({ page }) => {
+      // The installed version is not in the list the page loaded.
+      await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: id(999),
+            stateCopy: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              takenAt: "2026-11-19T10:30:00.000Z",
+              itemCount: 3,
+            },
+            cannotReadVersionIds: [NOTES_V2],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      await page.getByRole("button", {
+        name: "Go back to 1.1.0 and restore its data",
+      }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText(
+        "Version 1.1.0 cannot read what Notes has saved since it moved to another version.",
+      );
+      await expect(dialog).toContainText(
+        "Everything it saved after that is removed.",
+      );
+      await expect(dialog).toContainText(
+        "You can return to the version Notes runs now, with that data, until the next version change.",
+      );
+      await expect(dialog).not.toContainText(/moved to \.|on ,|return to {2}/);
+      // The page header leaves out "Version" and the dot when it has no name to give.
+      await expect(
+        page.getByText("Organization", { exact: true }).locator("visible=true")
+          .first(),
+      ).toBeVisible();
+      await expect(page.getByText(/^Version\s*·/)).toHaveCount(0);
+      await still(page, "plugin-restore-unknown");
+    });
+
+    test("when the installed version is unknown, no sentence names it or counts its permissions", async ({ page }) => {
+      // The installed version is not in the list the page loaded.
+      const state = await pluginsFixture(page, {
+        installs: [install({ id: NOTES_INSTALL, pluginVersionId: id(999) })],
+      });
+      state.failNextUpdate = true;
+      await page.goto("/settings/organization/plugins");
+      // The list line has no version part: "1.1.0 is available", never "Version  · ...".
+      await expect(page.getByText("1.1.0 is available", { exact: true }))
+        .toBeVisible();
+      await expect(page.getByText(/Version\s*·/)).toHaveCount(0);
+      await page.getByRole("button", { name: "Review update of Notes" })
+        .click();
+      const update = page.getByRole("dialog");
+      await update.getByRole("button", { name: "Update and allow 3" }).click();
+      await expect(update).toContainText(
+        "The installed version is still running and nothing was lost. Bakery checked 1.1.0 before switching and it did not pass.",
+      );
+      await expect(update).not.toContainText(/Version\s+is still running/);
+      await update.getByRole("button", { name: "Not now" }).click();
+      await expect(
+        page.getByText(
+          "The update to 1.1.0 did not start; the installed version is still running",
+          { exact: true },
+        ),
+      ).toBeVisible();
+
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      // The page cannot list the permissions, so it says so and claims none.
+      await expect(page.getByRole("heading", { name: "What it can do" }))
+        .toBeVisible();
+      await expect(
+        page.getByText(
+          "Bakery cannot show what the installed version can do.",
+          {
+            exact: true,
+          },
+        ),
+      ).toBeVisible();
+      await expect(page.getByText("It asks for no permissions.")).toHaveCount(
+        0,
+      );
+      await expect(page.getByText("Save its own data")).toHaveCount(0);
+      // The notice for the update that did not start names no version either.
+      await expect(page.getByRole("alert")).toContainText(
+        "The installed version is still running and nothing was lost.",
+      );
+      // Turn off does not count permissions it cannot read.
+      await page.getByRole("button", { name: "Turn off" }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText(
+        "It stops for everyone and loses all its permissions. Its saved data is kept. You can turn it on again.",
+      );
+      await expect(dialog).not.toContainText(/loses its/);
+      await still(page, "plugin-turn-off-unknown");
+    });
+
+    test("when the installed version is unknown, the notice for data it cannot read names no version", async ({ page }) => {
+      await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: id(999),
+            lastUpdateFailure: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              reason: "plugin_state_incompatible",
+              at: "2026-11-20T00:00:00.000Z",
+              restoreState: false,
+              addedCapabilities: [],
+            },
+            cannotReadVersionIds: [NOTES_V2],
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const notice = page.getByRole("alert");
+      await expect(notice).toContainText(
+        "It cannot read the data Notes has saved. The installed version is still running with its data.",
+      );
+      await expect(notice).not.toContainText(/Version\s+is still running/);
+    });
+
+    test("a refused approval keeps the dialog open with one warning and raises no page notice", async ({ page }) => {
+      const state = await pluginsFixture(page);
+      await page.goto("/settings/organization/plugins");
+      await page.getByRole("button", { name: "Review update of Notes" })
+        .click();
+      const dialog = page.getByRole("dialog");
+      // The server answers the way it does when the list changed under the person.
+      state.failNextUpdate = {
+        reason: "plugin_capabilities_not_approved",
+        addedCapabilities: ["jobs.schedule", "state.write"],
+      };
+      await dialog.getByRole("button", { name: "Update and allow 1" }).click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("alert")).toHaveCount(1);
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "Version 1.1.0 now asks for a different list. Check it and allow again.",
+      );
+      expect(state.writes).toHaveLength(1);
+      // Closing it leaves no page notice behind.
+      await dialog.getByRole("button", { name: "Not now" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("alert")).toHaveCount(0);
+    });
+
+    test("a refused approval never raises a page notice", async ({ page }) => {
+      await pluginsFixture(page, {
+        installs: [
+          install({
+            id: NOTES_INSTALL,
+            pluginVersionId: NOTES_V1,
+            lastUpdateFailure: {
+              versionId: NOTES_V2,
+              versionName: "1.1.0",
+              reason: "plugin_capabilities_not_approved",
+              at: "2026-11-20T00:00:00.000Z",
+              restoreState: false,
+              addedCapabilities: ["jobs.schedule"],
+            },
+          }),
+        ],
+      });
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      await expect(page.getByRole("heading", { name: "Notes" }).first())
+        .toBeVisible();
+      await expect(page.getByRole("alert")).toHaveCount(0);
+    });
+
     test("going back to an older version shows what changes first", async ({ page }) => {
       const state = await pluginsFixture(page, {
         installs: [install({ id: NOTES_INSTALL, pluginVersionId: NOTES_V2 })],
@@ -1018,15 +1397,19 @@ for (
       await shot(page, `plugin-go-back-${viewport.name}`, [], {
         windowOnly: true,
       });
-      await expect(
-        dialog.getByText("Version 1.0.0 can also: Save its own data."),
-      )
+      await expect(dialog.getByText("New in 1.0.0: it also asks to"))
         .toBeVisible();
+      await expect(dialog.getByRole("listitem")).toHaveText([
+        "Save its own data",
+      ]);
       await expect(dialog.getByText("It will no longer: Run on a schedule."))
         .toBeVisible();
       // 1.0.0 can do something 1.1.0 cannot, so the button says it allows it.
-      await dialog.getByRole("button", { name: "Go back and allow" }).click();
-      expect(state.writes[0].body).toEqual({ versionId: NOTES_V1 });
+      await dialog.getByRole("button", { name: "Go back and allow 1" }).click();
+      expect(state.writes[0].body).toEqual({
+        versionId: NOTES_V1,
+        approveCapabilities: ["state.write"],
+      });
     });
   });
 }

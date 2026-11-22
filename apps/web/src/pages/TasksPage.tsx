@@ -629,7 +629,7 @@ function Detail(
               landingStepId={landingStepId}
               onConnectivity={setSyncConnectivity}
               artifacts={task.currentRunId
-                ? <TaskArtifacts taskId={id} presentation="run" />
+                ? <TaskArtifacts hideEmpty taskId={id} presentation="run" />
                 : undefined}
             />
             {task.currentRunId ? null : (
