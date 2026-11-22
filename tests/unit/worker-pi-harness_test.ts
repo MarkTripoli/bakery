@@ -6,6 +6,8 @@ import {
   assertStringIncludes,
 } from "@std/assert";
 import { syntheticAuthSource } from "../helpers/harness-auth.ts";
+import { pinnedBrief } from "../helpers/harness-context-fixture.ts";
+import type { ReadAttemptContext } from "../../apps/worker/src/harness-context.ts";
 import {
   createPiHarnessExecutor,
   type PiHarnessControl,
@@ -211,6 +213,7 @@ function executorFor(
     readonly timeLimitMs?: number;
     readonly capabilities?: readonly string[];
     readonly registerControl?: (control: PiHarnessControl | undefined) => void;
+    readonly readAttemptContext?: ReadAttemptContext;
   } = {},
 ) {
   return createPiHarnessExecutor({
@@ -227,6 +230,7 @@ function executorFor(
     capabilities: options.capabilities ??
       ["stream", "resume", "steer", "follow_up"],
     registerControl: options.registerControl,
+    readAttemptContext: options.readAttemptContext,
   });
 }
 
@@ -900,5 +904,49 @@ Deno.test({
       started = false;
     }
     assertFalse(started);
+  },
+});
+
+Deno.test({
+  name: "Pi gets a step's pinned inputs as files and an index in the prompt",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-pi-context-");
+    const fake = await fakePi(scratch.dir);
+    const brief = await pinnedBrief();
+    const outcome = await executorFor(
+      scratch.dir,
+      fake.executable,
+      `${scratch.dir}/worker-state`,
+      { readAttemptContext: brief.readAttemptContext },
+    ).execute(
+      brief.withContext(await assignment(scratch.dir)),
+      new AbortController().signal,
+    );
+    assertEquals(outcome.status, "completed", JSON.stringify(outcome));
+    const prompt = await Deno.readTextFile(fake.promptPath);
+    assertStringIncludes(prompt, "Do not change any file.");
+    assertStringIncludes(prompt, "brief.md");
+    assertStringIncludes(prompt, brief.digest);
+  },
+});
+
+Deno.test({
+  name: "Pi refuses a step with pinned inputs when no reader is wired",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-pi-noreader-");
+    const fake = await fakePi(scratch.dir);
+    const brief = await pinnedBrief();
+    const outcome = await executorFor(
+      scratch.dir,
+      fake.executable,
+      `${scratch.dir}/worker-state`,
+    ).execute(
+      brief.withContext(await assignment(scratch.dir)),
+      new AbortController().signal,
+    );
+    assertEquals(outcome.status, "failed");
+    await assertRejects(() => Deno.stat(fake.promptPath));
   },
 });

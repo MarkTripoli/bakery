@@ -171,3 +171,19 @@ Deno.test("a reader that cannot reach the server is a retryable fault", async ()
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("the worker main wires the attempt-context reader into every coding harness", async () => {
+  const main = await Deno.readTextFile(
+    new URL("../../apps/worker/src/main.ts", import.meta.url),
+  );
+  for (const name of ["Claude", "Pi", "Codex"]) {
+    const start = main.indexOf(`create${name}HarnessExecutor({`);
+    assert(start >= 0, `main builds the ${name} harness`);
+    const end = main.indexOf("inner: checkedExecutor", start);
+    assert(end > start, `the ${name} harness wraps the checked executor`);
+    assert(
+      main.slice(start, end).includes("readAttemptContext,"),
+      `the ${name} harness gets readAttemptContext`,
+    );
+  }
+});
