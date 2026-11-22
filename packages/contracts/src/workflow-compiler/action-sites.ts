@@ -20,7 +20,8 @@ export type WorkflowActionSite = Readonly<{
 
 /**
  * Lists every action node of an indexed document in authored order: sequence
- * members, then and else arms, repeat seed then body, and each parallel lane.
+ * members, then and else arms, repeat seed then body, forEach steps, and each
+ * parallel lane.
  */
 export function listWorkflowActionSites(
   index: FlowIndex,
