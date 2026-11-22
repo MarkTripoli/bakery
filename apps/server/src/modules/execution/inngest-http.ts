@@ -29,7 +29,8 @@ import { createBlobUploadReaper } from "../knowledge/blob-upload-reaper.ts";
 import { createStorageRetentionReaper } from "../knowledge/storage-retention-reaper.ts";
 import {
   createStorageConnectionSyncWorkflow,
-  noStorageProviders,
+  createStorageExportWorkflow,
+  defaultStorageConnections,
 } from "../knowledge/storage-connections.ts";
 import { createProviderProbeWorkflow } from "./provider-probe.ts";
 import {
@@ -234,12 +235,17 @@ export function createDefaultInngestFunctions(options: {
           client: options.client,
           database: options.database,
         }),
-        // No hosted storage provider is deployed yet (#452), so the sync
-        // workflow binds none and a recorded sync is counted as failed.
+        // The deployed storage providers (#452); none until a hosted one
+        // ships, so a recorded sync or export counts as failed.
         createStorageConnectionSyncWorkflow({
           client: options.client,
           database: options.database,
-          storage: { resolver: noStorageProviders },
+          storage: defaultStorageConnections(),
+        }),
+        createStorageExportWorkflow({
+          client: options.client,
+          database: options.database,
+          storage: defaultStorageConnections(),
         }),
         createIntegrationFactSweep({
           client: options.client,

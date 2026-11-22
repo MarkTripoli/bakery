@@ -14,7 +14,13 @@ import {
   StorageReadRangeSchema,
   StorageWriteResultSchema,
 } from "@bakery/integration-sdk/provider";
+import { Buffer } from "node:buffer";
 import type { PgTransactionClient } from "@bakery/persistence";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
 import { type PgDatabase, withPgTransaction } from "../../platform/database.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import {
@@ -55,9 +61,18 @@ import {
  * external effect in `bakery.external_effects`, never an inline call. There is
  * no two-way sync.
  *
- * Reads are organization-scoped and grant-checked: the mount folder must be
- * readable by the caller under the tree's own rules (an agent needs a live
- * folder grant for /connections, O44), and the connection must be live.
+ * Access, three layers, every one of them an existing rule:
+ * - the connection's permission: the routes declare
+ *   `integrationConnection:read` for reading through a mount and
+ *   `integrationConnection:invoke` for syncing and exporting, the same
+ *   permissions the integrations module checks for reading and invoking a
+ *   connection; mounting needs `integrationConnection:manage`;
+ * - the tree's read rule on the mount folder: organization scope, and for an
+ *   agent a live folder grant on /connections (O44);
+ * - a live connection: enabled and not archived.
+ * Per-connection `integration_grants` rows are not consulted: they grant an
+ * exact provider action on one resource, and a storage connection has
+ * neither. Same as the tree otherwise.
  */
 
 /** The port and driver context the host binds for one storage connection. */
@@ -186,7 +201,11 @@ function bindingFor(
     organizationId,
     provider: connection.provider,
   });
-  if (!binding) conflict("storage_provider_unavailable");
+  if (!binding) {
+    // Typed, so a caller can tell "nothing serves this connection's files
+    // here" from a missing path or a refused read.
+    throw new StandardError({ code: "STORAGE_PROVIDER_UNAVAILABLE" });
+  }
   return binding;
 }
 
@@ -998,6 +1017,7 @@ export async function runDueConnectionSyncs(
 ): Promise<{ ran: number; failed: number }> {
   const due = await database.query<{ id: string; organization_id: string }>(
     `select id, organization_id from bakery.storage_connection_syncs
+      where paused_at is null
       order by last_run_at asc nulls first, id asc limit $1`,
     [limit],
   );
@@ -1049,6 +1069,13 @@ export function createStorageConnectionSyncWorkflow(
 }
 
 // --- Export as a keyed effect --------------------------------------------
+//
+// The write goes through the external effect ledger (bakery.external_effects:
+// idempotency key, request digest, prepared -> submitted claim, fenced
+// outcome) but not through the integration-action executor. That executor
+// runs a gate-registered provider action built from request templates and a
+// selected integration resource; a storage port is a typed family call with
+// neither, so the ledger is the shared part and this is its dispatcher.
 
 /** The arguments an export effect records; replayed to the write. */
 type ExportArguments = Readonly<{
@@ -1311,4 +1338,461 @@ export async function runStorageExport(
   );
   if (!current) notFound();
   return settledExport(current, true);
+}
+
+// --- Provider registry -----------------------------------------------------
+
+/** A storage provider the host can bind a connection to, by provider slug. */
+export type StorageProviderEntry = Readonly<{
+  /** The integration_connections.provider value this entry serves. */
+  provider: string;
+  bind(connection: StorageConnectionFacts): StorageConnectionBinding;
+}>;
+
+/**
+ * The resolver over the storage providers an installation deploys: a
+ * connection binds to the entry its provider names, and to nothing else.
+ */
+export function createStorageProviderRegistry(
+  entries: readonly StorageProviderEntry[],
+): StorageProviderResolver {
+  const byProvider = new Map(entries.map((entry) => [entry.provider, entry]));
+  if (byProvider.size !== entries.length) {
+    throw new Error("STORAGE_PROVIDER_DUPLICATE");
+  }
+  return (connection) => byProvider.get(connection.provider)?.bind(connection);
+}
+
+/**
+ * The storage providers this installation deploys. Empty until a hosted
+ * storage provider ships, so every storage connection answers
+ * STORAGE_PROVIDER_UNAVAILABLE rather than failing silently.
+ */
+export const deployedStorageProviders: readonly StorageProviderEntry[] = Object
+  .freeze([]);
+
+/** The storage connection dependencies the server runs with. */
+export function defaultStorageConnections(
+  blobStore?: OrganizationBlobStore,
+): StorageConnectionDeps {
+  return {
+    resolver: createStorageProviderRegistry(deployedStorageProviders),
+    ...(blobStore === undefined ? {} : { blobStore }),
+  };
+}
+
+// --- Route handlers --------------------------------------------------------
+
+/** Mounts the connection the route names under /connections. */
+export async function mountConnectionAction(
+  context: ActionContext,
+  deps: StorageConnectionDeps,
+): Promise<StorageMount> {
+  const { transaction: tx, organizationId, principalId } =
+    requireWorkTransaction(context);
+  return await mountStorageConnection(tx, deps, {
+    organizationId,
+    principalId,
+    connectionId: context.params.id ?? "",
+  });
+}
+
+function itemOutput(item: ConnectionListedItem) {
+  return {
+    path: item.treePath,
+    remotePath: item.path,
+    name: item.name,
+    kind: item.kind,
+    sizeBytes: item.sizeBytes,
+    mediaType: item.mediaType,
+    revision: item.revision,
+    modifiedAt: item.modifiedAt,
+  };
+}
+
+function base64Url(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64url");
+}
+
+async function cursorKey(secret: string): Promise<CryptoKey> {
+  return await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+}
+
+type PathCursorScope = Readonly<{
+  organizationId: string;
+  principalId: string;
+  path: string;
+}>;
+
+/**
+ * Wraps the provider's own cursor so the page token is signed and bound to
+ * this operation, caller, organization and folder, like every other list
+ * cursor; the provider's cursor is opaque text the shared row cursor cannot
+ * carry.
+ */
+async function signPathCursor(
+  secret: string,
+  scope: PathCursorScope,
+  providerCursor: string,
+): Promise<string> {
+  const payload = base64Url(
+    new TextEncoder().encode(JSON.stringify({
+      a: "storageConnectionPaths.list",
+      o: scope.organizationId,
+      p: scope.principalId,
+      f: scope.path,
+      c: providerCursor,
+    })),
+  );
+  const signature = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      await cursorKey(secret),
+      new TextEncoder().encode(payload),
+    ),
+  );
+  const token = payload + "." + base64Url(signature);
+  if (token.length > 512) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  return token;
+}
+
+async function openPathCursor(
+  secret: string,
+  scope: PathCursorScope,
+  token: string | undefined,
+): Promise<string | null> {
+  if (token === undefined) return null;
+  const invalid = (): never => {
+    throw new StandardError({ code: "INVALID_CURSOR" });
+  };
+  const parts = token.split(".");
+  if (parts.length !== 2 || !/^[A-Za-z0-9_-]+$/.test(parts[0] + parts[1])) {
+    invalid();
+  }
+  const valid = await crypto.subtle.verify(
+    "HMAC",
+    await cursorKey(secret),
+    new Uint8Array(Buffer.from(parts[1], "base64url")),
+    new TextEncoder().encode(parts[0]),
+  );
+  if (!valid) invalid();
+  let record: Record<string, unknown>;
+  try {
+    record = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+  } catch {
+    return invalid();
+  }
+  if (
+    record.a !== "storageConnectionPaths.list" ||
+    record.o !== scope.organizationId || record.p !== scope.principalId ||
+    record.f !== scope.path || typeof record.c !== "string"
+  ) invalid();
+  return record.c as string;
+}
+
+/** storageConnectionPaths.list: one page of a mounted folder. */
+export function createConnectionPathLister(
+  secret: string,
+  deps: StorageConnectionDeps,
+) {
+  return async (
+    context: ActionContext,
+    reader: StorageReader,
+    input: Readonly<{ path: string; cursor?: string; limit?: number }>,
+  ) => {
+    const { organizationId, principalId } = requireWorkTransaction(context);
+    const scope = { organizationId, principalId, path: input.path };
+    const cursor = await openPathCursor(secret, scope, input.cursor);
+    const page = await listConnectionFolder(context, reader, deps, {
+      path: input.path,
+      ...(cursor === null ? {} : { cursor }),
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+    });
+    return {
+      items: page.items.map(itemOutput),
+      nextCursor: page.nextCursor === null
+        ? null
+        : await signPathCursor(secret, scope, page.nextCursor),
+    };
+  };
+}
+
+/** storageConnectionPaths.stat: one mounted path as the provider reports it. */
+export async function statConnectionPathAction(
+  context: ActionContext,
+  reader: StorageReader,
+  deps: StorageConnectionDeps,
+  input: Readonly<{ path: string }>,
+) {
+  return itemOutput(await statConnectionPath(context, reader, deps, input));
+}
+
+/** storageConnectionPaths.read: a byte range, base64 encoded, not kept. */
+export async function readConnectionPathAction(
+  context: ActionContext,
+  reader: StorageReader,
+  deps: StorageConnectionDeps,
+  input: Readonly<{ path: string; offset: number; length: number }>,
+) {
+  const range = await readConnectionRange(context, reader, deps, input);
+  return {
+    path: input.path,
+    revision: range.object.revision,
+    mediaType: range.object.mediaType,
+    sizeBytes: range.object.sizeBytes,
+    offset: input.offset,
+    contentBase64: Buffer.from(range.bytes).toString("base64"),
+  };
+}
+
+type SyncOutputRow = {
+  id: string;
+  mount_id: string;
+  mount_name: string;
+  remote_path: string;
+  task_id: string;
+  change_position: string | null;
+  last_run_at: Date | null;
+  paused_at: Date | null;
+  created_at: Date;
+  created_cursor: string;
+  version: number;
+  entry_id: string;
+};
+
+const SYNC_OUTPUT_SELECT = `select sync.id, sync.mount_id,
+    entry.name as mount_name, sync.remote_path, sync.task_id,
+    sync.change_position, sync.last_run_at, sync.paused_at, sync.created_at,
+    to_char(sync.created_at at time zone 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_cursor,
+    sync.version, mount.entry_id
+  from bakery.storage_connection_syncs sync
+  join bakery.storage_connection_mounts mount
+    on mount.organization_id = sync.organization_id
+   and mount.id = sync.mount_id
+  join bakery.storage_entries entry
+    on entry.organization_id = mount.organization_id
+   and entry.id = mount.entry_id`;
+
+function syncOutput(row: SyncOutputRow) {
+  const mountPath = CONNECTIONS_PREFIX + row.mount_name;
+  return {
+    id: row.id,
+    mountId: row.mount_id,
+    path: row.remote_path === "/" ? mountPath : mountPath + row.remote_path,
+    taskId: row.task_id,
+    changePosition: row.change_position,
+    lastRunAt: row.last_run_at === null
+      ? null
+      : new Date(row.last_run_at).toISOString(),
+    pausedAt: row.paused_at === null
+      ? null
+      : new Date(row.paused_at).toISOString(),
+    createdAt: new Date(row.created_at).toISOString(),
+    version: row.version,
+  };
+}
+
+async function syncRowById(
+  tx: PgTransactionClient,
+  organizationId: string,
+  syncId: string,
+): Promise<SyncOutputRow | undefined> {
+  if (!UUID.test(syncId)) return undefined;
+  const found = await tx.query<SyncOutputRow>(
+    SYNC_OUTPUT_SELECT + " where sync.organization_id = $1 and sync.id = $2",
+    [organizationId, syncId],
+  );
+  return found.rows[0];
+}
+
+/** storageConnectionSyncs.create: records a sync and returns it. */
+export async function createConnectionSyncAction(
+  context: ActionContext,
+  reader: StorageReader,
+  deps: StorageConnectionDeps,
+  input: Readonly<{ path: string; taskId: string }>,
+) {
+  const { transaction: tx, organizationId } = requireWorkTransaction(context);
+  const { syncId } = await createConnectionSync(context, reader, deps, input);
+  const row = await syncRowById(tx, organizationId, syncId);
+  if (!row) notFound();
+  return syncOutput(row);
+}
+
+/** storageConnectionSyncs.list: the organization's syncs, oldest first. */
+export function createConnectionSyncLister(secret: string) {
+  return async (
+    context: ActionContext,
+    input: Readonly<{ cursor?: string; limit?: number }>,
+  ) => {
+    const { transaction: tx, organizationId, principalId } =
+      requireWorkTransaction(context);
+    const limit = input.limit ?? 25;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      refused("out_of_range", "limit");
+    }
+    const binding: CursorBinding = {
+      action: "storageConnectionSyncs.list",
+      principalId,
+      organizationId,
+      ordering: "createdAt:asc,id:asc",
+      filters: "{}",
+      schemaVersion: 1,
+    };
+    const position = await decodeCursor(secret, input.cursor, binding);
+    const found = await tx.query<SyncOutputRow>(
+      SYNC_OUTPUT_SELECT +
+        " where sync.organization_id = $1" +
+        " and ($2::timestamptz is null or (sync.created_at, sync.id) >" +
+        " ($2::timestamptz, $3::uuid))" +
+        " order by sync.created_at, sync.id limit $4",
+      [
+        organizationId,
+        position?.createdAt ?? null,
+        position?.id ?? null,
+        limit + 1,
+      ],
+    );
+    const page = found.rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      items: page.map(syncOutput),
+      nextCursor: found.rows.length > limit && last
+        ? await encodeCursor(secret, binding, {
+          createdAt: last.created_cursor,
+          id: last.id,
+        })
+        : null,
+    };
+  };
+}
+
+/**
+ * storageConnectionSyncs.pause: stops the workflow from running a sync.
+ * Pausing twice keeps the first moment. The caller must be able to read the
+ * sync's mount, the same rule its reads follow; no provider is needed.
+ */
+export async function pauseConnectionSyncAction(
+  context: ActionContext,
+  reader: StorageReader,
+) {
+  const { transaction: tx, organizationId, principalId } =
+    requireWorkTransaction(context);
+  const row = await syncRowById(tx, organizationId, context.params.id ?? "");
+  if (!row) notFound();
+  await readableEntry(
+    context,
+    tx,
+    organizationId,
+    principalId,
+    reader,
+    row.entry_id,
+  );
+  await tx.query(
+    `update bakery.storage_connection_syncs
+        set paused_at = coalesce(paused_at, now()),
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2 and paused_at is null`,
+    [organizationId, row.id],
+  );
+  const paused = await syncRowById(tx, organizationId, row.id);
+  if (!paused) notFound();
+  return syncOutput(paused);
+}
+
+/**
+ * storageConnectionExports.create: records the export effect under the
+ * request's Idempotency-Key. The storage export workflow sends it.
+ */
+export async function createConnectionExportAction(
+  context: ActionContext,
+  reader: StorageReader,
+  deps: StorageConnectionDeps,
+  input: Readonly<{
+    path: string;
+    artifactVersionId: string;
+    ifMatch?: string;
+  }>,
+) {
+  const key = context.request.headers.get("Idempotency-Key")?.trim() ?? "";
+  if (key === "") refused("idempotency_key_required", "Idempotency-Key");
+  return await prepareStorageExport(context, reader, deps, {
+    path: input.path,
+    artifactVersionId: input.artifactVersionId,
+    idempotencyKey: key,
+    ifMatch: input.ifMatch ?? null,
+  });
+}
+
+/** Export effects one workflow run sends at most. */
+export const MAX_EXPORTS_PER_SWEEP = 50;
+
+/**
+ * Sends the export effects that are due: prepared ones whose retry delay has
+ * passed, and submitted ones whose dispatch lease lapsed.
+ */
+export async function runDueStorageExports(
+  database: PgDatabase,
+  deps: StorageConnectionDeps,
+  limit = MAX_EXPORTS_PER_SWEEP,
+): Promise<{ ran: number; failed: number }> {
+  const due = await database.query<{ id: string; organization_id: string }>(
+    `select id, organization_id from bakery.external_effects
+      where operation = $1
+        and ((status = 'prepared'
+              and (next_retry_at is null or next_retry_at <= now()))
+          or (status = 'submitted' and lease_expires_at < now()))
+      order by created_at, id limit $2`,
+    [STORAGE_EXPORT_OPERATION, limit],
+  );
+  let ran = 0;
+  let failed = 0;
+  for (const effect of due.rows) {
+    try {
+      await runStorageExport(database, deps, {
+        organizationId: effect.organization_id,
+        effectId: effect.id,
+      });
+      ran++;
+    } catch (error) {
+      if (!(error instanceof StandardError)) throw error;
+      failed++;
+    }
+  }
+  return { ran, failed };
+}
+
+const STORAGE_EXPORT_FUNCTION_ID =
+  "bakery-knowledge-storage-connection-exports";
+
+/** Every minute, sends the export effects that are due. */
+export function createStorageExportWorkflow(
+  options: Readonly<{
+    database: PgDatabase;
+    client: Inngest;
+    storage: StorageConnectionDeps;
+  }>,
+) {
+  return options.client.createFunction(
+    {
+      id: STORAGE_EXPORT_FUNCTION_ID,
+      retries: 3,
+      concurrency: [{ limit: 1 }],
+      triggers: [{ cron: "* * * * *" }],
+    },
+    async ({ step }) =>
+      await step.run(
+        "run-due-storage-exports",
+        () => runDueStorageExports(options.database, options.storage),
+      ),
+  );
 }

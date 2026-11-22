@@ -64,6 +64,11 @@ export const FAULTS = {
   STORAGE_QUOTA_EXCEEDED: [409, false, "storage-quota-exceeded"],
   // The file is larger than the organization's maximum file size (#447).
   STORAGE_FILE_TOO_LARGE: [422, false, "storage-file-too-large"],
+  // A storage connection's provider serves no storage port in this
+  // installation (#452): no hosted storage provider is deployed, so mounting,
+  // reading through, syncing or exporting answers this rather than failing
+  // silently.
+  STORAGE_PROVIDER_UNAVAILABLE: [409, false, "storage-provider-unavailable"],
   // An agent step wrote as much as its step write limits allow (O49, #448):
   // `reason` is files or bytes and `limit` the value of the limit it hit. A
   // person's own writes are never limited this way.

@@ -1701,6 +1701,8 @@
   "problems.STORAGE_QUOTA_EXCEEDED.description": "Saving new files is paused because storage is nearly full. Delete files you no longer need, or ask an administrator to raise the limit.",
   "problems.STORAGE_FILE_TOO_LARGE.title": "File too large",
   "problems.STORAGE_FILE_TOO_LARGE.description": "This file is larger than the organization's maximum file size.",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.title": "No storage provider",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.description": "This connection's provider cannot serve files here yet, so its storage cannot be browsed, synced or written to.",
   "problems.STEP_WRITE_LIMIT_EXCEEDED.title": "Step write limit reached",
   "problems.STEP_WRITE_LIMIT_EXCEEDED.description": "This step stopped because it wrote as much as one step may. An Admin can raise the limit.",
   "problems.STEP_WRITE_LIMIT_EXCEEDED.bytes": "This step stopped because it wrote more than {limit} of files (the limit for one step). An Admin can raise the limit.",

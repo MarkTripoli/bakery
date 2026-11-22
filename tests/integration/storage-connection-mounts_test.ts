@@ -28,6 +28,7 @@ import {
   prepareStorageExport,
   readConnectionRange,
   runConnectionSync,
+  runDueConnectionSyncs,
   runStorageExport,
   statConnectionPath,
   STORAGE_EXPORT_OPERATION,
@@ -48,7 +49,11 @@ import {
   seedProviderPricingSnapshot,
 } from "../helpers/funded-model-job.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
-import type { WorkerFixture } from "../helpers/worker-execution.ts";
+import {
+  closeWorkerOrganization,
+  createWorkerScope,
+  type WorkerFixture,
+} from "../helpers/worker-execution.ts";
 
 const reader = { isAdmin: false } as const;
 const decoder = new TextDecoder();
@@ -589,3 +594,148 @@ async function exportScenario(r: Rig): Promise<void> {
     assertEquals(decoder.decode(r.storage.bytesOf("/out/report.txt")), "alpha");
   }
 }
+
+// --- Routes ------------------------------------------------------------------
+
+/** One request through the app as the fixture's admin, as the browser sends it. */
+async function call(
+  fixture: WorkerFixture,
+  method: string,
+  path: string,
+  options: { body?: unknown; organizationId?: string } = {},
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const response = await fixture.app.fetch(
+    new Request(fixture.config.publicBaseUrl + path, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Origin: fixture.config.publicBaseUrl,
+        "Bakery-Organization-Id": options.organizationId ??
+          fixture.organizationId,
+        Cookie: fixture.adminCookie,
+        ...(method === "GET" ? {} : { "Idempotency-Key": crypto.randomUUID() }),
+      },
+      ...(options.body === undefined
+        ? {}
+        : { body: JSON.stringify(options.body) }),
+    }),
+  );
+  const text = await response.text();
+  return {
+    status: response.status,
+    body: text === "" ? {} : JSON.parse(text) as Record<string, unknown>,
+  };
+}
+
+const q = (path: string) => encodeURIComponent(path);
+
+Deno.test("routes answer a typed error when no provider serves the connection", () =>
+  withWorkerFixture(async (fixture) => {
+    // The app runs with the deployed storage providers, which is none: the
+    // mount made here through a test provider has nothing to read through.
+    const r = await rig(fixture);
+    const docs = r.mount.path + "/docs";
+    const refusals = [
+      await call(
+        fixture,
+        "GET",
+        "/v1/storage/connection-paths?path=" + q(docs),
+      ),
+      await call(
+        fixture,
+        "GET",
+        "/v1/storage/connection-paths/stat?path=" + q(docs + "/a.txt"),
+      ),
+      await call(
+        fixture,
+        "GET",
+        "/v1/storage/connection-paths/content?path=" + q(docs + "/a.txt") +
+          "&offset=0&length=5",
+      ),
+      await call(fixture, "POST", "/v1/storage/connection-syncs", {
+        body: { path: docs, taskId: r.taskId },
+      }),
+      await call(fixture, "POST", "/v1/storage/connection-exports", {
+        body: {
+          path: docs + "/out.txt",
+          artifactVersionId: crypto.randomUUID(),
+        },
+      }),
+      await call(
+        fixture,
+        "POST",
+        "/v1/storage/connections/" + r.connectionId + "/mount",
+      ),
+    ];
+    for (const refusal of refusals) {
+      assertEquals(refusal.status, 409, JSON.stringify(refusal.body));
+      assert(
+        JSON.stringify(refusal.body).includes("storage-provider-unavailable"),
+        JSON.stringify(refusal.body),
+      );
+    }
+    // Nothing was read through the provider the app does not know.
+    assertEquals(r.storage.calls.list + r.storage.calls.read, 0);
+  }));
+
+Deno.test("routes refuse another organization and list and pause syncs", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    const { syncId } = await as(
+      r,
+      (context) =>
+        createConnectionSync(context, reader, r.deps, {
+          path: r.mount.path + "/docs",
+          taskId: r.taskId,
+        }),
+    );
+    const other = await createWorkerScope(fixture, "storage-452", fixture);
+    try {
+      // The same person acting in another organization sees no mount there.
+      for (
+        const path of [
+          "/v1/storage/connection-paths?path=" + q(r.mount.path),
+          "/v1/storage/connection-paths/stat?path=" + q(r.mount.path),
+        ]
+      ) {
+        const refused = await call(fixture, "GET", path, {
+          organizationId: other.organizationId,
+        });
+        assertEquals(refused.status, 404, JSON.stringify(refused.body));
+      }
+      const elsewhere = await call(
+        fixture,
+        "GET",
+        "/v1/storage/connection-syncs",
+        { organizationId: other.organizationId },
+      );
+      assertEquals(elsewhere.status, 200);
+      assertEquals(elsewhere.body.items, []);
+      const pauseElsewhere = await call(
+        fixture,
+        "POST",
+        "/v1/storage/connection-syncs/" + syncId + "/pause",
+        { organizationId: other.organizationId },
+      );
+      assertEquals(pauseElsewhere.status, 404);
+
+      const listed = await call(fixture, "GET", "/v1/storage/connection-syncs");
+      assertEquals(listed.status, 200, JSON.stringify(listed.body));
+      const items = listed.body.items as Record<string, unknown>[];
+      assertEquals(items.map((item) => [item.id, item.path, item.pausedAt]), [
+        [syncId, r.mount.path + "/docs", null],
+      ]);
+      const paused = await call(
+        fixture,
+        "POST",
+        "/v1/storage/connection-syncs/" + syncId + "/pause",
+      );
+      assertEquals(paused.status, 201, JSON.stringify(paused.body));
+      assert(typeof paused.body.pausedAt === "string");
+      // A paused sync is not run by the workflow sweep.
+      const sweep = await runDueConnectionSyncs(r.db, r.deps);
+      assertEquals(sweep, { ran: 0, failed: 0 });
+    } finally {
+      await closeWorkerOrganization(fixture.pgDatabase, other.organizationId);
+    }
+  }));

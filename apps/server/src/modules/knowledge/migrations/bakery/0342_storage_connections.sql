@@ -86,7 +86,8 @@ grant select, insert on bakery.storage_connection_ingests to bakery_app;
 
 -- One-way syncs: a remote folder ingested into a work item, run by the
 -- storage sync workflow. change_position is the provider's change-feed
--- position the last run reached; null before the first run.
+-- position the last run reached; null before the first run. paused_at stops
+-- the workflow from running it.
 create table bakery.storage_connection_syncs (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
@@ -95,6 +96,7 @@ create table bakery.storage_connection_syncs (
   task_id uuid not null,
   change_position text,
   last_run_at timestamptz,
+  paused_at timestamptz,
   created_by uuid not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -119,6 +121,10 @@ create table bakery.storage_connection_syncs (
 create index storage_connection_syncs_due_idx
   on bakery.storage_connection_syncs (last_run_at nulls first, id);
 
+-- The organization's syncs, oldest first, keyset by (created_at, id).
+create index storage_connection_syncs_page_idx
+  on bakery.storage_connection_syncs (organization_id, created_at, id);
+
 grant select, insert on bakery.storage_connection_syncs to bakery_app;
-grant update (change_position, last_run_at, updated_at, version)
+grant update (change_position, last_run_at, paused_at, updated_at, version)
   on bakery.storage_connection_syncs to bakery_app;

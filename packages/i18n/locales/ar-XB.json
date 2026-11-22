@@ -6352,5 +6352,7 @@
   "issues.work.progress.stopping": "⟪Stopping…⟫",
   "issues.work.stop.slow": "⟪Bakery is stopping this. It can take up to 5 minutes to show here.⟫",
   "issues.work.stop.failed": "⟪Work could not be stopped. Try again.⟫",
-  "issues.work.stop.beforeStart": "⟪To stop this before it starts, remove the label on GitHub.⟫"
+  "issues.work.stop.beforeStart": "⟪To stop this before it starts, remove the label on GitHub.⟫",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.title": "⟪No storage provider⟫",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.description": "⟪This connection's provider cannot serve files here yet, so its storage cannot be browsed, synced or written to.⟫"
 }
