@@ -22,6 +22,12 @@ import type {
   ArtifactSharers,
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
+  BackupDrillPage,
+  BackupOffsite,
+  BackupPointInTime,
+  BackupRunPage,
+  BackupSchedule,
+  BackupStatus,
   BakeryApiClient,
   BatchListResponse,
   BatchResponse,
@@ -2047,6 +2053,110 @@ export function installationRestoreQueryOptions(
       ) return null;
       throw read.error;
     },
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * Whether the installation is protected by backups (#64). It reads again
+ * every 30 seconds so a running backup's progress and its end show without a
+ * reload; that is one small read, and only while the page is open.
+ */
+export function backupStatusQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupStatus, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backups.status", {}),
+    queryFn: async ({ signal }) => unwrap(await client.backups.status(signal)),
+    refetchInterval: 30_000,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The backups, newest first, a page at a time ("Show older"). */
+export function backupRunsQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return infiniteQueryOptions<
+    BackupRunPage,
+    ApiFailure,
+    { pages: BackupRunPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "backups.list", {}),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.backups.list({
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The restore checks the server ran, newest first, a page at a time. */
+export function backupDrillsQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return infiniteQueryOptions<
+    BackupDrillPage,
+    ApiFailure,
+    { pages: BackupDrillPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "backups.drills.list", {}),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.backups.drills({
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupScheduleQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupSchedule, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupSchedule.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.backups.schedule(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupPointInTimeQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupPointInTime, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupPointInTime.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.backups.pointInTime(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupOffsiteQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupOffsite, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupOffsite.get", {}),
+    queryFn: async ({ signal }) => unwrap(await client.backups.offsite(signal)),
     retry: retryNetworkOnce,
   });
 }
