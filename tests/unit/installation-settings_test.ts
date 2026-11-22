@@ -6,6 +6,7 @@ import {
   InstallationSettingsUpdateSchema,
   OrganizationCreationPolicy,
   RegistrationMode,
+  UpdateFailurePolicy,
 } from "@bakery/contracts/installation-settings";
 import { createInstallationSettingsReader } from "../../apps/server/src/modules/auth/application/installation-settings.ts";
 
@@ -33,6 +34,7 @@ Deno.test("installation settings reject secret, authority and invalid revision f
     registrationMode: RegistrationMode.Invitation,
     organizationCreationPolicy:
       OrganizationCreationPolicy.InstallationAdministrators,
+    updateFailurePolicy: UpdateFailurePolicy.GoBack,
     version: 1,
     updatedByPrincipalId: null,
     updatedAt: "2026-10-12T00:00:00.000Z",
@@ -77,6 +79,7 @@ Deno.test("separate settings readers see a live policy change on the next read",
     registrationMode: RegistrationMode.Invitation,
     organizationCreationPolicy:
       OrganizationCreationPolicy.InstallationAdministrators,
+    updateFailurePolicy: UpdateFailurePolicy.GoBack,
     version: 1,
     updatedByPrincipalId: null,
     updatedAt: "2026-10-12T00:00:00.000Z",
@@ -119,4 +122,43 @@ Deno.test("settings reader fails closed on unavailable or invalid storage", asyn
     }
     assertEquals(failed, true);
   }
+});
+
+Deno.test("the update policy is optional to send, required to read, and only go_back or ask", () => {
+  const base = {
+    registrationMode: RegistrationMode.Invitation,
+    organizationCreationPolicy:
+      OrganizationCreationPolicy.InstallationAdministrators,
+  };
+  assertEquals(
+    InstallationSettingsUpdateSchema.parse(base).updateFailurePolicy,
+    undefined,
+  );
+  for (const updateFailurePolicy of Object.values(UpdateFailurePolicy)) {
+    assertEquals(
+      InstallationSettingsUpdateSchema.parse({ ...base, updateFailurePolicy })
+        .updateFailurePolicy,
+      updateFailurePolicy,
+    );
+  }
+  assertThrows(() =>
+    InstallationSettingsUpdateSchema.parse({
+      ...base,
+      updateFailurePolicy: "whenever",
+    })
+  );
+  const snapshot = {
+    ...base,
+    version: 1,
+    updatedByPrincipalId: null,
+    updatedAt: "2026-10-12T00:00:00.000Z",
+  };
+  assertThrows(() => InstallationSettingsSchema.parse(snapshot));
+  assertEquals(
+    InstallationSettingsSchema.parse({
+      ...snapshot,
+      updateFailurePolicy: UpdateFailurePolicy.Ask,
+    }).updateFailurePolicy,
+    "ask",
+  );
 });

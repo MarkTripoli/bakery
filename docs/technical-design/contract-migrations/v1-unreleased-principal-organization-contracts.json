@@ -1,14 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "3b0330664f195cf0ec6e938a1291771a8f16a7ff",
-    "8cad16fd684a429cb8026ca22c26945ab8eb8511"
+    "db286b23bef74fb5e122814f49ddc43079619d2b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:6273ed2252c15456e8180b3db382807792c17a6ece95dae2cf53cbe722654ff6",
-  "reason": "#431 private skills web by dev-web on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: Skill carries activeRevision, the revision number of its active version (null when it has none), so the step picker can name which version an attach shares. Main's own approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:59381ada5e1b8574773b8ee2d085ccefd128077e4dcb2ebadaacde9202ca6f47",
+  "reason": "#431 private skills web by dev-web on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main db286b23bef74fb5e122814f49ddc43079619d2b: Skill carries activeRevision, the revision number of its active version (null when it has none), so the step picker can name which version an attach shares. Main's own approval it displaces is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8cad16fd684a429cb8026ca22c26945ab8eb8511"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a8721cd04c1c5c1fc4036cd270953f30dada8993bfc16abdc29bca0373c60f74",
+      "reason": "#59 slice 3 by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 8cad16fd684a429cb8026ca22c26945ab8eb8511: InstallationSettings (the administrator's settings read) gains a required updateFailurePolicy, go_back or ask, and the settings update gains it as optional; installationStatus gains a required release; the update history adds three installation administrator reads and one dismiss. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

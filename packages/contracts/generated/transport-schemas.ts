@@ -6828,10 +6828,16 @@ const transportSchemas = {
           "type": "enum(installation_admins|any_user)",
           "required": true,
           "description": "Installation administrators only, or any authenticated human, may create organizations."
+        },
+        {
+          "name": "updateFailurePolicy",
+          "type": "enum(go_back|ask)",
+          "required": false,
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
         }
       ],
       "rules": [
-        "If-Match and Idempotency-Key required; both policy fields must be present."
+        "If-Match and Idempotency-Key required; registrationMode and organizationCreationPolicy must be present. updateFailurePolicy may be left out to keep the current choice."
       ],
       "description": "Complete installation policy update by a live installation administrator; stale versions fail without writing."
     },
@@ -26526,18 +26532,21 @@ const transportSchemas = {
       "fields": [
         "bootstrapped",
         "restoreHeld",
-        "updatePaused"
+        "updatePaused",
+        "release"
       ],
       "fieldTypes": {
         "bootstrapped": "boolean",
         "restoreHeld": "boolean",
-        "updatePaused": "boolean"
+        "updatePaused": "boolean",
+        "release": "string"
       },
-      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity.",
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity.",
       "fieldDescriptions": {
         "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
         "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action.",
-        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
+        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes.",
+        "release": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
       }
     },
     "BrowserSession": {
@@ -29372,6 +29381,7 @@ const transportSchemas = {
       "fields": [
         "registrationMode",
         "organizationCreationPolicy",
+        "updateFailurePolicy",
         "version",
         "updatedByPrincipalId",
         "updatedAt"
@@ -29379,6 +29389,7 @@ const transportSchemas = {
       "fieldTypes": {
         "registrationMode": "enum(closed|invitation)",
         "organizationCreationPolicy": "enum(installation_admins|any_user)",
+        "updateFailurePolicy": "enum(go_back|ask)",
         "version": "integer",
         "updatedByPrincipalId": "uuid|null",
         "updatedAt": "timestamp"
@@ -29390,6 +29401,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "registrationMode": "Closed refuses new accounts; invitation requires a live organization invitation.",
         "organizationCreationPolicy": "Installation administrators only, or any authenticated human, may create organizations.",
+        "updateFailurePolicy": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
         "version": "Monotonic settings revision; submit the current value as If-Match when updating.",
         "updatedByPrincipalId": "Principal who last changed policy, or null for initial defaults.",
         "updatedAt": "Timestamp of the last installation policy update."
@@ -37146,6 +37158,83 @@ const transportSchemas = {
         "total": "How many actions are uncertain in all, counting kinds beyond the ones listed."
       }
     },
+    "InstallationUpdateEvent": {
+      "fields": [
+        "id",
+        "kind",
+        "at",
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "enum(installed|updated|rolled_back|went_back|refused|decided_go_back|decided_stay|interrupted)",
+        "at": "timestamp",
+        "by": "string|null",
+        "fromRelease": "string|null",
+        "toRelease": "string|null",
+        "detail": "string|null",
+        "dismissedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only.",
+      "fieldDescriptions": {
+        "id": "The event's id, made by the launcher so a resent event is recorded once.",
+        "kind": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back.",
+        "at": "When it happened, on the server's clock.",
+        "by": "The operating-system user at the server's terminal, or null when Bakery did it by itself.",
+        "fromRelease": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply.",
+        "toRelease": "The release id the event moved to or kept, or null when it does not apply.",
+        "detail": "The launcher's first line for a refusal, in words; null for every other kind.",
+        "dismissedAt": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+      }
+    },
+    "InstallationUpdateStatus": {
+      "fields": [
+        "runningRelease",
+        "runningSince",
+        "healthy",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "fieldTypes": {
+        "runningRelease": "string",
+        "runningSince": "timestamp|null",
+        "healthy": "boolean",
+        "previousRelease": "string|null",
+        "previousRanFrom": "timestamp|null",
+        "previousRanUntil": "timestamp|null",
+        "lastFailure": "InstallationUpdateEvent|null"
+      },
+      "nullableFields": [
+        "runningSince",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only.",
+      "fieldDescriptions": {
+        "runningRelease": "The release id this server is running now.",
+        "runningSince": "When the launcher made this release the running one, or null when the history does not say.",
+        "healthy": "Whether this server's own health check passes: its database and configuration answer.",
+        "previousRelease": "The release the launcher keeps so it can go back, or null when none is kept.",
+        "previousRanFrom": "When the kept release became the running one, or null when the history does not say.",
+        "previousRanUntil": "When the kept release stopped running, which is when the current one took over, or null when none is kept.",
+        "lastFailure": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
+      }
+    },
     "BackupDrill": {
       "fields": [
         "id",
@@ -37200,6 +37289,10 @@ const transportSchemas = {
     "Page<BackupDrill>": {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "Page<InstallationUpdateEvent>": {
+      "pageOf": "InstallationUpdateEvent",
+      "description": "Cursor page of the update history returned by `GET /v1/installation/updates`, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "WorkerHostCleanup": {
       "projection": "worker_hosts",

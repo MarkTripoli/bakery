@@ -20,6 +20,7 @@ Deno.test("fresh installation bootstrap grants one administrator and exposes exp
     assertEquals(Object.keys(settings).sort(), [
       "organizationCreationPolicy",
       "registrationMode",
+      "updateFailurePolicy",
       "updatedAt",
       "updatedByPrincipalId",
       "version",

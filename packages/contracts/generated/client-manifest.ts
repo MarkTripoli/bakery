@@ -8972,6 +8972,83 @@ export const clientManifest = {
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates/status",
+      "action": "installationUpdates.status",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUpdateStatus",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates",
+      "action": "installationUpdates.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<InstallationUpdateEvent>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/updates/{id}/dismiss",
+      "action": "installationUpdates.dismiss",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "IdPath",
+      "output": "InstallationUpdateEvent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; dismissing again returns the same event",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",
@@ -19396,6 +19473,9 @@ export const clientManifest = {
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -24089,6 +24169,14 @@ export const clientManifest = {
             "any_user"
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
+        },
+        "updateFailurePolicy": {
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ]
         }
       },
       "required": [
@@ -47609,6 +47697,9 @@ export const clientManifest = {
                   "backups.drills.list",
                   "installationRestore.get",
                   "installationUncertainActions.get",
+                  "installationUpdates.status",
+                  "installationUpdates.list",
+                  "installationUpdates.dismiss",
                   "installationRestore.step",
                   "backups.status",
                   "backups.start",
@@ -68945,6 +69036,9 @@ export const clientManifest = {
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -76362,15 +76456,21 @@ export const clientManifest = {
         "updatePaused": {
           "type": "boolean",
           "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
+        },
+        "release": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
         }
       },
       "required": [
         "bootstrapped",
         "restoreHeld",
-        "updatePaused"
+        "updatePaused",
+        "release"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity."
     },
     "BrowserSessionList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -88201,6 +88301,14 @@ export const clientManifest = {
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
         },
+        "updateFailurePolicy": {
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ],
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
+        },
         "version": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -88232,6 +88340,7 @@ export const clientManifest = {
       "required": [
         "registrationMode",
         "organizationCreationPolicy",
+        "updateFailurePolicy",
         "version",
         "updatedByPrincipalId",
         "updatedAt"
@@ -116580,6 +116689,329 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
     },
+    "InstallationUpdateEvent": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The event's id, made by the launcher so a resent event is recorded once."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "installed",
+            "updated",
+            "rolled_back",
+            "went_back",
+            "refused",
+            "decided_go_back",
+            "decided_stay",
+            "interrupted"
+          ],
+          "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it happened, on the server's clock."
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.by may be null in this transport value."
+        },
+        "fromRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+        },
+        "toRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id the event moved to or kept, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The launcher's first line for a refusal, in words; null for every other kind."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.detail may be null in this transport value."
+        },
+        "dismissedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "at",
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+    },
+    "InstallationUpdateStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runningRelease": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running now."
+        },
+        "runningSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the launcher made this release the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.runningSince may be null in this transport value."
+        },
+        "healthy": {
+          "type": "boolean",
+          "description": "Whether this server's own health check passes: its database and configuration answer."
+        },
+        "previousRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release the launcher keeps so it can go back, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRelease may be null in this transport value."
+        },
+        "previousRanFrom": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release became the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanFrom may be null in this transport value."
+        },
+        "previousRanUntil": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release stopped running, which is when the current one took over, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanUntil may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The event's id, made by the launcher so a resent event is recorded once."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "installed",
+                    "updated",
+                    "rolled_back",
+                    "went_back",
+                    "refused",
+                    "decided_go_back",
+                    "decided_stay",
+                    "interrupted"
+                  ],
+                  "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When it happened, on the server's clock."
+                },
+                "by": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.by may be null in this transport value."
+                },
+                "fromRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+                },
+                "toRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id the event moved to or kept, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.detail may be null in this transport value."
+                },
+                "dismissedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "at",
+                "by",
+                "fromRelease",
+                "toRelease",
+                "detail",
+                "dismissedAt"
+              ],
+              "additionalProperties": false,
+              "description": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.lastFailure may be null in this transport value."
+        }
+      },
+      "required": [
+        "runningRelease",
+        "runningSince",
+        "healthy",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "additionalProperties": false,
+      "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only."
+    },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -116925,6 +117357,181 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of BackupDrill."
+    },
+    "Page<InstallationUpdateEvent>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The event's id, made by the launcher so a resent event is recorded once."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "installed",
+                  "updated",
+                  "rolled_back",
+                  "went_back",
+                  "refused",
+                  "decided_go_back",
+                  "decided_stay",
+                  "interrupted"
+                ],
+                "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it happened, on the server's clock."
+              },
+              "by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.by may be null in this transport value."
+              },
+              "fromRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+              },
+              "toRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id the event moved to or kept, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.detail may be null in this transport value."
+              },
+              "dismissedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "at",
+              "by",
+              "fromRelease",
+              "toRelease",
+              "detail",
+              "dismissedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+          },
+          "description": "InstallationUpdateEvent items in this cursor page. Page<InstallationUpdateEvent>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<InstallationUpdateEvent>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<InstallationUpdateEvent>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<InstallationUpdateEvent>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<InstallationUpdateEvent>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of InstallationUpdateEvent."
     },
     "WorkerLinkCodeInspection": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
