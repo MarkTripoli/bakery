@@ -17,7 +17,7 @@
  * worse than none.
  */
 import { expect, test } from "@playwright/test";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
 
@@ -47,6 +47,20 @@ test("the Slack app is set up, checked and removed in one path", async ({
   await mkdir(OUT!, { recursive: true });
   const video = page.video();
   expect(video).not.toBeNull();
+  // The recording is also the only place this path runs against a real
+  // server, so every call it makes is written down beside it: a run that
+  // failed says which answer it failed on.
+  const calls: string[] = [];
+  page.on("response", (response) => {
+    if (!response.url().includes("/v1/integrations/slack/app")) return;
+    calls.push(
+      `${response.request().method()} ${new URL(response.url()).pathname} ${
+        String(response.status())
+      }`,
+    );
+  });
+  const writeCalls = () =>
+    writeFile(join(OUT!, "calls.txt"), `${calls.join("\n")}\n`);
 
   // The section is an installation administrator's screen, so the path starts
   // at the sign-in the person actually makes.
@@ -149,5 +163,6 @@ test("the Slack app is set up, checked and removed in one path", async ({
   await page.close();
   await mkdir(dirname(target), { recursive: true });
   await copyFile(saved, target);
+  await writeCalls();
   testInfo.attach("recording", { path: target, contentType: "video/webm" });
 });

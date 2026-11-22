@@ -229,6 +229,43 @@ Deno.test("path-only DELETE is bodyless and NoContent is an empty 204", async ()
   assertEquals(seen, "00000000-0000-4000-8000-000000000001");
 });
 
+Deno.test("a DELETE that declares no field takes a bodyless request", async () => {
+  let removed = 0;
+  const registry = new ActionRegistry().register({
+    name: "health.delete-test" as CatalogActionName,
+    method: HttpMethod.Delete,
+    path: "/v1/whole-row",
+    input: contractSchemas.Empty,
+    output: contractSchemas.NoContent,
+    policy: { type: "command", access: "Public" },
+    handler: () => {
+      removed += 1;
+      return null;
+    },
+  });
+  const server = createApiRouter({ registry });
+  // The browser client sends no body and no media type for this shape, so the
+  // router must not answer it 415 on the way to the handler.
+  const response = await server.fetch(
+    new Request("http://test/v1/whole-row", {
+      method: "DELETE",
+      headers: { "idempotency-key": "delete-whole-row" },
+    }),
+  );
+  assertEquals(response.status, 204);
+  assertEquals(removed, 1);
+  // A body still has to be JSON: the exemption is for a request with nothing in
+  // it, not for a method.
+  const withBody = await server.fetch(
+    new Request("http://test/v1/whole-row", {
+      method: "DELETE",
+      body: "{}",
+      headers: { "content-type": "text/plain", "idempotency-key": "delete-2" },
+    }),
+  );
+  assertEquals(withBody.status, 415);
+});
+
 Deno.test("unknown URLs return resource not found", async () => {
   const response = await app().fetch(new Request("http://test/v1/missing"));
   assertEquals(response.status, 404);

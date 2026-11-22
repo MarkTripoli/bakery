@@ -1050,9 +1050,16 @@ export function createApiRouter(
         const hasBody = bodyBytes
           ? bodyBytes.length > 0
           : request.body !== null;
+        // A DELETE whose input declares no field carries no body at all: the
+        // browser client sends none, and asking a bodyless request for a JSON
+        // media type turns removing a row into a 415. Anything with a body, or
+        // with fields to read out of one, still has to name JSON.
+        const bodylessDelete = action.method === "DELETE" && !hasBody &&
+          Object.keys(fields).length === 0;
         if (
           !["GET", "HEAD"].includes(action.method) &&
           !(pathOnly && !hasBody) &&
+          !bodylessDelete &&
           !acceptsJson
         ) throw new StandardError({ code: "UNSUPPORTED_MEDIA_TYPE" });
         if (pathNames.length) {
@@ -1114,6 +1121,10 @@ export function createApiRouter(
             ...query,
             ...inputParams,
           };
+        } else if (bodylessDelete) {
+          // The request carried nothing, and the action declares no field to
+          // read: its input is the empty object, not a body that failed to parse.
+          value = {};
         } else {
           let body: unknown;
           if (bodyBytes) {
