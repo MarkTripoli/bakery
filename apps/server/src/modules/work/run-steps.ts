@@ -33,6 +33,12 @@ export type FixedWorkflowStep = {
    * loop. It still keeps its spec position, agent binding and budget check.
    */
   onDemand?: boolean;
+  /**
+   * The bounded repeat this step sits in, when a preset's compiled plan puts it
+   * in one: the repeat node's id and its most iterations. Only a preset's plan
+   * reports it, so a library page can draw the repair loop as one block.
+   */
+  repeat?: { id: string; max: number };
 };
 
 type RecordValue = Record<string, unknown>;

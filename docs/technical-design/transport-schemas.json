@@ -30418,16 +30418,32 @@
     "WorkflowPresetStep": {
       "fields": [
         "id",
-        "uses"
+        "uses",
+        "repeatId",
+        "repeatMax"
       ],
       "fieldTypes": {
         "id": "string",
-        "uses": "string"
+        "uses": "string",
+        "repeatId": "string",
+        "repeatMax": "integer"
       },
-      "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs.",
+      "optionalFields": [
+        "repeatId",
+        "repeatMax"
+      ],
+      "fieldBounds": {
+        "repeatMax": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run.",
       "fieldDescriptions": {
         "id": "Stable step key within the preset.",
-        "uses": "Registered workflow action the step runs."
+        "uses": "Registered workflow action the step runs.",
+        "repeatId": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+        "repeatMax": "Most iterations of that repeat; present exactly when repeatId is."
       }
     },
     "WorkflowPresetAvailability": {

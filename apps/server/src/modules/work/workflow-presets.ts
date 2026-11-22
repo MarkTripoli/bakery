@@ -180,6 +180,37 @@ function authoredNodeAt(
 }
 
 /**
+ * The bounded repeat an action site sits in, read off its path through the
+ * authored document: the nearest enclosing node that carries a `repeat`, with
+ * that node's id and its `max`. Undefined for a site outside every repeat.
+ */
+function repeatAround(
+  document: WorkflowPresetDocument,
+  path: readonly (string | number)[],
+): { id: string; max: number } | undefined {
+  let found: { id: string; max: number } | undefined;
+  let current: unknown = document;
+  for (const segment of path) {
+    if (typeof current !== "object" || current === null) return found;
+    const node = current as Record<string | number, unknown>;
+    if (segment === "repeat") {
+      const body = node.repeat;
+      const max = typeof body === "object" && body !== null
+        ? (body as Record<string, unknown>).max
+        : undefined;
+      if (
+        typeof node.id === "string" && typeof max === "number" &&
+        Number.isInteger(max) && max >= 1
+      ) {
+        found = { id: node.id, max };
+      }
+    }
+    current = node[segment];
+  }
+  return found;
+}
+
+/**
  * The action steps a preset runs, in authored order, whatever grammar it is
  * published in. A flat spec lists them directly; a document compiles to a plan,
  * and the plan's action sites are the same actions with the containers' ids
@@ -200,6 +231,7 @@ export async function presetActionSteps(
   return actionSites.map((site, position) => {
     const node = authoredNodeAt(source, site.path) ?? {};
     const input = node.with ?? node.input ?? {};
+    const repeat = repeatAround(source, site.path);
     return {
       key: site.qualifiedId,
       action: site.action,
@@ -209,6 +241,7 @@ export async function presetActionSteps(
       workflowAgentVersionId: null,
       stepAgentVersionId: null,
       ...(site.requires.length > 0 ? { requires: site.requires } : {}),
+      ...(repeat === undefined ? {} : { repeat }),
     };
   });
 }
@@ -485,7 +518,8 @@ export async function presetAvailability(
   };
 }
 
-function presetOutput(
+/** One preset as the list read returns it; the repair loop's steps name their repeat. */
+export function presetOutput(
   preset: WorkflowPresetDefinition,
   steps: readonly FixedWorkflowStep[],
   availability: AvailabilityOutput | null,
@@ -495,7 +529,13 @@ function presetOutput(
     revision: preset.revision,
     digest: preset.digest,
     nameKey: preset.nameKey,
-    steps: steps.map((step) => ({ id: step.key, uses: step.action })),
+    steps: steps.map((step) => ({
+      id: step.key,
+      uses: step.action,
+      ...(step.repeat === undefined
+        ? {}
+        : { repeatId: step.repeat.id, repeatMax: step.repeat.max }),
+    })),
     defaultBudgetLimitUsd: preset.defaultBudgetLimitUsd,
     availability,
   };

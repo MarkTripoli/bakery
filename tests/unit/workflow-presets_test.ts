@@ -12,6 +12,7 @@ import {
 import {
   FIXED_CODING_DEFINITION,
   FIXED_CODING_PRESET,
+  FIXED_CODING_REVIEWED_PRESET,
   IMPLEMENT_INSTRUCTIONS_MAX_LENGTH,
   renderImplementInstructions,
   WORKFLOW_PRESET_IDS,
@@ -35,6 +36,7 @@ import {
   boundBriefPlan,
   presetActionSteps,
   presetBriefInputs,
+  presetOutput,
 } from "../../apps/server/src/modules/work/workflow-presets.ts";
 
 const repositoryId = "00000000-0000-4000-8000-0000000000a1";
@@ -409,4 +411,55 @@ Deno.test("brief plan stays inside the run-inputs cap with a huge multi-byte des
   assert(kept.steps.every((s) => s.detailShortened === true));
   // A small plan is untouched and unflagged.
   assertEquals(boundBriefPlan(plan, 0), plan);
+});
+
+Deno.test("a preset's list read names the repeat its repair steps sit in, and no other step", async () => {
+  const reviewed = presetOutput(
+    FIXED_CODING_REVIEWED_PRESET,
+    await presetActionSteps(FIXED_CODING_REVIEWED_PRESET.spec),
+    null,
+  );
+  // The read still satisfies the published contract.
+  contractSchemas.WorkflowPreset.parse(reviewed);
+  const inRepeat = reviewed.steps.filter((step) =>
+    "repeatId" in step && step.repeatId !== undefined
+  );
+  assertEquals(
+    inRepeat.map((step) => [step.id, step.uses, step.repeatId, step.repeatMax]),
+    [
+      ["repair.repair_implement", "harness.repair", "repair", 2],
+      ["repair.repair_check", "quality.check", "repair", 2],
+      ["repair.repair_review", "review.independent", "repair", 2],
+    ],
+  );
+  // Steps outside the loop carry neither field, so an older reader sees the
+  // shape it always saw.
+  for (const step of reviewed.steps.filter((one) => !inRepeat.includes(one))) {
+    assertEquals(Object.keys(step).sort(), ["id", "uses"], step.id);
+  }
+  // A preset with no repeat names none.
+  const plain = presetOutput(
+    FIXED_CODING_PRESET,
+    await presetActionSteps(FIXED_CODING_PRESET.spec),
+    null,
+  );
+  contractSchemas.WorkflowPreset.parse(plain);
+  for (const step of plain.steps) {
+    assertEquals(Object.keys(step).sort(), ["id", "uses"], step.id);
+  }
+});
+
+Deno.test("the repeat fields are bounded like a repeat's own limit", () => {
+  const base = {
+    id: "repair.repair_implement",
+    uses: "harness.repair",
+  };
+  const accepts = (extra: Record<string, unknown>) =>
+    contractSchemas.WorkflowPresetStep.safeParse({ ...base, ...extra })
+      .success;
+  assert(accepts({ repeatId: "repair", repeatMax: 2 }));
+  assert(accepts({}));
+  assert(!accepts({ repeatId: "repair", repeatMax: 0 }));
+  assert(!accepts({ repeatId: "repair", repeatMax: 9 }));
+  assert(!accepts({ repeatId: "repair", repeatMax: 1.5 }));
 });
