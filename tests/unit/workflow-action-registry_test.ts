@@ -269,6 +269,9 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
     runtime.list().map(({ action }) => action).sort(),
     [
       "agent.freeform",
+      "delivery.deploy",
+      "delivery.health",
+      "delivery.prepare",
       "evaluation.check",
       "evaluation.score",
       "harness.implement",
