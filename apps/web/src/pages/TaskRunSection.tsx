@@ -623,6 +623,16 @@ export function TaskRunSection(
               noHelp
               testId="run-id-row"
             />
+            {(run.data.workspaceBaseSha ?? run.data.baseSha) === null ? null : (
+              // The commit the run started from: it used to show only inside
+              // the Changes box, which is not drawn when nothing is recorded.
+              <UI.Text>
+                {t("tasks.run.startedFrom", {
+                  sha: (run.data.workspaceBaseSha ?? run.data.baseSha)!
+                    .slice(0, 7),
+                })}
+              </UI.Text>
+            )}
             <RunRulesDetails
               finished={run.data.finishedAt !== null}
               model={rules}

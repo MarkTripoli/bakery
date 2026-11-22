@@ -6212,5 +6212,6 @@
   "library.evaluation.cost.exhausted.body": "⟦Çĥëçķš šŧïļļ ŕûñ, àñð ŧĥëÿ çôšŧ ñôŧĥïñĝ. ŧëšŧ çôþÿ ŧ⟧",
   "library.evaluation.sampled.help": "⟦À ɱôðëļ'š ôþïñïôñ ôñ à šàɱþļë ôƒ ŧĥë ŧëšŧ çàšëš. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.evaluation.sampled.show": "⟦Šĥôŵ ŧĥë {count, plural, one {# sampled result} other {# sampled results}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "library.evaluation.sampled.listLabel": "⟦Šàɱþļëð ŕëšûļŧš ŧëš⟧"
+  "library.evaluation.sampled.listLabel": "⟦Šàɱþļëð ŕëšûļŧš ŧëš⟧",
+  "tasks.run.startedFrom": "⟦Šŧàŕŧëð ƒŕôɱ çôɱɱïŧ {sha} ŧëšŧ ç⟧"
 }

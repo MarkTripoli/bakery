@@ -2824,8 +2824,9 @@ test(
     );
     const section = await openDelivery(page, STOPPED);
     const attention = section.getByTestId("delivery-attention");
+    // The first row is the table's own (hidden) heading row.
     const cells = rowsOf(page, attention.getByTestId("delivery-attention-rows"))
-      .first().getByRole("cell");
+      .nth(1).getByRole("cell");
     const [name, why] = [
       await cells.nth(0).boundingBox(),
       await cells.nth(1).boundingBox(),

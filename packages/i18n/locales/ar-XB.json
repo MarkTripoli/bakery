@@ -6212,5 +6212,6 @@
   "library.evaluation.cost.exhausted.body": "⟪Checks still run, and they cost nothing.⟫",
   "library.evaluation.sampled.help": "⟪A model's opinion on a sample of the test cases.⟫",
   "library.evaluation.sampled.show": "⟪Show the {count, plural, one {# sampled result} other {# sampled results}}⟫",
-  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫"
+  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫",
+  "tasks.run.startedFrom": "⟪Started from commit {sha}⟫"
 }

@@ -965,6 +965,7 @@
   "tasks.run.heading": "Current run",
   "tasks.run.details": "Details",
   "tasks.run.id": "Run ID",
+  "tasks.run.startedFrom": "Started from commit {sha}",
   "tasks.run.rules.heading": "Rules this run used",
   "tasks.run.rules.fixed": "Fixed when the run started. Editing the rules does not change a run in progress.",
   "tasks.run.rules.fixed.finished": "Fixed when the run started.",

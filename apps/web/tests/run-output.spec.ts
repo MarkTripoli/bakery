@@ -299,24 +299,11 @@ test(
       .toBeVisible();
     await expect(page.getByText("Persisted description", { exact: true }))
       .toBeVisible();
-    const outputBox = await page.locator('[data-ui-component="runOutputView"]')
-      .boundingBox();
-    const inspectorBox = await page.locator(
-      '[data-ui-component="artifactPane"]',
-    ).boundingBox();
-    expect(outputBox).not.toBeNull();
-    expect(inspectorBox).not.toBeNull();
-    if (outputBox && inspectorBox) {
-      if ((page.viewportSize()?.width ?? 0) >= 1280) {
-        expect(inspectorBox.x).toBeGreaterThanOrEqual(
-          outputBox.x + outputBox.width,
-        );
-      } else {
-        expect(inspectorBox.y).toBeGreaterThanOrEqual(
-          outputBox.y + outputBox.height,
-        );
-      }
-    }
+    // No artifact yet: the output view is the page and no pane sits beside it.
+    await expect(page.locator('[data-ui-component="runOutputView"]'))
+      .toBeVisible();
+    await expect(page.locator('[data-ui-component="artifactPane"]'))
+      .toHaveCount(0);
     expect(subscriptions[0]?.after).toBeNull();
     expect(subscriptions[1]?.after).toBe("opaque-through-1");
     await expect(page.getByText("second durable line", { exact: true }))
@@ -331,8 +318,8 @@ test(
     await expect(
       page.getByText("first durable line [REDACTED]", { exact: true }),
     ).toBeVisible();
-    // With no commit and no change count known the card is that one sentence:
-    // no "Unknown" badges and no line about badges that are not there.
+    // With no commit and no change count known there is no card at all: no
+    // "Unknown" badges and no sentence about changes that are not there.
     await expect(
       page.getByText(
         "Observed repository state. No review or merge decision recorded.",
@@ -340,7 +327,7 @@ test(
     ).toHaveCount(0);
     await expect(
       page.getByText("Bakery has not recorded any changes for this run yet."),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "Changes" }).locator(
         ".ui-run-card__badge",
@@ -839,10 +826,10 @@ for (
     }
     // Usage that is not known is not drawn.
     await expect(page.getByText(/^Provider usage/)).toHaveCount(0);
-    // Nothing is known of the changes: the card says so in its one sentence.
+    // Nothing is known of the changes: no card, and no sentence saying so.
     await expect(
       page.getByText("Bakery has not recorded any changes for this run yet."),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 }
 
@@ -1288,8 +1275,6 @@ test("aside is empty when only a prior run published a patch", async ({ page }) 
   })).toHaveCount(0);
   await expect(page.getByText("This run has published no artifact yet."))
     .toHaveCount(0);
-  await expect(page.getByText("prior-run.patch")).toHaveCount(0);
-  await expect(page.getByText("transcript.log")).toHaveCount(0);
 });
 
 test("current attempt selection returns from historical pages", async ({ page }) => {
@@ -1478,14 +1463,13 @@ test("a run without an admission pin shows the workspace base it started from", 
     }));
   await page.routeWebSocket("**/v1/events?*", () => {});
   await gotoRun(page);
-  const revision = page.locator('[data-ui-component="revisionSummary"]').filter(
-    {
-      hasText: "Changes",
-    },
-  );
-  await expect(revision).toContainText("ddddddd");
+  // No change is recorded, so there is no Changes card; the commit the run
+  // started from is a line of the run's Details, in its short form.
+  await page.getByText("Details", { exact: true }).first().click();
+  const started = page.getByText(/^Started from commit /);
+  await expect(started).toHaveText("Started from commit ddddddd");
   // Short form only: the full 40-character commit is not the label.
-  await expect(revision).not.toContainText("d".repeat(40));
+  await expect(page.getByText("d".repeat(40))).toHaveCount(0);
 });
 
 const retriedProducers = [
