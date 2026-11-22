@@ -33,6 +33,12 @@ export type PluginAttempt = Readonly<{
   installId: string;
   /** The `entry` the job was admitted with: a path inside the install's bundle. */
   entry: string | null;
+  /**
+   * The plugin version the job was admitted with, when it named one: the bundle
+   * the job runs is that version's, not whatever the install points at later.
+   * Null for a job that named none, which runs the install's current version.
+   */
+  versionId: string | null;
   jobId: string;
   leaseExpiresAt: number;
 }>;
@@ -82,18 +88,26 @@ export async function authorizePluginAttempt(
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
       const input = found.input as
-        | { installId?: unknown; entry?: unknown }
+        | { installId?: unknown; entry?: unknown; versionId?: unknown }
         | null;
       const installId = input?.installId;
       if (typeof installId !== "string" || !UUID.test(installId)) {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
+      // A version the job names must be a well-formed id; one that is not is a
+      // job nobody could have admitted, never a request to use the install's.
+      const versionId = input?.versionId;
+      if (
+        versionId !== undefined && versionId !== null &&
+        (typeof versionId !== "string" || !UUID.test(versionId))
+      ) throw new StandardError({ code: "STATE_CONFLICT" });
       return {
         attemptId,
         fence,
         organizationId: row.organization_id,
         installId,
         entry: typeof input?.entry === "string" ? input.entry : null,
+        versionId: typeof versionId === "string" ? versionId : null,
         jobId: row.job_id,
         leaseExpiresAt: Date.parse(String(row.lease_expires_at)),
       };

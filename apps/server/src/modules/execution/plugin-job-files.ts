@@ -26,8 +26,9 @@ const JOBS_GRANT = "jobs.schedule";
 
 type InstallRow = {
   status: string;
-  bundle_object_ref: string;
-  bundle_digest: string;
+  /** Null when the job named a version that is not a published one of the install's package. */
+  bundle_object_ref: string | null;
+  bundle_digest: string | null;
   granted: boolean;
 };
 
@@ -55,6 +56,10 @@ export async function pluginJobFilesRoute(
   const refusal = (reason: string) =>
     new StandardError({ code: "STATE_CONFLICT", params: { reason } });
 
+  // The bundle is the named version's when the job named one, else the
+  // install's current. A named version must be a published one of the install's
+  // own package: another package's bundle is never run under this install's
+  // grants. Status and grant stay the install's either way.
   const found = await options.database.query<InstallRow>(
     `select i.status, v.bundle_object_ref, v.bundle_digest,
             exists (
@@ -64,11 +69,13 @@ export async function pluginJobFilesRoute(
                  and g.capability = $3
             ) as granted
        from bakery.plugin_installs i
-       join bakery.plugin_versions v
+       left join bakery.plugin_versions v
          on v.organization_id = i.organization_id
-        and v.id = i.plugin_version_id
+        and v.id = coalesce($4::uuid, i.plugin_version_id)
+        and v.plugin_package_id = i.plugin_package_id
+        and ($4::uuid is null or v.published_at is not null)
       where i.organization_id = $1 and i.id = $2`,
-    [attempt.organizationId, attempt.installId, JOBS_GRANT],
+    [attempt.organizationId, attempt.installId, JOBS_GRANT, attempt.versionId],
   );
   const row = found.rows[0];
   if (row === undefined || row.status === "uninstalled") {
@@ -77,6 +84,9 @@ export async function pluginJobFilesRoute(
   if (row.status !== "enabled") throw refusal("plugin_install_off");
   if (!row.granted) throw refusal("plugin_job_not_granted");
   if (attempt.entry === null) throw refusal("plugin_job_entry_missing");
+  if (row.bundle_digest === null || row.bundle_object_ref === null) {
+    throw refusal("plugin_job_version_unusable");
+  }
   // The stored ref is recomputed rather than trusted, as at publication.
   if (
     row.bundle_object_ref !==

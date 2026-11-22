@@ -30,7 +30,15 @@ type Store = Parameters<typeof publishWithPages>[1];
 async function setup(
   fixture: Fixture,
   store: Store,
-  options: { capabilities?: string[]; entry?: string; installId?: string } = {},
+  options: {
+    capabilities?: string[];
+    entry?: string;
+    installId?: string;
+    /** More job input, built once the package and its first version exist. */
+    jobInput?: (
+      published: { packageId: string; versionId: string },
+    ) => Promise<Record<string, unknown>>;
+  } = {},
 ) {
   const published = await publishWithPages(
     fixture,
@@ -54,6 +62,7 @@ async function setup(
       input: {
         installId: options.installId ?? installId,
         entry: options.entry ?? "jobs/nightly.js",
+        ...(options.jobInput ? await options.jobInput(published) : {}),
       },
     },
   );
@@ -375,4 +384,95 @@ Deno.test("a version whose stored bundle reference is not the recomputed key is 
       await files(fixture, worker, assignment),
       "plugin_bundle_missing",
     );
+  }));
+
+const bytesOf = async (response: Response, path: string) => {
+  const body = await response.json();
+  const found = body.files.find((f: { path: string }) => f.path === path);
+  return {
+    digest: body.bundleDigest as string,
+    text: atob(found.contentBase64),
+  };
+};
+
+Deno.test("a job that names a version of its install's package gets that version's bytes, not the install's current (#34)", () =>
+  withPluginFixture(async (fixture, store) => {
+    const second = "export default () => ({ ok: 'second' });\n";
+    let secondVersion = "";
+    const { worker, assignment } = await setup(fixture, store, {
+      jobInput: async (published) => {
+        const next = await publishWithPages(
+          fixture,
+          store,
+          { name: "nightly-helper", requestedCapabilities: ["jobs.schedule"] },
+          { "jobs/nightly.js": second, "lib/util.js": "export const x = 2;\n" },
+          published.packageId,
+        );
+        assertEquals(next.response.status, 201, await next.response.text());
+        secondVersion = next.versionId;
+        return { versionId: next.versionId };
+      },
+    });
+    const response = await files(fixture, worker, assignment);
+    assertEquals(response.status, 200, await response.clone().text());
+    const got = await bytesOf(response, "jobs/nightly.js");
+    assertEquals(got.text, second);
+    // The install still points at the first version; only the job's pin moved.
+    const current = await fixture.pgDatabase.query<{ digest: string }>(
+      `select v.bundle_digest as digest from bakery.plugin_installs i
+         join bakery.plugin_versions v on v.id = i.plugin_version_id
+        where i.organization_id = $1`,
+      [fixture.organizationId],
+    );
+    assert(current.rows[0].digest !== got.digest);
+    assert(secondVersion.length > 0);
+  }));
+
+Deno.test("a job without a version still gets the install's current bundle (#34)", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment } = await setup(fixture, store);
+    const response = await files(fixture, worker, assignment);
+    assertEquals(response.status, 200, await response.clone().text());
+    assertEquals((await bytesOf(response, "jobs/nightly.js")).text, JOB_JS);
+  }));
+
+Deno.test("a job that names a version of another package is refused and gets no bytes (#34)", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment } = await setup(fixture, store, {
+      jobInput: async () => {
+        const other = await publishWithPages(
+          fixture,
+          store,
+          { name: "other-package", requestedCapabilities: ["jobs.schedule"] },
+          { "jobs/nightly.js": "export default () => ({ stolen: true });\n" },
+        );
+        assertEquals(other.response.status, 201, await other.response.text());
+        return { versionId: other.versionId };
+      },
+    });
+    await refused(
+      await files(fixture, worker, assignment),
+      "plugin_job_version_unusable",
+    );
+  }));
+
+Deno.test("a job that names a version that does not exist is refused, not run on the install's (#34)", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment } = await setup(fixture, store, {
+      jobInput: () =>
+        Promise.resolve({ versionId: "00000000-0000-4000-8000-0000000000f1" }),
+    });
+    await refused(
+      await files(fixture, worker, assignment),
+      "plugin_job_version_unusable",
+    );
+  }));
+
+Deno.test("a job whose named version is not an id is refused before any bundle is read (#34)", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment } = await setup(fixture, store, {
+      jobInput: () => Promise.resolve({ versionId: "not-a-uuid" }),
+    });
+    const response = await files(fixture, worker, assignment);
+    assertEquals(response.status, 409, await response.text());
   }));
