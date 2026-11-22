@@ -302,6 +302,9 @@ export function renderedContainmentIssues() {
   };
   const visibleElements = [root, ...root.querySelectorAll("*")].filter(
     (element) => {
+      // A table's column definitions size its columns; they hold no content, and
+      // their box spans the table, so they would overlap its head and body.
+      if (element.matches("colgroup, col")) return false;
       const style = getComputedStyle(element);
       const rectangle = element.getBoundingClientRect();
       return style.display !== "none" && style.visibility !== "hidden" &&
@@ -432,6 +435,10 @@ export function renderedContainmentIssues() {
     }
   }
   for (const element of root.querySelectorAll("*")) {
+    // Vector art is drawing, not layout: the svg's own viewport clips what its
+    // shapes and images draw, so a file shown through a smaller view box (a
+    // crop) is not content escaping. The svg element itself is still checked.
+    if (element.ownerSVGElement) continue;
     const rectangle = element.getBoundingClientRect();
     if (rectangle.width <= tolerance || rectangle.height <= tolerance) continue;
     const horizontalBoundary = clippingBoundary(element, "x");
