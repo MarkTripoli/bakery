@@ -6766,7 +6766,7 @@
       "permission": "preview:access",
       "input": "IdPath",
       "output": "Preview",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
       "errors": [
@@ -120647,6 +120647,20 @@
               ],
               "description": "previews.stoppedBy may be null in the safe projection."
             },
+            "stoppedByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stoppedByName may be null in the safe projection."
+            },
             "stoppedAt": {
               "anyOf": [
                 {
@@ -120695,6 +120709,7 @@
             "status",
             "stopReason",
             "stoppedBy",
+            "stoppedByName",
             "stoppedAt",
             "expiresAt",
             "createdAt",
@@ -120777,6 +120792,20 @@
               ],
               "description": "previews.stoppedBy may be null in the safe projection."
             },
+            "stoppedByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stoppedByName may be null in the safe projection."
+            },
             "stoppedAt": {
               "anyOf": [
                 {
@@ -120825,6 +120854,7 @@
             "status",
             "stopReason",
             "stoppedBy",
+            "stoppedByName",
             "stoppedAt",
             "expiresAt",
             "createdAt",
@@ -120907,6 +120937,20 @@
               ],
               "description": "Preview.stoppedBy may be null in the safe projection."
             },
+            "stoppedByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "Preview.stoppedByName may be null in the safe projection."
+            },
             "stoppedAt": {
               "anyOf": [
                 {
@@ -120955,6 +120999,7 @@
             "status",
             "stopReason",
             "stoppedBy",
+            "stoppedByName",
             "stoppedAt",
             "expiresAt",
             "createdAt",
@@ -162780,6 +162825,20 @@
                     ],
                     "description": "Preview.stoppedBy may be null in the safe projection."
                   },
+                  "stoppedByName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "Preview.stoppedByName may be null in the safe projection."
+                  },
                   "stoppedAt": {
                     "anyOf": [
                       {
@@ -162828,6 +162887,7 @@
                   "status",
                   "stopReason",
                   "stoppedBy",
+                  "stoppedByName",
                   "stoppedAt",
                   "expiresAt",
                   "createdAt",
@@ -280274,7 +280334,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9b6f67d853acd180db6ae7e31355ae2b45ebf5d964e6ab8460ecbceb00f610f6",
+  "compatibilityDigest": "sha256:3af5f05e8f0d74015f40a0313cb766f9d60a90a03ea987915b407b0482e81811",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -349517,6 +349577,20 @@
           ],
           "description": "previews.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -349565,6 +349639,7 @@
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -349647,6 +349722,20 @@
           ],
           "description": "previews.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -349695,6 +349784,7 @@
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -349777,6 +349867,20 @@
           ],
           "description": "Preview.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -349825,6 +349929,7 @@
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -391786,6 +391891,20 @@
                 ],
                 "description": "Preview.stoppedBy may be null in the safe projection."
               },
+              "stoppedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedByName may be null in the safe projection."
+              },
               "stoppedAt": {
                 "anyOf": [
                   {
@@ -391834,6 +391953,7 @@
               "status",
               "stopReason",
               "stoppedBy",
+              "stoppedByName",
               "stoppedAt",
               "expiresAt",
               "createdAt",

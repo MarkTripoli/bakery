@@ -22,6 +22,8 @@ export type RunTimelineEvent = {
   /** Why a blocked run waits; shown with the entry. */
   reason?: ReactNode;
   time?: string;
+  /** The time as the person reads it; `time` stays the machine value. */
+  timeLabel?: string;
   title: ReactNode;
 };
 
@@ -83,6 +85,7 @@ export function RunTimeline(
             scope = "step",
             status = scope === "control" ? undefined : "queued",
             time,
+            timeLabel,
             title,
           },
         ) => (
@@ -102,7 +105,9 @@ export function RunTimeline(
                     {description}
                     {description && reason ? " · " : null}
                     {reason}
-                    {time ? <time dateTime={time}>{time}</time> : null}
+                    {time
+                      ? <time dateTime={time}>{timeLabel ?? time}</time>
+                      : null}
                   </span>
                 </>
               )
@@ -113,7 +118,9 @@ export function RunTimeline(
                   <div>
                     <span className="ui-run-timeline__title">{title}</span>
                     <span className="ui-run-timeline__meta">
-                      {time ? <time dateTime={time}>{time}</time> : null}
+                      {time
+                        ? <time dateTime={time}>{timeLabel ?? time}</time>
+                        : null}
                       {time && description ? " · " : null}
                       {description}
                     </span>
@@ -129,7 +136,9 @@ export function RunTimeline(
                       ? <div className="ui-run-timeline__reason">{reason}</div>
                       : null}
                   </div>
-                  {time ? <time dateTime={time}>{time}</time> : null}
+                  {time
+                    ? <time dateTime={time}>{timeLabel ?? time}</time>
+                    : null}
                 </>
               )}
           </li>
