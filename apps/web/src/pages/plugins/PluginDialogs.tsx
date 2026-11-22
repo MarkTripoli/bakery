@@ -472,26 +472,30 @@ export function RestoreDialog(
         </UI.Button>
       }
     >
-      <UI.Stack gap="tight">
-        <UI.Text>
-          {translate("settings.plugins.restore.body", {
-            version: to.versionName,
-            name,
-            current,
-          })}
-        </UI.Text>
-        <UI.Text>
-          {translate("settings.plugins.restore.data", {
-            when,
-            count: copy.itemCount,
-          })}
-        </UI.Text>
-        <UI.Text>
-          {translate("settings.plugins.restore.removed", { current })}
-        </UI.Text>
-        {added.length === 0
-          ? null
-          : <AddedPermissions version={to.versionName} added={added} />}
+      <UI.Stack gap="standard">
+        <UI.Stack gap="tight">
+          <UI.Text>
+            {translate("settings.plugins.restore.body", {
+              version: to.versionName,
+              name,
+              current,
+            })}
+          </UI.Text>
+          <UI.Text>
+            {translate("settings.plugins.restore.data", {
+              when,
+              count: copy.itemCount,
+            })}
+          </UI.Text>
+          <UI.Text>
+            {translate("settings.plugins.restore.removed", { current })}
+          </UI.Text>
+        </UI.Stack>
+        {added.length === 0 ? null : (
+          <UI.Stack gap="tight">
+            <AddedPermissions version={to.versionName} added={added} />
+          </UI.Stack>
+        )}
         <UI.Text variant="caption">
           {translate("settings.plugins.restore.caption", { current })}
         </UI.Text>

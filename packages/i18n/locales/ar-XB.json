@@ -6225,5 +6225,6 @@
   "library.evaluation.sampled.show": "⟪Show the {count, plural, one {# sampled result} other {# sampled results}}⟫",
   "library.evaluation.sampled.listLabel": "⟪Sampled results⟫",
   "settings.plugins.update.added.caption": "⟪{kept, plural, =0 {} one {It keeps the 1 permission it already has. } other {It keeps the # permissions it already has. }}If {version} asks for anything else, Bakery does not switch and asks you again.⟫",
-  "settings.plugins.versions.cannotRead.hint": "⟪Ask the plugin's author for a version that can read this data.⟫"
+  "settings.plugins.versions.cannotRead.hint": "⟪Ask the plugin's author for a version that can read this data.⟫",
+  "settings.plugins.versions.restoreNamed": "⟪Go back to {version} and restore its data⟫"
 }

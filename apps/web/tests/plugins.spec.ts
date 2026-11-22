@@ -1107,6 +1107,12 @@ for (
       const keptRow = page.locator(`[data-plugin-version="${NOTES_V2}"]`);
       await expect(keptRow).toContainText("Cannot read the saved data");
       await expect(keptRow).not.toContainText("Did not start");
+      // Its button opens the restore dialog, so it says that, in the notice's words.
+      await expect(
+        keptRow.getByRole("button", {
+          name: "Go back to 1.1.0 and restore its data",
+        }),
+      ).toHaveText("Go back and restore its data");
       await notice.getByRole("button", { name: "Go back and restore its data" })
         .click();
       const dialog = page.getByRole("alertdialog");
@@ -1125,6 +1131,23 @@ for (
       await expect(
         dialog.getByRole("button", { name: "Go back, restore and allow 1" }),
       ).toHaveAttribute("data-variant", "destructive");
+      // Three blocks at the Update dialog's gap: the sentences, the permission
+      // and its label together, then the caption.
+      const [removed, label, item, caption] = [
+        await dialog.getByText(
+          "Everything it saved after that, on 1.0.0, is removed.",
+        ).boundingBox(),
+        await dialog.getByText("New in 1.1.0: it also asks to", { exact: true })
+          .boundingBox(),
+        await dialog.getByRole("listitem").boundingBox(),
+        await dialog.getByText(/Bakery keeps one copy of the data/)
+          .boundingBox(),
+      ];
+      const within = label!.height === 0
+        ? 0
+        : item!.y - (label!.y + label!.height);
+      expect(label!.y - (removed!.y + removed!.height)).toBeGreaterThan(within);
+      expect(caption!.y - (item!.y + item!.height)).toBeGreaterThan(within);
       await expect(dialog).toContainText(
         "Everything it saved after that, on 1.0.0, is removed.",
       );

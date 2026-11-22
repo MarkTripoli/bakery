@@ -5832,6 +5832,7 @@
   "settings.plugins.versions.didNotStart": "Did not start",
   "settings.plugins.versions.goBack": "Go back",
   "settings.plugins.versions.goBackNamed": "Go back to {version}",
+  "settings.plugins.versions.restoreNamed": "Go back to {version} and restore its data",
   "settings.plugins.goBack.title": "Go back to {version}?",
   "settings.plugins.goBack.body": "{name} switches to {version} after it is checked. If it does not pass, {current} keeps running.",
   "settings.plugins.goBack.refused": "Could not go back to {version}. {current} is still running.",

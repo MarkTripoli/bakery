@@ -646,10 +646,21 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     if (cannotRead(version)) return null;
                     const newer = current?.publishedAt != null &&
                       version.publishedAt! > current.publishedAt;
+                    // The version Bakery holds a copy for opens the restore dialog,
+                    // so the button says that, in the notice's words.
+                    const restoring = keptCopy(version) &&
+                      row.cannotReadVersionIds.includes(version.id);
                     return (
                       <UI.Button
                         variant="secondary"
-                        aria-label={newer
+                        aria-label={restoring
+                          ? translate(
+                            "settings.plugins.versions.restoreNamed",
+                            {
+                              version: version.versionName,
+                            },
+                          )
+                          : newer
                           ? translate("settings.plugins.versions.updateNamed", {
                             version: version.versionName,
                           })
@@ -661,18 +672,19 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                           // The version Bakery holds a copy for opens the restore
                           // dialog when it cannot read today's data.
                           setDialog(
-                            keptCopy(version) &&
-                              row.cannotReadVersionIds.includes(version.id)
-                              ? { kind: "restore", version }
-                              : {
-                                kind: "version",
-                                version,
-                                direction: newer ? "update" : "goBack",
-                              },
+                            restoring ? { kind: "restore", version } : {
+                              kind: "version",
+                              version,
+                              direction: newer ? "update" : "goBack",
+                            },
                           );
                         }}
                       >
-                        {newer
+                        {restoring
+                          ? translate(
+                            "settings.plugins.update.cannotRead.restore",
+                          )
+                          : newer
                           ? translate("settings.plugins.versions.update")
                           : translate("settings.plugins.versions.goBack")}
                       </UI.Button>
