@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><style>:root{--bd:#E3E6EB;--bds:#CBD0D8;--cb:#8A939F;--cv:#F5F6F8;--fg:#141A24;--mu:#5D6675;--sf:#FFFFFF;--sub:#EEF0F4;--pri:#141A24;--prif:#FFFFFF;--sel:#0B63C6;--selsf:#ECF1F8;--warn:#8F5A0B;--warnsf:#FBF3E4;--warnbd:#E7CF9C;--ok:#17784B;--oksf:#E8F5EE;--bad:#BE3341;--badsf:#FCEEEF;--badbd:#EDBFC4;--neu:#374151;--neusf:#E5E7EB}
+.dark{--bd:#262E3B;--bds:#3A4353;--cb:#6B7482;--cv:#0F141C;--fg:#E8ECF2;--mu:#9AA3B1;--sf:#151B26;--sub:#1D2431;--pri:#E8ECF2;--prif:#141A24;--sel:#6CA8F0;--selsf:#172538;--warn:#E9B45A;--warnsf:#2B2314;--warnbd:#5A4520;--ok:#5CC08F;--oksf:#15291F;--bad:#F08A94;--badsf:#2E171B;--badbd:#5C2A31;--neu:#C5CBD6;--neusf:#262E3B}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--cv);color:var(--fg);font:400 14px/20px Geist,system-ui,sans-serif}
+.k7shell{display:flex;min-height:100vh}.k7nav{width:224px;flex:none;border-right:1px solid var(--bd);background:var(--sf);padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+.k7nav b{font-weight:600;font-size:15px;line-height:24px;padding:4px 8px 16px}.k7nav a{padding:6px 8px;border-radius:4px;color:var(--mu);font-weight:500}.k7nav a.on{background:var(--sub);color:var(--fg)}.k7nav i{font-style:normal;font-size:12px;color:var(--mu);padding:14px 8px 4px}
+.k7pg{flex:1;min-width:0;padding:32px 40px;display:flex;flex-direction:column;gap:20px;max-width:1180px}
+h1{font-weight:600;font-size:24px;line-height:32px;letter-spacing:-.02em;margin:0}h2{font-weight:600;font-size:16px;line-height:24px;margin:0}h3{font-weight:600;font-size:14px;line-height:20px;margin:0}
+.k7mu{color:var(--mu)}.k7cap{font-size:12px;line-height:18px;color:var(--mu)}.k7crumb{color:var(--mu)}.k7crumb b{color:var(--fg);font-weight:500}
+.k7head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px}.k7acts{display:flex;gap:8px}
+.k7btn{font-weight:500;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--bds);background:var(--sf);display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;color:var(--fg)}.k7btn.p{background:var(--pri);border-color:var(--pri);color:var(--prif)}.k7btn.s{height:32px;padding:0 12px}
+.k7lnk{color:var(--sel);font-weight:500}.k7mono{font:400 13px/20px "Geist Mono",ui-monospace,monospace}
+.k7card{background:var(--sf);border:1px solid var(--bd);border-radius:6px}.k7pad{padding:16px}
+.k7two{display:flex;gap:24px;align-items:flex-start}.k7main{flex:1;min-width:0;display:flex;flex-direction:column;gap:20px}.k7side{width:320px;flex:none;display:flex;flex-direction:column;gap:16px}
+.k7stat{display:flex;gap:12px}.k7stat>div{flex:1;background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:12px 16px}.k7stat b{display:block;font-weight:600;font-size:18px;line-height:26px}
+.k7bdg{font-weight:500;font-size:12px;line-height:18px;padding:1px 8px;border-radius:999px;display:inline-block;white-space:nowrap;background:var(--neusf);color:var(--neu)}.k7bdg.ok{background:var(--oksf);color:var(--ok)}.k7bdg.bad{background:var(--badsf);color:var(--bad)}.k7bdg.w{background:var(--warnsf);color:var(--warn)}.k7bdg.b{background:var(--selsf);color:var(--sel)}
+.k7note{border:1px solid var(--bd);border-radius:6px;padding:12px 16px;background:var(--sub)}.k7note.bad{background:var(--badsf);border-color:var(--badbd)}.k7note.bad h3{color:var(--bad)}.k7note.w{background:var(--warnsf);border-color:var(--warnbd)}.k7note.ok{background:var(--oksf);border-color:transparent}
+table{width:100%;border-collapse:collapse}th{font-size:12px;line-height:18px;color:var(--mu);text-align:left;font-weight:400;padding:8px 16px;border-bottom:1px solid var(--bd)}td{padding:10px 16px;border-bottom:1px solid var(--bd);vertical-align:top}tr:last-child td{border-bottom:0}
+.k7kv{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--bd)}.k7kv:last-child{border-bottom:0;padding-bottom:0}.k7kv:first-of-type{padding-top:4px}
+.k7fl{display:flex;flex-direction:column;gap:4px}.k7fl label{font-weight:500}.k7in{height:36px;border:1px solid var(--cb);border-radius:4px;background:var(--sf);padding:0 12px;display:flex;align-items:center}.k7in.mu{color:var(--mu)}
+.k7row2{display:flex;gap:16px}.k7row2>*{flex:1}.k7sw{width:36px;height:20px;border-radius:999px;background:var(--ok);position:relative;flex:none}.k7sw:after{content:"";position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff}.k7sw.off{background:var(--cb)}.k7sw.off:after{right:auto;left:2px}
+.k7sec{display:flex;gap:32px;padding:24px 0;border-top:1px solid var(--bd)}.k7sec>.t{width:260px;flex:none}.k7sec>.f{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;max-width:560px}
+.k7step{display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--bd)}.k7step:last-child{border-bottom:0}.k7mark{width:18px;height:18px;border-radius:50%;flex:none;margin-top:1px;background:var(--ok)}.k7mark.bad{background:var(--bad)}.k7mark.run{background:var(--sel)}.k7mark.no{background:transparent;border:1.5px solid var(--cb)}
+.k7grow{flex:1;min-width:0}.k7sub{margin-top:10px;border:1px solid var(--bd);border-radius:6px;overflow:hidden}.k7chk{display:flex;gap:12px;align-items:baseline;padding:8px 12px;border-bottom:1px solid var(--bd)}.k7chk:last-child{border-bottom:0}.k7chk .n{width:210px;flex:none}
+.k7ph .k7nav{display:none}.k7ph .k7pg{padding:16px;gap:16px}.k7ph h1{font-size:20px;line-height:28px}.k7ph .k7two{flex-direction:column}.k7ph .k7side{width:auto;align-self:stretch}.k7ph .k7stat{flex-direction:column}.k7ph .k7btn{height:44px}.k7ph .k7head{flex-direction:column;align-items:stretch}.k7ph .k7acts .k7btn{flex:1}.k7ph .k7chk{flex-wrap:wrap}.k7ph .k7chk .n{width:100%}.k7ph .k7main{align-self:stretch}
+.c5wrap{padding:28px;display:grid;grid-template-columns:repeat(3,380px);gap:28px 24px;align-items:start}
+.c5ph{grid-template-columns:358px;padding:16px}
+.c5lab{font-size:12px;line-height:18px;color:var(--mu);margin-bottom:6px;text-transform:none}
+.c5card{background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:16px 20px;display:flex;flex-direction:column;gap:10px}
+.c5top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.c5card p{margin:0}.c5row{display:flex;gap:8px;align-items:center}
+.c5det{color:var(--sel);font-weight:500}
+.c5open{border-top:1px solid var(--bd);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.c5kv{display:flex;justify-content:space-between;gap:12px;color:var(--mu)}.c5kv b{font-weight:400;color:var(--fg)}
+.c5ph .k7btn{height:44px}
+.r4app{display:flex;min-height:100vh}.r4main{flex:1;min-width:0;border-right:1px solid var(--bd);background:var(--sf);display:flex;flex-direction:column}
+.r4top{padding:14px 32px;border-bottom:1px solid var(--bd);color:var(--mu)}.r4top b{color:var(--fg);font-weight:500}
+.r4hd{padding:24px 32px 16px}.r4stg{display:flex;gap:8px;margin-top:14px}.r4stg span{border:1px solid var(--bd);border-radius:4px;padding:6px 12px;font-weight:500;color:var(--mu)}.r4stg span.on{border-color:var(--sel);background:var(--selsf);color:var(--sel)}
+.r4body{padding:8px 32px 24px;display:flex;flex-direction:column;gap:18px;flex:1}
+.r4msg{border-left:2px solid var(--bd);padding:2px 12px;color:var(--mu)}
+.r4run{display:flex;align-items:center;gap:10px;border-top:1px solid var(--bd);padding-top:18px}.r4run h2{font-size:16px}.r4run .r4say{color:var(--fg);flex:1;min-width:0}.r4menu{border:1px solid var(--bds);border-radius:4px;height:32px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font-weight:500;white-space:nowrap}
+.r4steps{border:1px solid var(--bd);border-radius:6px}.r4st{display:flex;gap:12px;padding:10px 16px;border-bottom:1px solid var(--bd);align-items:baseline}.r4st:last-child{border-bottom:0}.r4st .t{color:var(--mu);margin-left:auto;font-size:12px;white-space:nowrap}
+.r4dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none;align-self:center}.r4dot.run{background:var(--sel)}.r4dot.bad{background:var(--bad)}.r4dot.no{background:transparent;border:1.5px solid var(--cb)}
+.r4lnk{color:var(--sel);font-weight:500}
+.r4comp{margin:0 32px 20px;border:1px solid var(--cb);border-radius:6px;padding:12px 14px;color:var(--mu);display:flex;justify-content:space-between;align-items:center}
+.r4pane{width:400px;flex:none;background:var(--sf)}.r4ps{padding:18px 24px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:8px}
+.r4menuopen{position:absolute;right:0;top:38px;background:var(--sf);border:1px solid var(--bds);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:6px;width:210px;z-index:2}.r4menuopen div{padding:8px 10px;border-radius:4px}.r4menuopen div.d{color:var(--bad)}
+.r4ph .r4pane{display:none}.r4ph .k7nav{display:none}.r4ph .r4top,.r4ph .r4hd,.r4ph .r4body{padding-left:16px;padding-right:16px}.r4ph .r4comp{margin:0 16px 16px}.r4ph .r4run{flex-wrap:wrap}.r4ph .r4run .r4say{flex-basis:100%;order:3}.r4ph .r4stg span{padding:4px 8px}.r4ph .r4menu{height:44px;margin-left:auto}
+.r4ph .r4run>span[style]{margin-left:auto}</style></head><body class="r4ph"><div class="r4app"><div class="k7nav"><b>Bakery</b><a class="on">Work</a><a>Issues</a><a>Projects</a><a>Machines</a><a>Library</a><a>Files</a><a>Settings</a></div>
+<div class="r4main"><div class="r4top">Work / <b>Add partial refunds</b></div>
+<div class="r4hd"><h1>Add partial refunds</h1><div class="r4stg"><span class="">1 · Discuss</span><span class="">2 · Plan</span><span class="on">3 · Implement</span><span class="">4 · Review</span></div></div>
+<div class="r4body"><div class="r4msg">You · 4:05 PM<br><span style="color:var(--fg)">Let customers refund part of an order.</span></div>
+<div class="r4run"><h2>Current run</h2><span class="k7bdg b">Running</span><span class="r4say">Step 3 of 5 · Run the tests</span><span style="position:relative"><span class="r4menu">Run actions ▾</span></span></div>
+<div class="r4steps"><div class="r4st"><span class="r4dot run"></span><span><b style="font-weight:500">Run the tests</b> <span class="k7mu">· running for 2 min</span></span><span class="t">4:12 PM</span></div><div class="r4st"><span class="r4dot "></span><span><b style="font-weight:500">Write the change</b> <span class="k7mu">· 6 files</span></span><span class="t">4:09 PM</span></div><div class="r4st"><span class="r4dot "></span><span><b style="font-weight:500">Read the repository</b></span><span class="t">4:07 PM</span></div></div>
+
+
+<div class="r4lnk">Details ▸</div></div>
+<div class="r4comp"><span>Message this task…</span><span class="k7btn p s">Send</span></div></div>
+<div class="r4pane"><div class="r4ps"><h3>Plan</h3><div class="k7mu">3 steps · approved</div></div><div class="r4ps"><div class="k7cap">Participants (1)</div><div>You</div></div><div class="r4ps"><div class="c5top"><h3>Preview of this change</h3><span class="k7bdg ok">Running</span></div><div>The app the agent is working on, as it runs now.</div><div><span class="k7btn p">Prepare preview</span></div><div class="c5det">Details ▸</div></div></div></div></body></html>
