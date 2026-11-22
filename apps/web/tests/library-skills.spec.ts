@@ -274,8 +274,6 @@ for (
       );
       await expect(origin.getByRole("link", { name: "Writing guide" }))
         .toHaveAttribute("href", `${skillPage(IDS.writingGuide)}`);
-      await origin.getByRole("link", { name: "Writing guide" }).click();
-      await expect(page).toHaveURL(new RegExp(skillPage(IDS.writingGuide)));
       await expect(
         page.getByRole("button", {
           name: /Stop|Edit|Check for updates|Make a copy/,
@@ -284,6 +282,9 @@ for (
         .toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "skill-private");
+      // Following the link opens the original, after the still is taken.
+      await origin.getByRole("link", { name: "Writing guide" }).click();
+      await expect(page).toHaveURL(new RegExp(skillPage(IDS.writingGuide)));
       expectReadsOnly(seen);
     });
 
