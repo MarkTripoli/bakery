@@ -24,7 +24,11 @@ import {
   createSkillSourceUpdateActionRegistry,
   createSkillVersionActionRegistry,
 } from "./actions.ts";
-import { createCatalogHandlers } from "./persistence.ts";
+import {
+  admitReviewedSkillUpdate,
+  createCatalogHandlers,
+} from "./persistence.ts";
+import { createArchiveRevisionAuthority } from "./archive-revision.ts";
 import {
   finalizeLocalSkillVersionPublication,
   type LocalSkillVersionPublicationPreparation,
@@ -45,6 +49,7 @@ import {
 } from "./skill-copy.ts";
 import {
   commitSkillSourceUpdate,
+  confirmSkillSourceUpdateTake,
   prepareSkillSourceUpdate,
   readSkillSourceUpdate,
   type SkillSourceUpdatePreparation,
@@ -156,7 +161,10 @@ export function createCatalogRoutes(options: {
     }),
   );
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
-  const catalogAuthority = createGlobalSkillAuthority(postgresAuthority, store);
+  const catalogAuthority = createArchiveRevisionAuthority(
+    createGlobalSkillAuthority(postgresAuthority, store),
+    options.sourceAdapter,
+  );
   const postgresCommandRunner = createPostgresCommandRunner();
   const publicationCommandRunner: CommandRunner = {
     async run(request) {
@@ -296,8 +304,12 @@ export function createCatalogRoutes(options: {
   app.use("/v1/skill-sources", options.browserSession);
   app.use("/v1/skill-sources/*", options.browserSession);
   app.use("/v1/skill-imports", options.browserSession);
+  app.use("/v1/skill-imports/*", options.browserSession);
   app.use("/v1/skills", options.browserSession);
   app.use("/v1/skills/*", options.browserSession);
+  // library.search is registered by the catalog too; without the session its
+  // caller has no principal and every person was refused (#42).
+  app.use("/v1/library/search", options.browserSession);
   app.route(
     "/",
     createApiRouter({
@@ -339,6 +351,7 @@ export function createCatalogRoutes(options: {
             proof: stage.proof,
           });
         },
+        listSkillVersions: handlers.listSkillVersions,
       }, {
         authorityRunner: publicationAuthority,
         commandRunner: publicationCommandRunner,
@@ -405,6 +418,24 @@ export function createCatalogRoutes(options: {
             stage.preparation,
             stage.reading,
           );
+        },
+        takeSkillSourceUpdate: async (context, input) => {
+          const stage = (context as SourceUpdateContext)[sourceUpdateStage];
+          if (!stage?.preparation || !stage.reading) {
+            throw new Error("SKILL_SOURCE_UPDATE_PROOF_MISSING");
+          }
+          const confirmed = await confirmSkillSourceUpdateTake(
+            context,
+            stage.preparation,
+            stage.reading,
+            input.revision,
+          );
+          const { transaction } = requireWorkTransaction(context);
+          return await admitReviewedSkillUpdate(transaction, context, {
+            ...confirmed,
+            skillId: stage.preparation.skillId,
+            revision: input.revision,
+          });
         },
       }, {
         authorityRunner: sourceUpdateAuthority,

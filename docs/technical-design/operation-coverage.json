@@ -230,11 +230,6 @@
         "contains": "skill-versions/"
       }
     },
-    "skillVersions.list": {
-      "state": "unbuilt",
-      "owner": "#42",
-      "reason": "Version history reads belong with scoped skills; only create and fetch-by-id exist."
-    },
     "worker.artifacts": {
       "state": "served-outside-registry",
       "route": {

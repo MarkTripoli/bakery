@@ -10,7 +10,10 @@ import {
   withPgTransaction,
 } from "../../platform/database.ts";
 import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
-import { authorize } from "../auth/application/authorize.ts";
+import {
+  authorize,
+  isOrganizationAdministratorRole,
+} from "../auth/application/authorize.ts";
 import {
   completeSkillImportExecution,
   failSkillImportExecution,
@@ -131,7 +134,17 @@ async function requireCurrentAuthorityAndSource(
     toPrincipalId(principalId),
     toOrganizationId(checkpoint.organization_id),
   );
-  authorize(actor, "skill:manage", { action: "skills.import" });
+  // A personal import is its owner's own act; an organization import stays an
+  // Admin's, and both are checked again now, not only at admission.
+  authorize(actor, "skill:author", { action: "skills.import" });
+  if (
+    checkpoint.scope === "personal"
+      ? checkpoint.owner_principal_id !== principalId
+      : actor.role === undefined ||
+        !isOrganizationAdministratorRole(actor.role)
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
   const result = await transaction.query<SourceRow>(
     `select id, source_type, locator, license, enabled
        from bakery.skill_sources
@@ -170,8 +183,15 @@ async function ensureSkillIdentity(
   const existing = await transaction.query<{ id: string }>(
     `select id from bakery.skills
       where organization_id = $1 and source_id = $2 and source_path = $3
+        and scope = $4 and owner_principal_id is not distinct from $5::uuid
       for update`,
-    [checkpoint.organization_id, checkpoint.source_id, checkpoint.source_path],
+    [
+      checkpoint.organization_id,
+      checkpoint.source_id,
+      checkpoint.source_path,
+      checkpoint.scope,
+      checkpoint.owner_principal_id,
+    ],
   );
   let skillId = existing.rows[0]?.id;
   if (!skillId) {
@@ -184,8 +204,8 @@ async function ensureSkillIdentity(
     await transaction.query(
       `insert into bakery.skills (
          id, organization_id, source_id, source_path, slug, name,
-         active_version_id, enabled
-       ) values ($1, $2, $3, $4, $5, $6, null, true)`,
+         active_version_id, enabled, scope, owner_principal_id
+       ) values ($1, $2, $3, $4, $5, $6, null, true, $7, $8)`,
       [
         skillId,
         checkpoint.organization_id,
@@ -193,6 +213,8 @@ async function ensureSkillIdentity(
         checkpoint.source_path,
         `remote-${suffix}`,
         pathName.slice(0, 200),
+        checkpoint.scope,
+        checkpoint.owner_principal_id,
       ],
     );
   }

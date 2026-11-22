@@ -884,15 +884,20 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "0fcacc4d88d8147d5c1d2939ae12cc05e23a2356",
-    "27ba7621c7a2d02f2caa7b61b169b85e56eaf491",
+    "c0f886bf8ac73fe9333f75534360e8a7a383db72",
   ];
   const approvedDigest =
-    "sha256:5d80c418459b0d5865f0de9e6b8952cc0930ab9e4aa457760c3bcc56873a9378";
+    "sha256:b7783aa18b7e646a6a052a3735b601fac76c9523d0b4b3eabc3509250d7a6250";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #39 proposals read rebind onto main c0f886bf8: main's own #42 approval, kept unchanged.
+    "sha256:e2186db90c4ab331ef2d618e8a37454155a10040e69f5a1367165582e5edb32f",
+    // Displaced when main moved again (#891 merged): my #42 approval on main b750d78a4.
+    "sha256:c3794204f1e29bc7ea756ede5cbe7bcd8301df62f8bfdb1292386ace01dfa748",
+    // Displaced by the #42 scoped skills rebind onto main b750d78a4: main's own #431 approval, kept unchanged.
+    "sha256:5d80c418459b0d5865f0de9e6b8952cc0930ab9e4aa457760c3bcc56873a9378",
     // Displaced by the #431 private skills rebind onto main 27ba7621c: main's own approval, kept unchanged.
     "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
     // Displaced by the #72 handoff read rebind onto main db286b23b: main's own #59 slice 3 approval, kept unchanged.
