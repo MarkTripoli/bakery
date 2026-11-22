@@ -606,6 +606,10 @@
   font: var(--type-notice);
   max-inline-size: calc(var(--layout-inspector) + var(--space-10));
 }
+.ui-empty-state--centered[data-title-style="heading"] .ui-feedback-title {
+  color: var(--color-fg);
+  font: var(--type-heading-section);
+}
 .ui-inline-notice--bar {
   align-items: flex-start;
 }
