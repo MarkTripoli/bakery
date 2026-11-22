@@ -29222,6 +29222,8 @@ const transportSchemas = {
         "pausedReason",
         "progress",
         "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName",
         "presetId",
         "presetRevision",
         "createdAt",
@@ -29243,6 +29245,8 @@ const transportSchemas = {
         "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
         "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
         "workflowRunId": "uuid|null",
+        "stoppedByPrincipalId": "uuid|null",
+        "stoppedByName": "string|null",
         "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
         "presetRevision": "integer",
         "createdAt": "timestamp",
@@ -29256,7 +29260,9 @@ const transportSchemas = {
         "dispositionReasonCode",
         "pausedAt",
         "pausedReason",
-        "workflowRunId"
+        "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName"
       ],
       "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
       "fieldDescriptions": {
@@ -29273,6 +29279,8 @@ const transportSchemas = {
         "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
         "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
         "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "stoppedByPrincipalId": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it.",
+        "stoppedByName": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it.",
         "createdAt": "When the request was admitted.",
         "updatedAt": "When the request last changed.",
         "version": "Monotonic revision of the request.",
@@ -29282,7 +29290,9 @@ const transportSchemas = {
       },
       "optionalFields": [
         "presetId",
-        "presetRevision"
+        "presetRevision",
+        "stoppedByPrincipalId",
+        "stoppedByName"
       ],
       "fieldBounds": {
         "presetRevision": {

@@ -53,6 +53,8 @@ type ViewRow = {
   workflow_run_id: string | null;
   pinned_preset: unknown;
   run_status: string | null;
+  stopped_by: string | null;
+  stopped_by_name: string | null;
   created_at: Date;
   updated_at: Date;
   version: number;
@@ -64,14 +66,33 @@ const VIEW_SELECT = `select request.id, request.external_ticket_id,
     request.authority_principal_id, request.authority_evidence,
     request.disposition, request.disposition_reason,
     request.pause_requested_at, request.workflow_run_id, request.pinned_preset,
-    run.status as run_status, request.created_at, request.updated_at,
+    run.status as run_status, stop.principal_id as stopped_by,
+    stop.display_name as stopped_by_name, request.created_at, request.updated_at,
     request.version,
     to_char(request.created_at at time zone 'UTC', ${CURSOR_TIME})
       as cursor_created_at
    from bakery.ticket_requests as request
    left join bakery.workflow_runs as run
      on run.organization_id = request.organization_id
-    and run.id = request.workflow_run_id`;
+    and run.id = request.workflow_run_id
+   left join lateral (
+     select audit.principal_id, who.display_name
+       from bakery.audit_events as audit
+       left join bakery.principals as who on who.id = audit.principal_id
+      where (request.disposition = 'canceled' or run.status = 'canceled')
+        and audit.organization_id = request.organization_id
+        and (
+          (audit.operation = 'ticketRequests.cancel'
+            and audit.resource_type = 'ticket_request'
+            and audit.resource_id = request.id::text)
+          or (request.workflow_run_id is not null
+            and audit.operation in ('runs.control', 'runs.control.agent')
+            and audit.resource_type = 'workflow_run'
+            and audit.resource_id = request.workflow_run_id::text
+            and audit.details ->> 'action' = 'cancel'))
+      order by audit.created_at desc, audit.id desc
+      limit 1
+   ) as stop on true`;
 
 type TargetRow = {
   ticket_request_id: string;
@@ -129,6 +150,14 @@ function toView(
   }
   const manual = row.origin === "manual" || row.origin === "adoption";
   const preset = TicketPresetPinSchema.parse(row.pinned_preset);
+  const progress = ticketRequestProgress(
+    row.disposition,
+    row.run_status,
+    requestDeliveryVerdict(facts, row.run_status === "completed").delivered,
+  );
+  // Who stopped it: the person on the cancel's audit row (#61), read only for
+  // a stopped request. Null for a run that ended canceled without a person.
+  const stopped = progress === "canceled";
   return {
     id: row.id,
     externalTicketId: row.external_ticket_id,
@@ -141,12 +170,10 @@ function toView(
     dispositionReasonCode: dispositionReasonCode(row.disposition_reason),
     pausedAt: row.pause_requested_at?.toISOString() ?? null,
     pausedReason: pausedReason(row.pause_requested_at, row.disposition_reason),
-    progress: ticketRequestProgress(
-      row.disposition,
-      row.run_status,
-      requestDeliveryVerdict(facts, row.run_status === "completed").delivered,
-    ),
+    progress,
     workflowRunId: row.workflow_run_id,
+    stoppedByPrincipalId: stopped ? row.stopped_by : null,
+    stoppedByName: stopped ? row.stopped_by_name : null,
     presetId: preset.id,
     presetRevision: preset.revision,
     createdAt: row.created_at.toISOString(),

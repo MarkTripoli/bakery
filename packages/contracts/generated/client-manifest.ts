@@ -87371,6 +87371,35 @@ export const clientManifest = {
           ],
           "description": "TicketRequestView.workflowRunId may be null in this transport value."
         },
+        "stoppedByPrincipalId": {
+          "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "stoppedByName": {
+          "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "presetId": {
           "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
           "type": "string",
@@ -87706,6 +87735,35 @@ export const clientManifest = {
                   }
                 ],
                 "description": "TicketRequestView.workflowRunId may be null in this transport value."
+              },
+              "stoppedByPrincipalId": {
+                "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "stoppedByName": {
+                "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               },
               "presetId": {
                 "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
