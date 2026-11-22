@@ -5847,7 +5847,6 @@
   "tasks.preview.lost.lead": "The machine running this preview stopped answering at {time}.",
   "tasks.preview.lost.rest": "If the run continues on another machine, a new preview appears here.",
   "tasks.preview.again": "A new preview appears here when the agent starts the app again.",
-  "tasks.preview.unavailable.body": "Previews are not set up for this deployment.",
   "tasks.preview.unavailable.admin": "An administrator sets the preview address in the deployment settings.",
   "tasks.preview.badge.older": "Behind",
   "tasks.preview.older.body": "The change has moved on since this preview started, so this is not what would be released.",

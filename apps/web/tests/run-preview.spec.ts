@@ -533,7 +533,7 @@ test("a deployment with no preview address says Not set up in one sentence and o
     },
   );
   await expect(card(page).getByTestId("run-preview-body")).toHaveText(
-    "Previews are not set up for this deployment. An administrator sets the preview address in the deployment settings.",
+    "An administrator sets the preview address in the deployment settings.",
   );
   await expect(actions(page)).toHaveCount(0);
   await expect(details(page)).toHaveCount(0);

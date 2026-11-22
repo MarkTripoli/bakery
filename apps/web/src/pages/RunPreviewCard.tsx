@@ -125,9 +125,8 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
     const again = translate("tasks.preview.again");
     switch (state.kind) {
       case "unavailable":
-        return `${translate("tasks.preview.unavailable.body")} ${
-          translate("tasks.preview.unavailable.admin")
-        }`;
+        // The badge says "Not set up"; the sentence says only what to do.
+        return translate("tasks.preview.unavailable.admin");
       case "starting":
         return translate("tasks.preview.body.starting");
       case "running":
