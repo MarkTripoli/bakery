@@ -13559,7 +13559,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request.",
-        "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found.",
+        "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
         "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
       ],
       "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."

@@ -164,6 +164,47 @@ Deno.test("an agent asks a group its grant names", () =>
     assertEquals(asked[0].audience_name, "Release owners");
   }));
 
+Deno.test("an ask reaches at most 50 people: one more is refused and nobody is asked", () =>
+  withWorkerFixture(async (fixture) => {
+    const groupId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_groups
+         (id, organization_id, name, mention_name)
+       values ($1, $2, 'Everyone', 'everyone')`,
+      [groupId, fixture.organizationId],
+    );
+    const members: string[] = [];
+    for (let index = 0; index < 51; index++) {
+      const id = await addMember(fixture, `Member${index}`, "guest");
+      await fixture.pgDatabase.query(
+        `insert into bakery.organization_group_members
+           (organization_id, group_id, principal_id)
+         values ($1, $2, $3)`,
+        [fixture.organizationId, groupId, id],
+      );
+      members.push(id);
+    }
+    const session = await agentSession(fixture, {
+      granted: "ask",
+      grant: { groupId },
+    });
+    await refusedWith(
+      await ask(session, { recipientGroupId: groupId }),
+      409,
+      "request_audience_too_large",
+    );
+    assertEquals(await requestsOn(fixture, session.own.runId), []);
+
+    await fixture.pgDatabase.query(
+      `delete from bakery.organization_group_members
+        where organization_id = $1 and group_id = $2 and principal_id = $3`,
+      [fixture.organizationId, groupId, members[50]],
+    );
+    const response = await ask(session, { recipientGroupId: groupId });
+    assert(response.ok, await response.text());
+    assertEquals((await requestsOn(fixture, session.own.runId)).length, 50);
+  }));
+
 Deno.test("without an ask grant the tool is not offered and nobody is asked", () =>
   withWorkerFixture(async (fixture) => {
     await addMember(fixture, "Dana", "developer");

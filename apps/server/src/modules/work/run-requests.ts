@@ -39,6 +39,13 @@ export const REQUEST_LIFETIME_DAYS = 7;
 export const REQUEST_NOTE_MAX = 280;
 /** The "People asked" list is bounded. */
 export const REQUEST_LIST_LIMIT = 50;
+/**
+ * The most people one role or group ask may reach. It is the "People asked"
+ * list's bound, so every request an ask makes can be shown on one page; a
+ * bigger audience is refused whole (STATE_CONFLICT request_audience_too_large)
+ * rather than fanning out unbounded rows or asking a silent subset.
+ */
+export const REQUEST_AUDIENCE_MAX = REQUEST_LIST_LIMIT;
 
 export type RequestIntent =
   | "fyi"
@@ -483,6 +490,12 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
         "request_audience_empty",
         "Nobody holds that role or is in that group right now",
       );
+    }
+    if (others.length > REQUEST_AUDIENCE_MAX) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "request_audience_too_large" },
+      });
     }
     for (const id of others) {
       recipients.push({ principalId: id, fallbackForName: null });
