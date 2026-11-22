@@ -53,6 +53,7 @@ function setup(
   });
   const mint = (installId = INSTALL, ttlMs = 60_000) =>
     mintBrokerToken(KEY, {
+      runEnvironment: "live",
       epoch: EPOCH,
       organizationId: ORG,
       installId,
@@ -83,6 +84,7 @@ Deno.test("a token the broker did not sign is refused, and nothing runs", async 
   const t = setup();
   const other = crypto.getRandomValues(new Uint8Array(32));
   const { token } = await mintBrokerToken(other, {
+    runEnvironment: "live",
     epoch: EPOCH,
     organizationId: ORG,
     installId: INSTALL,
@@ -407,6 +409,7 @@ Deno.test("one request id runs its effect once even while the first call is stil
     }],
   });
   const { token } = await mintBrokerToken(KEY, {
+    runEnvironment: "live",
     epoch: EPOCH,
     organizationId: ORG,
     installId: INSTALL,
@@ -463,6 +466,7 @@ Deno.test("an operation that throws gives the caller a typed denial and no raw e
     }],
   });
   const { token } = await mintBrokerToken(KEY, {
+    runEnvironment: "live",
     epoch: EPOCH,
     organizationId: ORG,
     installId: INSTALL,
@@ -512,6 +516,7 @@ Deno.test("a token from before a restart is refused, so a spent request cannot r
     });
   const before = build("boot-1");
   const { token } = await mintBrokerToken(KEY, {
+    runEnvironment: "live",
     epoch: "boot-1",
     organizationId: ORG,
     installId: INSTALL,

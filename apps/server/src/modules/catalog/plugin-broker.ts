@@ -141,7 +141,7 @@ export async function mintBrokerToken(
      * Where the job's run may reach. An offline run is never brokered: no token
      * is minted, so its job can ask the host for nothing.
      */
-    runEnvironment?: "live" | "offline";
+    runEnvironment: "live" | "offline";
   },
 ): Promise<{ token: string; claims: BrokerClaims }> {
   if (claims.runEnvironment === "offline") {
