@@ -6152,5 +6152,8 @@
   "tasks.preview.details.stopsValue": "⟪{time} (in {minutes, plural, one {# minute} other {# minutes}}) or when the run ends⟫",
   "tasks.preview.details.address": "⟪Address⟫",
   "tasks.preview.details.addressValue": "⟪separate from your Bakery account⟫",
-  "tasks.preview.openAnyway": "⟪Open it anyway⟫"
+  "tasks.preview.openAnyway": "⟪Open it anyway⟫",
+  "library.editor.group.fixUntilPasses": "⟪Fix until it passes⟫",
+  "library.editor.group.fixLimit": "⟪At most {max, plural, one {# try} other {# tries}}⟫",
+  "library.editor.group.fixHelp": "⟪Fixes what the checks and the review found, then checks and reviews again. If the first review is already clean, this block is skipped.⟫",
 }

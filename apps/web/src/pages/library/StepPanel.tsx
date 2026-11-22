@@ -74,6 +74,8 @@ export type PanelTarget =
     readonly name: string;
     /** The problem's sentence, shown above the code-only sentence. */
     readonly problem: string | undefined;
+    /** What a "Fix until it passes" block does (#62). The limit is said once, on the block. */
+    readonly help?: string;
   }
   | {
     readonly kind: "step";
@@ -146,6 +148,7 @@ export function StepPanel(
                 {target.problem}
               </UI.InlineNotice>
             )}
+          {target.help === undefined ? null : <UI.Text>{target.help}</UI.Text>}
           <UI.Text>
             {translate("library.editor.panel.codeOnly" as never)}
           </UI.Text>

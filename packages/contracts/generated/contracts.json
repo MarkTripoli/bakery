@@ -240398,6 +240398,17 @@
               "type": "string",
               "maxLength": 65536,
               "description": "Registered workflow action the step runs."
+            },
+            "repeatId": {
+              "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+              "type": "string",
+              "maxLength": 65536
+            },
+            "repeatMax": {
+              "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8
             }
           },
           "required": [
@@ -240405,7 +240416,7 @@
             "uses"
           ],
           "additionalProperties": false,
-          "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs."
+          "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run."
         },
         "WorkflowPresetAvailability": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -240509,6 +240520,17 @@
                     "type": "string",
                     "maxLength": 65536,
                     "description": "Registered workflow action the step runs."
+                  },
+                  "repeatId": {
+                    "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                    "type": "string",
+                    "maxLength": 65536
+                  },
+                  "repeatMax": {
+                    "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8
                   }
                 },
                 "required": [
@@ -240654,6 +240676,17 @@
                           "type": "string",
                           "maxLength": 65536,
                           "description": "Registered workflow action the step runs."
+                        },
+                        "repeatId": {
+                          "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                          "type": "string",
+                          "maxLength": 65536
+                        },
+                        "repeatMax": {
+                          "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 8
                         }
                       },
                       "required": [
@@ -279059,7 +279092,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:4f244b6c82e9cda25d7f7d5183bed226a2ad1ef8a8b107d8cc4655dff5341795",
+  "compatibilityDigest": "sha256:5f16d7f48787470071291253f26f4d4b264d63f6242da3d8e5708560a6cd0fe7",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -468803,6 +468836,17 @@
           "type": "string",
           "maxLength": 65536,
           "description": "Registered workflow action the step runs."
+        },
+        "repeatId": {
+          "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "repeatMax": {
+          "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
         }
       },
       "required": [
@@ -468810,7 +468854,7 @@
         "uses"
       ],
       "additionalProperties": false,
-      "description": "One ordered step of a code-owned workflow preset: its stable step id and the registered action it runs."
+      "description": "One ordered step of a code-owned workflow preset: its stable step id, the registered action it runs and, for a step inside a bounded repeat, which repeat and how many times it may run."
     },
     "WorkflowPresetAvailability": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -468914,6 +468958,17 @@
                 "type": "string",
                 "maxLength": 65536,
                 "description": "Registered workflow action the step runs."
+              },
+              "repeatId": {
+                "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                "type": "string",
+                "maxLength": 65536
+              },
+              "repeatMax": {
+                "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8
               }
             },
             "required": [
@@ -469059,6 +469114,17 @@
                       "type": "string",
                       "maxLength": 65536,
                       "description": "Registered workflow action the step runs."
+                    },
+                    "repeatId": {
+                      "description": "Id of the bounded repeat the step sits in; absent for a step outside every repeat.",
+                      "type": "string",
+                      "maxLength": 65536
+                    },
+                    "repeatMax": {
+                      "description": "Most iterations of that repeat; present exactly when repeatId is. WorkflowPresetStep.repeatMax must be at least 1. WorkflowPresetStep.repeatMax must be at most 8.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 8
                     }
                   },
                   "required": [

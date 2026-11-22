@@ -12,6 +12,7 @@ import {
 import {
   FIXED_CODING_DEFINITION,
   FIXED_CODING_PRESET,
+  FIXED_CODING_REVIEWED_PRESET,
   IMPLEMENT_INSTRUCTIONS_MAX_LENGTH,
   renderImplementInstructions,
   WORKFLOW_PRESET_IDS,
@@ -35,6 +36,8 @@ import {
   boundBriefPlan,
   presetActionSteps,
   presetBriefInputs,
+  presetOutput,
+  repeatAround,
 } from "../../apps/server/src/modules/work/workflow-presets.ts";
 
 const repositoryId = "00000000-0000-4000-8000-0000000000a1";
@@ -409,4 +412,141 @@ Deno.test("brief plan stays inside the run-inputs cap with a huge multi-byte des
   assert(kept.steps.every((s) => s.detailShortened === true));
   // A small plan is untouched and unflagged.
   assertEquals(boundBriefPlan(plan, 0), plan);
+});
+
+Deno.test("a preset's list read names the repeat its repair steps sit in, and no other step", async () => {
+  const reviewed = presetOutput(
+    FIXED_CODING_REVIEWED_PRESET,
+    await presetActionSteps(FIXED_CODING_REVIEWED_PRESET.spec),
+    null,
+  );
+  // The read still satisfies the published contract.
+  contractSchemas.WorkflowPreset.parse(reviewed);
+  const inRepeat = reviewed.steps.filter((step) =>
+    "repeatId" in step && step.repeatId !== undefined
+  );
+  assertEquals(
+    inRepeat.map((step) => [step.id, step.uses, step.repeatId, step.repeatMax]),
+    [
+      ["repair.repair_implement", "harness.repair", "repair", 2],
+      ["repair.repair_check", "quality.check", "repair", 2],
+      ["repair.repair_review", "review.independent", "repair", 2],
+    ],
+  );
+  // Steps outside the loop carry neither field, so an older reader sees the
+  // shape it always saw.
+  for (const step of reviewed.steps.filter((one) => !inRepeat.includes(one))) {
+    assertEquals(Object.keys(step).sort(), ["id", "uses"], step.id);
+  }
+  // A preset with no repeat names none.
+  const plain = presetOutput(
+    FIXED_CODING_PRESET,
+    await presetActionSteps(FIXED_CODING_PRESET.spec),
+    null,
+  );
+  contractSchemas.WorkflowPreset.parse(plain);
+  for (const step of plain.steps) {
+    assertEquals(Object.keys(step).sort(), ["id", "uses"], step.id);
+  }
+});
+
+Deno.test("the repeat fields are bounded like a repeat's own limit", () => {
+  const base = {
+    id: "repair.repair_implement",
+    uses: "harness.repair",
+  };
+  const accepts = (extra: Record<string, unknown>) =>
+    contractSchemas.WorkflowPresetStep.safeParse({ ...base, ...extra })
+      .success;
+  assert(accepts({ repeatId: "repair", repeatMax: 2 }));
+  assert(accepts({}));
+  assert(!accepts({ repeatId: "repair", repeatMax: 0 }));
+  assert(!accepts({ repeatId: "repair", repeatMax: 9 }));
+  assert(!accepts({ repeatId: "repair", repeatMax: 1.5 }));
+});
+
+Deno.test("an action site reports its nearest enclosing repeat, and only a readable one", () => {
+  const document = {
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "nested",
+    description: "x",
+    inputs: {},
+    steps: [
+      { id: "plain", uses: "task.brief" },
+      {
+        id: "outer",
+        repeat: {
+          max: 3,
+          steps: [
+            { id: "a", uses: "harness.repair" },
+            {
+              id: "inner",
+              repeat: {
+                max: 2,
+                steps: [{ id: "b", uses: "review.independent" }],
+              },
+            },
+          ],
+        },
+      },
+      {
+        id: "broken",
+        repeat: { max: 0, steps: [{ id: "c", uses: "review.independent" }] },
+      },
+      {
+        id: "wrapper",
+        repeat: {
+          max: 4,
+          steps: [{
+            id: "badinner",
+            repeat: {
+              max: "two",
+              steps: [{ id: "d", uses: "quality.check" }],
+            },
+          }],
+        },
+      },
+    ],
+  } as never;
+  // A step outside every repeat reports none.
+  assertEquals(repeatAround(document, ["steps", 0]), undefined);
+  // A step directly in a repeat reports that repeat's id and limit.
+  assertEquals(
+    repeatAround(document, ["steps", 1, "repeat", "steps", 0]),
+    { id: "outer", max: 3 },
+  );
+  // The nearest enclosing repeat wins over an outer one.
+  assertEquals(
+    repeatAround(document, [
+      "steps",
+      1,
+      "repeat",
+      "steps",
+      1,
+      "repeat",
+      "steps",
+      0,
+    ]),
+    { id: "inner", max: 2 },
+  );
+  // A repeat whose limit is not a whole number of at least one names nothing.
+  assertEquals(
+    repeatAround(document, ["steps", 2, "repeat", "steps", 0]),
+    undefined,
+  );
+  // An unreadable inner repeat falls back to the readable one around it.
+  assertEquals(
+    repeatAround(document, [
+      "steps",
+      3,
+      "repeat",
+      "steps",
+      0,
+      "repeat",
+      "steps",
+      0,
+    ]),
+    { id: "wrapper", max: 4 },
+  );
 });
