@@ -9,6 +9,9 @@ import {
   workerRequest,
 } from "../helpers/worker-execution.ts";
 import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
+import { openSocketFixture } from "../helpers/events-socket.ts";
+import type { WsClient } from "../helpers/ws-client.ts";
+import { cleanupAuthFixture, signSessionCookie } from "../helpers/auth.ts";
 
 // Issue #48 AC2-AC3: the reference workload and its budgets live in
 // docs/backend-delivery/load-acceptance-budgets.json, committed before this
@@ -20,12 +23,16 @@ type Budgets = {
     tasks: number;
     domainEvents: number;
     workerSlots: number;
+    eventClients: number;
     organizations: { noisyShare: number };
   };
   budgets: {
     taskListFirstPageP95Ms: number;
     taskListDeepPageP95Ms: number;
     workerClaimP95Ms: number;
+    eventReplayPageP95Ms: number;
+    eventFanoutAllClientsMs: number;
+    serverHeapGrowthMiB: number;
     maxActiveAttemptsPerWorker: number;
     seqScanOnLargeTablesAllowed: boolean;
   };
@@ -247,5 +254,200 @@ Deno.test("AC2/AC3: claims on a slot-limited worker stay inside budget and never
     withinBudget("worker claim p95", p95(timings), budgets.workerClaimP95Ms);
   } finally {
     await closeWorkerFixture(fixture);
+  }
+});
+
+Deno.test("AC2/AC3: fifty event clients replay and receive live events inside budget", async () => {
+  const fixture = await openSocketFixture();
+  const clients: WsClient[] = [];
+  const emails: string[] = [];
+  try {
+    const database = fixture.pgDatabase;
+    // The reference event history: half on the watched task, half elsewhere.
+    await database.query(
+      `with base as (
+         select coalesce(max(organization_sequence), 0) as top
+           from bakery.domain_events where organization_id = $1
+       ), inserted as (
+         insert into bakery.domain_events (
+           organization_id, organization_sequence, event_type, application_id,
+           task_id, conversation_id, aggregate_id, aggregate_version, payload
+         )
+         select $1, base.top + n, 'tasks.updated', $2,
+                case when n % 2 = 0 then $3::uuid else null end, $4,
+                case when n % 2 = 0 then $3::uuid else gen_random_uuid() end,
+                n, jsonb_build_object('resourceId', $3::text, 'resourceVersion', n)
+           from base, generate_series(1, $5::int) as n
+         returning organization_sequence
+       )
+       insert into bakery.event_clock (organization_id, stream, next_seq)
+       select $1, 'domain_events', max(organization_sequence) + 1 from inserted
+       on conflict (organization_id, stream) do update
+         set next_seq = excluded.next_seq`,
+      [
+        fixture.organizationId,
+        fixture.applicationId,
+        fixture.taskId,
+        fixture.conversationId,
+        workload.domainEvents,
+      ],
+    );
+    await database.query("analyze bakery.domain_events");
+    const heapBefore = Deno.memoryUsage().heapUsed;
+    const before = await sequentialScans(database);
+
+    const frame = async (client: WsClient, timeoutMs = 10_000) => {
+      const value = await client.next(timeoutMs);
+      if (typeof value !== "string") {
+        throw new Error(`socket closed ${value.code}: ${value.reason}`);
+      }
+      return JSON.parse(value) as {
+        type: string;
+        events?: { sequence: string }[];
+        highwater?: string;
+      };
+    };
+    const scopes = [{ type: "task", id: fixture.taskId }];
+    // Fifty people, each with a session: one person may hold only a few
+    // sockets, which this test also checks below.
+    const cookies: string[] = [];
+    for (let index = 0; index < workload.eventClients; index++) {
+      const userId = crypto.randomUUID();
+      const principalId = crypto.randomUUID();
+      const token = `load-${crypto.randomUUID()}`;
+      const email = `load-client-${userId}@example.test`;
+      emails.push(email);
+      await database.query(
+        `insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+         values ($1, 'load client', $2, true, now(), now())`,
+        [userId, email],
+      );
+      await database.query(
+        `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+         values ($1, $2, 'load client', 'human')`,
+        [principalId, userId],
+      );
+      await database.query(
+        `insert into bakery.organization_memberships (
+           id, organization_id, principal_id, role, status, joined_at,
+           created_at, updated_at, version
+         ) values ($1, $2, $3, 'developer', 'active', now(), now(), now(), 1)`,
+        [crypto.randomUUID(), fixture.organizationId, principalId],
+      );
+      await database.query(
+        `insert into public.session (id, token, "userId", "expiresAt", "createdAt", "updatedAt")
+         values ($1, $2, $3, now() + interval '1 hour', now(), now())`,
+        [crypto.randomUUID(), token, userId],
+      );
+      cookies.push(await signSessionCookie(token, fixture.config.auth!.secret));
+    }
+    // Every client replays its first page from the start of the history.
+    const replay: number[] = [];
+    let highwater = "0";
+    for (let index = 0; index < workload.eventClients; index++) {
+      const connected = await fixture.connect({ cookie: cookies[index] });
+      assert(
+        "send" in connected,
+        `websocket handshake failed: ${
+          "status" in connected ? connected.status : "?"
+        }`,
+      );
+      clients.push(connected);
+      const hello = await frame(connected);
+      assertEquals(hello.type, "hello");
+      highwater = hello.highwater ?? highwater;
+      const started = performance.now();
+      await connected.send(JSON.stringify({
+        type: "subscribe",
+        requestId: crypto.randomUUID(),
+        scopes,
+        after: "0",
+      }));
+      const first = await frame(connected);
+      replay.push(performance.now() - started);
+      assertEquals(first.type, "events");
+      assert((first.events?.length ?? 0) > 0);
+      // Then each one moves to the live edge.
+      await connected.send(JSON.stringify({
+        type: "subscribe",
+        requestId: crypto.randomUUID(),
+        scopes,
+        after: highwater,
+      }));
+      while ((await frame(connected)).type !== "cursor") {
+        // Drain the rest of the replay and the first subscription's pages.
+      }
+    }
+
+    // Twenty live events reach all fifty clients within the fanout budget.
+    const live = 20;
+    const started = performance.now();
+    const inserted: string[] = [];
+    for (let index = 0; index < live; index++) {
+      inserted.push(
+        (await fixture.insertDomainEvent({
+          eventType: "tasks.updated",
+          aggregateVersion: workload.domainEvents + index + 1,
+          payload: {
+            resourceId: fixture.taskId,
+            resourceVersion: workload.domainEvents + index + 1,
+          },
+        })).sequence,
+      );
+    }
+    await Promise.all(clients.map(async (client) => {
+      const seen: string[] = [];
+      while (seen.length < live) {
+        const next = await frame(client, budgets.eventFanoutAllClientsMs);
+        if (next.type === "events") {
+          seen.push(...(next.events ?? []).map((event) => event.sequence));
+        }
+      }
+      assertEquals(seen, inserted);
+    }));
+    const fanoutMs = performance.now() - started;
+    // One person cannot open sockets without limit: past the cap the next
+    // handshake is refused, and the fifty healthy clients above were unaffected.
+    const own: WsClient[] = [];
+    let refused: number | undefined;
+    for (let index = 0; index < 32 && refused === undefined; index++) {
+      const next = await fixture.connect({ cookie: fixture.cookie });
+      if ("send" in next) own.push(next);
+      else refused = next.status;
+    }
+    clients.push(...own);
+    assertEquals(refused, 429, "one person's sockets were not capped");
+    const after = await sequentialScans(database);
+    const heapGrowthMiB = (Deno.memoryUsage().heapUsed - heapBefore) /
+      (1024 * 1024);
+
+    withinBudget(
+      "event replay first page p95",
+      p95(replay),
+      budgets.eventReplayPageP95Ms,
+    );
+    withinBudget(
+      "event fanout to all clients",
+      fanoutMs,
+      budgets.eventFanoutAllClientsMs,
+    );
+    console.log(
+      `load: heap growth ${
+        heapGrowthMiB.toFixed(1)
+      } MiB (budget ${budgets.serverHeapGrowthMiB} MiB)`,
+    );
+    assert(
+      heapGrowthMiB <= budgets.serverHeapGrowthMiB,
+      `heap grew ${heapGrowthMiB.toFixed(1)} MiB`,
+    );
+    if (!budgets.seqScanOnLargeTablesAllowed) {
+      assertEquals(after, before, "a large table was read by sequential scan");
+    }
+  } finally {
+    await Promise.all(
+      clients.map((client) => client.close().catch(() => undefined)),
+    );
+    await cleanupAuthFixture(fixture.pgDatabase, emails).catch(() => undefined);
+    await fixture.close();
   }
 });
