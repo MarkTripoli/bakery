@@ -88,6 +88,11 @@ export function Reference(
     };
   }, []);
 
+  // A card that closes forgets it said Copied.
+  useEffect(() => {
+    if (!open) setCopy("idle");
+  }, [open]);
+
   const copyValue = async () => {
     globalThis.clearTimeout(timers.current.copied);
     try {
