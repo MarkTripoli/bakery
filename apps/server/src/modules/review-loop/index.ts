@@ -44,5 +44,5 @@ export {
   type ReviewerSession,
   type ReviewIndependenceViolation,
 } from "./independence.ts";
-export { planReviewLoopLimits } from "./limits.ts";
+export { planReviewLoopLimits, planReviewRepeatKey } from "./limits.ts";
 export { type ReviewLoopSteps, reviewLoopSteps } from "./loop-steps.ts";

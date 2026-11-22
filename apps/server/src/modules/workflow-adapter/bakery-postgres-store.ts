@@ -910,7 +910,12 @@ async function finishPlanRunIn(
  * anything. The engine names no template and no module behind either: the host
  * injects the reader where it builds the engine.
  */
-export type PlanHostFacts = Readonly<{ delivery?: JsonValue; halt?: string }>;
+export type PlanHostFacts = Readonly<{
+  delivery?: JsonValue;
+  halt?: string;
+  /** Tries allowed beyond a repeat's `max`, by its step key; see `RunState.repeatExtra`. */
+  repeatExtra?: Readonly<Record<string, number>>;
+}>;
 
 /** Reads {@link PlanHostFacts} for one run, inside the engine's transaction. */
 export type PlanHostReader = (
@@ -931,6 +936,7 @@ async function askPlan(
   transaction: PgTransactionClient,
   run: Pick<RunEndRow, "organizationId" | "runId" | "runSnapshot">,
   delivery?: JsonValue,
+  repeatExtra?: Readonly<Record<string, number>>,
 ) {
   const runtime = await planRuntimeFromSnapshot(run.runSnapshot);
   if (runtime === null) throw new PlanStateError("plan_snapshot_invalid");
@@ -947,6 +953,7 @@ async function askPlan(
     inputs: planInputsFromSnapshot(run.runSnapshot),
     task: planTaskFromSnapshot(run.runSnapshot),
     ...(delivery === undefined ? {} : { delivery }),
+    ...(repeatExtra === undefined ? {} : { repeatExtra }),
     rows: rows.rows,
   });
 }
@@ -994,7 +1001,12 @@ async function findNextPlanKeys(
   }
   let answer;
   try {
-    answer = await askPlan(transaction, context, host.delivery);
+    answer = await askPlan(
+      transaction,
+      context,
+      host.delivery,
+      host.repeatExtra,
+    );
   } catch (error) {
     if (
       error instanceof PlanStateError ||
