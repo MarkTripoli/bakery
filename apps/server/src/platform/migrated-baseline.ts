@@ -15,7 +15,10 @@ import { MIGRATION_LOCK_NAME } from "./migration-definition.ts";
  * rows in `bakery_baseline`, and later resets truncate the data tables and put
  * those rows back. Every test still starts from the same migrated state; a
  * baseline that no longer matches the database (a different migration ledger or
- * set of tables) is refused and the caller falls back to the full reset.
+ * set of tables) is refused and the caller falls back to the full reset. The
+ * baseline also records a digest of the migrations the checking code carries, so
+ * a database that outlives a branch switch or a pull cannot restore a schema the
+ * code no longer migrates to.
  */
 export const BASELINE_SCHEMA = "bakery_baseline";
 
@@ -78,7 +81,10 @@ async function columnsOf(db: Queryable, table: TableRef): Promise<string> {
  * Records the migrated state of the database as the baseline later resets
  * restore. Call it right after a full reset and migration, before any test data.
  */
-export async function captureMigratedBaseline(db: Database): Promise<void> {
+export async function captureMigratedBaseline(
+  db: Database,
+  codeDigest: string,
+): Promise<void> {
   await db.begin(async (transaction) => {
     await transaction`select pg_advisory_xact_lock(hashtextextended(${MIGRATION_LOCK_NAME}::text, 0))`;
     await transaction.unsafe(
@@ -91,7 +97,8 @@ export async function captureMigratedBaseline(db: Database): Promise<void> {
         is_ledger boolean not null, copy_name text, columns text,
         primary key (schema_name, table_name))`);
     await transaction.unsafe(`
-      create table ${BASELINE_SCHEMA}.meta (ledger_fingerprint text not null)`);
+      create table ${BASELINE_SCHEMA}.meta (
+        ledger_fingerprint text not null, code_digest text not null)`);
     let copies = 0;
     for (const table of await dataTables(transaction)) {
       const ledger = LEDGER_TABLES.has(key(table));
@@ -117,10 +124,8 @@ export async function captureMigratedBaseline(db: Database): Promise<void> {
       );
     }
     await transaction.unsafe(
-      `insert into ${BASELINE_SCHEMA}.meta values ($1)`,
-      [
-        await ledgerFingerprint(transaction),
-      ],
+      `insert into ${BASELINE_SCHEMA}.meta values ($1, $2)`,
+      [await ledgerFingerprint(transaction), codeDigest],
     );
   });
 }
@@ -186,18 +191,29 @@ async function insertionOrder(
 export async function restoreMigratedBaseline(
   db: Database,
   options: TestDatabaseResetOptions,
+  codeDigest: string,
 ): Promise<boolean> {
   await assertDestructiveResetAllowed(db, options);
+  // A baseline captured before the code digest existed has no such column and
+  // is refused like any other stale one.
   const [{ present }] = await db.unsafe<{ present: boolean }[]>(
-    `select to_regclass('${BASELINE_SCHEMA}.meta') is not null as present`,
+    `select exists (
+       select 1 from information_schema.columns
+        where table_schema = '${BASELINE_SCHEMA}' and table_name = 'meta'
+          and column_name = 'code_digest') as present`,
   );
   if (!present) return false;
   return await db.begin(async (transaction) => {
     await transaction`select pg_advisory_xact_lock(hashtextextended(${MIGRATION_LOCK_NAME}::text, 0))`;
-    const [meta] = await transaction.unsafe<{ ledger_fingerprint: string }[]>(
-      `select ledger_fingerprint from ${BASELINE_SCHEMA}.meta`,
+    const [meta] = await transaction.unsafe<
+      { ledger_fingerprint: string; code_digest: string }[]
+    >(
+      `select ledger_fingerprint, code_digest from ${BASELINE_SCHEMA}.meta`,
     );
-    if (meta?.ledger_fingerprint !== await ledgerFingerprint(transaction)) {
+    if (
+      meta?.ledger_fingerprint !== await ledgerFingerprint(transaction) ||
+      meta.code_digest !== codeDigest
+    ) {
       return false;
     }
     const baseline = await transaction.unsafe<BaselineTable[]>(

@@ -13,7 +13,10 @@ import {
   PROVIDER_TABLES,
   resetTestDatabase,
 } from "../../apps/server/src/platform/migrate.ts";
-import { resetToMigratedBaseline } from "../helpers/migrated-database.ts";
+import {
+  codeMigrationsDigest,
+  resetToMigratedBaseline,
+} from "../helpers/migrated-database.ts";
 
 const config = readTestDatabaseConfig();
 const resetOptions = {
@@ -144,6 +147,51 @@ Deno.test(
       const [extra] = await owner<{ present: boolean }[]>`
         select to_regclass('bakery.baseline_extra_table') is not null as present`;
       assertEquals(extra?.present, false);
+    });
+  },
+);
+
+Deno.test(
+  "a baseline captured for other migrations than the code carries is refused and rebuilt",
+  async () => {
+    const extra = [{
+      owner: "bakery" as const,
+      version: "9999_not_in_this_checkout",
+      sql: "select 1",
+      checksum: "not-a-real-checksum",
+    }];
+    const real = await codeMigrationsDigest();
+    assertNotEquals(
+      await codeMigrationsDigest(extra),
+      real,
+      "an extra migration changes the digest",
+    );
+    await withDatabase(async (owner, ownerPg) => {
+      await resetToMigratedBaseline(owner, ownerPg, resetOptions);
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "restored",
+        "the baseline matches the code it was captured for",
+      );
+      // The checkout now carries a migration the baseline was not captured with.
+      assertEquals(
+        await resetToMigratedBaseline(
+          owner,
+          ownerPg,
+          resetOptions,
+          await codeMigrationsDigest(extra),
+        ),
+        "rebuilt",
+      );
+      // And back: the baseline now belongs to the other code, so it rebuilds.
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "rebuilt",
+      );
+      assertEquals(
+        await resetToMigratedBaseline(owner, ownerPg, resetOptions),
+        "restored",
+      );
     });
   },
 );
