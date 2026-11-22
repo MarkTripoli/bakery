@@ -6413,11 +6413,12 @@
   "installation.updates.notice.decidedStayNobody": "⟦{when} ñô ôñë çôûļð ƀë àšķëð, šô Ɓàķëŕÿ šŧàÿëð ôñ ïŧ. Ŧô ĝô ƀàçķ, ŕûñ {command} ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "installation.updates.notice.interruptedBody": "⟦{when} ŧĥë šŵïŧçĥ ðïð ñôŧ ƒïñïšĥ. {command} þûŧ {to} ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.updates.notice.held": "⟦{count, plural, one {# outside action is held until someone checks it.} other {# outside actions are held until someone checks them.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "installation.updates.notice.seeThem": "⟦Šëë ŧĥëɱ…⟧",
   "installation.updates.notice.dismiss": "⟦Ðïšɱïšš…⟧",
   "installation.updates.held.title": "⟦{count, plural, one {# outside action is held} other {# outside actions are held}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "installation.updates.held.body": "⟦Ŧĥëÿ ɱàÿ ôŕ ɱàÿ ñôŧ ĥàṽë ĥàþþëñëð. Ɓàķëŕÿ ñëṽëŕ šëñðš ŧĥëɱ àĝàïñ; ëàçĥ ïš çĥëçķëð ƒïŕšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.updates.held.action": "⟦Àçŧïôñ…⟧",
   "installation.updates.held.count": "⟦Ĥôŵ ɱàñÿ…⟧",
-  "installation.updates.held.since": "⟦Ĥëļð šïñçë ŧ⟧"
+  "installation.updates.held.since": "⟦Ĥëļð šïñçë ŧ⟧",
+  "installation.updates.held.row": "⟦{count} ĥëļð šïñçë {date} ŧëšŧ ç⟧",
+  "installation.updates.notice.seeThem": "⟦{count, plural, one {See it} other {See them}} ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "installation.updates.held.body": "⟦{count, plural, one {It may or may not have happened. Bakery never sends it again; it is checked first.} other {They may or may not have happened. Bakery never sends them again; each is checked first.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

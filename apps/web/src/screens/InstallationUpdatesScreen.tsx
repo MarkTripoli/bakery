@@ -8,6 +8,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   failureNotice,
+  joinPunctuation,
   previousFact,
   runningFact,
   shortRelease,
@@ -55,18 +56,25 @@ export type InstallationUpdatesScreenProps = {
 /** The id of the held outside actions section, so "See them" can move there. */
 const HELD_SECTION = "installation-updates-held";
 
+/** Draws one slot; `after` is punctuation that must stay on its line. */
+type SlotNode = (after: string) => ReactNode;
+
 /** A sentence whose slots are nodes: a release with its full id, a command. */
 function Sentence(
   { text, nodes }: {
     readonly text: string;
-    readonly nodes: Readonly<Record<string, ReactNode>>;
+    readonly nodes: Readonly<Record<string, SlotNode | null>>;
   },
 ) {
   return (
     <>
-      {splitSlots(text).map((part, index) =>
+      {joinPunctuation(splitSlots(text)).map((part, index) =>
         "slot" in part
-          ? <span key={index}>{nodes[part.slot] ?? null}</span>
+          ? (
+            <span key={index}>
+              {nodes[part.slot]?.(part.after) ?? part.after}
+            </span>
+          )
           : <span key={index}>{part.text}</span>
       )}
     </>
@@ -74,19 +82,31 @@ function Sentence(
 }
 
 /** A release as its first 8 characters, with the full id on hover and focus. */
-function Release({ id }: { readonly id: string }) {
+function Release(
+  { id, after = "" }: { readonly id: string; readonly after?: string },
+) {
   return (
     <UI.Tooltip content={id}>
-      <UI.DataText fit tabIndex={0} variant="identifier">
+      <UI.DataText fit tabIndex={0} trailing={after} variant="identifier">
         {shortRelease(id)}
       </UI.DataText>
     </UI.Tooltip>
   );
 }
 
-function Command({ children }: { readonly children: string }) {
+/** A release slot, or nothing when the event has no such release. */
+function releaseNode(id: string | null): SlotNode | null {
+  return id === null ? null : (after) => <Release after={after} id={id} />;
+}
+
+function Command(
+  { children, after = "" }: {
+    readonly children: string;
+    readonly after?: string;
+  },
+) {
   return (
-    <UI.DataText fit variant="code">
+    <UI.DataText fit trailing={after} variant="code">
       {children}
     </UI.DataText>
   );
@@ -120,6 +140,7 @@ export function InstallationUpdatesScreen(
         inset="page"
         layout="centered"
         title={translate("installation.updates.notFound.title")}
+        titleStyle="heading"
         variant="filtered"
       />
     );
@@ -130,6 +151,7 @@ export function InstallationUpdatesScreen(
       <UI.Stack gap="standard">
         <UI.PageHeader
           description={translate("installation.updates.description")}
+          flush
           title={translate("installation.updates.title")}
           variant="list"
         />
@@ -179,13 +201,6 @@ export function InstallationUpdatesScreen(
               <Held date={date} uncertain={props.uncertain} />
             </>
           )}
-        {props.policy.saved
-          ? (
-            <UI.Toast onDismiss={props.onSavedShown} tone="success">
-              {translate("installation.updates.policy.saved")}
-            </UI.Toast>
-          )
-          : null}
       </UI.Stack>
     </UI.SettingsContent>
   );
@@ -201,14 +216,15 @@ function FailureNotice(
   },
 ) {
   const { translate } = useI18n();
+  const phone = useShellViewport() === "phone";
   const failure = status.lastFailure;
   const notice = failureNotice(failure);
   if (failure === null || notice === null) return null;
   const nodes = {
-    from: failure.fromRelease ? <Release id={failure.fromRelease} /> : null,
-    to: failure.toRelease ? <Release id={failure.toRelease} /> : null,
-    command: (
-      <Command>
+    from: releaseNode(failure.fromRelease),
+    to: releaseNode(failure.toRelease),
+    command: (after: string) => (
+      <Command after={after}>
         {failure.kind === "interrupted"
           ? "bakery-release recover"
           : "bakery-release rollback"}
@@ -227,7 +243,7 @@ function FailureNotice(
   return (
     <UI.InlineNotice
       action={
-        <UI.Inline gap="compact">
+        <UI.Inline gap="compact" variant={phone ? "actions" : "flow"}>
           {held > 0
             ? (
               <UI.Button
@@ -235,7 +251,9 @@ function FailureNotice(
                   document.getElementById(HELD_SECTION)?.scrollIntoView()}
                 variant="secondary"
               >
-                {translate("installation.updates.notice.seeThem")}
+                {translate("installation.updates.notice.seeThem", {
+                  count: held,
+                })}
               </UI.Button>
             )
             : null}
@@ -248,6 +266,7 @@ function FailureNotice(
           </UI.Button>
         </UI.Inline>
       }
+      actionLayout="below"
       data-failure={failure.kind}
       role="status"
       tone={notice.tone}
@@ -296,7 +315,11 @@ function Facts(
           data-fact="running"
           description={
             <Sentence
-              nodes={{ release: <Release id={running.release} /> }}
+              nodes={{
+                release: (after: string) => (
+                  <Release after={after} id={running.release} />
+                ),
+              }}
               text={translate(running.key, {
                 release: slot("release"),
                 since: running.since === null ? "" : date(running.since),
@@ -312,7 +335,11 @@ function Facts(
             ? translate(previous.key)
             : (
               <Sentence
-                nodes={{ release: <Release id={previous.release} /> }}
+                nodes={{
+                  release: (after: string) => (
+                    <Release after={after} id={previous.release} />
+                  ),
+                }}
                 text={translate(previous.key, {
                   release: slot("release"),
                   to: date(previous.to),
@@ -327,7 +354,9 @@ function Facts(
           description={
             <Sentence
               nodes={{
-                command: <Command>bakery-release deploy</Command>,
+                command: (after: string) => (
+                  <Command after={after}>bakery-release deploy</Command>
+                ),
               }}
               text={translate("installation.updates.facts.startedValue", {
                 command: slot("command"),
@@ -342,7 +371,11 @@ function Facts(
         : (
           <UI.InlineNotice data-notice="not-healthy" role="alert" tone="error">
             <Sentence
-              nodes={{ command: <Command>bakery-release status</Command> }}
+              nodes={{
+                command: (after: string) => (
+                  <Command after={after}>bakery-release status</Command>
+                ),
+              }}
               text={translate("installation.updates.notHealthy", {
                 command: slot("command"),
               })}
@@ -420,18 +453,6 @@ function Policy(props: InstallationUpdatesScreenProps) {
       <UI.Text variant="hint">
         {translate("installation.updates.policy.help")}
       </UI.Text>
-      {policy.problem === null ? null : (
-        <UI.InlineNotice
-          role="alert"
-          tone={policy.problem === "conflict" ? "warning" : "error"}
-        >
-          {translate(
-            policy.problem === "conflict"
-              ? "installation.updates.policy.conflict"
-              : "installation.updates.policy.failed",
-          )}
-        </UI.InlineNotice>
-      )}
       <UI.Inline>
         <UI.Button
           data-action="save-policy"
@@ -442,6 +463,31 @@ function Policy(props: InstallationUpdatesScreenProps) {
           {translate("installation.updates.policy.save")}
         </UI.Button>
       </UI.Inline>
+      {/* Every result of pressing Save shows here, right under the button. */}
+      {policy.saved
+        ? (
+          <UI.Toast
+            data-result="saved"
+            onDismiss={props.onSavedShown}
+            tone="success"
+          >
+            {translate("installation.updates.policy.saved")}
+          </UI.Toast>
+        )
+        : null}
+      {policy.problem === null ? null : (
+        <UI.InlineNotice
+          data-result={policy.problem}
+          role="alert"
+          tone={policy.problem === "conflict" ? "warning" : "error"}
+        >
+          {translate(
+            policy.problem === "conflict"
+              ? "installation.updates.policy.conflict"
+              : "installation.updates.policy.failed",
+          )}
+        </UI.InlineNotice>
+      )}
     </UI.SettingsSection>
   );
 }
@@ -459,9 +505,11 @@ function History(
     return (
       <Sentence
         nodes={{
-          from: event.fromRelease ? <Release id={event.fromRelease} /> : null,
-          to: event.toRelease ? <Release id={event.toRelease} /> : null,
-          command: <Command>bakery-release recover</Command>,
+          from: releaseNode(event.fromRelease),
+          to: releaseNode(event.toRelease),
+          command: (after: string) => (
+            <Command after={after}>bakery-release recover</Command>
+          ),
         }}
         text={translate(row.what, {
           from: slot("from"),
@@ -600,6 +648,7 @@ function Held(
   },
 ) {
   const { translate } = useI18n();
+  const phone = useShellViewport() === "phone";
   if (uncertain === null || uncertain.total === 0) return null;
   return (
     <UI.SettingsSection
@@ -611,38 +660,63 @@ function Held(
       variant="stack"
     >
       <UI.Text variant="muted">
-        {translate("installation.updates.held.body")}
-      </UI.Text>
-      <UI.DataTable
-        caption={translate("installation.updates.held.title", {
+        {translate("installation.updates.held.body", {
           count: uncertain.total,
         })}
-        captionHidden
-        columns={[
-          {
-            id: "action",
-            header: translate("installation.updates.held.action"),
-            cell: (row) => (
-              <UI.DataText fit variant="code">{row.operation}</UI.DataText>
-            ),
-          },
-          {
-            id: "count",
-            header: translate("installation.updates.held.count"),
-            width: "20%",
-            cell: (row) => row.count,
-          },
-          {
-            id: "since",
-            header: translate("installation.updates.held.since"),
-            width: "25%",
-            cell: (row) => date(row.since),
-          },
-        ]}
-        getRowKey={(row) => row.operation}
-        rows={[...uncertain.kinds]}
-        state="ready"
-      />
+      </UI.Text>
+      {phone
+        ? (
+          <UI.Stack gap="none">
+            {uncertain.kinds.map((row) => (
+              <UI.StackedRow
+                data-held={row.operation}
+                flush
+                key={row.operation}
+                title={row.operation}
+                titleLines="wrap"
+              >
+                <UI.Text variant="caption">
+                  {translate("installation.updates.held.row", {
+                    count: row.count,
+                    date: date(row.since),
+                  })}
+                </UI.Text>
+              </UI.StackedRow>
+            ))}
+          </UI.Stack>
+        )
+        : (
+          <UI.DataTable
+            caption={translate("installation.updates.held.title", {
+              count: uncertain.total,
+            })}
+            captionHidden
+            columns={[
+              {
+                id: "action",
+                header: translate("installation.updates.held.action"),
+                cell: (row) => (
+                  <UI.DataText fit variant="code">{row.operation}</UI.DataText>
+                ),
+              },
+              {
+                id: "count",
+                header: translate("installation.updates.held.count"),
+                width: "20%",
+                cell: (row) => row.count,
+              },
+              {
+                id: "since",
+                header: translate("installation.updates.held.since"),
+                width: "25%",
+                cell: (row) => date(row.since),
+              },
+            ]}
+            getRowKey={(row) => row.operation}
+            rows={[...uncertain.kinds]}
+            state="ready"
+          />
+        )}
     </UI.SettingsSection>
   );
 }

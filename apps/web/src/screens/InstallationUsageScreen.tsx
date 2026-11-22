@@ -67,6 +67,7 @@ export function InstallationUsageScreen(
         inset="page"
         layout="centered"
         title={translate("installation.usage.notFound.title")}
+        titleStyle="heading"
         variant="filtered"
       />
     );

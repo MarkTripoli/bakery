@@ -304,6 +304,34 @@ export function splitSlots(text: string): SentencePart[] {
   );
 }
 
+export type JoinedPart = { readonly text: string } | {
+  readonly slot: string;
+  /** Punctuation that follows the slot and must stay on its line. */
+  readonly after: string;
+};
+
+/**
+ * Moves the punctuation that opens the text after a slot (. , ; : or )) onto
+ * the slot, so the two can be kept on one line. The text read is unchanged.
+ */
+export function joinPunctuation(parts: readonly SentencePart[]): JoinedPart[] {
+  const joined: JoinedPart[] = [];
+  for (const part of parts) {
+    const last = joined.at(-1);
+    if ("text" in part && last !== undefined && "slot" in last) {
+      const lead = /^[.,;:)]+/.exec(part.text)?.[0] ?? "";
+      if (lead !== "") {
+        joined[joined.length - 1] = { ...last, after: last.after + lead };
+        const rest = part.text.slice(lead.length);
+        if (rest !== "") joined.push({ text: rest });
+        continue;
+      }
+    }
+    joined.push("slot" in part ? { slot: part.slot, after: "" } : part);
+  }
+  return joined;
+}
+
 /** The value to translate with, so splitSlots finds the slot again. */
 export function slot(name: string): string {
   return `${SLOT}${name}${SLOT}`;

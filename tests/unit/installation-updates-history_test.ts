@@ -5,6 +5,7 @@ import type {
 } from "../../apps/web/src/api/client.ts";
 import {
   failureNotice,
+  joinPunctuation,
   policyLock,
   previousFact,
   runningFact,
@@ -217,4 +218,22 @@ Deno.test("a sentence splits around its slots, in order", () => {
     ],
   );
   assertEquals(splitSlots(slot("release")), [{ slot: "release" }]);
+});
+
+Deno.test("punctuation after a slot joins the slot; the text read is the same", () => {
+  assertEquals(
+    joinPunctuation(
+      splitSlots(`went back to ${slot("to")}. Paused ${slot("by")}`),
+    ),
+    [
+      { text: "went back to " },
+      { slot: "to", after: "." },
+      { text: " Paused " },
+      { slot: "by", after: "" },
+    ],
+  );
+  assertEquals(
+    joinPunctuation(splitSlots(`(${slot("a")}),`)),
+    [{ text: "(" }, { slot: "a", after: ")," }],
+  );
 });

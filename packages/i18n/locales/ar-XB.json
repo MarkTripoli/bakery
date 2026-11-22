@@ -6413,11 +6413,12 @@
   "installation.updates.notice.decidedStayNobody": "⟪{when} no one could be asked, so Bakery stayed on it. To go back, run {command} on the server.⟫",
   "installation.updates.notice.interruptedBody": "⟪{when} the switch did not finish. {command} put {to} back.⟫",
   "installation.updates.notice.held": "⟪{count, plural, one {# outside action is held until someone checks it.} other {# outside actions are held until someone checks them.}}⟫",
-  "installation.updates.notice.seeThem": "⟪See them⟫",
   "installation.updates.notice.dismiss": "⟪Dismiss⟫",
   "installation.updates.held.title": "⟪{count, plural, one {# outside action is held} other {# outside actions are held}}⟫",
-  "installation.updates.held.body": "⟪They may or may not have happened. Bakery never sends them again; each is checked first.⟫",
   "installation.updates.held.action": "⟪Action⟫",
   "installation.updates.held.count": "⟪How many⟫",
-  "installation.updates.held.since": "⟪Held since⟫"
+  "installation.updates.held.since": "⟪Held since⟫",
+  "installation.updates.held.row": "⟪{count} held since {date}⟫",
+  "installation.updates.notice.seeThem": "⟪{count, plural, one {See it} other {See them}}⟫",
+  "installation.updates.held.body": "⟪{count, plural, one {It may or may not have happened. Bakery never sends it again; it is checked first.} other {They may or may not have happened. Bakery never sends them again; each is checked first.}}⟫"
 }
