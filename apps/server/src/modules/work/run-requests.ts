@@ -8,6 +8,18 @@ import {
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { accessScopeClause } from "../auth/application/bindings.ts";
 import type { RunPower } from "../auth/application/run-grants.ts";
+import {
+  AgentPower,
+  assertAgentMayExercise,
+  type ExercisedPower,
+  grantRefusal,
+  matchingGrants,
+} from "../auth/application/agent-power-grants.ts";
+
+/** An agent asked on a run other than the one its session belongs to. */
+export const AGENT_ASK_OWN_RUN_ONLY = "agent_ask_own_run_only";
+/** An agent asked a person, role or group no live ask grant names. */
+export const AGENT_ASK_AUDIENCE_NOT_GRANTED = "agent_ask_audience_not_granted";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -73,6 +85,9 @@ type RequestRow = {
   status: "open" | "answered" | "handled" | "expired" | "withdrawn";
   expires_at: Date | string;
   fallback_for_name: string | null;
+  audience_role_key: string | null;
+  audience_group_id: string | null;
+  audience_name: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -87,7 +102,8 @@ const REQUEST_SELECT = `
          case when request.status = 'open' and request.expires_at <= now()
               then 'expired' else request.status end as status,
          request.expires_at, request.fallback_for_name,
-         request.created_at, request.updated_at, request.version
+         request.audience_role_key, request.audience_group_id,
+         request.audience_name, request.created_at, request.updated_at, request.version
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
     left join bakery.principals as asker on asker.id = request.asked_by`;
@@ -124,6 +140,11 @@ function toRunRequest(row: RequestRow) {
     expiresAt: iso(row.expires_at),
     ownerFallback: row.fallback_for_name !== null,
     fallbackForName: row.fallback_for_name,
+    audience: row.audience_name === null ? null : {
+      roleKey: row.audience_role_key,
+      groupId: row.audience_group_id,
+      name: row.audience_name,
+    },
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
@@ -258,6 +279,7 @@ async function appendFacts(
   facts: Readonly<{
     organizationId: string;
     principalId: string;
+    agentSessionId?: string | null;
     operation: string;
     eventType: string;
     requestId: string;
@@ -270,6 +292,7 @@ async function appendFacts(
   await appendAudit(transaction, {
     organizationId: facts.organizationId,
     principalId: facts.principalId,
+    agentSessionId: facts.agentSessionId ?? null,
     operation: facts.operation,
     resourceType: "person_request",
     resourceId: facts.requestId,
@@ -307,7 +330,9 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
   const { transaction, organizationId, principalId, accessScope } =
     requireWorkTransaction(context);
   const value = input as {
-    recipientId: string;
+    recipientId?: string;
+    recipientRoleKey?: string;
+    recipientGroupId?: string;
     intent: RequestIntent;
     stepKey?: string;
     questionId?: string;
@@ -315,6 +340,26 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     neededBy?: string;
   };
   const run = await loadRun(context, transaction, organizationId, accessScope);
+
+  const named =
+    [value.recipientId, value.recipientRoleKey, value.recipientGroupId]
+      .filter((recipient) => recipient !== undefined).length;
+  if (named !== 1) {
+    unprocessable(
+      ["recipientId"],
+      "request_recipient_required",
+      "Name one person, one role or one group to ask",
+    );
+  }
+  // An agent asks only where a person granted it, and only whom the grant
+  // names; checked before anything is written.
+  const exercised = await guardAgentAsk(transaction, context, {
+    organizationId,
+    principalId,
+    runId: run.id,
+    roleKey: value.recipientRoleKey ?? null,
+    groupId: value.recipientGroupId ?? null,
+  });
 
   if (!AVAILABLE_INTENTS.includes(value.intent)) {
     unprocessable(
@@ -413,43 +458,308 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       );
     }
   }
-  if (value.recipientId === principalId) {
-    unprocessable(["recipientId"], "request_self", "You cannot ask yourself");
-  }
-
-  // The person asked is resolved once, here, and frozen on the request. One who
-  // cannot be found (removed, disabled, not a member, not a person) falls back
-  // to whoever started the run, with a visible note (O62).
-  let recipientId = value.recipientId;
-  let fallbackForName: string | null = null;
-  const resolved = await activeHuman(transaction, organizationId, recipientId);
-  if (resolved === null) {
-    const meant = await transaction.query<{ display_name: string }>(
-      "select display_name from bakery.principals where id = $1",
-      [value.recipientId],
+  // Who is asked: one person, or every active member of one role or one group,
+  // resolved now and frozen on one request row each.
+  const roleKey = value.recipientRoleKey ?? null;
+  const groupId = value.recipientGroupId ?? null;
+  const recipients: Recipient[] = [];
+  let audience: Audience | null = null;
+  if (roleKey !== null || groupId !== null) {
+    const resolved = await audienceMembers(
+      transaction,
+      organizationId,
+      roleKey,
+      groupId,
     );
-    const owner = run.requested_by ?? run.task_created_by;
-    const ownerPerson = owner === null
-      ? null
-      : await activeHuman(transaction, organizationId, owner);
-    if (owner === null || ownerPerson === null || owner === principalId) {
+    audience = { roleKey, groupId, name: resolved.name };
+    const others = resolved.members.filter((id) => id !== principalId);
+    if (others.length === 0) {
+      const path = roleKey !== null ? "recipientRoleKey" : "recipientGroupId";
+      if (resolved.members.length > 0) {
+        unprocessable([path], "request_self", "You cannot ask yourself");
+      }
       unprocessable(
-        ["recipientId"],
-        "request_recipient_unavailable",
-        "That person cannot be asked and nobody else can be asked in their place",
+        [path],
+        "request_audience_empty",
+        "Nobody holds that role or is in that group right now",
       );
     }
-    recipientId = owner;
-    fallbackForName = meant.rows[0]?.display_name ?? "someone";
+    for (const id of others) {
+      recipients.push({ principalId: id, fallbackForName: null });
+    }
+  } else {
+    const meantId = value.recipientId as string;
+    if (meantId === principalId) {
+      unprocessable(["recipientId"], "request_self", "You cannot ask yourself");
+    }
+    // The person asked is resolved once, here, and frozen on the request. One
+    // who cannot be found (removed, disabled, not a member, not a person) falls
+    // back to whoever started the run, with a visible note (O62).
+    const resolved = await activeHuman(transaction, organizationId, meantId);
+    if (resolved === null) {
+      const meant = await transaction.query<{ display_name: string }>(
+        "select display_name from bakery.principals where id = $1",
+        [meantId],
+      );
+      const owner = run.requested_by ?? run.task_created_by;
+      const ownerPerson = owner === null
+        ? null
+        : await activeHuman(transaction, organizationId, owner);
+      if (owner === null || ownerPerson === null || owner === principalId) {
+        unprocessable(
+          ["recipientId"],
+          "request_recipient_unavailable",
+          "That person cannot be asked and nobody else can be asked in their place",
+        );
+      }
+      recipients.push({
+        principalId: owner,
+        fallbackForName: meant.rows[0]?.display_name ?? "someone",
+      });
+    } else {
+      recipients.push({ principalId: meantId, fallbackForName: null });
+    }
   }
 
+  const actor: Actor = {
+    kind: attributeAction(context, principalId).actorKind,
+    sessionId: exercised?.origin?.agentSessionId ?? null,
+    fromRunId: exercised?.origin?.runId ?? null,
+  };
+  let first: string | null = null;
+  for (const recipient of recipients) {
+    const id = await askOne(context, transaction, {
+      organizationId,
+      principalId,
+      run,
+      intent: value.intent,
+      stepKey: value.stepKey ?? null,
+      questionId: value.questionId ?? null,
+      power,
+      note: note === "" ? null : note,
+      neededBy,
+      recipient,
+      audience,
+      actor,
+    });
+    first ??= id;
+  }
+  if (first === null) throw new Error("REQUEST_INSERT_FAILED");
+  return toRunRequest(await readRequest(transaction, organizationId, first));
+}
+
+type Recipient = Readonly<{
+  principalId: string;
+  /** Who was meant when the run's starter is asked in their place (O62). */
+  fallbackForName: string | null;
+}>;
+
+/** The role or group a request was asked of, frozen with its members. */
+type Audience = Readonly<{
+  roleKey: string | null;
+  groupId: string | null;
+  name: string;
+}>;
+
+/**
+ * Who made the ask, recorded the same way for a person and an agent: the same
+ * keys on every ledger and audit row, so an agent's row differs from a
+ * person's only in these values (O50).
+ */
+type Actor = Readonly<{
+  kind: "person" | "agent";
+  sessionId: string | null;
+  fromRunId: string | null;
+}>;
+
+/** The names Bakery gives the built-in roles a request can ask. */
+const SYSTEM_ROLE_NAMES: Readonly<Record<string, string>> = {
+  admin: "Administrators",
+  developer: "Developers",
+};
+
+/**
+ * The active human members of one role or one group, at this moment. A
+ * built-in role counts members who hold it with no custom role, as the groups
+ * page does; a custom role is named by its key.
+ */
+async function audienceMembers(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  roleKey: string | null,
+  groupId: string | null,
+): Promise<{ name: string; members: string[] }> {
+  const human = `membership.organization_id = $1
+        and membership.status = 'active'
+        and principal.principal_type = 'human'
+        and principal.disabled_at is null`;
+  if (roleKey !== null) {
+    const systemName = SYSTEM_ROLE_NAMES[roleKey];
+    if (systemName !== undefined) {
+      const found = await transaction.query<{ principal_id: string }>(
+        `select membership.principal_id
+           from bakery.organization_memberships as membership
+           join bakery.principals as principal
+             on principal.id = membership.principal_id
+          where ${human} and membership.role = $2
+            and membership.custom_role_id is null
+          order by lower(principal.display_name), membership.principal_id`,
+        [organizationId, roleKey],
+      );
+      return {
+        name: systemName,
+        members: found.rows.map((row) => row.principal_id),
+      };
+    }
+    const role = await transaction.query<{ id: string; name: string }>(
+      `select id, name from bakery.organization_roles
+        where organization_id = $1 and key = $2`,
+      [organizationId, roleKey],
+    );
+    const custom = role.rows[0];
+    if (!custom) {
+      unprocessable(
+        ["recipientRoleKey"],
+        "request_audience_not_found",
+        "No such role",
+      );
+    }
+    const found = await transaction.query<{ principal_id: string }>(
+      `select membership.principal_id
+         from bakery.organization_memberships as membership
+         join bakery.principals as principal
+           on principal.id = membership.principal_id
+        where ${human} and membership.custom_role_id = $2
+        order by lower(principal.display_name), membership.principal_id`,
+      [organizationId, custom.id],
+    );
+    return {
+      name: custom.name,
+      members: found.rows.map((row) => row.principal_id),
+    };
+  }
+  const group = await transaction.query<{ name: string }>(
+    `select name from bakery.organization_groups
+      where organization_id = $1 and id = $2`,
+    [organizationId, groupId],
+  );
+  const named = group.rows[0];
+  if (!named) {
+    unprocessable(
+      ["recipientGroupId"],
+      "request_audience_not_found",
+      "No such group",
+    );
+  }
+  const found = await transaction.query<{ principal_id: string }>(
+    `select member.principal_id
+       from bakery.organization_group_members as member
+       join bakery.organization_memberships as membership
+         on membership.organization_id = member.organization_id
+        and membership.principal_id = member.principal_id
+       join bakery.principals as principal
+         on principal.id = member.principal_id
+      where ${human} and member.group_id = $2
+      order by lower(principal.display_name), member.principal_id`,
+    [organizationId, groupId],
+  );
+  return {
+    name: named.name,
+    members: found.rows.map((row) => row.principal_id),
+  };
+}
+
+/**
+ * Refuses an agent's ask unless a live ask grant names the role or group it
+ * asks, and only on the run its session belongs to (a step asks about its own
+ * run). A person passes untouched, and so does a seat agent asking one person,
+ * which keeps the rule it always had. Called before anything is written.
+ */
+async function guardAgentAsk(
+  transaction: PgTransactionClient,
+  context: ActionContext,
+  scope: Readonly<{
+    organizationId: string;
+    principalId: string;
+    runId: string;
+    roleKey: string | null;
+    groupId: string | null;
+  }>,
+): Promise<ExercisedPower | null> {
+  const attribution = attributeAction(context, scope.principalId);
+  if (attribution.actorKind === "person") return null;
+  const audienceAsk = scope.roleKey !== null || scope.groupId !== null;
+  if (context.agentSession === undefined && !audienceAsk) return null;
+  const exercised = await assertAgentMayExercise(transaction, context, {
+    organizationId: scope.organizationId,
+    principalId: scope.principalId,
+    power: AgentPower.Ask,
+  });
+  if (exercised.origin !== null && exercised.origin.runId !== scope.runId) {
+    forbidden(AGENT_ASK_OWN_RUN_ONLY);
+  }
+  if (!audienceAsk) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
+  const grants = (await matchingGrants(transaction, {
+    organizationId: scope.organizationId,
+    power: AgentPower.Ask,
+    workflowId: exercised.origin?.workflowId ?? null,
+    accessTokenId: attribution.accessTokenId,
+  })).filter((grant) =>
+    scope.roleKey !== null
+      ? grant.roleKey === scope.roleKey
+      : grant.groupId === scope.groupId
+  );
+  if (grants.length === 0) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
+  if (!grants.some((grant) => !grant.expired)) throw grantRefusal(grants);
+  return exercised;
+}
+
+function forbidden(reason: string): never {
+  throw new StandardError({ code: "AUTH_FORBIDDEN", params: { reason } });
+}
+
+/**
+ * Asks one person: reminds them of the same open request, or makes a new one
+ * with its observe grant and its one power, and records it. Returns the
+ * request's id.
+ */
+async function askOne(
+  context: ActionContext,
+  transaction: PgTransactionClient,
+  ask: Readonly<{
+    organizationId: string;
+    principalId: string;
+    run: RunFacts;
+    intent: RequestIntent;
+    stepKey: string | null;
+    questionId: string | null;
+    power: RunPower | undefined;
+    note: string | null;
+    neededBy: Date | null;
+    recipient: Recipient;
+    audience: Audience | null;
+    actor: Actor;
+  }>,
+): Promise<string> {
+  const { organizationId, principalId, run, actor, audience } = ask;
+  const recipientId = ask.recipient.principalId;
+  const fallbackForName = ask.recipient.fallbackForName;
+  // The same keys on every row a person or an agent writes (O50).
+  const actorDetail = {
+    actorKind: actor.kind,
+    onBehalfOf: actor.kind === "agent" ? principalId : null,
+    sessionId: actor.sessionId,
+    fromRunId: actor.fromRunId,
+    audienceRoleKey: audience?.roleKey ?? null,
+    audienceGroupId: audience?.groupId ?? null,
+  };
   // A request past its time is over; asking again makes a new one.
   await transaction.query(
     `update bakery.person_requests
         set status = 'expired', updated_at = now(), version = version + 1
       where organization_id = $1 and run_id = $2 and recipient_id = $3
         and intent = $4 and status = 'open' and expires_at <= now()`,
-    [organizationId, run.id, recipientId, value.intent],
+    [organizationId, run.id, recipientId, ask.intent],
   );
   const open = await transaction.query<{ id: string }>(
     `select id from bakery.person_requests
@@ -461,10 +771,10 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       organizationId,
       run.id,
       recipientId,
-      value.intent,
-      value.stepKey ?? "",
+      ask.intent,
+      ask.stepKey ?? "",
       NO_TARGET,
-      value.questionId ?? null,
+      ask.questionId,
     ],
   );
   if (open.rows[0]) {
@@ -480,24 +790,24 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     );
     const remindedVersion = reminded.rows[0]?.version;
     if (remindedVersion === undefined) throw new Error("REQUEST_REMIND_FAILED");
-    const remindedBy = attributeAction(context, principalId).actorKind;
     await ledger(transaction, {
       organizationId,
       taskId: run.task_id,
       runId: run.id,
       kind: "request_reminded",
       decidedBy: principalId,
-      text: value.intent,
+      text: ask.intent,
       detail: {
         requestId: open.rows[0].id,
         recipientId,
-        intent: value.intent,
-        actorKind: remindedBy,
+        intent: ask.intent,
+        ...actorDetail,
       },
     });
     await appendFacts(transaction, context, {
       organizationId,
       principalId,
+      agentSessionId: actor.sessionId,
       operation: "runRequests.create",
       eventType: "runRequest.created",
       requestId: open.rows[0].id,
@@ -506,38 +816,39 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       runId: run.id,
       details: {
         runId: run.id,
-        intent: value.intent,
+        intent: ask.intent,
         reminded: true,
+        ...actorDetail,
       },
     });
-    return toRunRequest(
-      await readRequest(transaction, organizationId, open.rows[0].id),
-    );
+    return open.rows[0].id;
   }
 
-  const kind = attributeAction(context, principalId).actorKind;
   const created = await transaction.query<{ id: string }>(
     `insert into bakery.person_requests (
        organization_id, run_id, task_id, step_key, intent, recipient_id,
        fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at,
-       target_id)
+       target_id, audience_role_key, audience_group_id, audience_name)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             now() + make_interval(days => $12), $13)
+             now() + make_interval(days => $12), $13, $14, $15, $16)
      returning id`,
     [
       organizationId,
       run.id,
       run.task_id,
-      value.stepKey ?? null,
-      value.intent,
+      ask.stepKey,
+      ask.intent,
       recipientId,
       fallbackForName,
       principalId,
-      kind === "agent" ? "agent" : "person",
-      note === "" ? null : note,
-      neededBy,
+      actor.kind,
+      ask.note,
+      ask.neededBy,
       REQUEST_LIFETIME_DAYS,
-      value.questionId ?? null,
+      ask.questionId,
+      audience?.roleKey ?? null,
+      audience?.groupId ?? null,
+      audience?.name ?? null,
     ],
   );
   const requestId = created.rows[0]?.id;
@@ -546,7 +857,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
   // The one power, on exactly that row, for as long as the request lasts. It
   // is given whatever role the person already has: observe says nothing about
   // doing, and the gate asks the grant only when the role refuses.
-  if (power !== undefined) {
+  if (ask.power !== undefined) {
     await transaction.query(
       `insert into bakery.run_power_grants (
          organization_id, run_id, principal_id, power, target_kind,
@@ -557,7 +868,14 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
        on conflict (
          organization_id, principal_id, power, question_id
        ) where revoked_at is null do nothing`,
-      [organizationId, run.id, recipientId, power, value.questionId, requestId],
+      [
+        organizationId,
+        run.id,
+        recipientId,
+        ask.power,
+        ask.questionId,
+        requestId,
+      ],
     );
   }
 
@@ -582,7 +900,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
         recipientId,
         requestId,
         principalId,
-        kind === "agent" ? "agent" : "person",
+        actor.kind,
       ],
     );
   }
@@ -592,18 +910,19 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     runId: run.id,
     kind: "request",
     decidedBy: principalId,
-    text: value.intent,
+    text: ask.intent,
     detail: {
       requestId,
       recipientId,
-      intent: value.intent,
+      intent: ask.intent,
       ownerFallback: fallbackForName !== null,
-      actorKind: kind,
+      ...actorDetail,
     },
   });
   await appendFacts(transaction, context, {
     organizationId,
     principalId,
+    agentSessionId: actor.sessionId,
     operation: "runRequests.create",
     eventType: "runRequest.created",
     requestId,
@@ -612,14 +931,13 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     runId: run.id,
     details: {
       runId: run.id,
-      intent: value.intent,
+      intent: ask.intent,
       ownerFallback: fallbackForName !== null,
       granted: !standing,
+      ...actorDetail,
     },
   });
-  return toRunRequest(
-    await readRequest(transaction, organizationId, requestId),
-  );
+  return requestId;
 }
 
 /** runRequests.list: the requests made on one run, newest first. */

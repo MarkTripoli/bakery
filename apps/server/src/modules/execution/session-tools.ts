@@ -105,6 +105,10 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "artifactComments.create": "comments.write",
     "artifactComments.update": "comments.write",
     "tasks.update": "work.write",
+    // Asking people (#414 slice 4): a step asks the role or group a person
+    // named in its workflow's ask grant, through the same run requests a person
+    // makes. Off by default; the action checks the grant and its audience live.
+    "runRequests.create": "runs.ask",
     // Connection drafts (#448 S9b): an agent prepares a connection and a person
     // completes it. The operations refuse a secret, an organization-wide
     // connection and switching one on whenever an agent is the caller.
@@ -129,7 +133,25 @@ export const POWER_SESSION_SCOPES: Readonly<
   comment: Object.freeze(["comments.write"]),
   edit_work: Object.freeze(["work.write"]),
   draft_connection: Object.freeze(["connections.draft"]),
+  ask: Object.freeze(["runs.ask"]),
 });
+
+/**
+ * Powers whose operations check the grant themselves, live, on every call, and
+ * refuse with their own named reason (spawn_requires_grant, steer_requires_grant,
+ * agent_power_requires_grant, agent_power_grant_expired, ...). The gateway does
+ * not check these again: a second, earlier check would answer a bare denial
+ * and hide the reason the operation gives. The other powers (comments, work
+ * edits, connection drafts) run operations that judge the call as the person,
+ * so the gateway's check is the only grant check they get.
+ */
+export const ACTION_GUARDED_POWERS: ReadonlySet<AgentPower> = new Set([
+  "decide",
+  "run_control",
+  "run_start",
+  "steer",
+  "ask",
+]);
 
 /**
  * The power whose grant a session scope stands for, or null for a scope that

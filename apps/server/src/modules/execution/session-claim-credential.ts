@@ -231,7 +231,8 @@ export async function grantedScopesForAttempt(
   const granted = await tx.query<{ power: string }>(
     `select distinct power from bakery.agent_power_grants
       where organization_id = $1 and workflow_id = $2
-        and access_token_id is null`,
+        and access_token_id is null
+        and (expires_at is null or expires_at > now())`,
     [organizationId, origin.workflowId],
   );
   const scopes = new Set<OperationScope>();
