@@ -121,7 +121,7 @@ Names users see, grouped the way the picker groups them, mapped to what the defi
 | Users see | Says | Definition | Asked for by default |
 | --- | --- | --- | --- |
 | Run checks | Runs the repository's lint, tests and build. | `action` `quality.check` | Which checks (default: all required) |
-| Open a pull request | Opens a pull request with the changes. | `action` `integration.action` (**G4**) | Open as a draft, yes or no |
+| Open a pull request | Opens a pull request with the changes. | `action` `tool.call` (**G4**) | Open as a draft, yes or no |
 | Merge | Merges the changes when checks and review allow it. | `action` `delivery.merge` | Nothing |
 | Prepare a release, Deploy, Check health | Later slice, same pattern. | `delivery.prepare`, `delivery.deploy`, `delivery.health` | Environment |
 | Publish a document | Later slice. | `artifact.publish` | Which document |
@@ -356,7 +356,7 @@ Ordered by how much they block the brief. Each has the smallest change that woul
 **G3. Step names have nowhere to live.** A node has an `id` (`[a-z][a-z0-9_]{1,63}`) and no label or description, and the schema is strict. Doc 06 treats labels as private presentation data keyed by node ID. With auto-layout there are no positions left to store, but names are not private: a teammate, the Runs tab and the publish diff all need them.
 *Smallest change:* a `presentation` object stored with each draft and version, shared, outside the digest: `{labels: {nodeId: text}, notes: {nodeId: text}}`. Validation ignores it; copy and export carry it.
 
-**G4. There is no "open a pull request" action.** The registry has merge, prepare, deploy and health, and the generic `integration.action` (`actionId`, `actionVersion`, `resourceId`, `arguments`). No pull-request action id was found in the contracts.
+**G4. There is no "open a pull request" action.** The registry has merge, prepare, deploy and health, and the generic `tool.call` (`connectionId`, `tool`, `toolVersion`, `resourceId`, `arguments`). No pull-request action id was found in the contracts.
 *Smallest change:* either a first-class `delivery.pull_request` action with a small typed input (draft, title source), or a catalogued integration action id the editor can present by name with a fixed argument form. The prototype assumes the second and invents the id; that id is not real.
 
 **G5. Everything is capped at 24 hours.** A wait can be at most 24 hours, and so can the whole workflow (`wallClock`). A plan approval that sits over a weekend fails the run.

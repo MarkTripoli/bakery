@@ -5,7 +5,7 @@ import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-c
 import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 
 // #30 slice A2: the contracts of artifact.publish, memory.promote,
-// evaluation.sample and integration.action, written to the schema registry in
+// evaluation.sample and tool.call, written to the schema registry in
 // docs/technical-design/06. With slice A1 this leaves no registered action
 // without a schema, which is what lets a workflow using any of them compile.
 
@@ -78,7 +78,7 @@ Deno.test("a research artifact flows into artifact.publish and memory.promote", 
   );
 });
 
-Deno.test("evaluation.sample and integration.action compile with valid input", async () => {
+Deno.test("evaluation.sample and tool.call compile with valid input", async () => {
   assertEquals(
     await diagnose([
       {
@@ -89,10 +89,11 @@ Deno.test("evaluation.sample and integration.action compile with valid input", a
       {
         id: "notify",
         needs: ["sample"],
-        uses: "integration.action",
+        uses: "tool.call",
         with: {
-          actionId: "chat.post",
-          actionVersion: 1,
+          connectionId: UUID,
+          tool: "chat.post",
+          toolVersion: 1,
           resourceId: "$input.runId",
           arguments: { $literal: { text: "done" } },
         },
@@ -244,17 +245,17 @@ Deno.test("the outputs are fixed shapes with their declared statuses", () => {
   );
 });
 
-Deno.test("IntegrationActionOutput is the ActionResult contract, not a second copy", () => {
+Deno.test("ToolCallOutput is the ActionResult contract, not a second copy", () => {
   const schemas = contractSchemas as unknown as Record<string, unknown>;
-  assert(schemas.IntegrationActionOutput === schemas.ActionResult);
+  assert(schemas.ToolCallOutput === schemas.ActionResult);
   const result = {
     accepted: true,
     operation: "chat.post",
     externalEffectId: null,
     result: { ok: true },
   };
-  assert(accepts("IntegrationActionOutput", result));
+  assert(accepts("ToolCallOutput", result));
   assert(
-    !accepts("IntegrationActionOutput", { ...result, accepted: "yes" }),
+    !accepts("ToolCallOutput", { ...result, accepted: "yes" }),
   );
 });

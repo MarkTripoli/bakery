@@ -144,13 +144,14 @@ export function planNextCycleReservation(snapshot: unknown): bigint {
       : parseMicroUsd(amount, "max_usd_reservation");
   };
   // The steps one more cycle runs for an action: every body step of a repeat
-  // (no seed iteration, so it runs again), else every step of the action.
+  // (no seed iteration, so it runs again), else every step of the action. A
+  // forEach is not a cycle: a step inside one only is not a body step.
   const cycleSteps = (action: string) => {
     const matching = plan.steps.filter((candidate) =>
       candidate.kind === "action" && candidate.action === action
     );
     const body = matching.filter((candidate) =>
-      candidate.loops.length > 0 &&
+      candidate.loops.some((loop) => loop.kind === "repeat") &&
       candidate.loops.every((loop) => !loop.seed)
     );
     return body.length > 0 ? body : matching;

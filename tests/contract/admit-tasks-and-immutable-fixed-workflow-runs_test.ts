@@ -32,6 +32,7 @@ Deno.test("generated RunCreate and Run schemas enforce the public projection bou
     requestedBy: ID,
     inngestRunId: null,
     status: "queued",
+    environment: "live",
     budgetLimitUsd: "12.500000",
     startedAt: null,
     finishedAt: null,
