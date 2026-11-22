@@ -127,3 +127,19 @@ Deno.test("rpi.design and rpi.plan are advertised by all three coding harnesses"
     );
   }
 });
+
+Deno.test("every coding harness is given the design tool from the worker's enrolled capabilities", async () => {
+  // rpi.design is advertised by all three harnesses; without this wiring it is
+  // advertised and always refused. Each constructor in main.ts must pass it.
+  const main = await Deno.readTextFile(
+    new URL("apps/worker/src/main.ts", root),
+  );
+  const wired = main.match(
+    /designToolAvailable: designToolAvailableFrom\(config\.capabilities\)/g,
+  ) ?? [];
+  const constructors = main.match(
+    /create(Claude|Codex|Pi)HarnessExecutor\(\{/g,
+  ) ?? [];
+  assertEquals(constructors.length, 3);
+  assertEquals(wired.length, constructors.length);
+});

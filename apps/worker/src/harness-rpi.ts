@@ -52,6 +52,18 @@ const NOUN: Readonly<Record<RpiAction, string>> = Object.freeze({
   [RPI_RESEARCH_ACTION]: "research",
 });
 
+/**
+ * Whether a worker with these enrolled capabilities has the design tool
+ * `rpi.design` declares. The server already sends the step only to a host that
+ * lists `paper`, so this is the worker agreeing with that claim: a host that
+ * enrolls it runs design steps, a host that does not refuses them.
+ */
+export function designToolAvailableFrom(
+  capabilities: readonly string[],
+): boolean {
+  return capabilities.includes("paper");
+}
+
 export function isRpiFreeformAction(
   action: string,
 ): action is RpiFreeformAction {

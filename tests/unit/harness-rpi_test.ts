@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { workerActionOutputSchema } from "../../packages/contracts/src/contracts.ts";
 import type { ExecutionOutcome } from "../../apps/worker/src/executor.ts";
 import {
+  designToolAvailableFrom,
   executeRpiFreeform,
   isRpiFreeformAction,
   RPI_DESIGN_ACTION,
@@ -203,4 +204,13 @@ Deno.test("a refused step never reaches the session runner", async () => {
   );
   assertEquals(ok.status, "completed");
   assertEquals(ran, 1);
+});
+
+Deno.test("a worker has the design tool only when it enrolled the paper capability", () => {
+  assert(designToolAvailableFrom(["model", "paper"]));
+  assert(designToolAvailableFrom(["paper"]));
+  assertEquals(designToolAvailableFrom(["model"]), false);
+  assertEquals(designToolAvailableFrom([]), false);
+  // A near miss is not the capability.
+  assertEquals(designToolAvailableFrom(["papers", "Paper"]), false);
 });
