@@ -1962,7 +1962,8 @@ for (
       await expect(panel).toContainText(
         "If the first review is already clean, this block is skipped.",
       );
-      await expect(panel).toContainText("At most 2 tries");
+      // The limit is said once, on the block, not again in the panel.
+      await expect(panel).not.toContainText("At most");
       await expect(panel.getByRole("textbox")).toHaveCount(0);
       await expect(panel.getByRole("spinbutton")).toHaveCount(0);
       // The other repeat's panel claims nothing of the kind.

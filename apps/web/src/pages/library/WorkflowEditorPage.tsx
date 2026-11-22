@@ -604,9 +604,6 @@ export function WorkflowEditorPage(
         problem: undefined,
         ...(group.max === undefined ? {} : {
           help: translate("library.editor.group.fixHelp" as never),
-          limit: translate("library.editor.group.fixLimit" as never, {
-            max: group.max,
-          }),
         }),
       };
     }

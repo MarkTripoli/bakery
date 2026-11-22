@@ -37,6 +37,7 @@ import {
   presetActionSteps,
   presetBriefInputs,
   presetOutput,
+  repeatAround,
 } from "../../apps/server/src/modules/work/workflow-presets.ts";
 
 const repositoryId = "00000000-0000-4000-8000-0000000000a1";
@@ -462,4 +463,90 @@ Deno.test("the repeat fields are bounded like a repeat's own limit", () => {
   assert(!accepts({ repeatId: "repair", repeatMax: 0 }));
   assert(!accepts({ repeatId: "repair", repeatMax: 9 }));
   assert(!accepts({ repeatId: "repair", repeatMax: 1.5 }));
+});
+
+Deno.test("an action site reports its nearest enclosing repeat, and only a readable one", () => {
+  const document = {
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "nested",
+    description: "x",
+    inputs: {},
+    steps: [
+      { id: "plain", uses: "task.brief" },
+      {
+        id: "outer",
+        repeat: {
+          max: 3,
+          steps: [
+            { id: "a", uses: "harness.repair" },
+            {
+              id: "inner",
+              repeat: {
+                max: 2,
+                steps: [{ id: "b", uses: "review.independent" }],
+              },
+            },
+          ],
+        },
+      },
+      {
+        id: "broken",
+        repeat: { max: 0, steps: [{ id: "c", uses: "review.independent" }] },
+      },
+      {
+        id: "wrapper",
+        repeat: {
+          max: 4,
+          steps: [{
+            id: "badinner",
+            repeat: {
+              max: "two",
+              steps: [{ id: "d", uses: "quality.check" }],
+            },
+          }],
+        },
+      },
+    ],
+  } as never;
+  // A step outside every repeat reports none.
+  assertEquals(repeatAround(document, ["steps", 0]), undefined);
+  // A step directly in a repeat reports that repeat's id and limit.
+  assertEquals(
+    repeatAround(document, ["steps", 1, "repeat", "steps", 0]),
+    { id: "outer", max: 3 },
+  );
+  // The nearest enclosing repeat wins over an outer one.
+  assertEquals(
+    repeatAround(document, [
+      "steps",
+      1,
+      "repeat",
+      "steps",
+      1,
+      "repeat",
+      "steps",
+      0,
+    ]),
+    { id: "inner", max: 2 },
+  );
+  // A repeat whose limit is not a whole number of at least one names nothing.
+  assertEquals(
+    repeatAround(document, ["steps", 2, "repeat", "steps", 0]),
+    undefined,
+  );
+  // An unreadable inner repeat falls back to the readable one around it.
+  assertEquals(
+    repeatAround(document, [
+      "steps",
+      3,
+      "repeat",
+      "steps",
+      0,
+      "repeat",
+      "steps",
+      0,
+    ]),
+    { id: "wrapper", max: 4 },
+  );
 });

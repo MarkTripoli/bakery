@@ -327,18 +327,21 @@ export function WorkflowDiagram(
     </>
   );
 
-  /** The word for what kind of group this is, as a button that selects it. */
+  /**
+   * The word for what kind of group this is. Where a person can select it, it
+   * is a button; where they cannot (a read-only page) it is plain text, never a
+   * disabled button, so every group's word reads at full strength (#62 QA).
+   */
   const groupWord = (
     node: Extract<TreeNode, { kind: "group" }>,
-  ): ReactNode => (
-    <UI.Button
-      variant="text"
-      disabled={!canManage}
-      onClick={() => onSelect(node.id)}
-    >
-      {translate(GROUP_LABEL[node.label] as never)}
-    </UI.Button>
-  );
+  ): ReactNode =>
+    canManage
+      ? (
+        <UI.Button variant="text" onClick={() => onSelect(node.id)}>
+          {translate(GROUP_LABEL[node.label] as never)}
+        </UI.Button>
+      )
+      : <UI.Text>{translate(GROUP_LABEL[node.label] as never)}</UI.Text>;
 
   /** A group's own label: its word, and "Edited in code" once for the group. */
   const groupLabel = (

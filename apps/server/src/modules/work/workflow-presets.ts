@@ -184,7 +184,7 @@ function authoredNodeAt(
  * authored document: the nearest enclosing node that carries a `repeat`, with
  * that node's id and its `max`. Undefined for a site outside every repeat.
  */
-function repeatAround(
+export function repeatAround(
   document: WorkflowPresetDocument,
   path: readonly (string | number)[],
 ): { id: string; max: number } | undefined {
