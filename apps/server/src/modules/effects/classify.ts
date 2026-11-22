@@ -81,7 +81,7 @@ export function confirmedOutcome(
   return { kind: "confirmed", remoteId, safeResult };
 }
 
-function retryOrExhaust(
+export function retryOrExhaust(
   generation: number,
   maxGenerations: number,
   retryAfterSeconds?: number,

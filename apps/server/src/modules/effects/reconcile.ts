@@ -10,6 +10,7 @@ import {
   type DispatchDeps,
   standaloneSnapshots,
 } from "./dispatch.ts";
+import { confirmMcpEffect, isMcpEffect } from "./mcp.ts";
 import { observeProviderRequests } from "./observe.ts";
 import {
   casReconcileLease,
@@ -172,6 +173,30 @@ export async function reconcileEffect(
     confirmed: null,
     evidence: evidenceOf({ attempt, requests, outcome, error }),
   });
+
+  if (isMcpEffect(effect)) {
+    const checked = await confirmMcpEffect({
+      ...(deps.mcp === undefined ? {} : { mcp: deps.mcp }),
+      deadlineMs: deps.deadlineMs ?? DEFAULT_DEADLINE_MS,
+    }, effect);
+    if (checked.kind === "uncertain") {
+      return await record(
+        uncertainCheck(checked.requests, checked.outcome, checked.error),
+      );
+    }
+    const bounded = confirmedOutcome(checked.result);
+    return await record({
+      confirmed: {
+        remoteId: bounded.remoteId,
+        safeResult: bounded.safeResult,
+      },
+      evidence: evidenceOf({
+        attempt,
+        requests: checked.requests,
+        outcome: "confirmed",
+      }),
+    });
+  }
 
   const snapshots = standaloneSnapshots(deps.database, deps.snapshotsFor);
   let admission;

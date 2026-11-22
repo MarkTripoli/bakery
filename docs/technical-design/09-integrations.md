@@ -532,11 +532,11 @@ Workflow/skill binding:
 ```yaml
 steps:
   - id: publish-progress
-    uses: integration.action
+    uses: tool.call
     with:
       binding: github-progress
-      actionId: github.issue.comment.create
-      actionVersion: 1
+      tool: github.issue.comment.create
+      toolVersion: 1
       arguments:
         issueNumber: '${{ inputs.issueNumber }}'
         body: '${{ artifacts.reviewSummary }}'
