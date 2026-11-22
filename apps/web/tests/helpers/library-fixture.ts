@@ -90,6 +90,8 @@ export type Options = {
   offline?: boolean;
   /** Every workflows page says there is another, so the list is cut short. */
   endless?: boolean;
+  /** What the skills read answers for any version: its items, or "fail" for a read that cannot be answered. */
+  skills?: { items: unknown[] } | "fail";
 };
 
 const json = (body: unknown, status = 200) => ({
@@ -220,6 +222,9 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     workflowReads: 0,
     agentReads: 0,
     presetReads: 0,
+    /** Reads of a version's skills, and what the next one answers (a test may change it). */
+    skillReads: 0,
+    skillsAnswer: options.skills as Options["skills"],
     failing: options.failing ?? null as Options["failing"] | null,
   };
   await page.route(
@@ -321,6 +326,17 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         target.version = (target.version ?? 1) + 1;
       }
       return route.fulfill(json(workflowBody(target)));
+    },
+  );
+  await page.route(
+    (url) =>
+      /^\/v1\/workflows\/[^/]+\/versions\/[^/]+\/skills$/.test(url.pathname),
+    (route) => {
+      seen.skillReads += 1;
+      if (seen.skillsAnswer === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      return route.fulfill(json(seen.skillsAnswer ?? { items: [] }));
     },
   );
   await page.route(
