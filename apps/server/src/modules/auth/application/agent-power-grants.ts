@@ -49,6 +49,12 @@ export const AgentPower = Object.freeze(
      * stays off until the person it acts for completes and enables it.
      */
     DraftConnection: "draft_connection",
+    /**
+     * Ask people on the agent's own run through a run request. The grant names
+     * the one role or group that may be asked; the members are resolved and
+     * frozen when the request is made.
+     */
+    Ask: "ask",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];
@@ -75,6 +81,13 @@ export const AGENT_TARGET_OWN_WORK = "agent_target_own_work";
 
 /** The refusal an agent without a grant receives, for every power. */
 export const AGENT_POWER_REQUIRES_GRANT = "agent_power_requires_grant";
+
+/**
+ * The refusal an agent receives when the only grants that would cover it have
+ * passed their expiry. Named apart from a missing grant so the person reading
+ * the refusal knows to renew rather than to grant.
+ */
+export const AGENT_POWER_GRANT_EXPIRED = "agent_power_grant_expired";
 
 /** The run, workflow and agent session an attempt belongs to. */
 export type AttemptOrigin = Readonly<{
@@ -153,23 +166,62 @@ export async function auditAgentSessionId(
  */
 export async function agentHoldsPower(
   transaction: PgTransactionClient,
-  scope: Readonly<{
-    organizationId: string;
-    power: AgentPower;
-    workflowId: string | null;
-    accessTokenId: string | null;
-  }>,
+  scope: GrantScope,
 ): Promise<boolean> {
-  const found = await transaction.query(
-    `select 1 from bakery.agent_power_grants
+  return (await matchingGrants(transaction, scope)).some((grant) =>
+    !grant.expired
+  );
+}
+
+type GrantScope = Readonly<{
+  organizationId: string;
+  power: AgentPower;
+  workflowId: string | null;
+  accessTokenId: string | null;
+}>;
+
+/** One grant that covers an agent, live or past its expiry. */
+export type MatchingGrant = Readonly<{
+  expired: boolean;
+  /** The role an ask grant names, or null. */
+  roleKey: string | null;
+  /** The group an ask grant names, or null. */
+  groupId: string | null;
+}>;
+
+/**
+ * Every grant of the power that covers this agent (see agentHoldsPower), with
+ * whether it has expired. Expiry is read against the database clock at the time
+ * of the call, so a grant that lapses stops the next call as a revoke does.
+ */
+export async function matchingGrants(
+  transaction: PgTransactionClient,
+  scope: GrantScope,
+): Promise<MatchingGrant[]> {
+  const found = await transaction.query<MatchingGrant>(
+    `select (expires_at is not null and expires_at <= now()) as expired,
+            role_key as "roleKey", group_id as "groupId"
+       from bakery.agent_power_grants
       where organization_id = $1 and power = $2
         and (workflow_id = $3::uuid
              or (workflow_id is null and access_token_id is not null))
-        and (access_token_id is null or access_token_id = $4::uuid)
-      limit 1`,
+        and (access_token_id is null or access_token_id = $4::uuid)`,
     [scope.organizationId, scope.power, scope.workflowId, scope.accessTokenId],
   );
-  return found.rows.length === 1;
+  return found.rows;
+}
+
+/**
+ * The refusal for grants that do not cover an agent: expired when every grant
+ * that would have covered it has lapsed, otherwise a missing grant.
+ */
+export function grantRefusal(grants: readonly MatchingGrant[]): StandardError {
+  return grants.length > 0 && grants.every((grant) => grant.expired)
+    ? new StandardError({
+      code: "AUTH_FORBIDDEN",
+      params: { reason: AGENT_POWER_GRANT_EXPIRED },
+    })
+    : refusal();
 }
 
 /**
@@ -215,15 +267,14 @@ export async function assertAgentMayExercise(
   // with neither covers nobody, see agentHoldsPower): it holds nothing. A token
   // agent has no attempt and is matched by its seat alone. No separate refusal
   // is needed; a test pins the result.
-  if (
-    await agentHoldsPower(transaction, {
-      organizationId: scope.organizationId,
-      power: scope.power,
-      workflowId: origin?.workflowId ?? null,
-      accessTokenId: attribution.accessTokenId,
-    })
-  ) return { attribution, origin };
-  throw refusal();
+  const grants = await matchingGrants(transaction, {
+    organizationId: scope.organizationId,
+    power: scope.power,
+    workflowId: origin?.workflowId ?? null,
+    accessTokenId: attribution.accessTokenId,
+  });
+  if (grants.some((grant) => !grant.expired)) return { attribution, origin };
+  throw grantRefusal(grants);
 }
 
 function refusal(): StandardError {
@@ -299,14 +350,13 @@ export async function assertAgentMayTarget(
     if (lineage.rows.length > 0) throw ownWork();
   }
 
-  if (
-    !(await agentHoldsPower(transaction, {
-      organizationId: scope.organizationId,
-      power: scope.power,
-      workflowId: row.workflowId,
-      accessTokenId: exercised.attribution.accessTokenId,
-    }))
-  ) throw refusal();
+  const grants = await matchingGrants(transaction, {
+    organizationId: scope.organizationId,
+    power: scope.power,
+    workflowId: row.workflowId,
+    accessTokenId: exercised.attribution.accessTokenId,
+  });
+  if (!grants.some((grant) => !grant.expired)) throw grantRefusal(grants);
 }
 
 function ownWork(): StandardError {
