@@ -25,12 +25,21 @@ import {
   decisionLines,
   failedStepLine,
   failureLines,
+  gateReviewLines,
   isRefusal,
   statusLines,
   STEP_LABELS,
   stepLine,
   unsureLines,
 } from "./release-messages.mjs";
+import {
+  addApproval,
+  approves,
+  gateChanges,
+  gateDigests,
+  gateFingerprint,
+  readApprovals,
+} from "./trusted-gate.mjs";
 
 const execute = promisify(execFile);
 const SHA = /^[a-f0-9]{40}$/;
@@ -41,6 +50,8 @@ const STATE = "/var/lib/bakery/deploy/state.json";
 // an answer or an outcome is never lost when the database cannot be reached;
 // recover sends them to Bakery again, and Bakery ignores one it already has.
 const HISTORY = "/var/lib/bakery/deploy/history.jsonl";
+// Who approved a change to the checks or the launcher, for exactly which move.
+const GATE_APPROVALS = "/var/lib/bakery/deploy/gate-approvals.json";
 // Exists from just before an update switches versions until it ends. The proxy
 // reads it to say "Bakery is being updated" instead of "not answering". Under
 // /etc/bakery because the proxy user can read it; recover and restore remove
@@ -488,6 +499,19 @@ export async function transition(
   }
   await operations.prepare(sha, digest);
   const target = manifest(await operations.manifest(sha), sha);
+  // A candidate never approves a change to its own checks or launcher: the
+  // version running now, which is what this launcher compares it with, does.
+  // Only an update of a running installation is held: a rollback goes to a
+  // release that was already trusted, and a first install has nothing running
+  // (bootstrap onto a running host is refused above, so it never gets here).
+  if (!rollback && old.active) {
+    const gate = typeof operations.gate === "function"
+      ? await operations.gate(old.active.sha, sha)
+      : null;
+    if (gate && gate.changes.length > 0 && !gate.approved) {
+      throw Object.assign(new Error("TRUSTED_GATE_CHANGE"), { gate });
+    }
+  }
   emit(progress, 1);
   const additions = pendingMigrations(old.migrations, target, rollback);
   emit(progress, 2, additions.length ? `${additions.length} to apply` : "none");
@@ -1056,20 +1080,138 @@ export async function askAtTerminal(
   { input = process.stdin, output = process.stdout, yes = false } = {},
 ) {
   for (const line of askLines({ from, to })) output.write(`${line}\n`);
+  const answer = await confirmAtTerminal(
+    `Go back to ${to.slice(0, 8)} now? Work resumes afterwards.`,
+    { input, output, yes },
+  );
+  return answer === null ? null : answer ? "go_back" : "stay";
+}
+
+/**
+ * One yes/no question at the terminal. true only on an explicit yes, false for
+ * Enter or anything else, null when nobody can be asked (no terminal). `yes`
+ * answers for a script, and says so on the line.
+ */
+export async function confirmAtTerminal(
+  question,
+  { input = process.stdin, output = process.stdout, yes = false } = {},
+) {
   if (yes) {
-    output.write("Go back now? [y/N] y (--yes)\n");
-    return "go_back";
+    output.write(`${question} [y/N] y (--yes)\n`);
+    return true;
   }
   if (!input.isTTY) return null;
   const readline = createInterface({ input, output });
   try {
-    const answer = await readline.question(
-      `Go back to ${to.slice(0, 8)} now? Work resumes afterwards. [y/N] `,
-    );
-    return /^\s*y(es)?\s*$/i.test(answer) ? "go_back" : "stay";
+    const answer = await readline.question(`${question} [y/N] `);
+    return /^\s*y(es)?\s*$/i.test(answer);
   } finally {
     readline.close();
   }
+}
+
+/**
+ * What differs between the running release and a prepared candidate in the
+ * trusted gate, and whether a person already approved exactly that move.
+ */
+export async function gateReview(
+  activeSha,
+  sha,
+  { root = ROOT, approvalsPath = GATE_APPROVALS } = {},
+) {
+  // A release that is not on disk must not read as "everything was removed".
+  for (const release of [activeSha, sha]) {
+    await lstat(`${root}/releases/${release}`);
+  }
+  const [before, after] = await Promise.all([
+    gateDigests(`${root}/releases/${activeSha}`),
+    gateDigests(`${root}/releases/${sha}`),
+  ]);
+  const changes = gateChanges(before, after);
+  const fingerprint = gateFingerprint(after);
+  return {
+    changes,
+    fingerprint,
+    approved: changes.length === 0 ||
+      approves(await readApprovals(approvalsPath), {
+        sha,
+        active: activeSha,
+        fingerprint,
+      }),
+  };
+}
+
+/**
+ * approve-gate: shows what the candidate changes in the trusted gate and, on a
+ * yes at the terminal, records that this person approved exactly that move.
+ * Never run by CI: the wrapper refuses it for the deploy user.
+ */
+export async function approveGate(
+  state,
+  sha,
+  {
+    confirm,
+    scripted = false,
+    review = gateReview,
+    who = loginName,
+    write = writeAtomic,
+    approvalsPath = GATE_APPROVALS,
+    print = console.log,
+    now = () => new Date(),
+  },
+) {
+  commit(sha);
+  if (scripted) throw new Error("GATE_NEEDS_A_PERSON");
+  if (!state?.active) throw new Error("GATE_NOTHING_RUNNING");
+  let gate;
+  try {
+    gate = await review(state.active.sha, sha);
+  } catch (error) {
+    if (error.code === "ENOENT") throw new Error("GATE_RELEASE_NOT_PREPARED");
+    throw error;
+  }
+  if (gate.changes.length === 0) {
+    print(
+      "No change to the checks or the launcher, so there is nothing to approve.",
+    );
+    return null;
+  }
+  for (
+    const line of gateReviewLines({
+      active: state.active.sha,
+      sha,
+      changes: gate.changes,
+    })
+  ) print(line);
+  const answer = await confirm("Approve this change?");
+  if (answer !== true) throw new Error("GATE_NOT_APPROVED");
+  const approval = {
+    sha,
+    active: state.active.sha,
+    fingerprint: gate.fingerprint,
+    by: who(),
+    at: now().toISOString(),
+  };
+  await addApproval(approvalsPath, approval, write);
+  print(
+    `Approved by ${approval.by} at ${
+      approval.at.slice(11, 16)
+    } UTC. Run the update again.`,
+  );
+  return approval;
+}
+
+/**
+ * How approve-gate is wired from the command line. `--yes` is never passed on
+ * to the question: it only marks the call as scripted, which approveGate
+ * refuses, so no flag can stand in for a person reading the files at a terminal.
+ * `io` is for tests (input, output).
+ */
+export function gateApprovalDeps({ yes = false } = {}, io = {}) {
+  return {
+    scripted: yes === true,
+    confirm: (question) => confirmAtTerminal(question, io),
+  };
 }
 
 export function hostOperations(config, { yes = false } = {}) {
@@ -1083,6 +1225,7 @@ export function hostOperations(config, { yes = false } = {}) {
     pause: (sha) => updateTask(sha, "pause"),
     resume: (sha) => updateTask(sha, "resume"),
     policy: (sha) => updateTask(sha, "policy"),
+    gate: (activeSha, sha) => gateReview(activeSha, sha),
     ask: (context) => askAtTerminal(context, { yes }),
     who: loginName,
     record: async (event, via) => {
@@ -1164,6 +1307,8 @@ async function readState() {
 async function main() {
   const args = process.argv.slice(2);
   // --yes answers the question "go back?" for a script; it is not an argument.
+  // approve-gate refuses it: a change to the checks or the launcher is approved
+  // by a person who has read the files it shows, never by a script.
   const yes = args.includes("--yes");
   const [command, sha, checksum] = args.filter((arg) => arg !== "--yes");
   let lastStep = 0;
@@ -1198,6 +1343,7 @@ async function main() {
         active: state?.active?.sha ?? null,
         previous: state?.previous?.sha ?? null,
         phase: state?.phase ?? null,
+        gate: error?.gate,
       })
     ) console.error(line);
     // A refusal that changed nothing is still a line of the history.
@@ -1249,6 +1395,10 @@ async function run(
       ? unsureLines(await ask("unsure"))
       : statusLines(state, await ask("counts"), await ask("policy"));
     for (const line of lines) console.log(line);
+    return;
+  }
+  if (command === "approve-gate") {
+    await approveGate(await readState(), sha, gateApprovalDeps(options));
     return;
   }
   const config = JSON.parse(
