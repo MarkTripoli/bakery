@@ -6,6 +6,7 @@ import { PI_HARNESS_SUPPORTED_ACTIONS } from "../../apps/worker/src/pi-harness.t
 import { NATIVE_SUPPORTED_ACTIONS } from "../../apps/worker/src/executor.ts";
 import { HARNESS_REPAIR_ACTION } from "../../apps/worker/src/harness-common.ts";
 import { FREEFORM_ACTION } from "../../apps/worker/src/harness-freeform.ts";
+import { RPI_FREEFORM_ACTIONS } from "../../apps/worker/src/harness-rpi.ts";
 import { REVIEW_ACTION } from "../../apps/worker/src/reviewer.ts";
 import {
   EVALUATION_CHECK_ACTION,
@@ -31,7 +32,6 @@ const root = new URL("../../", import.meta.url);
  */
 const ADVERTISED_WITHOUT_WORKER: Readonly<Record<string, string>> = {
   "mcp.discover": "#441",
-  "rpi.design": "#24",
   "session.call": "#436",
   "session.tools": "#436",
 };
@@ -57,6 +57,7 @@ Deno.test("every worker action in the table is implemented or pinned as not yet"
     ...NATIVE_SUPPORTED_ACTIONS,
     HARNESS_REPAIR_ACTION,
     FREEFORM_ACTION,
+    ...RPI_FREEFORM_ACTIONS,
     REVIEW_ACTION,
     EVALUATION_CHECK_ACTION,
     EVALUATION_SCORE_ACTION,
@@ -108,4 +109,33 @@ Deno.test("agent.freeform is advertised by all three coding harnesses", async ()
       `${file} does not advertise agent.freeform`,
     );
   }
+});
+
+Deno.test("rpi.design and rpi.plan are advertised by all three coding harnesses", async () => {
+  // Each executor adds them to its supported actions beside freeform.
+  for (const file of ["claude-harness", "codex-harness", "pi-harness"]) {
+    const text = await Deno.readTextFile(
+      new URL(`apps/worker/src/${file}.ts`, root),
+    );
+    assert(
+      /supportedActions: \[[^\]]*\.\.\.RPI_FREEFORM_ACTIONS/s.test(text),
+      `${file} does not advertise the RPI actions`,
+    );
+  }
+});
+
+Deno.test("every coding harness is given the design tool from the worker's enrolled capabilities", async () => {
+  // rpi.design is advertised by all three harnesses; without this wiring it is
+  // advertised and always refused. Each constructor in main.ts must pass it.
+  const main = await Deno.readTextFile(
+    new URL("apps/worker/src/main.ts", root),
+  );
+  const wired = main.match(
+    /designToolAvailable: designToolAvailableFrom\(config\.capabilities\)/g,
+  ) ?? [];
+  const constructors = main.match(
+    /create(Claude|Codex|Pi)HarnessExecutor\(\{/g,
+  ) ?? [];
+  assertEquals(constructors.length, 3);
+  assertEquals(wired.length, constructors.length);
 });

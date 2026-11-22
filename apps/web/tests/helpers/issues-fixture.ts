@@ -187,6 +187,16 @@ export type WorkSeed = {
   }[];
   /** Questions cannot be read (the read answers an error). */
   questionsFail?: boolean;
+  /**
+   * The run the request started. Without it the request has no run yet (its
+   * `workflowRunId` is null), as it is for work waiting to be admitted.
+   */
+  run?: {
+    /** Whether this person may stop it (the run's control read); true by default. */
+    mayStop?: boolean;
+    /** What the stop call answers: accepted (default) or a refusal. */
+    stop?: "accepted" | "refused";
+  };
 };
 
 export type Options = {
@@ -241,6 +251,10 @@ export async function issuesFixture(page: Page, options: Options = {}) {
     starts: [] as { intent: string; revision: number; digest: string }[],
     /** Retries of Bakery's note on the issue. */
     resyncs: 0,
+    /** Every stop the person confirmed: its idempotency key and body. */
+    stops: [] as { key: string | undefined; body: unknown }[],
+    /** Set by a test once the server reports the stopped work as ended. */
+    stopEnded: false,
   };
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
@@ -392,7 +406,11 @@ export async function issuesFixture(page: Page, options: Options = {}) {
           contentType: "application/json",
           body: JSON.stringify(
             ticket(
-              seen.running.has(found.number)
+              // Once the stopped run has ended the server holds no live
+              // request for the issue, so the card follows the row.
+              stoppedNow()
+                ? { ...found, request: undefined }
+                : seen.running.has(found.number)
                 ? { ...found, request: { disposition: "active" } }
                 : found,
             ),
@@ -479,6 +497,9 @@ export async function issuesFixture(page: Page, options: Options = {}) {
     },
   );
   const work = options.work ?? options.workWhenRunning;
+  const RUN_ID = uuid(8900);
+  /** The stop was accepted and the test has let the server report it ended. */
+  const stoppedNow = () => seen.stops.length > 0 && seen.stopEnded;
   // The work is read from the server only once it exists: from the start, or after the refused start.
   const exists = () => options.work !== undefined || seen.running.size > 0;
   const stamp = "2026-01-01T00:00:00.000Z";
@@ -586,12 +607,16 @@ export async function issuesFixture(page: Page, options: Options = {}) {
             ? uuid(8800)
             : MOCK_PRINCIPAL_ID,
           triggerLabelName: work.triggerLabel ?? null,
-          disposition: work.progress === "active" ? "active" : work.progress,
+          disposition: stoppedNow()
+            ? "canceled"
+            : work.progress === "active"
+            ? "active"
+            : work.progress,
           dispositionReasonCode: work.reason ?? null,
           pausedAt: work.pausedReason ? stamp : null,
           pausedReason: work.pausedReason ?? null,
-          progress: work.progress,
-          workflowRunId: null,
+          progress: stoppedNow() ? "canceled" : work.progress,
+          workflowRunId: work.run ? RUN_ID : null,
           createdAt: new Date(Date.now() - 12 * 60_000).toISOString(),
           updatedAt: stamp,
           version: 1,
@@ -611,6 +636,87 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       });
     },
   );
+  // The run the request started: what this person may do to it, and the stop itself.
+  await page.route(`**/v1/runs/${RUN_ID}/controls`, (route) => {
+    const run = work?.run;
+    if (run === undefined) return route.fulfill({ status: 404, body: "{}" });
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          runId: RUN_ID,
+          actions: ["pause", "resume", "cancel", "interrupt"].map((action) => {
+            const allowed = action === "cancel" && (run.mayStop ?? true);
+            return {
+              action,
+              canRequest: allowed,
+              reason: allowed ? "allowed" : "authority_unavailable",
+            };
+          }),
+        }),
+      });
+    }
+    if (run.stop === "refused") {
+      return route.fulfill({
+        status: 409,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "about:blank",
+          title: "Conflict",
+          status: 409,
+          code: "STATE_CONFLICT",
+          detail: "The run cannot be stopped now.",
+          requestId: uuid(8901),
+          traceId: uuid(8902),
+          retryable: false,
+        }),
+      });
+    }
+    seen.stops.push({
+      key: route.request().headers()["idempotency-key"],
+      body: route.request().postDataJSON(),
+    });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: RUN_ID,
+        taskId,
+        workflowVersionId: uuid(8903),
+        repositoryProfileId: null,
+        repositoryProfileRevision: null,
+        repositoryProfileDigest: null,
+        observationId: null,
+        observationDigest: null,
+        baseSha: null,
+        workspaceBaseSha: null,
+        requestedBy: MOCK_PRINCIPAL_ID,
+        inngestRunId: null,
+        status: "running",
+        budgetLimitUsd: "10.00",
+        startedAt: stamp,
+        finishedAt: null,
+        createdAt: stamp,
+        updatedAt: stamp,
+        version: 2,
+        budgetSummary: {
+          installation: null,
+          run: {
+            scope: "run",
+            runId: RUN_ID,
+            periodStart: null,
+            periodEnd: null,
+            limitUsd: "10",
+            reservedUsd: "0",
+            settledUsd: "1",
+            availableUsd: "9",
+            unknownCount: 0,
+          },
+        },
+      }),
+    });
+  });
   const member = (principalId: string, displayName: string, index: number) => ({
     id: uuid(9100 + index),
     organizationId: MOCK_ORGANIZATION_ID,
