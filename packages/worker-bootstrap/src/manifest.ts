@@ -16,7 +16,10 @@ export type ReleaseTarget = (typeof KNOWN_TARGETS)[number];
  * acceptance lane has run on a real runner of that OS and architecture
  * (B15.06); cross-compiled builds are not evidence for another host.
  */
-export const SUPPORTED_TARGETS: readonly ReleaseTarget[] = ["linux-x64"];
+export const SUPPORTED_TARGETS: readonly ReleaseTarget[] = [
+  "linux-x64",
+  "linux-arm64",
+];
 
 export function detectTarget(
   platform: string,

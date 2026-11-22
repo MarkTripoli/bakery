@@ -121991,6 +121991,20 @@
                 }
               ]
             },
+            "acceptedByName": {
+              "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
             "acceptedAt": {
               "description": "ReviewCycle.acceptedAt may be null in this transport value.",
               "anyOf": [
@@ -163541,6 +163555,20 @@
                         "format": "uuid",
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                         "description": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "acceptedByName": {
+                    "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
                       },
                       {
                         "type": "null",
@@ -280963,7 +280991,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8bcbd4129c9fbeb34cd3813bff31e89fe0889a4a121aa520beef4a3e23f2ac87",
+  "compatibilityDigest": "sha256:09b010591214f35298b3398f7bd3d113b285ab8c140d6f642766be5ef3efc303",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -351354,6 +351382,20 @@
             }
           ]
         },
+        "acceptedByName": {
+          "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "acceptedAt": {
           "description": "ReviewCycle.acceptedAt may be null in this transport value.",
           "anyOf": [
@@ -393040,6 +393082,20 @@
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "acceptedByName": {
+                "description": "ReviewCycle.acceptedByName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name."
                   },
                   {
                     "type": "null",

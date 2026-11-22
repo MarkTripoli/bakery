@@ -22008,6 +22008,7 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "acceptedBy",
+        "acceptedByName",
         "acceptedAt",
         "acceptReason"
       ],
@@ -22032,6 +22033,7 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "acceptedBy": "uuid|null",
+        "acceptedByName": "string|null",
         "acceptedAt": "timestamp|null",
         "acceptReason": "string|null"
       },
@@ -22055,6 +22057,7 @@ const transportSchemas = {
         "pullRequestId",
         "artifactVersionId",
         "acceptedBy",
+        "acceptedByName",
         "acceptedAt",
         "acceptReason"
       ],
@@ -22080,11 +22083,13 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
         "version": "Always 1 because review cycle rows are immutable.",
         "acceptedBy": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded.",
+        "acceptedByName": "Display name of the principal in acceptedBy, resolved when the review is read so a client can name who overruled it without a second lookup; null when none was recorded or the principal has no name.",
         "acceptedAt": "UTC timestamp of that decision; null when none was recorded.",
         "acceptReason": "The reason the decider gave, verbatim; null when none was recorded."
       },
       "optionalFields": [
         "acceptedBy",
+        "acceptedByName",
         "acceptedAt",
         "acceptReason"
       ]

@@ -131,10 +131,14 @@ export function PluginFramePage(
           <>
             <UI.Text>{translate("settings.plugins.frame.failed.body")}</UI.Text>
             <UI.Text variant="muted">
-              {translate("settings.plugins.frame.failed.detail", {
-                page: pageId,
-                version: row?.versionName ?? "",
-              })}
+              {row === undefined || row.versionName === ""
+                ? translate("settings.plugins.frame.failed.detailUnknown", {
+                  page: pageId,
+                })
+                : translate("settings.plugins.frame.failed.detail", {
+                  page: pageId,
+                  version: row.versionName,
+                })}
             </UI.Text>
           </>
         }
@@ -217,10 +221,14 @@ export function PluginFramePage(
             </UI.Inline>
             <UI.Inline gap="compact">
               <UI.Text variant="muted">
-                {translate("settings.plugins.frame.provided", {
-                  name,
-                  version: row?.versionName ?? "",
-                })}
+                {row === undefined || row.versionName === ""
+                  ? translate("settings.plugins.frame.providedUnknown", {
+                    name,
+                  })
+                  : translate("settings.plugins.frame.provided", {
+                    name,
+                    version: row.versionName,
+                  })}
               </UI.Text>
               <UI.HelpTip label={translate("settings.plugins.frame.helpLabel")}>
                 {translate("settings.plugins.frame.help")}

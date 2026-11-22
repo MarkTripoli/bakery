@@ -1137,7 +1137,7 @@ jobs:
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
       - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
       - run: pnpm exec playwright install chromium
-      - run: pnpm test:browser -- tests/browser/bootstrap-better-auth-and-invite-only-organization-identity.spec.ts tests/browser/require-totp-assurance-and-safe-single-use-recovery.spec.ts tests/browser/implement-and-prove-passkey-server-ceremonies.spec.ts
+      - run: pnpm test:browser -- tests/browser/bootstrap-better-auth-and-invite-only-organization-identity.spec.ts tests/browser/require-totp-assurance-and-safe-single-use-recovery.spec.ts tests/browser/implement-and-prove-passkey-server-ceremonies.spec.ts tests/browser/verify-native-worker-platforms-and-real-browser-authentication.spec.ts
       - name: Write browser_tests evidence
         if: always()
         env:
