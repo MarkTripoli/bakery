@@ -584,10 +584,15 @@ export type AgentAccess = "full" | "readOnly" | "adminOnly";
  * never restates the state badge beside it: it says what the agent uses, or why
  * it cannot be signed in yet (Bakery has not heard from it).
  */
-function agentLineKey(row: AgentRow, access: AgentAccess): string | null {
+function agentLineKey(
+  row: AgentRow,
+  access: AgentAccess,
+  inBanner: boolean,
+): string | null {
   if (access === "adminOnly") return "machines.agents.adminOnly";
   if (row.binding === null || row.state === "notSignedIn") {
-    return row.componentKey === null && access === "full"
+    // The banner says it for the agent it names; the row says it for the others.
+    return row.componentKey === null && access === "full" && !inBanner
       ? "machines.agents.notHeard"
       : null;
   }
@@ -612,7 +617,7 @@ export function CodingAgentRow(
 ) {
   const busy = signIn.checking === row.agent;
   const canSignIn = row.binding !== null || row.componentKey !== null;
-  const lineKey = agentLineKey(row, access);
+  const lineKey = agentLineKey(row, access, inBanner);
   return (
     <UI.DescriptionItem
       data-testid={`coding-agent-${row.agent}`}
@@ -731,9 +736,14 @@ export function CodingAgentBanner(
           })}
         </UI.Text>
         <UI.Text>
-          {message(translate, `machines.agents.banner.${kind}.body`, {
-            agent: name,
-          })}
+          {message(
+            translate,
+            // An agent Bakery has not heard from cannot be signed in yet: the banner says when it can.
+            canSignIn
+              ? `machines.agents.banner.${kind}.body`
+              : "machines.agents.banner.notHeard.body",
+            { agent: name },
+          )}
           {kind === "signedOut" && otherAgentReady
             ? ` ${message(translate, "machines.agents.banner.otherWork")}`
             : ""}

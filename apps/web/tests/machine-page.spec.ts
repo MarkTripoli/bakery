@@ -286,6 +286,8 @@ test.describe("machine page: the one banner", () => {
       await expect(detail).toBeVisible();
       await expect(banner(page)).toContainText(item.title);
       if (item.body) await expect(banner(page)).toContainText(item.body);
+      // The time it was last seen is in the header line, not in the banner.
+      await expect(banner(page)).not.toContainText("Last seen");
       await expect(banner(page)).toHaveAttribute("data-variant", item.tone);
       // The status is the banner (the badge only when there is no banner): not again in the line under the name.
       await expect(detail.getByText(/· (Online|Offline|Not responding) ·/))
@@ -334,8 +336,15 @@ test.describe("machine page: the one banner", () => {
     // Claude Code and nothing has signed it in yet.
     await expect(detail.getByRole("heading", { name: "Coding agents" }))
       .toBeVisible();
-    await expect(detail.getByTestId("coding-agent-claude")).toContainText(
+    // The agent banner says why it cannot be signed in yet; the row keeps its badge.
+    await expect(detail.getByTestId("agent-banner")).toContainText(
       "Bakery has not heard from Claude Code on this machine yet.",
+    );
+    await expect(detail.getByTestId("coding-agent-claude")).toContainText(
+      "Not signed in",
+    );
+    await expect(detail.getByTestId("coding-agent-claude")).not.toContainText(
+      "has not heard",
     );
     await expect(detail.getByText(/Provider bindings|provider bindings/))
       .toHaveCount(0);
@@ -670,7 +679,8 @@ test.describe("machine page: mode and Retire", () => {
     );
     await expect(dialog.getByText("The machine can be set up again later."))
       .toHaveCount(0);
-    await shot(page, "machine-page-retire-mac", [], { only: "desktop" });
+    // The viewport, not the page: the dialog is an overlay on the window.
+    await shot(page, "machine-page-retire-mac", [], { windowOnly: true });
   });
 
   test("anyone but an administrator sees the page without the controls", async ({ page }) => {

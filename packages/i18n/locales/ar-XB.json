@@ -2508,7 +2508,6 @@
   "machines.mode.saved.draining": "⟪Finishing up. It takes no new work.⟫",
   "machines.mode.conflict": "⟪Someone else changed this machine. The latest state is shown.⟫",
   "machines.mode.failed": "⟪The change could not be saved. Try again.⟫",
-  "machines.banner.body.offline": "⟪Check that the machine is on and the Bakery worker is running. Last seen {time}.⟫",
   "machines.banner.body.stale": "⟪It was last heard from {time}. Work is not sent to it until it answers again.⟫",
   "machines.banner.body.paused": "⟪It keeps the work it has.⟫",
   "machines.banner.body.retired": "⟪Set it up again to use it.⟫",
@@ -6360,5 +6359,7 @@
   "machines.wizard.unproven": "⟪{system} {processor} is not a supported system yet. These are the same steps this machine was set up with.⟫",
   "machines.wizard.unsupported": "⟪Bakery has no installer for this system yet. Nothing can be set up on it today.⟫",
   "machines.banner.body.retiredNoSteps": "⟪Bakery has no installer for this system yet, so this machine cannot be set up again.⟫",
-  "machines.retire.dialogNoAgain": "⟪Bakery has no installer for this system yet, so it cannot be set up again.⟫"
+  "machines.retire.dialogNoAgain": "⟪Bakery has no installer for this system yet, so it cannot be set up again.⟫",
+  "machines.agents.banner.notHeard.body": "⟪Bakery has not heard from {agent} on this machine yet. You can sign in here when it has.⟫",
+  "machines.banner.body.offline": "⟪Check that the machine is on and the Bakery worker is running.⟫"
 }

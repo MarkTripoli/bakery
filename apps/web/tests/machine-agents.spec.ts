@@ -384,10 +384,15 @@ test.describe("the Coding agents rows", () => {
 
   test("an agent the machine has not reported cannot be signed in yet, and says so", async ({ page }) => {
     await open(page, world({ components: [] }));
-    await expect(row(page, "claude")).toContainText(
-      "Bakery has not heard from Claude Code on this machine yet.",
+    // The banner says why it has no button, and when it will; the row keeps only its badge.
+    await expect(banner(page)).toContainText(
+      "Bakery has not heard from Claude Code on this machine yet. You can sign in here when it has.",
     );
-    // No faded button: the line says why, and there is nothing to press.
+    await expect(row(page, "claude")).not.toContainText(
+      "Bakery has not heard from",
+    );
+    await expect(row(page, "claude")).toContainText("Not signed in");
+    // No faded button: there is nothing to press.
     await expect(
       row(page, "claude").getByRole("button", { name: "Sign in", exact: true }),
     ).toHaveCount(0);
