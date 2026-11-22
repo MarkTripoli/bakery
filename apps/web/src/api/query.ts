@@ -9,6 +9,7 @@ import type {
   ApplicationRepositoryRoleListResponse,
   ApplicationResponse,
   ApprovalListResponse,
+  ArtifactAccessGrant,
   ArtifactCommentListResponse,
   ArtifactCommentQuery,
   ArtifactCursorQuery,
@@ -18,11 +19,13 @@ import type {
   ArtifactPreviewAvailabilityResponse,
   ArtifactQuery,
   ArtifactResponse,
+  ArtifactSharers,
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
   BakeryApiClient,
   BatchListResponse,
   BatchResponse,
+  BatchStartableResponse,
   BrowserSessionList,
   CheckRunListResponse,
   ConnectedClientList,
@@ -46,6 +49,7 @@ import type {
   FileSearchInput,
   FileSearchPage,
   InstallationCapabilities,
+  InstallationRestore,
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
@@ -82,6 +86,7 @@ import type {
   PluginPageAccessResponse,
   PluginPageListResponse,
   PluginVersionListResponse,
+  PreviewAvailabilityResponse,
   PrincipalPage,
   PullRequestListResponse,
   QuestionListResponse,
@@ -97,10 +102,12 @@ import type {
   RouteContinuationOffersResponse,
   RunControlCapabilities,
   RunListResponse,
+  RunPreviewResponse,
   RunResponse,
   RunStepListResponse,
   SavedDataPage,
   ScimConnection,
+  SkillResponse,
   SkillStorageSettings,
   StorageFileAtVersion,
   StorageFileUsePage,
@@ -136,6 +143,7 @@ import type {
   WorkflowDefinitionResponse,
   WorkflowPresetListResponse,
   WorkflowVersionResponse,
+  WorkflowVersionSkills,
 } from "./client.ts";
 import { protectedQueryKey, type ProtectedScope } from "../app/query-scope.ts";
 
@@ -537,6 +545,56 @@ export function pluginSavedDataQueryOptions(
           signal,
         }),
       );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** Whether this deployment can serve running-app previews. */
+export function previewAvailabilityQueryOptions(
+  client: Pick<BakeryApiClient, "previews">,
+  scope: ApiScope,
+) {
+  return queryOptions<PreviewAvailabilityResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "previews.availability", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.previews.availability({
+          organizationId: scope.organizationId,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** The newest preview of a run: the only one the card ever offers. */
+export function runPreviewQueryOptions(
+  client: Pick<BakeryApiClient, "previews">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunPreviewResponse | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "previews.list", { runId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const page = unwrap(
+        await client.previews.list({
+          organizationId: scope.organizationId,
+          runId,
+          limit: 1,
+          signal,
+        }),
+      );
+      return page.items[0] ?? null;
     },
     enabled: Boolean(scope.organizationId),
     retry: false,
@@ -1945,6 +2003,54 @@ export function usageSummaryQueryOptions(
   });
 }
 
+/**
+ * Whether a restore holds the installation right now (#64 E4), read from the
+ * public installation status so every signed-in person, not only an
+ * administrator, can see the banner before their first refused action. It
+ * reads again every minute and when the window is focused again, so the banner
+ * leaves soon after an administrator finishes the restore.
+ */
+export function installationHeldQueryOptions(
+  client: Pick<BakeryApiClient, "installationStatus">,
+) {
+  return queryOptions<boolean, ApiFailure>({
+    queryKey: ["installation", "restoreHeld"],
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationStatus(signal)).restoreHeld,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/**
+ * The restore that holds the installation, or null when none does. "No restore
+ * is held" is the normal answer of a running installation (RESTORE_NOT_HELD),
+ * not a failure: the banner and the Restore item show only while this is a
+ * record.
+ */
+export function installationRestoreQueryOptions(
+  client: Pick<BakeryApiClient, "installationRestore">,
+  scope: ApiScope,
+  enabled = true,
+) {
+  return queryOptions<InstallationRestore | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "installationRestore.get", {}),
+    enabled,
+    queryFn: async ({ signal }) => {
+      const read = await client.installationRestore.get(signal);
+      if (read.ok) return read.data;
+      if (
+        read.error.kind === "problem" &&
+        read.error.problem.code === "RESTORE_NOT_HELD"
+      ) return null;
+      throw read.error;
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
 export function installationSettingsQueryOptions(
   client: Pick<BakeryApiClient, "installationSettings">,
   scope: ApiScope,
@@ -2685,6 +2791,77 @@ export function agentQueryOptions(
   });
 }
 
+/**
+ * The skills a person may attach to a step (#431): every enabled skill with an
+ * active version, read across a few pages. A skill with no active version, or
+ * switched off, cannot be attached and is left out.
+ */
+export function attachableSkillsQueryOptions(
+  client: Pick<BakeryApiClient, "listSkills">,
+  scope: ApiScope,
+) {
+  return queryOptions<SkillResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.attachableSkills", {}),
+    queryFn: async ({ signal }) => {
+      const items: SkillResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listSkills({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(
+          ...read.items.filter((skill) =>
+            skill.enabled && skill.activeVersionId !== null &&
+            skill.activeRevision !== null
+          ),
+        );
+        if (!read.nextCursor) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The skills the steps of one workflow version name (#431), read for the
+ * version being edited. The digest is in the key so a saved change to the
+ * draft reads the skills again.
+ */
+export function workflowVersionSkillsQueryOptions(
+  client: Pick<BakeryApiClient, "listWorkflowVersionSkills">,
+  scope: ApiScope,
+  workflowId: string,
+  versionId: string,
+  digest: string,
+) {
+  return queryOptions<WorkflowVersionSkills, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.workflowVersionSkills", {
+      workflowId,
+      versionId,
+      digest,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listWorkflowVersionSkills({
+          organizationId: requireOrganization(scope),
+          workflowId,
+          versionId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && versionId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
 export function workflowVersionsQueryOptions(
   client: Pick<BakeryApiClient, "listWorkflowVersions">,
   scope: ApiScope,
@@ -3400,6 +3577,35 @@ export function batchesListQueryOptions(
       ),
     getNextPageParam: (last) => last.nextCursor,
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** How many startable issues the start page reads and lists; the design shows the first five. */
+export const STARTABLE_PAGE_SIZE = 5;
+
+/**
+ * The first page of the issues a batch in one repository would take now, with
+ * the smallest spend that can start one. Read again each time the page opens:
+ * it is a forecast from the last stored readiness check.
+ */
+export function batchStartableQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  repositoryId: string,
+) {
+  return queryOptions<BatchStartableResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "batches.startable", { repositoryId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.batches.startable({
+          organizationId: requireOrganization(scope),
+          repositoryId,
+          limit: STARTABLE_PAGE_SIZE,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && repositoryId !== "",
     retry: retryNetworkOnce,
   });
 }
@@ -4169,6 +4375,63 @@ export function conversationAccessQueryOptions(
       return items;
     },
     enabled: Boolean(scope.organizationId) && conversationId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Who can give access to one document (up to three people), read only while a writer who may not share needs them. */
+export function artifactSharersQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactSharers">,
+  scope: ApiScope,
+  artifactId: string,
+  enabled: boolean,
+) {
+  return queryOptions<ArtifactSharers, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "artifactAccess.sharers", {
+      artifactId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listArtifactSharers({
+          organizationId: requireOrganization(scope),
+          artifactId,
+          signal,
+        }),
+      ),
+    enabled: enabled && Boolean(scope.organizationId) && artifactId !== "",
+    staleTime: 30_000,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The people one document was opened to directly (a few pages at most), live grants only. */
+export function artifactAccessQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactAccess">,
+  scope: ApiScope,
+  artifactId: string,
+) {
+  return queryOptions<ArtifactAccessGrant[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "artifactAccess.list", { artifactId }),
+    queryFn: async ({ signal }) => {
+      const items: ArtifactAccessGrant[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listArtifactAccess({
+            organizationId: requireOrganization(scope),
+            artifactId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items.filter((grant) => grant.revokedAt === null));
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId) && artifactId !== "",
     retry: retryNetworkOnce,
   });
 }

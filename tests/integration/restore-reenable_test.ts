@@ -118,10 +118,28 @@ Deno.test("the steps open the doors in order, and the last one releases the rest
     assertEquals(held.effectsHeld, 3);
     assertEquals(held.releasedAt, null);
 
+    // Every signed-in person, and the public status, learns it is held.
+    const status = async () =>
+      (await (await o.admin("GET", "/v1/installation/status", undefined, {
+        cookie: o.f.developerCookie,
+      })).json() as { restoreHeld: boolean }).restoreHeld;
+    assertEquals(await status(), true);
+    assertEquals(
+      ((await o.admin("GET", GET)).status === 200) &&
+        (held as unknown as { intakeEnabledBy: unknown }).intakeEnabledBy ===
+          null,
+      true,
+    );
+
     const intake = await take(o, "intake");
     assertEquals(intake.status, 200, await intake.clone().text());
     const afterIntake = await intake.json() as RestoreBody;
     assert(afterIntake.intakeEnabledAt !== null);
+    assertEquals(
+      (afterIntake as unknown as { intakeEnabledBy: { principalId: string } })
+        .intakeEnabledBy.principalId,
+      o.f.adminId,
+    );
     assertEquals(afterIntake.nextStep, "dispatch");
     assertEquals(await doors(o), [null, closed, closed]);
 
@@ -139,9 +157,33 @@ Deno.test("the steps open the doors in order, and the last one releases the rest
     assert(done.workersEnabledAt !== null && done.releasedAt !== null);
     assertEquals(done.nextStep, null);
     assertEquals(await doors(o), [null, null, null]);
+    assertEquals(await status(), false);
 
-    // Released: nothing is held, so there is nothing left to take or read.
-    assertEquals((await refusal(await o.admin("GET", GET))).status, 409);
+    // Released: the read stays as a record, with who took each step; nothing
+    // is left to take.
+    const record = await (await o.admin("GET", GET)).json() as Record<
+      string,
+      unknown
+    >;
+    assert(record.releasedAt !== null);
+    assertEquals(record.nextStep, null);
+    for (
+      const field of [
+        "intakeEnabledBy",
+        "dispatchEnabledBy",
+        "workersEnabledBy",
+      ]
+    ) {
+      assertEquals(
+        (record[field] as { principalId: string } | null)?.principalId,
+        o.f.adminId,
+        field,
+      );
+      assert(
+        typeof (record[field] as { displayName?: unknown }).displayName ===
+          "string",
+      );
+    }
     const again = await refusal(await take(o, "workers"));
     assertEquals(again.status, 409);
     assert(again.text.includes("RESTORE_NOT_HELD"), again.text);

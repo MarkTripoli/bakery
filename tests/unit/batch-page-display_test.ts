@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import type {
   BatchIssueResponse,
   BatchResponse,
+  BatchStartableResponse,
 } from "../../apps/web/src/api/client.ts";
 import {
   type BannerFacts,
@@ -12,16 +13,24 @@ import {
   headerButtons,
   isDirty,
   isLive,
+  issueBadgeFor,
   meter,
   meters,
   parseSpend,
   phrase,
   planValues,
+  smallestSpend,
   START_DEFAULTS,
+  startableView,
   startBody,
+  stateBadgeFor,
   stopChoices,
   tableIssues,
+  timeAgo,
   validateStart,
+  type WaitingFacts,
+  waitingNames,
+  waitingView,
   whyItEnded,
 } from "../../apps/web/src/pages/batches/batch-display.ts";
 import {
@@ -83,6 +92,7 @@ const facts: BannerFacts = {
   when: "09:12",
   spent: "$22.40",
   limit: "$40",
+  waiting: null,
 };
 
 const working = [
@@ -507,4 +517,334 @@ Deno.test("a batch time is shown in the zone it is given, not the machine's", ()
     ),
     "Nov 21, 8:30 AM",
   );
+});
+
+const startableIssue = (number: number, checkedAt: string) => ({
+  externalTicketId: `ticket-${number}`,
+  number: String(number),
+  title: `Issue ${number}`,
+  url: null,
+  checkedAt,
+});
+
+const startable = (
+  numbers: number[],
+  patch: Partial<BatchStartableResponse> = {},
+): BatchStartableResponse => ({
+  items: numbers.map((number, index) =>
+    startableIssue(number, `2026-11-21T10:0${index}:00Z`)
+  ),
+  nextCursor: null,
+  smallestSpendUsd: "12.5000",
+  ...patch,
+});
+
+Deno.test("the start list shows the first five, says when more can start and dates itself by the oldest check", () => {
+  const five = startableView(startable([409, 412, 415, 418, 421]));
+  assertEquals(five.issues.map((item) => item.number), [
+    "409",
+    "412",
+    "415",
+    "418",
+    "421",
+  ]);
+  assertEquals(five.more, false);
+  assertEquals(five.checkedAt, "2026-11-21T10:00:00Z");
+  // A next cursor, or more rows than are shown, both mean more can start.
+  assertEquals(
+    startableView(startable([409], { nextCursor: "c1" })).more,
+    true,
+  );
+  const six = startableView(startable([1, 2, 3, 4, 5, 6]));
+  assertEquals(six.issues.length, 5);
+  assertEquals(six.more, true);
+  const none = startableView(startable([]));
+  assertEquals(none.issues, []);
+  assertEquals(none.checkedAt, null);
+  // The oldest check wins, whatever order the rows come in.
+  const mixed = startable([1, 2]);
+  mixed.items[0]!.checkedAt = "2026-11-21T12:00:00Z";
+  assertEquals(startableView(mixed).checkedAt, "2026-11-21T10:01:00Z");
+});
+
+Deno.test("the smallest spend is a number of dollars, or null while unknown and when no work can start", () => {
+  assertEquals(smallestSpend(undefined), null);
+  assertEquals(smallestSpend(startable([], { smallestSpendUsd: null })), null);
+  assertEquals(smallestSpend(startable([])), 12.5);
+});
+
+Deno.test("an amount below the smallest is a problem under Spend, and the smallest itself is fine", () => {
+  const ok = {
+    ...START_DEFAULTS,
+    repositoryId: "r-1",
+    maxSpend: "12.50",
+    continueMode: "carry_on" as const,
+  };
+  assertEquals(validateStart(ok, 12.5), {});
+  assertEquals(validateStart({ ...ok, maxSpend: "12.49" }, 12.5), {
+    maxSpend: "batches.start.error.maxSpendLow",
+  });
+  // With no smallest known, only the fixed bounds apply.
+  assertEquals(validateStart({ ...ok, maxSpend: "0.01" }, null), {});
+  assertEquals(validateStart({ ...ok, maxSpend: "0" }, 12.5), {
+    maxSpend: "batches.start.error.maxSpend",
+  });
+});
+
+Deno.test("a server refusal of a spend that is too low is told apart and shown under Spend", () => {
+  const refused = createRefusal(problem({
+    status: 422,
+    code: "UNPROCESSABLE",
+    issueCodes: ["max_spend_below_smallest"],
+  }));
+  assertEquals(refused, "spendLow");
+  assertEquals(createRefusalPlace(refused), "spend");
+});
+
+Deno.test("when the stored checks were made is said in the person's language, to the nearest unit", () => {
+  const now = Date.parse("2026-11-21T12:00:00Z");
+  assertEquals(timeAgo("2026-11-21T11:48:00Z", now, "en"), "12 minutes ago");
+  assertEquals(timeAgo("2026-11-21T09:00:00Z", now, "en"), "3 hours ago");
+  assertEquals(timeAgo("2026-11-19T12:00:00Z", now, "en"), "2 days ago");
+  assertEquals(timeAgo("2026-11-21T11:59:50Z", now, "en"), "this minute");
+  assertEquals(timeAgo("2026-11-21T11:59:00Z", now, "en"), "1 minute ago");
+});
+
+// ---- waiting for a person (UX revision 3, slice 3b) ----
+
+const ana = { principalId: "u-ana", displayName: "Ana Ruiz" };
+const ben = { principalId: "u-ben", displayName: "Ben Okafor" };
+const cho = { principalId: "u-cho", displayName: "Chidi Eze" };
+const dee = { principalId: "u-dee", displayName: "Dee Park" };
+
+const waitingOn = (kind: "question" | "approval", askedOf = [ana, ben]) => ({
+  kind,
+  questionId: "q-1",
+  taskId: "task-9",
+  since: "2026-11-21T18:00:00Z",
+  askedOf,
+});
+
+const waitingBatch = (
+  kind: "question" | "approval",
+  askedOf = [ana, ben],
+  state: BatchResponse["state"] = "running",
+) => batch({ state, issues: working, waitingOn: waitingOn(kind, askedOf) });
+
+const waitingFacts = (
+  b: BatchResponse,
+  reader: string | null,
+): WaitingFacts => {
+  const view = waitingView(b, reader)!;
+  return { view, ago: "5 minutes ago", names: waitingNames(view, "you", "en") };
+};
+
+Deno.test("only a batch that is working, paused, finishing or stopping can wait on a person", () => {
+  for (const state of ["running", "paused", "finishing", "stopping"] as const) {
+    assertEquals(
+      waitingView(waitingBatch("approval", [ana], state), "u-ana")?.taskId,
+      "task-9",
+      state,
+    );
+  }
+  for (const state of ["waiting", "finished", "stopped"] as const) {
+    assertEquals(
+      waitingView(waitingBatch("approval", [ana], state), "u-ana"),
+      null,
+      state,
+    );
+  }
+  assertEquals(waitingView(batch({ issues: working }), "u-ana"), null);
+});
+
+Deno.test("the reader is put first and named at most with two others; a reader who was not asked sees up to three names", () => {
+  const you = waitingView(
+    waitingBatch("approval", [ben, ana, cho]),
+    "u-ana",
+  )!;
+  assertEquals([you.forYou, you.others], [true, ["Ben Okafor", "Chidi Eze"]]);
+  assertEquals(
+    waitingNames(you, "you", "en"),
+    "you, Ben Okafor, and Chidi Eze",
+  );
+  const alone = waitingView(waitingBatch("approval", [ana]), "u-ana")!;
+  assertEquals(waitingNames(alone, "you", "en"), "you");
+  const pair = waitingView(waitingBatch("approval", [ana, ben]), "u-ana")!;
+  assertEquals(waitingNames(pair, "you", "en"), "you and Ben Okafor");
+  const other = waitingView(
+    waitingBatch("approval", [ben, cho, dee]),
+    "u-ana",
+  )!;
+  assertEquals([other.forYou, other.others.length], [false, 3]);
+  const nobody = waitingView(waitingBatch("question", []), "u-ana")!;
+  assertEquals([nobody.forYou, waitingNames(nobody, "you", "en")], [false, ""]);
+  assertEquals(
+    waitingView(waitingBatch("approval", [ana]), null)?.forYou,
+    false,
+  );
+});
+
+Deno.test("a working batch waiting for an approval names the issue, who was asked and what happens next", () => {
+  const b = waitingBatch("approval");
+  const mine = bannerFor(b, { ...facts, waiting: waitingFacts(b, "u-ana") });
+  assertEquals(mine.tone, "warning");
+  assertEquals(mine.title, {
+    key: "batches.banner.waitingOn.title.approvalYou",
+    params: { number: "421" },
+  });
+  assertEquals(mine.body, {
+    key: "batches.banner.waitingOn.body.named",
+    params: {
+      time: "5 minutes ago",
+      names: "you and Ben Okafor",
+      outcome: phrase("batches.banner.waitingOn.approved"),
+    },
+  });
+  assertEquals(mine.actions, ["openTask"]);
+  assertEquals(mine.extra, undefined);
+  const theirs = bannerFor(b, { ...facts, waiting: waitingFacts(b, "u-zed") });
+  assertEquals(theirs.title.key, "batches.banner.waitingOn.title.approval");
+});
+
+Deno.test("a question has its own title and says it carries on when answered; no names say anyone on the task can answer", () => {
+  const b = waitingBatch("question", []);
+  const banner = bannerFor(b, { ...facts, waiting: waitingFacts(b, "u-ana") });
+  assertEquals(banner.title, {
+    key: "batches.banner.waitingOn.title.question",
+    params: { number: "421" },
+  });
+  assertEquals(banner.body.key, "batches.banner.waitingOn.body.open");
+  assertEquals(
+    banner.body.params?.outcome,
+    phrase("batches.banner.waitingOn.answered"),
+  );
+});
+
+Deno.test("a paused, finishing or stopping batch keeps its banner and adds one sentence about the wait", () => {
+  for (const state of ["paused", "finishing", "stopping"] as const) {
+    const plain = bannerFor(batch({ state, issues: working }), facts);
+    const b = waitingBatch("approval", [ana], state);
+    const banner = bannerFor(b, {
+      ...facts,
+      waiting: waitingFacts(b, "u-ana"),
+    });
+    assertEquals(
+      { ...banner, extra: undefined },
+      { ...plain, extra: undefined },
+      state,
+    );
+    assertEquals(banner.extra, {
+      key: "batches.banner.waitingOn.extra.approvalYou",
+      params: { number: "421" },
+    }, state);
+  }
+  const q = waitingBatch("question", [ana], "paused");
+  assertEquals(
+    bannerFor(q, { ...facts, waiting: waitingFacts(q, "u-ana") }).extra?.key,
+    "batches.banner.waitingOn.extra.question",
+  );
+  const other = waitingBatch("approval", [ben], "paused");
+  assertEquals(
+    bannerFor(other, { ...facts, waiting: waitingFacts(other, "u-ana") }).extra
+      ?.key,
+    "batches.banner.waitingOn.extra.approval",
+  );
+});
+
+Deno.test("the badge says who the batch waits for while it is working and is the batch's own state otherwise", () => {
+  const running = waitingBatch("approval", [ana]);
+  assertEquals(stateBadgeFor(running, waitingView(running, "u-ana")), {
+    key: "batches.badge.waitingForYou",
+    tone: "warning",
+  });
+  assertEquals(
+    stateBadgeFor(running, waitingView(running, "u-zed")).key,
+    "batches.badge.waitingForSomeone",
+  );
+  const paused = waitingBatch("approval", [ana], "paused");
+  assertEquals(
+    stateBadgeFor(paused, waitingView(paused, "u-ana")).key,
+    "batches.state.paused",
+  );
+  const plain = batch({ issues: working });
+  assertEquals(stateBadgeFor(plain, null), {
+    key: "batches.state.running",
+    tone: "information",
+  });
+});
+
+Deno.test("the issue being worked on reads Waiting in the warning tone only while the batch waits", () => {
+  assertEquals(issueBadgeFor("started", true), {
+    key: "batches.issueState.waiting",
+    tone: "warning",
+  });
+  assertEquals(
+    issueBadgeFor("started", false).key,
+    "batches.issueState.working",
+  );
+  assertEquals(issueBadgeFor("merged", true).key, "batches.issueState.merged");
+});
+
+Deno.test("the list says which issue a waiting batch is on, and keeps the muted line until the number is known", () => {
+  const b = waitingBatch("approval", [ana]);
+  assertEquals(whyItEnded(b, "421"), {
+    key: "batches.why.waitingOn",
+    params: { number: "421" },
+  });
+  assertEquals(whyItEnded(b)?.key, "batches.why.stillGoing");
+  assertEquals(
+    whyItEnded(batch({ issues: working }), "421")?.key,
+    "batches.why.stillGoing",
+  );
+});
+
+Deno.test("with four people asked and the reader first, the names are the reader and two others", () => {
+  const view = waitingView(
+    waitingBatch("approval", [ana, ben, cho, dee]),
+    "u-ana",
+  )!;
+  assertEquals([view.forYou, view.others], [true, ["Ben Okafor", "Chidi Eze"]]);
+  assertEquals(
+    waitingNames(view, "you", "en"),
+    "you, Ben Okafor, and Chidi Eze",
+  );
+  // A reader who was not asked sees three of the four.
+  const other = waitingView(
+    waitingBatch("approval", [ben, cho, dee, ana]),
+    "u-zed",
+  )!;
+  assertEquals(
+    other.others,
+    ["Ben Okafor", "Chidi Eze", "Dee Park", "Ana Ruiz"].slice(0, 3),
+  );
+});
+
+Deno.test("the list says Waiting on #n only while the batch is working; a paused, finishing or stopping one keeps its muted line", () => {
+  for (const state of ["paused", "finishing", "stopping"] as const) {
+    assertEquals(
+      whyItEnded(waitingBatch("approval", [ana], state), "421")?.key,
+      "batches.why.stillGoing",
+      state,
+    );
+  }
+});
+
+Deno.test("the current row reads Waiting in every state that waits for a person, and Working once nothing does", () => {
+  for (const state of ["running", "paused", "finishing", "stopping"] as const) {
+    const b = waitingBatch("approval", [ana], state);
+    assertEquals(
+      issueBadgeFor("started", waitingView(b, "u-ana") !== null).key,
+      "batches.issueState.waiting",
+      state,
+    );
+  }
+  // The other states have no issue being worked on, so no waiting is read.
+  for (const state of ["waiting", "finished", "stopped"] as const) {
+    const b = waitingBatch("approval", [ana], state);
+    assertEquals(
+      issueBadgeFor("started", waitingView(b, "u-ana") !== null).key,
+      "batches.issueState.working",
+      state,
+    );
+  }
 });

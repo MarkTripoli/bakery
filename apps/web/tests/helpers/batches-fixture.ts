@@ -61,6 +61,15 @@ export type BatchSeed = {
   elapsedSeconds?: number;
   spentUsd?: string;
   issues?: BatchIssueSeed[];
+  /** What the issue being worked on waits for a person to do (`waitingOn`); null when nothing does. */
+  waitingOn?: {
+    kind: "question" | "approval";
+    /** Who it was put to by name; empty when it was put to the task's participants. */
+    askedOf: { principalId: string; displayName: string }[];
+    /** Minutes ago it was put. */
+    askedMinutesAgo?: number;
+    taskId?: string;
+  } | null;
   startedAt?: string;
   finishedAt?: string | null;
 };
@@ -94,11 +103,23 @@ export function batch(seed: BatchSeed = {}) {
       issues.filter((i) => i.state === "merged").length,
     elapsedSeconds: seed.elapsedSeconds ?? 0,
     spentUsd: seed.spentUsd ?? "0.0000",
-    waitingOn: null,
+    waitingOn: seed.waitingOn == null ? null : {
+      kind: seed.waitingOn.kind,
+      questionId: uuid(9100),
+      taskId: seed.waitingOn.taskId ?? taskOf(421),
+      since: new Date(
+        Date.now() - (seed.waitingOn.askedMinutesAgo ?? 5) * 60_000,
+      ).toISOString(),
+      askedOf: seed.waitingOn.askedOf,
+    },
     issues: issues.map((issue) => ({
       id: uuid(5000 + id.charCodeAt(30) * 10 + issue.position + issue.number),
       position: issue.position,
       externalTicketId: uuid(issue.number),
+      issueNumber: String(issue.number),
+      issueTitle:
+        ISSUES.find((known) => known.number === issue.number)?.title ??
+          null,
       state: issue.state,
       reason: issue.reason ?? null,
       ticketRequestId: null,
@@ -142,7 +163,13 @@ export type Options = {
   canControl?: boolean;
   canRead?: boolean;
   /** What a start answers: ok (default) or one of the refusals. */
-  create?: "ok" | "alreadyRunning" | "notTaking" | "notFound" | "forbidden";
+  create?:
+    | "ok"
+    | "alreadyRunning"
+    | "notTaking"
+    | "notFound"
+    | "forbidden"
+    | "spendLow";
   /** The list answers with this status instead of the batches. */
   listFails?: number;
   /** The next control action answers with a conflict, once. */
@@ -150,6 +177,23 @@ export type Options = {
   pageSize?: number;
   /** More repositories taking issues than one page of issue sources holds (100). */
   extraRepositories?: number;
+  /**
+   * What the startable read answers (`GET /v1/batches/startable`): the issue
+   * numbers it lists, the smallest spend ("null" when the repository cannot run
+   * work), whether more can start after the first page, how long ago the
+   * stored checks were made, or a failure status.
+   */
+  startable?: {
+    numbers?: number[];
+    smallestSpendUsd?: string | null;
+    more?: boolean;
+    checkedMinutesAgo?: number;
+    fails?: number;
+    /** The first answer fails and the next succeeds (for Try again). */
+    failsOnce?: number;
+    /** Once a start is refused as too low, later reads say this is the smallest. */
+    smallestAfterRefusal?: string;
+  };
 };
 
 const problem = (
@@ -201,7 +245,10 @@ export async function batchesFixture(page: Page, options: Options = {}) {
     created: [] as Record<string, unknown>[],
     actions: [] as { id: string; action: string; body: unknown }[],
     gets: 0,
+    startable: [] as string[],
   };
+  let startableFailure = options.startable?.failsOnce;
+  let smallestAfterRefusal: string | null = null;
   let conflict = options.conflictOnce === true;
 
   await page.route(
@@ -341,6 +388,15 @@ export async function batchesFixture(page: Page, options: Options = {}) {
         if (refusal === "forbidden") {
           return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
         }
+        if (refusal === "spendLow") {
+          smallestAfterRefusal = options.startable?.smallestAfterRefusal ??
+            null;
+          return route.fulfill(
+            problem(422, "UNPROCESSABLE", undefined, [
+              "max_spend_below_smallest",
+            ]),
+          );
+        }
         const created = batch({
           repositoryId: String(body.repositoryId),
           maxIssues: Number(body.maxIssues),
@@ -428,6 +484,44 @@ export async function batchesFixture(page: Page, options: Options = {}) {
       }
       world.set(id, next);
       return route.fulfill(json(next));
+    },
+  );
+  // Registered after the batch-by-id route, so `startable` is not read as an id.
+  await page.route(
+    (url) => url.pathname === "/v1/batches/startable",
+    (route) => {
+      const url = new URL(route.request().url());
+      seen.startable.push(url.search);
+      const plan = options.startable ?? {};
+      if (plan.fails !== undefined) {
+        return route.fulfill(problem(plan.fails, "INTERNAL"));
+      }
+      if (startableFailure !== undefined) {
+        const status = startableFailure;
+        startableFailure = undefined;
+        return route.fulfill(problem(status, "INTERNAL"));
+      }
+      const limit = Number(url.searchParams.get("limit") ?? 5);
+      const numbers = [...(plan.numbers ?? ISSUES.map((issue) => issue.number))]
+        .sort((a, b) => a - b);
+      const checkedAt = new Date(
+        Date.now() - (plan.checkedMinutesAgo ?? 12) * 60_000,
+      ).toISOString();
+      const items = numbers.slice(0, limit).map((number) => ({
+        externalTicketId: uuid(number),
+        number: String(number),
+        title: ISSUES.find((issue) => issue.number === number)?.title ?? null,
+        url: null,
+        checkedAt,
+      }));
+      return route.fulfill(json({
+        items,
+        nextCursor: plan.more === true || numbers.length > limit ? "c5" : null,
+        smallestSpendUsd: smallestAfterRefusal ??
+          (plan.smallestSpendUsd === undefined
+            ? "12.5000"
+            : plan.smallestSpendUsd),
+      }));
     },
   );
   return { seen, world };

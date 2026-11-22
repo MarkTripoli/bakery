@@ -1,5 +1,11 @@
 import { assert, assertEquals } from "@std/assert";
 import { invokeIntegration } from "../../apps/server/src/modules/catalog/integration-invoke.ts";
+import { createGateRemoteTicketCreator } from "../../apps/server/src/modules/integrations/ticket-create.ts";
+import { createGateSender } from "../../apps/server/src/modules/integrations/ticket-gate.ts";
+import {
+  type RemoteTicketRequest,
+  SEND_ARGUMENTS_REFUSED,
+} from "../../apps/server/src/modules/work/ticket-create.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import {
   consumerDepsFor,
@@ -242,4 +248,94 @@ Deno.test("adding Bakery's label names only that label and answers what the issu
     assert(result.route === "ledger");
     assertEquals(result.run.outcome, "confirmed");
     assertEquals(result.output, { labels: ["mine", "bakery:owned"] });
+  }));
+
+/**
+ * The ticket module's own door to the gate: the shared sender and the
+ * issue-creating creator, wired as the application wires them, over the fake
+ * GitHub and the rig's authority.
+ */
+async function gateCreator(fixture: WorkerFixture) {
+  const github = fakeGithub();
+  const rig = await seededEffectRig(
+    fixture.pgDatabase,
+    fixture.organizationId,
+    fixture.principalId,
+  );
+  grantRigAction(rig, CREATE);
+  const deps = consumerDepsFor(fixture.pgDatabase, rig, github);
+  const send = createGateSender({
+    database: fixture.pgDatabase,
+    registry: deps.registry,
+    providerRequests: deps.providerRequests!,
+    snapshots: rig.port,
+  });
+  const creator = createGateRemoteTicketCreator({
+    send,
+    createActions: { github: { id: CREATE, version: 1 } },
+  });
+  const request = (
+    over: Partial<RemoteTicketRequest> = {},
+  ): RemoteTicketRequest => ({
+    organizationId: fixture.organizationId,
+    actorPrincipalId: fixture.principalId,
+    provider: "github",
+    connectionId: rig.connectionId,
+    resourceId: rig.resourceId,
+    title: ARGS.title,
+    body: ARGS.body,
+    labels: undefined,
+    idempotencyKey: crypto.randomUUID(),
+    signal: new AbortController().signal,
+    ...over,
+  });
+  return { github, creator, request };
+}
+
+Deno.test("a ticket created through the gate carries its labels in the one POST, and none when it names none", () =>
+  withWorkerFixture(async (fixture) => {
+    const { github, creator, request } = await gateCreator(fixture);
+    const labelled = await creator.create(
+      request({ labels: ["bug", "bakery:owned"] }),
+    );
+    assertEquals(labelled.kind, "sent");
+    assertEquals(github.posts(), 1);
+    assertEquals(github.issues[0]!.labels, ["bug", "bakery:owned"]);
+
+    const bare = await creator.create(request());
+    assertEquals(bare.kind, "sent");
+    assertEquals(github.posts(), 2);
+    assertEquals(github.issues[1]!.labels, undefined);
+  }));
+
+Deno.test("a lost response to a ticket created through the gate is uncertain, and the same key sends no second POST", () =>
+  withWorkerFixture(async (fixture) => {
+    const { github, creator, request } = await gateCreator(fixture);
+    const send = request({ labels: ["bug"] });
+    github.post = "stored_then_500";
+    const first = await creator.create(send);
+    assert(first.kind === "sent");
+    assertEquals(first.status, "uncertain");
+    assertEquals(github.posts(), 1);
+
+    github.post = "ok";
+    const retry = await creator.create(send);
+    assert(retry.kind === "sent");
+    assertEquals(retry.effectId, first.effectId, "the same effect");
+    assertEquals(github.issues.length, 1, "no duplicate issue");
+    assertEquals(github.posts(), 1, "no second POST");
+  }));
+
+Deno.test("a body the issue action refuses is a refusal that sent nothing, told apart from an outage", () =>
+  withWorkerFixture(async (fixture) => {
+    const { github, creator, request } = await gateCreator(fixture);
+    const refused = await creator.create(
+      request({ body: "text <!-- bakery-effect:abc --> text" }),
+    );
+    assertEquals(refused, {
+      kind: "failed",
+      problemCode: SEND_ARGUMENTS_REFUSED,
+    });
+    assertEquals(github.posts(), 0);
+    assertEquals(github.calls.length, 0);
   }));

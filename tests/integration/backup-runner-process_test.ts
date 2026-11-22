@@ -46,14 +46,22 @@ Deno.test("the shipped permission flags are scoped: no blanket grants, one fixed
     "--no-prompt",
   ]);
   const scoped = (name: string) => flags.find((f) => f.startsWith(`${name}=`));
-  // Files: only the backups directory, for reading the set and for retention.
-  assertEquals(scoped("--allow-read"), "--allow-read=/var/lib/bakery/backups");
+  // Files: the backups directory (the set and retention), the WAL spool
+  // (Restore to any minute: read, ship, then remove) and the one env file that
+  // names the public age recipient.
+  assertEquals(
+    scoped("--allow-read"),
+    "--allow-read=/var/lib/bakery/backups,/var/lib/bakery/wal-spool,/etc/bakery/backup.env",
+  );
   assertEquals(
     scoped("--allow-write"),
-    "--allow-write=/var/lib/bakery/backups",
+    "--allow-write=/var/lib/bakery/backups,/var/lib/bakery/wal-spool",
   );
-  // Processes: exactly the one fixed script, never a shell or a general launcher.
-  assertEquals(scoped("--allow-run"), "--allow-run=$root/deploy/backup.sh");
+  // Processes: the one fixed script and age, never a shell or a general launcher.
+  assertEquals(
+    scoped("--allow-run"),
+    "--allow-run=$root/deploy/backup.sh,age",
+  );
   // The AWS SDK reads the OS release for its user-agent; nothing else of the system.
   assertEquals(scoped("--allow-sys"), "--allow-sys=osRelease");
   assert(!flags.some((f) => /^(-A|--allow-all|--allow-ffi)/.test(f)));
@@ -234,7 +242,7 @@ Deno.test("under the shipped flags an idle pass makes one claim and nothing else
     assertEquals(api.seen.claims, 1);
     assertEquals(api.seen.settings, 0);
     assertEquals(api.seen.reports.length, 0);
-    assertEquals(receiver.requests.length, 0);
+    assertEquals(receiver.signedRequests, []);
   } finally {
     await api.stop();
     await receiver.stop();

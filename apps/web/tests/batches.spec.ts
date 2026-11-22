@@ -1,13 +1,17 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  ANA,
   batch,
   batchesFixture,
   batchId,
   extraRepositoryId,
   RUNNING,
   STOREFRONT,
+  taskOf,
   WEB,
 } from "./helpers/batches-fixture.ts";
+import { MOCK_PRINCIPAL_ID } from "./helpers/mock-session.ts";
+import { uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 
@@ -185,6 +189,156 @@ for (
       await expect(plan).toContainText("Carry on by itself after each merge.");
       await expect(plan).toContainText("5 are merged");
       await still(page, "batch-new");
+    });
+
+    test("the start page lists the issues a batch would take, the smallest spend and a summary that names the first", async ({ page }) => {
+      const { seen } = await batchesFixture(page);
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      const list = page.getByTestId("batch-startable");
+      await expect(list.getByText("It would start with")).toBeVisible();
+      await expect(list.getByRole("listitem")).toHaveCount(5);
+      await expect(list.getByRole("listitem").first()).toContainText(
+        /^1\.\s*#409 Retry the address lookup when it times out$/,
+      );
+      await expect(list).toContainText(
+        "Checked 12 minutes ago: Bakery reads GitHub again before each issue, so the order can change.",
+      );
+      await expect(
+        page.getByText("From $12.50, up to $4,000", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("$12.50 is the least that starts one issue."),
+      ).toBeVisible();
+      // One row: the three limits share a line on a wide screen.
+      if (viewport.width >= 1280) {
+        const tops = await Promise.all(
+          ["Issues merged", "Time", "Spend"].map(async (label) =>
+            (await page.getByLabel(label).boundingBox())!.y
+          ),
+        );
+        expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(4);
+      }
+      await expect(page.getByTestId("batch-plan")).toContainText(
+        "one at a time, starting with #409.",
+      );
+      expect(seen.startable).toHaveLength(1);
+      expect(seen.startable[0]).toContain(`repositoryId=${WEB.id}`);
+      expect(seen.startable[0]).toContain("limit=5");
+      await still(page, "batch-new-startable");
+      await list.getByRole("link", { name: /#409/ }).click();
+      await expect(page).toHaveURL(new RegExp(`/issues/${uuid(409)}$`));
+    });
+
+    test("more than five startable issues show five and say more can start", async ({ page }) => {
+      await batchesFixture(page, {
+        startable: { numbers: [401, 402, 403, 404, 405, 406, 407] },
+      });
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      const list = page.getByTestId("batch-startable");
+      await expect(list.getByRole("listitem")).toHaveCount(5);
+      await expect(list).toContainText("More can start after these.");
+      await expect(list.getByRole("listitem").last()).toContainText("#405");
+    });
+
+    test("with nothing startable the list is a warning, the summary names no issue, and Start batch stays enabled", async ({ page }) => {
+      await batchesFixture(page, { startable: { numbers: [] } });
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      const nothing = page.getByTestId("batch-startable-nothing");
+      await expect(nothing).toContainText(
+        "Nothing in acme/web can start right now",
+      );
+      await expect(nothing).toContainText(
+        "A batch started now would end at once unless an issue becomes ready first.",
+      );
+      await expect(page.getByTestId("batch-startable")).toHaveCount(0);
+      await expect(page.getByTestId("batch-plan")).not.toContainText(
+        "starting with",
+      );
+      await expect(page.getByRole("button", { name: "Start batch" }))
+        .toBeEnabled();
+      await still(page, "batch-new-nothing");
+      await nothing.getByRole("link", {
+        name: "See the issues in acme/web",
+      }).click();
+      await expect(page).toHaveURL(/\/issues$/);
+    });
+
+    test("a repository that cannot run work says so under the select and keeps the plain spend hint", async ({ page }) => {
+      await batchesFixture(page, { startable: { smallestSpendUsd: null } });
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      await expect(page.getByText("Work cannot start in acme/web right now"))
+        .toBeVisible();
+      await expect(
+        page.getByText("A batch started now would pause until that is fixed."),
+      ).toBeVisible();
+      await expect(page.getByText("Up to $4,000", { exact: true }))
+        .toBeVisible();
+      await page.getByRole("link", { name: "Open Issue settings" }).click();
+      await expect(page).toHaveURL(/\/issues\/settings$/);
+    });
+
+    test("a spend below the smallest is named under Spend and nothing is sent", async ({ page }) => {
+      const { seen } = await batchesFixture(page);
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      await expect(page.getByTestId("batch-startable")).toBeVisible();
+      await page.getByLabel("Spend").fill("10");
+      await page.getByRole("radio", { name: "Carry on by itself" }).check();
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(
+        page.getByText(
+          "Use at least $12.50. That is the least that starts one issue.",
+        ),
+      ).toBeVisible();
+      // The error says it; the plain note is not repeated beside it.
+      await expect(
+        page.getByText("$12.50 is the least that starts one issue."),
+      ).toHaveCount(0);
+      await still(page, "batch-new-below-smallest");
+      expect(seen.created).toEqual([]);
+      await page.getByLabel("Spend").fill("12.50");
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(page).toHaveURL(/\/issues\/batches\/[0-9a-f-]{36}$/);
+      expect(seen.created).toHaveLength(1);
+    });
+
+    test("an amount the server refuses as too low is named under Spend", async ({ page }) => {
+      await batchesFixture(page, {
+        create: "spendLow",
+        startable: { smallestSpendUsd: null, smallestAfterRefusal: "12.5000" },
+      });
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      await page.getByLabel("Spend").fill("1");
+      await page.getByRole("radio", { name: "Carry on by itself" }).check();
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(
+        page.getByText(
+          "Use at least $12.50. That is the least that starts one issue.",
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByText("$12.50 is the least that starts one issue."),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("alert").filter({
+          hasText: "The batch could not be started",
+        }),
+      ).toHaveCount(0);
+    });
+
+    test("when the list cannot be read the form still works and Try again reads it again", async ({ page }) => {
+      const { seen } = await batchesFixture(page, {
+        startable: { failsOnce: 500 },
+      });
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      await expect(page.getByTestId("batch-startable-failed")).toContainText(
+        "The issues that can start could not be loaded.",
+      );
+      await page.getByLabel("Spend").fill("40");
+      await expect(page.getByLabel("Spend")).toHaveValue("40");
+      await page.getByRole("button", { name: "Try again" }).click();
+      await expect(page.getByTestId("batch-startable").getByRole("listitem"))
+        .toHaveCount(5);
+      expect(seen.startable).toHaveLength(2);
     });
 
     test("Start batch names each problem under its field and sends nothing until the form is right", async ({ page }) => {
@@ -399,6 +553,153 @@ for (
         .click();
       await expect(banner(page)).toContainText("Choosing the next issue");
       expect(seen.actions.map((a) => a.action)).toEqual(["start-next"]);
+    });
+
+    test("a working batch waiting for the reader's approval says so, names who was asked and opens the task", async ({ page }) => {
+      const running = RUNNING();
+      await batchesFixture(page, {
+        batches: [batch({
+          ...running,
+          issues: running.issues.map((issue) => ({
+            position: issue.position,
+            number: Number(issue.issueNumber),
+            state: issue.state as "started",
+            costUsd: issue.costUsd,
+            ...(issue.reason === null ? {} : { reason: issue.reason }),
+          })),
+          elapsedSeconds: 3 * 3600 + 41 * 60,
+          spentUsd: "22.4000",
+          waitingOn: {
+            kind: "approval",
+            askedOf: [
+              { principalId: MOCK_PRINCIPAL_ID, displayName: "Mock Person" },
+              { principalId: ANA, displayName: "Ana Reyes" },
+            ],
+          },
+        })],
+      });
+      await page.goto(`/issues/batches/${running.id}`);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        "Waiting for you",
+      );
+      await expect(banner(page)).toContainText(
+        "#421 is waiting for your approval",
+      );
+      await expect(banner(page)).toContainText(
+        "Asked 5 minutes ago, of you and Ana Reyes.",
+      );
+      await expect(banner(page)).toContainText(
+        "The batch carries on when it is approved. Time keeps counting while it waits.",
+      );
+      await expect(page.getByTestId("batch-meter-time")).toContainText(
+        "time spent paused or waiting included",
+      );
+      await expect(
+        page.locator("[data-batch-issue][data-selected]").or(
+          page.getByRole("listitem").filter({ hasText: "#421" }),
+        ).first(),
+      ).toContainText("Waiting");
+      await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+      // The one thing the reader must do is the primary button.
+      await expect(banner(page).getByRole("button", { name: "Open task" }))
+        .toHaveClass(/ui-button--primary/);
+      await still(page, "batch-waiting-approval");
+      await banner(page).getByRole("button", { name: "Open task" }).click();
+      await expect(page).toHaveURL(new RegExp(`/tasks/${taskOf(421)}$`));
+    });
+
+    test("a question put to no one by name says anyone on the task can answer, and the badge says someone", async ({ page }) => {
+      const running = RUNNING();
+      await batchesFixture(page, {
+        batches: [batch({
+          ...running,
+          issues: running.issues.map((issue) => ({
+            position: issue.position,
+            number: Number(issue.issueNumber),
+            state: issue.state as "started",
+            costUsd: issue.costUsd,
+            ...(issue.reason === null ? {} : { reason: issue.reason }),
+          })),
+          waitingOn: { kind: "question", askedOf: [] },
+        })],
+      });
+      await page.goto(`/issues/batches/${running.id}`);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        "Waiting for someone",
+      );
+      await expect(banner(page)).toContainText("Bakery has a question on #421");
+      await expect(banner(page)).toContainText(
+        "Asked 5 minutes ago. Anyone working on the task can answer.",
+      );
+      await expect(banner(page)).toContainText(
+        "The batch carries on when it is answered.",
+      );
+      await expect(banner(page).getByRole("button", { name: "Open task" }))
+        .toHaveClass(/ui-button--primary/);
+      await still(page, "batch-waiting-question");
+    });
+
+    test("a paused batch keeps its banner and adds what #421 waits for; the list shows the badge and the issue", async ({ page }) => {
+      const running = RUNNING();
+      const issues = running.issues.map((issue) => ({
+        position: issue.position,
+        number: Number(issue.issueNumber),
+        state: issue.state as "started",
+        costUsd: issue.costUsd,
+        ...(issue.reason === null ? {} : { reason: issue.reason }),
+      }));
+      const asked = [{
+        principalId: MOCK_PRINCIPAL_ID,
+        displayName: "Mock Person",
+      }];
+      await batchesFixture(page, {
+        batches: [
+          batch({
+            id: batchId(1),
+            issues,
+            elapsedSeconds: 3 * 3600 + 41 * 60,
+            spentUsd: "22.4000",
+            waitingOn: { kind: "approval", askedOf: asked },
+          }),
+          batch({
+            id: batchId(2),
+            elapsedSeconds: 3 * 3600 + 41 * 60,
+            spentUsd: "22.4000",
+            state: "paused",
+            pauseReason: "paused_by_person",
+            pausedBy: ANA,
+            issues,
+            waitingOn: { kind: "approval", askedOf: asked },
+          }),
+        ],
+      });
+      await page.goto("/issues/batches");
+      const waiting = page.locator(`[data-batch-id="${batchId(1)}"]`);
+      await expect(waiting).toContainText("Waiting for you");
+      if (viewport.width > 743) {
+        await expect(waiting).toContainText("Waiting on #421");
+      }
+      await expect(page.locator(`[data-batch-id="${batchId(2)}"]`))
+        .toContainText("Paused");
+      await still(page, "batches-list-waiting");
+      await page.goto(`/issues/batches/${batchId(2)}`);
+      await expect(banner(page)).toContainText("Paused by Ana Reyes");
+      await expect(page.getByTestId("batch-banner-waiting")).toHaveText(
+        "#421 is waiting for your approval.",
+      );
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        "Paused",
+      );
+      // Beside Resume, Open task stays secondary, and the row agrees with the sentence.
+      await expect(banner(page).getByRole("button", { name: "Open task" }))
+        .toHaveClass(/ui-button--secondary/);
+      await expect(
+        page.getByRole("listitem").filter({ hasText: "#421" }).or(
+          page.locator("[data-batch-issue][data-selected]"),
+        ).first(),
+      ).toContainText("Waiting");
+      await still(page, "batch-paused-waiting");
     });
 
     test("a finished batch over its spend limit says so, shows the bar full and offers another batch", async ({ page }) => {

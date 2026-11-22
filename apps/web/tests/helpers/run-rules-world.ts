@@ -91,6 +91,7 @@ const step = (id: string, stepKey: string, n: number) => ({
   createdAt: `2026-01-01T00:00:0${n}.000Z`,
   updatedAt: `2026-01-01T00:00:0${n + 1}.000Z`,
   version: 1,
+  handoffManifest: null,
 });
 
 export const check = (

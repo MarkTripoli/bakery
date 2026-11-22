@@ -318,3 +318,17 @@ Deno.test("results group by test case on the candidate side only, in server orde
   assertEquals(groups.map((group) => group.caseName), ["Case c1", "Case c2"]);
   assertEquals(groups[0].results.map((result) => result.id), ["1", "4"]);
 });
+
+Deno.test("an interrupted attempt reads as not scored, with its reason", () => {
+  assertEquals(
+    resultWords({ state: "interrupted", reason: "The worker stopped." }, false),
+    {
+      key: "library.evaluations.result.notScored",
+      values: { reason: "The worker stopped." },
+    },
+  );
+  assertEquals(
+    resultWords({ state: "interrupted", reason: null }, false).key,
+    "library.evaluations.result.notScoredBare",
+  );
+});

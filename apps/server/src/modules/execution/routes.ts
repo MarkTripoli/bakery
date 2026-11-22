@@ -9,6 +9,7 @@ import {
 } from "@bakery/persistence";
 import { claimJob } from "./claim.ts";
 import {
+  archiveWorker,
   cancelWorkerEnrollment,
   dispatchBlockers,
   getWorker,
@@ -23,6 +24,13 @@ import {
   updateWorker,
   workerEnrollmentStatus,
 } from "./machines.ts";
+import {
+  cancelWorkerMaintenance,
+  createWorkerMaintenance,
+  getWorkerMaintenance,
+  listWorkerMaintenance,
+} from "./maintenance.ts";
+import { reportMaintenance } from "./maintenance-delivery.ts";
 import {
   cancelProviderAuthAttempt,
   createProviderAuthAttempt,
@@ -44,6 +52,15 @@ import { workerHandoffManifestRoute } from "./handoff-manifests.ts";
 import { inputReadRoute } from "./input-read.ts";
 import { heartbeat } from "./heartbeat.ts";
 import { enrollWorker, registerWorker } from "./registration.ts";
+import {
+  approveLinkRequest,
+  createLinkRequest,
+  declineLinkRequest,
+  findLinkRequest,
+  inspectLinkCode,
+  pollLinkRequest,
+} from "./link.ts";
+import { workerLinkTarballRoute } from "./worker-link-package.ts";
 import { renewLease, resultRoute } from "./results.ts";
 import { repositoryInspectionSourceRoute } from "../projects/inspection-source.ts";
 import {
@@ -71,6 +88,8 @@ import {
   workerSkillVersionRoute,
 } from "../catalog/worker-reads.ts";
 import { WORKER_SKILL_READ_HEADERS } from "@bakery/contracts/worker-skill-read";
+import type { TicketLabelWriter } from "../work/ticket-labels.ts";
+import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 
 export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   inngest?: InngestRuntimeConfig;
@@ -81,6 +100,10 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
     processHooks?: SkillImportProcessHooks;
   }>;
   integrations?: IntegrationsBackgroundDependencies;
+  /** Writes Bakery's status note on a ticket; the ticket poll keeps it current. Absent: the poll writes none. */
+  ticketNoteWriter?: TicketNoteWriter;
+  /** Changes Bakery's progress labels; see `ticket-labels.ts`. */
+  ticketLabelWriter?: TicketLabelWriter;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -191,6 +214,8 @@ export function createExecutionRoutes(
       budget: options.budget,
       skillImport: options.skillImport,
       integrations: options.integrations,
+      ticketNoteWriter: options.ticketNoteWriter,
+      ticketLabelWriter: options.ticketLabelWriter,
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);
@@ -199,6 +224,7 @@ export function createExecutionRoutes(
   app.use("/v1/worker-enrollments", options.browserSession);
   app.use("/v1/worker-enrollments/*", options.browserSession);
   app.use("/v1/workers", options.browserSession);
+  app.use("/v1/worker-link-requests/*", options.browserSession);
   app.use("/v1/workers/*", options.browserSession);
   app.use("/v1/model-provider-accounts", options.browserSession);
   app.post(
@@ -234,6 +260,31 @@ export function createExecutionRoutes(
     "/v1/worker/enrollment-inspection",
     routeHandler(options, (context) => inspectEnrollment(context, options)),
   );
+  app.get("/v1/worker/link.tgz", (context) => workerLinkTarballRoute(context));
+  app.post(
+    "/v1/worker/link-code-inspection",
+    routeHandler(options, (context) => inspectLinkCode(context, options)),
+  );
+  app.post(
+    "/v1/worker/link-requests",
+    routeHandler(options, (context) => createLinkRequest(context, options)),
+  );
+  app.post(
+    "/v1/worker/link-requests/:requestId/polls",
+    routeHandler(options, (context) => pollLinkRequest(context, options)),
+  );
+  app.post(
+    "/v1/worker-link-requests/lookups",
+    routeHandler(options, (context) => findLinkRequest(context, options)),
+  );
+  app.post(
+    "/v1/worker-link-requests/:id/approvals",
+    routeHandler(options, (context) => approveLinkRequest(context, options)),
+  );
+  app.post(
+    "/v1/worker-link-requests/:id/declines",
+    routeHandler(options, (context) => declineLinkRequest(context, options)),
+  );
   app.post(
     "/v1/worker/inventory",
     workerRouteHandler(options, (context) => reportInventory(context, options)),
@@ -257,6 +308,32 @@ export function createExecutionRoutes(
   app.post(
     "/v1/workers/:id/revocations",
     routeHandler(options, (context) => revokeWorker(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/archives",
+    routeHandler(options, (context) => archiveWorker(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/maintenance",
+    routeHandler(
+      options,
+      (context) => createWorkerMaintenance(context, options),
+    ),
+  );
+  app.get(
+    "/v1/workers/:id/maintenance",
+    routeHandler(options, (context) => listWorkerMaintenance(context, options)),
+  );
+  app.get(
+    "/v1/workers/:id/maintenance/:operationId",
+    routeHandler(options, (context) => getWorkerMaintenance(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/maintenance/:operationId/cancellations",
+    routeHandler(
+      options,
+      (context) => cancelWorkerMaintenance(context, options),
+    ),
   );
   app.post(
     "/v1/workers/:id/enrollments",
@@ -314,6 +391,13 @@ export function createExecutionRoutes(
     workerRouteHandler(
       options,
       (context) => reportProviderAuth(context, options),
+    ),
+  );
+  app.post(
+    "/v1/worker/maintenance/:operationId/reports",
+    workerRouteHandler(
+      options,
+      (context) => reportMaintenance(context, options),
     ),
   );
   app.post(

@@ -94,6 +94,7 @@ import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
+import { InstallationRestorePage } from "./pages/InstallationRestorePage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
 import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
@@ -711,6 +712,22 @@ export const routeCoverage = [
       "default",
       "partial",
       "degraded",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-restore",
+    path: "/installation/restore",
+    classification: "production",
+    // `complete` is a restore whose steps have all been taken; `empty` is the
+    // page opened when no restore ever held this installation.
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "complete",
       "empty",
       "error",
       "forbidden",
@@ -1851,6 +1868,19 @@ const installationUsageRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const installationRestoreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/restore",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.restore.title">
+      <InstallationRestorePage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const installationAuditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/audit",
@@ -2712,6 +2742,7 @@ const routeTree = rootRoute.addChildren([
   installationMonitoringNewRoute,
   installationMonitoringDestinationRoute,
   installationUsageRoute,
+  installationRestoreRoute,
   deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,

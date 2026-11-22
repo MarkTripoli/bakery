@@ -97,6 +97,19 @@
   flex: none;
 }
 
+/* From a tablet up, a notice with an action is one line of text beside its
+   button: icon, text and action share a centre line, so a one-line notice is not
+   a tall box with the text at the top. A phone keeps the top alignment, where
+   the text can wrap under the icon. The bar layout has its own alignment. */
+@media (min-width: 744px) {
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) {
+    align-items: center;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) > .ui-inline-notice__icon {
+    margin-block-start: 0;
+  }
+}
+
 .ui-inline-notice__icon {
   /* auth.css:8 `.icon` is inline-flex, so the box is exactly the glyph: an
      inline box would add the line's descender space and make a one-line
@@ -306,6 +319,11 @@
 .ui-help-tip .ui-icon-button:hover,
 .ui-help-tip .ui-icon-button:focus-visible {
   color: var(--color-fg);
+}
+/* On a line of text the 44px target hangs out of the line box, so a name with a
+   tip keeps the same height as one without: rows keep one rhythm. */
+[data-hung-tip] > .ui-help-tip {
+  margin-block: calc(var(--space-2-5) * -1);
 }
 .ui-help-tip__panel {
   background: var(--color-surface-raised);

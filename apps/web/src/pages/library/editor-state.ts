@@ -10,6 +10,8 @@ export type EditorStep = {
   readonly id: string;
   readonly uses: string;
   readonly agentVersionId: string | null;
+  /** The skill versions the step names, in order (#431); none for most steps. */
+  readonly skills: readonly string[];
 };
 
 export type EditorState = {
@@ -25,6 +27,12 @@ export type EditorAction =
   | { readonly kind: "remove"; readonly id: string }
   /** Move the step to `index` in the list it ends up in; clamped, never lost. */
   | { readonly kind: "move"; readonly id: string; readonly index: number }
+  /** Set the skill versions a step names: attach and remove both are this. */
+  | {
+    readonly kind: "skills";
+    readonly id: string;
+    readonly skills: readonly string[];
+  }
   /** Start again from these steps: a different version is being edited. */
   | { readonly kind: "reset"; readonly steps: readonly EditorStep[] }
   | { readonly kind: "undo" }
@@ -56,13 +64,14 @@ export function definitionOf(
       const agent = typeof node?.agentVersionId === "string"
         ? node.agentVersionId
         : null;
+      const skills = skillsOfNode(node);
       if (
         node !== undefined && node.uses === step.uses &&
-        agent === step.agentVersionId
+        agent === step.agentVersionId && sameList(skills, step.skills)
       ) {
         return node;
       }
-      const { agentVersionId: _dropped, ...rest } = node ?? {};
+      const { agentVersionId: _dropped, skills: _skills, ...rest } = node ?? {};
       return {
         ...rest,
         id: step.id,
@@ -70,10 +79,24 @@ export function definitionOf(
         ...(step.agentVersionId === null
           ? {}
           : { agentVersionId: step.agentVersionId }),
+        // A step with no skills carries no `skills` key, as an authored one does.
+        ...(step.skills.length === 0 ? {} : { skills: [...step.skills] }),
       };
     }),
   };
 }
+
+/** The skill version ids an authored step names; anything else is no skills. */
+export function skillsOfNode(
+  node: Readonly<Record<string, unknown>> | undefined,
+): readonly string[] {
+  return Array.isArray(node?.skills)
+    ? node.skills.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+const sameList = (left: readonly string[], right: readonly string[]) =>
+  left.length === right.length && left.every((item, at) => item === right[at]);
 
 /** The editor's state for a version's steps: nothing to undo yet. */
 export function editorStateOf(
@@ -154,6 +177,18 @@ export function editorReducer(
         return state;
       }
       return changed(state, steps);
+    }
+    case "skills": {
+      const at = state.steps.findIndex((step) => step.id === action.id);
+      if (at === -1 || sameList(state.steps[at].skills, action.skills)) {
+        return state;
+      }
+      return changed(
+        state,
+        state.steps.map((step, index) =>
+          index === at ? { ...step, skills: [...action.skills] } : step
+        ),
+      );
     }
     case "reset":
       return {

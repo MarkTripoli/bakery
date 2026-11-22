@@ -65,6 +65,8 @@ export async function runClaimLoop(
       !state.executor || !state.freshHeartbeatReady ||
       !registration?.workerHostId || !state.healthy || state.draining ||
       state.controlState.admissionPaused ||
+      // Maintenance keeps claims closed until every journal entry is done.
+      state.maintenance?.claimsClosed() === true ||
       !state.processSessionAcquired || claimHeldForReadiness(state)
     ) {
       await state.sleep(

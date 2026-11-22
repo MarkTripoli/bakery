@@ -64,13 +64,18 @@ export type EnrollmentRepositoryOptions = {
   principalId: string;
   idempotencyKey: string;
   requestDigest: string;
-  name: string;
-  os: string;
-  architecture: string;
+  /** Null leaves the name to the machine's host name, reported when it registers (#70). */
+  name: string | null;
+  /** Null leaves the system to what the machine reports when it links. */
+  os: string | null;
+  architecture: string | null;
   capabilities: readonly string[];
   slots: number;
   metadata: RequestMetadata;
   enrollmentTtlSeconds: number;
+  /** A fresh XXXX-XXXX link code for the same row; only its hash is stored. */
+  mintLinkCode: () => string;
+  hashLinkCode: (code: string) => Promise<string>;
   replayTtlSeconds: number;
   randomSecret: () => string;
   hash: (value: string) => Promise<string>;
@@ -81,7 +86,10 @@ export type EnrollmentRepositoryOptions = {
 export type RegistrationRepositoryOptions = {
   idempotencyKey: string;
   requestDigest: string;
-  enrollmentHash: string;
+  /** The enrollment is named by the hash of its long token or of its link code (#70). */
+  enrollment: { by: "token" | "linkCode"; hash: string };
+  /** Whether a system the machine reports is one the installer supports; a link-code enrollment that left the system open admits only these. */
+  isSupportedSystem: (os: string, architecture: string) => boolean;
   name: string;
   os: string;
   architecture: string;
@@ -208,15 +216,17 @@ export function createWorkerSessionWorkflows(
       }
       const enrollmentToken = options.randomSecret();
       const tokenHash = await options.hash(enrollmentToken);
+      const linkCode = options.mintLinkCode();
+      const linkHash = await options.hashLinkCode(linkCode);
       const inserted = await transaction.query<{
         id: string;
         expires_at: Date | string;
       }>(
         `insert into bakery.worker_enrollments (
          organization_id, principal_id, name, os, architecture,
-         allowed_capabilities, slots, token_hash, expires_at
+         allowed_capabilities, slots, token_hash, expires_at, link_code_hash
        ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8,
-         clock_timestamp() + ($9::integer * interval '1 second'))
+         clock_timestamp() + ($9::integer * interval '1 second'), $10)
        returning id, expires_at`,
         [
           options.organizationId,
@@ -228,6 +238,7 @@ export function createWorkerSessionWorkflows(
           options.slots,
           tokenHash,
           options.enrollmentTtlSeconds,
+          linkHash,
         ],
       );
       const row = inserted.rows[0];
@@ -236,6 +247,7 @@ export function createWorkerSessionWorkflows(
         enrollmentId: row.id,
         enrollmentToken,
         expiresAt: new Date(row.expires_at).toISOString(),
+        linkCode,
       };
       await transaction.query(
         `insert into bakery.worker_enrollment_replays (
@@ -269,17 +281,21 @@ export function createWorkerSessionWorkflows(
       return { response, replayed: false };
     },
     async register(options) {
+      // A fixed column name, never input: the token's hash or the link code's.
+      const lookupColumn = options.enrollment.by === "linkCode"
+        ? "link_code_hash"
+        : "token_hash";
       await transaction.query(
         `select pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
-        [`worker-registration:${options.enrollmentHash}:${options.idempotencyKey}`],
+        [`worker-registration:${options.enrollment.hash}:${options.idempotencyKey}`],
       );
       await transaction.query(
         `delete from bakery.worker_registration_replays replay
          using bakery.worker_enrollments enrollment
          where enrollment.id = replay.enrollment_id
-           and enrollment.token_hash = $1 and replay.idempotency_key = $2
+           and enrollment.${lookupColumn} = $1 and replay.idempotency_key = $2
            and replay.expires_at <= clock_timestamp()`,
-        [options.enrollmentHash, options.idempotencyKey],
+        [options.enrollment.hash, options.idempotencyKey],
       );
       const replay = await transaction.query<{
         request_digest: string;
@@ -289,9 +305,9 @@ export function createWorkerSessionWorkflows(
        from bakery.worker_registration_replays replay
        join bakery.worker_enrollments enrollment
          on enrollment.id = replay.enrollment_id
-       where enrollment.token_hash = $1 and replay.idempotency_key = $2
+       where enrollment.${lookupColumn} = $1 and replay.idempotency_key = $2
          and replay.expires_at > clock_timestamp()`,
-        [options.enrollmentHash, options.idempotencyKey],
+        [options.enrollment.hash, options.idempotencyKey],
       );
       const replayRow = replay.rows[0];
       if (replayRow) {
@@ -310,10 +326,10 @@ export function createWorkerSessionWorkflows(
         id: string;
         organization_id: string;
         principal_id: string;
-        name: string;
-        os: string;
+        name: string | null;
+        os: string | null;
         expires_at: Date | string;
-        architecture: string;
+        architecture: string | null;
         allowed_capabilities: unknown;
         slots: number;
         consumed_at: Date | string | null;
@@ -325,25 +341,48 @@ export function createWorkerSessionWorkflows(
           allowed_capabilities, slots, expires_at, consumed_at, canceled_at,
           target_worker_host_id, expected_credential_generation
        from bakery.worker_enrollments
-       where token_hash = $1 and expires_at > clock_timestamp()
+       where ${lookupColumn} = $1 and expires_at > clock_timestamp()
        for update`,
-        [options.enrollmentHash],
+        [options.enrollment.hash],
       );
       const enrollmentRow = enrollment.rows[0];
       if (!enrollmentRow) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
-      assertEnrollmentIntegrity(enrollmentRow);
+      // A link-code enrollment may leave the name to the machine's host name
+      // and the system to what the machine reports (#70); what the machine
+      // registers with then becomes the enrollment's, and nothing else may.
+      const intended = {
+        name: enrollmentRow.name ?? options.name,
+        os: enrollmentRow.os ?? options.os,
+        architecture: enrollmentRow.architecture ??
+          normalizeArchitecture(options.architecture),
+        slots: enrollmentRow.slots,
+      };
+      assertEnrollmentIntegrity(intended);
       if (enrollmentRow.consumed_at || enrollmentRow.canceled_at) {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      if (options.name !== enrollmentRow.name) {
+      if (
+        options.enrollment.by === "linkCode" &&
+        !options.isSupportedSystem(
+          options.os,
+          normalizeArchitecture(options.architecture),
+        )
+      ) {
+        // Refused before anything is written: the code stays unused.
+        throw new StandardError({
+          code: "UNPROCESSABLE",
+          params: { field: "os" },
+        });
+      }
+      if (options.name !== intended.name) {
         throw new StandardError({
           code: "UNPROCESSABLE",
           params: { field: "name" },
         });
       }
-      if (options.os !== enrollmentRow.os) {
+      if (options.os !== intended.os) {
         throw new StandardError({
           code: "UNPROCESSABLE",
           params: { field: "os" },
@@ -351,7 +390,7 @@ export function createWorkerSessionWorkflows(
       }
       if (
         normalizeArchitecture(options.architecture) !==
-          normalizeArchitecture(enrollmentRow.architecture)
+          normalizeArchitecture(intended.architecture)
       ) {
         throw new StandardError({
           code: "UNPROCESSABLE",
@@ -466,12 +505,16 @@ export function createWorkerSessionWorkflows(
         await transaction.query(
           `update bakery.worker_enrollments
        set consumed_at = current_timestamp, worker_host_id = $2,
+           name = $4, os = $5, architecture = $6,
            updated_at = current_timestamp, version = version + 1
        where organization_id = $3 and id = $1`,
           [
             enrollmentRow.id,
             host.id,
             enrollmentRow.organization_id,
+            intended.name,
+            intended.os,
+            intended.architecture,
           ],
         );
         const response = {
@@ -541,6 +584,7 @@ export function createWorkerSessionWorkflows(
             enrollmentId: enrollmentRow.id,
             principalId: host.principal_id,
             repair: true,
+            via: options.enrollment.by,
           },
         });
         return { response, replayed: false };
@@ -548,7 +592,7 @@ export function createWorkerSessionWorkflows(
       const workerPrincipal = await transaction.query<{ id: string }>(
         `insert into bakery.principals (display_name, principal_type)
        values ($1, 'worker') returning id`,
-        [enrollmentRow.name],
+        [intended.name],
       );
       const principalId = workerPrincipal.rows[0]?.id;
       if (!principalId) throw new Error("WORKER_PRINCIPAL_INSERT_FAILED");
@@ -570,7 +614,7 @@ export function createWorkerSessionWorkflows(
         [
           enrollmentRow.organization_id,
           principalId,
-          enrollmentRow.name,
+          intended.name,
           options.os,
           options.architecture,
           JSON.stringify(options.capabilities),
@@ -585,9 +629,17 @@ export function createWorkerSessionWorkflows(
       await transaction.query(
         `update bakery.worker_enrollments
        set consumed_at = current_timestamp, worker_host_id = $2,
+           name = $4, os = $5, architecture = $6,
            updated_at = current_timestamp, version = version + 1
        where organization_id = $3 and id = $1`,
-        [enrollmentRow.id, hostRow.id, enrollmentRow.organization_id],
+        [
+          enrollmentRow.id,
+          hostRow.id,
+          enrollmentRow.organization_id,
+          intended.name,
+          intended.os,
+          intended.architecture,
+        ],
       );
       const response = {
         workerHostId: hostRow.id,
@@ -652,6 +704,7 @@ export function createWorkerSessionWorkflows(
           enrollmentId: enrollmentRow.id,
           principalId,
           architecture: options.architecture,
+          via: options.enrollment.by,
         },
       });
       return { response, replayed: false };

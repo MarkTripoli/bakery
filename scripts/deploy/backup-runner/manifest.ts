@@ -47,7 +47,10 @@ export type StoreDefinition = {
   readonly required: boolean;
   /** The file in the set that holds it; null for an inline or excluded store. */
   readonly file: string | null;
-  /** Why it is not in the set; set only for a store that is always excluded. */
+  /**
+   * Why it is not in the set: for a store that is always excluded, or for an
+   * optional store with a file that is only taken sometimes, when it is absent.
+   */
   readonly excludedReason?: string;
 };
 
@@ -98,6 +101,15 @@ export const STORES: readonly StoreDefinition[] = Object.freeze([
       "every skill file and blob the database refers to, by object key and SHA-256, so a restore can read each object back; the bytes are not copied",
     required: true,
     file: "references.json.age",
+  },
+  {
+    id: "postgres-base-backup",
+    title: "Point-in-time base backup",
+    source:
+      "pg_basebackup of the whole Postgres cluster as one tar, taken only while Restore to any minute is on; the WAL archived off-site since it lets a restore stop at any minute",
+    required: false,
+    file: "base.tar.age",
+    excludedReason: "Restore to any minute is off, so no base backup is taken",
   },
   {
     id: "secrets-key-identity",
@@ -337,6 +349,9 @@ export async function writeBackupManifest(
         file: store.file,
         reason: failure,
       });
+      // An optional store's failure is recorded but does not make the set
+      // incomplete: the base backup failing leaves a good logical backup.
+      if (!store.required) continue;
       problems.push({
         kind: "store_not_captured",
         store: store.id,
@@ -350,6 +365,17 @@ export async function writeBackupManifest(
     try {
       measured = await hashFile(path);
     } catch {
+      // An optional store that is only sometimes taken (the base backup) is
+      // excluded when its file is absent, not failed.
+      if (!store.required && store.excludedReason !== undefined) {
+        stores.push({
+          id: store.id,
+          status: "excluded",
+          required: false,
+          reason: store.excludedReason,
+        });
+        continue;
+      }
       stores.push({
         id: store.id,
         status: "failed",
@@ -699,11 +725,15 @@ export async function verifyBackupDirectory(
       continue;
     }
     if (entry.status === "failed") {
-      problems.push({
-        kind: "store_not_captured",
-        store: store.id,
-        detail: entry.reason ?? "the capture failed",
-      });
+      // An optional store that failed (the base backup) leaves the rest of
+      // the set whole; only a required one makes it incomplete.
+      if (store.required) {
+        problems.push({
+          kind: "store_not_captured",
+          store: store.id,
+          detail: entry.reason ?? "the capture failed",
+        });
+      }
       continue;
     }
     if (entry.status === "excluded") {

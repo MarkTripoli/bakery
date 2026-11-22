@@ -14,6 +14,12 @@ export function startS3Receiver(
 ) {
   const objects = new Map<string, Uint8Array<ArrayBuffer>>();
   const requests: string[] = [];
+  /**
+   * Requests signed with an AWS key (SigV4), i.e. made by an S3 client. The
+   * port is a random loopback port on a shared host, so another process can
+   * reach it with an unsigned probe; only signed requests can come from Bakery.
+   */
+  const signedRequests: string[] = [];
   const uploads = new Map<string, Map<number, Uint8Array<ArrayBuffer>>>();
   const xml = (body: string, status = 200) =>
     new Response(`<?xml version="1.0" encoding="UTF-8"?>${body}`, {
@@ -26,6 +32,9 @@ export function startS3Receiver(
       const url = new URL(request.url);
       requests.push(`${request.method} ${url.pathname}`);
       const authorization = request.headers.get("authorization") ?? "";
+      if (authorization.startsWith("AWS4-HMAC-SHA256")) {
+        signedRequests.push(`${request.method} ${url.pathname}`);
+      }
       const used = /Credential=([^/]+)\//.exec(authorization)?.[1] ?? "";
       if (options.rejectKey !== undefined && used === options.rejectKey) {
         return xml(
@@ -157,6 +166,7 @@ export function startS3Receiver(
     endpoint: `http://127.0.0.1:${port}`,
     objects,
     requests,
+    signedRequests,
     stop: () => server.shutdown(),
   };
 }

@@ -44,7 +44,12 @@ Deno.test("installation status, browser session list, revoke, and revoke-others 
       get(undefined, "/v1/installation/status"),
     );
     assertEquals(beforeBootstrap.status, 200);
-    assertEquals(await beforeBootstrap.json(), { bootstrapped: false });
+    assertEquals(await beforeBootstrap.json(), {
+      bootstrapped: false,
+      restoreHeld: false,
+      updatePaused: false,
+      release: fixture.config.version,
+    });
 
     await createSuperuser({
       pgDatabase: fixture.pgDatabase,
@@ -55,7 +60,12 @@ Deno.test("installation status, browser session list, revoke, and revoke-others 
       get(undefined, "/v1/installation/status"),
     );
     assertEquals(afterBootstrap.status, 200);
-    assertEquals(await afterBootstrap.json(), { bootstrapped: true });
+    assertEquals(await afterBootstrap.json(), {
+      bootstrapped: true,
+      restoreHeld: false,
+      updatePaused: false,
+      release: fixture.config.version,
+    });
 
     const signIn = await fixture.auth.handler(authRequest(
       "/api/auth/sign-in/email",
@@ -133,7 +143,12 @@ Deno.test("GET /v1/installation/status returns its boolean body even with an unp
       get("better-auth.session_token=garbage", "/v1/installation/status"),
     );
     assertEquals(response.status, 200);
-    assertEquals(await response.json(), { bootstrapped: false });
+    assertEquals(await response.json(), {
+      bootstrapped: false,
+      restoreHeld: false,
+      updatePaused: false,
+      release: fixture.config.version,
+    });
   } finally {
     await fixture.close();
   }
