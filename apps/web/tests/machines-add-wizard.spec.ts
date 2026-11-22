@@ -175,6 +175,12 @@ test.describe("add a machine wizard", () => {
       await expect(systems.getByText("Supported", { exact: true }))
         .toHaveCount(1);
       await expect(systems.getByText("Not supported yet")).toHaveCount(3);
+      // The badge stays inside the table: Support has the width it needs.
+      const table = (await systems.boundingBox())!;
+      for (const badge of await systems.getByText("Not supported yet").all()) {
+        const box = (await badge.boundingBox())!;
+        expect(box.x + box.width).toBeLessThanOrEqual(table.x + table.width);
+      }
       await expect(systems.locator('tr[data-system-id="linux-arm64"]'))
         .toContainText("A system service (systemd)");
       await expect(systems.locator('tr[data-system-id="linux-arm64"]'))

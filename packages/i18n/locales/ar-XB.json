@@ -5942,5 +5942,7 @@
   "machines.wizard.support.supported": "⟪Supported⟫",
   "machines.wizard.support.notYet": "⟪Not supported yet⟫",
   "machines.wizard.unproven": "⟪{system} {processor} is not a supported system yet. These are the same steps this machine was set up with.⟫",
-  "machines.wizard.unsupported": "⟪Bakery has no installer for this system yet. Nothing can be set up on it today.⟫"
+  "machines.wizard.unsupported": "⟪Bakery has no installer for this system yet. Nothing can be set up on it today.⟫",
+  "machines.banner.body.retiredNoSteps": "⟪Bakery has no installer for this system yet, so this machine cannot be set up again.⟫",
+  "machines.retire.dialogNoAgain": "⟪Bakery has no installer for this system yet, so it cannot be set up again.⟫"
 }

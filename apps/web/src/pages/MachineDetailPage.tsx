@@ -57,7 +57,11 @@ import {
   requestedMode,
 } from "./machine-state.ts";
 import { type EnrollmentInput, installState } from "./machine-wizard.ts";
-import { hasSetupSteps, type MachineSystem } from "./machine-systems.ts";
+import {
+  hasSetupSteps,
+  type MachineSystem,
+  processorLabel,
+} from "./machine-systems.ts";
 import {
   isUnprovenWithSteps,
   UnprovenSystemNotice,
@@ -391,8 +395,12 @@ export function MachineDetailPage(
     ? agentOfFailedChecks(workerData.failedCheckIds, agents)
     : null;
   const wantedFix: BannerFix | null = reason ? bannerFix(reason) : null;
+  // A system with no set-up steps cannot be set up again, so it is not offered, and no setup code is made.
+  const canSetUpAgain = workerData ? hasSetupSteps(workerData.os) : true;
   // Taking work again and setting it up again change the machine: administrators only.
-  const fix: BannerFix | null = wantedFix === "seeChecks" || isAdmin
+  const fix: BannerFix | null = wantedFix === "setUpAgain" && !canSetUpAgain
+    ? null
+    : wantedFix === "seeChecks" || isAdmin
     ? wantedFix
     : null;
   const runFix = (kind: BannerFix) => {
@@ -436,7 +444,10 @@ export function MachineDetailPage(
                 : "machines.page.subtitleNever",
               {
                 os: message(translate, `machines.os.${workerData.os}`),
-                architecture: workerData.architecture,
+                architecture: processorLabel(
+                  workerData.os,
+                  workerData.architecture,
+                ),
                 time: formatDate(workerData.lastHeartbeatAt ?? ""),
               },
             )
@@ -530,7 +541,9 @@ export function MachineDetailPage(
                           <UI.Text>
                             {message(
                               translate,
-                              `machines.banner.body.${reason.kind}`,
+                              reason.kind === "retired" && !canSetUpAgain
+                                ? "machines.banner.body.retiredNoSteps"
+                                : `machines.banner.body.${reason.kind}`,
                               {
                                 time: formatDate(
                                   workerData.lastHeartbeatAt ?? "",
@@ -624,12 +637,6 @@ export function MachineDetailPage(
                             </UI.Button>
                           </UI.Inline>
                         </UI.Stack>
-                      )
-                      : !hasSetupSteps(workerData.os)
-                      ? (
-                        <UI.AlertBanner tone="information" role="status">
-                          {message(translate, "machines.wizard.unsupported")}
-                        </UI.AlertBanner>
                       )
                       : (
                         <UI.Stack gap="standard">
@@ -856,7 +863,10 @@ export function MachineDetailPage(
                   />
                   <UI.DescriptionItem
                     title={message(translate, "machines.about.processor")}
-                    description={workerData.architecture}
+                    description={processorLabel(
+                      workerData.os,
+                      workerData.architecture,
+                    )}
                   />
                   <UI.DescriptionItem
                     title={message(translate, "machines.about.slots")}
@@ -1048,7 +1058,12 @@ export function MachineDetailPage(
                           {message(translate, "machines.retire.dialogWork")}
                         </UI.Text>
                         <UI.Text>
-                          {message(translate, "machines.retire.dialogAgain")}
+                          {message(
+                            translate,
+                            canSetUpAgain
+                              ? "machines.retire.dialogAgain"
+                              : "machines.retire.dialogNoAgain",
+                          )}
                         </UI.Text>
                         {retireFailed
                           ? (

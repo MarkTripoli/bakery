@@ -311,7 +311,7 @@ test.describe("machine page: the one banner", () => {
     await expect(about).toContainText("System");
     await expect(about).toContainText("Linux");
     await expect(about).toContainText("Processor");
-    await expect(about).toContainText("x64");
+    await expect(about).toContainText("x86_64");
     await expect(about).toContainText("Tasks at once");
     await expect(about).toContainText("Software");
     await expect(about).toContainText("No software has been reported.");
@@ -319,7 +319,7 @@ test.describe("machine page: the one banner", () => {
       0,
     );
     // The line under the name is where it is and when it was last seen, not its status.
-    await expect(detail.getByText(/^Linux · x64 · Last seen /))
+    await expect(detail.getByText(/^Linux · x86_64 · Last seen /))
       .toBeVisible();
     // The coding agents are rows with no internal words: this machine reports
     // Claude Code and nothing has signed it in yet.
@@ -585,20 +585,34 @@ test.describe("machine page: mode and Retire", () => {
     ).toBeVisible();
   });
 
-  test("a retired Mac is told there is no installer and is shown no steps", async ({ page }) => {
+  test("a retired Mac is told it cannot be set up again, with no button and no setup made", async ({ page }) => {
     const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
       system: { os: "macos", architecture: "arm64" },
     });
-    await page.clock.install();
     await open(page, f);
-    await banner(page).getByRole("button", { name: "Set up again" }).click();
-    const setup = page.getByTestId("machine-repair");
-    await expect(
-      setup.getByText("Bakery has no installer for this system yet."),
-    ).toBeVisible();
-    await expect(setup.getByText(REPAIR_CODE)).toHaveCount(0);
-    await expect(setup.getByText("is not a supported system yet"))
+    await expect(banner(page)).toContainText(
+      "Bakery has no installer for this system yet, so this machine cannot be set up again.",
+    );
+    await expect(banner(page).getByRole("button")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Set up again" }))
       .toHaveCount(0);
+    await expect(page.getByTestId("machine-repair")).toHaveCount(0);
+    expect(f.repairs).toHaveLength(0);
+    await shot(page, "machine-page-retired-mac");
+  });
+
+  test("Retire on a Mac says it cannot be set up again", async ({ page }) => {
+    const f = fixture({}, { system: { os: "macos", architecture: "arm64" } });
+    await open(page, f);
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText(
+      "Bakery has no installer for this system yet, so it cannot be set up again.",
+    );
+    await expect(dialog.getByText("The machine can be set up again later."))
+      .toHaveCount(0);
+    await shot(page, "machine-page-retire-mac", [], { only: "desktop" });
   });
 
   test("anyone but an administrator sees the page without the controls", async ({ page }) => {

@@ -3,7 +3,7 @@ import * as UI from "@bakery/ui";
 import {
   hasSetupSteps,
   isSupportedSystem,
-  systemRow,
+  processorLabel,
 } from "./machine-systems.ts";
 
 /** Whether the steps for this system are shown with a warning: they exist, but the system has no recorded run yet. */
@@ -23,8 +23,7 @@ export function UnprovenSystemNotice(
     <UI.AlertBanner tone="warning" role="status" id="machine-unproven-system">
       {translate("machines.wizard.unproven" as never, {
         system: translate(`machines.os.${os}` as never),
-        // The stored `x64` reads as x86_64; a processor the table does not list is shown as stored.
-        processor: systemRow(os, architecture)?.processor ?? architecture,
+        processor: processorLabel(os, architecture),
       })}
     </UI.AlertBanner>
   );

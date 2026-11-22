@@ -123,6 +123,11 @@ export function isSupportedSystem(os: string, architecture: string): boolean {
   return systemRow(os, architecture)?.supported === true;
 }
 
+/** The processor as a person reads it: the row's label (`x86_64` for a stored `x64`), or the stored value when the table does not list it. */
+export function processorLabel(os: string, architecture: string): string {
+  return systemRow(os, architecture)?.processor ?? architecture;
+}
+
 /** Whether a machine on this system has set-up steps to follow, on any processor. */
 export function hasSetupSteps(os: string): boolean {
   return SYSTEM_ROWS.some((row) => row.os === os && row.steps !== null);

@@ -180,13 +180,13 @@ function SystemChoice(
         },
         {
           id: "processor",
-          width: "22%",
+          width: "20%",
           header: translate("machines.wizard.column.processor" as never),
           cell: (row) => cellText(row, processorText(row, translate)),
         },
         {
           id: "installedAs",
-          width: "26%",
+          width: "24%",
           header: translate("machines.wizard.column.installedAs" as never),
           cell: (row) => cellText(row, installedAsText(row, translate)),
         },
@@ -198,6 +198,7 @@ function SystemChoice(
         },
         {
           id: "support",
+          width: "20%",
           header: translate("machines.wizard.column.support" as never),
           cell: (row) => <SupportBadge row={row} translate={translate} />,
         },
