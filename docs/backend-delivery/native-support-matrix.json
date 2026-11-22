@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "issue": 52,
+  "rule": "A worker target is advertised (SUPPORTED_TARGETS in packages/worker-bootstrap/src/manifest.ts) only when its row here is verified: the native lane ran green on a real host of that OS and architecture. tests/unit/native-support-matrix_test.ts enforces it.",
+  "rows": [
+    {
+      "id": "worker-target-linux-x64",
+      "kind": "worker-target",
+      "target": "linux-x64",
+      "status": "verified",
+      "evidence": [
+        "tests/native/verify-native-worker-platforms-and-real-browser-authentication_test.ts"
+      ],
+      "proof": "Rendered systemd unit run in a disposable systemd container on an x86_64 host: install, pair, 0600 secrets, kill, restart, freeze/thaw, upgrade, canceled download, reboot, stop. The unit starts a shell stand-in for the worker, so this proves install, pairing and the service lifecycle on this architecture, not the worker program itself."
+    },
+    {
+      "id": "worker-target-linux-arm64",
+      "kind": "worker-target",
+      "target": "linux-arm64",
+      "status": "verified",
+      "evidence": [
+        "tests/native/verify-native-worker-platforms-and-real-browser-authentication_test.ts"
+      ],
+      "proof": "Same native file, run green on agx64 (aarch64, cgroup v2) on 2026-11-22. The unit starts a shell stand-in for the worker, so this proves install, pairing and the service lifecycle on this architecture, not the worker program itself."
+    },
+    {
+      "id": "worker-target-darwin-arm64",
+      "kind": "worker-target",
+      "target": "darwin-arm64",
+      "status": "deferred",
+      "evidence": [],
+      "proof": "Needs a real Mac runner (owner hardware): LaunchAgent load, supervisor and keychain secret boundary."
+    },
+    {
+      "id": "worker-target-darwin-x64",
+      "kind": "worker-target",
+      "target": "darwin-x64",
+      "status": "deferred",
+      "evidence": [],
+      "proof": "Needs a real Intel Mac runner (owner hardware)."
+    },
+    {
+      "id": "real-os-suspend",
+      "kind": "capability",
+      "status": "deferred",
+      "evidence": [
+        "tests/native/verify-native-worker-platforms-and-real-browser-authentication_test.ts"
+      ],
+      "proof": "Sleep is modelled with the cgroup freezer (systemctl freeze/thaw); a real host suspend and resume needs owner hardware."
+    },
+    {
+      "id": "macos-supervisor-secret-boundary",
+      "kind": "capability",
+      "status": "deferred",
+      "evidence": [],
+      "proof": "Mac supervisor and keychain boundary need a Mac."
+    },
+    {
+      "id": "ios-job-platform-claim-rule",
+      "kind": "capability",
+      "status": "verified",
+      "evidence": [
+        "tests/security/verify-native-worker-platforms-and-real-browser-authentication_test.ts",
+        "tests/unit/job-platform-requirement_test.ts"
+      ],
+      "proof": "AC2 claim rule: a job whose requirements.platform is macos is never claimed by a Linux host with free capacity; it stays queued with no attempt until a macOS host claims it."
+    },
+    {
+      "id": "ios-build-queue-xcode",
+      "kind": "capability",
+      "status": "deferred",
+      "evidence": [],
+      "proof": "Mac build evidence (a real iOS job built with Xcode on a Mac worker) needs a Mac (owner hardware)."
+    },
+    {
+      "id": "passkey-chromium",
+      "kind": "capability",
+      "status": "verified",
+      "evidence": [
+        "tests/browser/verify-native-worker-platforms-and-real-browser-authentication.spec.ts",
+        "tests/security/verify-native-worker-platforms-and-real-browser-authentication_test.ts"
+      ],
+      "proof": "Chromium virtual authenticator: replay, wrong origin and RP ID, cancel and TOTP step-up; API-level replay and origin rejection."
+    },
+    {
+      "id": "passkey-safari-ios",
+      "kind": "capability",
+      "status": "deferred",
+      "evidence": [],
+      "proof": "Safari and iOS passkeys need Apple hardware."
+    },
+    {
+      "id": "physical-security-key",
+      "kind": "capability",
+      "status": "deferred",
+      "evidence": [],
+      "proof": "A physical FIDO key needs a person at the machine."
+    },
+    {
+      "id": "system-browser-handoff",
+      "kind": "capability",
+      "status": "deferred",
+      "evidence": [],
+      "proof": "The desktop system-browser handoff is #77."
+    }
+  ]
+}
