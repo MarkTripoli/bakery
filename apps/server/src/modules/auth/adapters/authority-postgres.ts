@@ -2,6 +2,7 @@ import {
   type ActionAuthorityRunner,
   type ActionContext,
   type ActionDefinition,
+  ActionKind,
   TransactionIsolation,
 } from "@bakery/contracts/action-registry";
 import {
@@ -215,12 +216,16 @@ export function membershipFromRow(row: MembershipRow): MembershipAuthority {
  * Live canonical membership of any principal, or no membership. The row is
  * read `for share`, like a conversation grant: a concurrent demotion or
  * removal is ordered wholly before or after this request, so a write that
- * passed its role check never commits after the role was taken away.
+ * passed its role check never commits after the role was taken away. A query
+ * reads it without the lock (`lock: false`): it writes nothing, so there is
+ * no write to order against a demotion, and a lock would make a read-only
+ * path take a row lock and wait on concurrent role changes.
  */
 async function loadMembership(
   client: PgTransactionClient,
   principalId: PrincipalId,
   organizationId: OrganizationId,
+  lock: boolean,
 ): Promise<MembershipAuthority | null> {
   const membership = await client.query<MembershipRow>(
     `select membership.role, membership.status,
@@ -232,7 +237,7 @@ async function loadMembership(
       and custom.id = membership.custom_role_id
     where membership.principal_id = $1
       and membership.organization_id = $2
-    for share of membership`,
+    ${lock ? "for share of membership" : ""}`,
     [principalId, organizationId],
   );
   const row = membership.rows[0];
@@ -314,11 +319,13 @@ async function resolveOrganizationActorForSubject(
   client: PgTransactionClient,
   subject: AuthenticatedSubject,
   organizationId: OrganizationId,
+  lockMembership = true,
 ): Promise<OrganizationActor> {
   const membership = await loadMembership(
     client,
     subject.principalId,
     organizationId,
+    lockMembership,
   );
   if (membership?.status === MembershipStatus.Inactive) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -785,12 +792,14 @@ export async function resolveOrganizationActor(
   transaction: PgTransactionClient,
   principalId: PrincipalId,
   organizationId: OrganizationId,
+  options: { lockMembership?: boolean } = {},
 ): Promise<OrganizationActor> {
   const subject = await reloadSubject(transaction, principalId);
   return await resolveOrganizationActorForSubject(
     transaction,
     subject,
     organizationId,
+    options.lockMembership ?? true,
   );
 }
 
@@ -931,6 +940,9 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
               transaction,
               claimedSubject.principalId,
               organizationId,
+              // Only a command writes, so only a command holds the membership
+              // row against a concurrent demotion (#48).
+              { lockMembership: action.policy.type === ActionKind.Command },
             );
             const actor = token === undefined
               ? resolved
