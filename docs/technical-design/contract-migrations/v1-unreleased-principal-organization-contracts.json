@@ -1,14 +1,44 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "547ccc62b40c98376db5f5ef44238a8d23c96495",
-    "931df69723f15304dce34cf1521d7555e75e8c22"
+    "9422f56a8b751ca4a57edf8c02149606e8da529a"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:410873c344d34c4871c225fa82e132a5134f68d02f15c29bd41b15d58afb1efd",
-  "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 931df69723f15304dce34cf1521d7555e75e8c22: installationStatus gains a required updatePaused beside restoreHeld. Main's own approval is kept unchanged below, after this PR's previous one.",
+  "targetCompatibilityDigest": "sha256:70103759445477b4a67ba14765c615aee4392117d2e9f71ff535e66d6dc8a6f9",
+  "reason": "#59 slice 3 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 9422f56a8b751ca4a57edf8c02149606e8da529a: InstallationSettings (the administrator's settings read) gains a required updateFailurePolicy, go_back or ask, and the settings update gains it as optional; installationStatus gains a required release; the update history adds three installation administrator reads and one dismiss. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "46f1ca889f9500aec2e8f992d6de4847929427e7"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:74cd9dbc5efe4ab6e8ddf44bd016fa24bcc95b07c43255cccde24f19183f763f",
+      "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 46f1ca889f9500aec2e8f992d6de4847929427e7: link codes and link requests on worker enrollment; link requests accept only linux or macos as os, and machine names, host names and architectures on the link and registration inputs refuse the control, separator, zero-width, text-direction, byte-order-mark and tag characters the link command refuses. The approval it displaces is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "bab18ab7ded93a5ea4b5ca7ebde825cee1971226"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:503059407be95022ac2cbf30a6e2560f71d4c1cf358494228b80ac079b5b5561",
+      "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main bab18ab7ded93a5ea4b5ca7ebde825cee1971226: link codes and link requests on worker enrollment; link requests accept only linux or macos as os, and machine names, host names and architectures on the link and registration inputs refuse control characters. Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "547ccc62b40c98376db5f5ef44238a8d23c96495",
+        "931df69723f15304dce34cf1521d7555e75e8c22"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:410873c344d34c4871c225fa82e132a5134f68d02f15c29bd41b15d58afb1efd",
+      "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 931df69723f15304dce34cf1521d7555e75e8c22: installationStatus gains a required updatePaused beside restoreHeld. Main's own approval is kept unchanged below, after this PR's previous one."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
