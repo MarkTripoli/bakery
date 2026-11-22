@@ -1946,6 +1946,113 @@ test("a canceled run shows its canceled terminal row on top and says when on the
   await expect(page.getByText(/^Canceled .+\.$/)).toBeVisible();
 });
 
+/**
+ * The reads around the run section (conversation, plan, delivery) answer
+ * empty pages, so a still of the run section shows no unrelated error panel.
+ */
+async function quietTaskReads(page: Page) {
+  for (
+    const pattern of [
+      "**/v1/runs/*/checks*",
+      "**/v1/runs/*/reviews*",
+      "**/v1/runs/*/delivery-decisions*",
+      "**/v1/pull-requests?*",
+      "**/v1/merge-attempts?*",
+      "**/v1/merge-entries?*",
+      "**/v1/approvals?*",
+      "**/v1/questions?*",
+      "**/v1/plan-revisions?*",
+      "**/v1/conversations/*/messages*",
+      "**/v1/conversations/*/turns*",
+      "**/v1/conversations/*/participants*",
+    ]
+  ) {
+    await page.route(
+      pattern,
+      (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+    );
+  }
+}
+
+/** What the server lets this person do to the run; the rest is not listed. */
+const allowing = (...allowed: string[]) => ({
+  runId,
+  actions: ["pause", "resume", "cancel", "interrupt"].map((action) => ({
+    action,
+    canRequest: allowed.includes(action),
+    reason: allowed.includes(action) ? "allowed" : "no_active_attempt",
+  })),
+});
+
+test("still: the run line while it works, with the Run actions menu open", async ({ page }) => {
+  await mockSession(page, {
+    runStatus: "running",
+    steps: [
+      stepOf("brief", "completed"),
+      stepOf("implement", "running", { finishedAt: null }),
+    ],
+    capabilities: allowing("pause", "interrupt", "cancel"),
+  });
+  await quietTaskReads(page);
+  await page.goto(`/tasks/${id}`);
+  await expect(page.getByText(/^Started /)).toBeVisible();
+  await openRunActions(page);
+  // Only what the server allows is listed, and Resume is not a menu entry.
+  await expect(runAction(page, "Pause run")).toBeVisible();
+  await expect(runAction(page, "Interrupt the agent")).toBeVisible();
+  await expect(runAction(page, "Cancel run")).toBeVisible();
+  await expect(runAction(page, "Resume run")).toHaveCount(0);
+  await still(page, "run-line-running-menu");
+});
+
+test("still: the run line when it is paused, with Resume run as the one button", async ({ page }) => {
+  await mockSession(page, {
+    runStatus: "paused",
+    steps: [
+      stepOf("brief", "completed"),
+      stepOf("implement", "running", { finishedAt: null }),
+    ],
+    capabilities: allowing("resume", "cancel"),
+  });
+  await quietTaskReads(page);
+  await page.goto(`/tasks/${id}`);
+  await expect(page.getByText("Nothing runs until it is resumed."))
+    .toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume run", exact: true }))
+    .toBeVisible();
+  await still(page, "run-line-paused");
+});
+
+test("still: the run line once it finished, with its steps folded", async ({ page }) => {
+  await mockSession(page, {
+    runStatus: "completed",
+    finishedAt: "2026-01-01T00:01:00.000Z",
+    steps: [stepOf("brief", "completed"), stepOf("implement", "completed")],
+  });
+  await quietTaskReads(page);
+  await page.goto(`/tasks/${id}`);
+  await expect(page.getByText("2 steps in 59 s", { exact: true }))
+    .toBeVisible();
+  await expect(runActionsTrigger(page)).toHaveCount(0);
+  await still(page, "run-line-finished");
+});
+
+test("still: the run line after a failure, with the reason on the failed step", async ({ page }) => {
+  await mockSession(page, {
+    runStatus: "failed",
+    finishedAt: "2026-01-01T00:01:00.000Z",
+    steps: [
+      stepOf("brief", "completed"),
+      stepOf("implement", "failed", { error: harnessFault }),
+    ],
+  });
+  await quietTaskReads(page);
+  await page.goto(`/tasks/${id}`);
+  await expect(page.getByText("Send a message to try again.")).toBeVisible();
+  await expect(runActionsTrigger(page)).toHaveCount(0);
+  await still(page, "run-line-failed");
+});
+
 test("cancel losing to completion with ALREADY_TERMINAL renders the server winner", async ({ page }) => {
   let winner = "running";
   let posts = 0;

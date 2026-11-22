@@ -568,7 +568,9 @@ export function TaskRunSection(
         </>
       }
       timeline={stepEvents === null ? null : (
-        <>
+        // One compact group: the always-mounted (usually empty) status region
+        // and the list share a tight gap instead of each taking a full one.
+        <UI.Stack gap="compact">
           <UI.RunTimeline
             {...timelineProps}
             events={folds ? stepEvents.slice(0, 3) : stepEvents}
@@ -610,7 +612,7 @@ export function TaskRunSection(
               }}
             />
           )}
-        </>
+        </UI.Stack>
       )}
       details={validRun && run.data
         ? (
