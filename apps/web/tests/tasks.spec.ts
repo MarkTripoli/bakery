@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { createHash } from "node:crypto";
 import {
   mockAuthenticatedSession,
   mockUserPreferences,
@@ -8,6 +9,7 @@ import { revealShellNavigation } from "./helpers/shell-navigation.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
 import { still } from "./helpers/stills.ts";
+import { NOT_PROBED } from "./helpers/artifact-page-fixture.ts";
 
 registerPageHealth(test);
 
@@ -19,10 +21,11 @@ registerPageHealth(test);
  * closed.
  */
 async function openFilter(page: Page, name: "Search" | "All applications") {
-  // Once a term is applied the Search trigger reads "Search: <term>".
+  // On a phone the Search trigger is named "Search"; once a term is applied it
+  // is named "Search filter" and holds "Search: <term>".
   const trigger = page.getByRole(
     "button",
-    name === "Search" ? { name: /^Search(: .*)?$/ } : { name, exact: true },
+    name === "Search" ? { name: /^Search( filter)?$/ } : { name, exact: true },
   );
   if (await trigger.getAttribute("aria-expanded") !== "true") {
     await trigger.click();
@@ -478,8 +481,10 @@ test("on a phone an applied search shows the icon and the term on one row, with 
       await dismissFilters(page);
       // The button's name is "Search: <term>"; what is drawn is the search icon
       // and the term, which shrinks (ellipsis) only when it is itself too long.
-      const trigger = searchButton(`Search: ${term}`);
+      const trigger = searchButton("Search filter");
       await expect(trigger).toBeVisible();
+      // The button says which term it holds, to a screen reader as well as to the eye.
+      await expect(trigger).toContainText(`Search: ${term}`);
       const drawn = trigger.locator('[data-ui-component="dataText"]');
       await expect(drawn).toHaveText(term);
       if (term === terms[0]) {
@@ -2059,6 +2064,33 @@ const artifactVersion = (index: number, mediaType = "text/markdown") => ({
   version: 1,
 });
 
+/** The bytes of one version of the brief; the digest and size below describe these exact bytes. */
+const briefText = (index: number, mediaType?: string) =>
+  mediaType === "application/json"
+    ? JSON.stringify(
+      {
+        schema: "bakery.task-brief/v1",
+        title: `Brief v${index + 1}`,
+        description: "<script>alert(1)</script>",
+      },
+      null,
+      2,
+    )
+    : `# Brief v${index + 1}\n<script>alert(1)</script>`;
+const briefDigest = (index: number, mediaType?: string) =>
+  createHash("sha256").update(briefText(index, mediaType)).digest("hex");
+const briefSize = (index: number, mediaType?: string) =>
+  new TextEncoder().encode(briefText(index, mediaType)).byteLength;
+/**
+ * A version whose record matches its bytes: the preview reads the bytes from
+ * /content and refuses any whose digest or length differs from the record.
+ */
+const briefVersion = (index: number, mediaType = "text/markdown") => ({
+  ...artifactVersion(index, mediaType),
+  sizeBytes: briefSize(index, mediaType),
+  sha256: briefDigest(index, mediaType),
+});
+
 async function mockArtifact(
   page: Page,
   options: { mediaType?: string; hasMore?: boolean } = {},
@@ -2078,34 +2110,47 @@ async function mockArtifact(
       route.fulfill({
         json: {
           items: [
-            artifactVersion(0, options.mediaType),
-            artifactVersion(1, options.mediaType),
+            briefVersion(0, options.mediaType),
+            briefVersion(1, options.mediaType),
           ],
           nextCursor: null,
         },
       }),
   );
   const extracts: string[] = [];
+  const contents: string[] = [];
+  // Nobody has measured the bytes: the preview falls back to the declared media type.
+  await page.route(
+    "**/v1/artifact-versions/*/probe",
+    (route) => route.fulfill({ json: NOT_PROBED }),
+  );
+  // The bytes the preview shows, with the headers its digest check reads.
+  await page.route("**/v1/artifact-versions/*/content", (route) => {
+    const versionId =
+      route.request().url().match(/artifact-versions\/([^/]+)/)![1];
+    contents.push(versionId);
+    const index = versionIds.indexOf(versionId);
+    return route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": options.mediaType ?? "text/markdown",
+        "content-length": String(briefSize(index, options.mediaType)),
+        "content-disposition": 'attachment; filename="brief.md"',
+        etag: `"${briefDigest(index, options.mediaType)}"`,
+      },
+      body: briefText(index, options.mediaType),
+    });
+  });
   await page.route("**/v1/artifact-versions/*/extract*", (route) => {
     const versionId =
       route.request().url().match(/artifact-versions\/([^/]+)/)![1];
     extracts.push(versionId);
     const index = versionIds.indexOf(versionId);
-    const text = options.mediaType === "application/json"
-      ? JSON.stringify(
-        {
-          schema: "bakery.task-brief/v1",
-          title: `Brief v${index + 1}`,
-          description: "<script>alert(1)</script>",
-        },
-        null,
-        2,
-      )
-      : `# Brief v${index + 1}\n<script>alert(1)</script>`;
+    const text = briefText(index, options.mediaType);
     return route.fulfill({
       json: {
         versionId,
-        sha256: digest(index === 0 ? "a" : "b"),
+        sha256: briefDigest(index, options.mediaType),
         mediaType: options.mediaType ?? "text/markdown",
         startByte: 0,
         endByteExclusive: new TextEncoder().encode(text).byteLength,
@@ -2114,13 +2159,13 @@ async function mockArtifact(
       },
     });
   });
-  return extracts;
+  return { extracts, contents };
 }
 
 test(
   "the artifact pane previews the current version as inert text with a safe link",
   async ({ page }) => {
-    const extracts = await mockArtifact(page);
+    const { extracts } = await mockArtifact(page);
     await page.goto(`/tasks/${id}`);
     const pane = page.getByRole("complementary", {
       name: "Artifact",
@@ -2132,14 +2177,14 @@ test(
     const versions = pane.getByRole("combobox", { name: "Artifact version" });
     await expect(versions).toHaveValue(versionIds[1]);
     const preview = pane.getByRole("region", { name: "Preview" });
-    await expect(preview).toContainText("# Brief v2");
+    // The markdown is drawn as a document: the heading reads "Brief v2".
+    await expect(preview).toContainText("Brief v2");
     // The extract is text, never markup.
     await expect(preview).toContainText("<script>alert(1)</script>");
     await expect(preview.locator("script")).toHaveCount(0);
-    await expect(preview.locator("pre")).toHaveAttribute("dir", "ltr");
     // The facts sit under a closed Details control, in short form.
     await expect(pane).toContainText("text/markdown");
-    await expectAsideFacts(pane, digest("b"), "121 bytes");
+    await expectAsideFacts(pane, briefDigest(1), `${briefSize(1)} B`);
     const open = pane.getByRole("link", { name: "Open", exact: true });
     await expect(open).toHaveAttribute(
       "href",
@@ -2149,9 +2194,9 @@ test(
     expect(box!.height).toBeGreaterThanOrEqual(44);
     expect(box!.width).toBeGreaterThanOrEqual(44);
     await versions.selectOption(versionIds[0]);
-    await expect(preview).toContainText("# Brief v1");
+    await expect(preview).toContainText("Brief v1");
     await expect(pane.getByTestId("artifact-fingerprint-row")).toContainText(
-      digest("a").slice(0, 12),
+      briefDigest(0).slice(0, 12),
     );
     expect(extracts).toContain(versionIds[0]);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -2172,25 +2217,26 @@ test("a truncated extract says so", async ({ page }) => {
     .toBeVisible();
 });
 
-test("an unsupported media type says preview unavailable and never asks for an extract", async ({ page }) => {
-  const extractRequests: string[] = [];
+test("an unsupported media type says no preview and never asks for the bytes", async ({ page }) => {
+  const asked: string[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("/extract")) extractRequests.push(request.url());
+    if (/\/(extract|content)(\?|$)/.test(request.url())) {
+      asked.push(request.url());
+    }
   });
-  await mockArtifact(page, { mediaType: "image/png" });
+  await mockArtifact(page, { mediaType: "application/zip" });
   await page.goto(`/tasks/${id}`);
   const pane = page.getByRole("complementary", {
     name: "Artifact",
     exact: true,
   });
-  await expect(pane.getByRole("status")).toContainText(
-    "Preview unavailable for this media type.",
+  // The refusal is the preview's own content: no bytes are shown or asked for.
+  await expect(pane.getByRole("region", { name: "Preview" })).toContainText(
+    "No preview for this kind of file.",
   );
-  await expect(pane.getByRole("region", { name: "Preview" }))
-    .toHaveCount(0);
   await expect(pane.getByRole("link", { name: "Open", exact: true }))
     .toBeVisible();
-  expect(extractRequests).toEqual([]);
+  expect(asked).toEqual([]);
 });
 
 test("a task with no artifact shows the empty pane", async ({ page }) => {
@@ -2640,7 +2686,7 @@ for (const locale of ["en", "en-XA", "ar-XB"]) {
     await expect(page.locator('[data-ui-component="runTimeline"]'))
       .toBeVisible();
     const pane = page.locator('[data-ui-component="artifactPane"]');
-    await expectAsideFacts(pane, digest("b"));
+    await expectAsideFacts(pane, briefDigest(1, "application/json"));
     await expect(pane.locator("pre")).toHaveAttribute("dir", "ltr");
     await expect(pane.locator("pre")).toHaveCSS("direction", "ltr");
     expect(
