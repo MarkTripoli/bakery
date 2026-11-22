@@ -3503,10 +3503,12 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "LEASE_EXPIRED",
-        "LEASE_FENCED"
+        "LEASE_FENCED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Skills",
@@ -3528,10 +3530,12 @@
         "LEASE_FENCED",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "SKILL_CONTENT_INTEGRITY_FAILED"
+        "SKILL_CONTENT_INTEGRITY_FAILED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Skills",
@@ -15098,6 +15102,8 @@
     "skills.takeSourceUpdate",
     "skillDraftFiles.rename",
     "skillVersions.list",
+    "skillVersions.get",
+    "skillFiles.get",
     "library.search",
     "pluginPackages.list",
     "pluginPackages.create",
@@ -24294,6 +24300,18 @@
                 "type": "string",
                 "pattern": "^(?:0|[1-9][0-9]*)$"
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -24378,6 +24396,18 @@
                 "description": "Current fence value carried in the X-Bakery-Fence header for the requesting worker's attempt; a stale or mismatched fence rejects the read as belonging to a superseded attempt.",
                 "type": "string",
                 "pattern": "^(?:0|[1-9][0-9]*)$"
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -262941,6 +262971,12 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
             },
+            "revision": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+            },
             "workflowId": {
               "type": "string",
               "format": "uuid",
@@ -262980,6 +263016,7 @@
             "id",
             "skillId",
             "skillVersionId",
+            "revision",
             "workflowId",
             "workflowName",
             "stepPath",
@@ -263947,6 +263984,12 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
                   },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+                  },
                   "workflowId": {
                     "type": "string",
                     "format": "uuid",
@@ -263986,6 +264029,7 @@
                   "id",
                   "skillId",
                   "skillVersionId",
+                  "revision",
                   "workflowId",
                   "workflowName",
                   "stepPath",
@@ -280339,7 +280383,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:1c31b3b9547cb2fb1e3f9875582ab60ce77fb98e2cb6a08a70880c90412ab2d8",
+  "compatibilityDigest": "sha256:b8cb3600d0baadf38dedc62a2f370eecea808356d7ff4aaf53eff229faa1fe0e",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -492131,6 +492175,12 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
         },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+        },
         "workflowId": {
           "type": "string",
           "format": "uuid",
@@ -492170,6 +492220,7 @@
         "id",
         "skillId",
         "skillVersionId",
+        "revision",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -493143,6 +493194,12 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
               },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -493182,6 +493239,7 @@
               "id",
               "skillId",
               "skillVersionId",
+              "revision",
               "workflowId",
               "workflowName",
               "stepPath",

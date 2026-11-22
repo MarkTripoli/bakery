@@ -34,7 +34,10 @@ import {
   saveSkillDraftFile,
   updateSkillDraft,
 } from "./skill-drafts.ts";
-import type { SkillFileStoreOperations } from "./storage.ts";
+import {
+  SkillFileStoreError,
+  type SkillFileStoreOperations,
+} from "./storage.ts";
 import { listSkillUsage } from "./skill-usage.ts";
 import {
   type ArchiveRevisionContext,
@@ -710,6 +713,55 @@ export async function admitReviewedSkillUpdate(
   return run;
 }
 
+/** How long a store may take to answer one file before the read is a timeout. */
+const READ_TIMEOUT_MILLISECONDS = 10_000;
+
+/**
+ * The store's answer, bounded and named.
+ *
+ * Bytes that do not match the published digest are an integrity failure, not a
+ * quiet difference; a store that cannot answer is unavailable; a read that
+ * outlives the request is a timeout. The worker's pinned read maps these the
+ * same way, so a person and a worker see the same verdict for the same fault.
+ */
+async function readStoredFile(
+  store: SkillFileStoreOperations,
+  file: { object_key: string; sha256: string; size_bytes: number },
+  signal: AbortSignal,
+): Promise<Uint8Array> {
+  if (signal.aborted) {
+    throw new StandardError({ code: "DEPENDENCY_TIMEOUT" });
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort!: () => void;
+  const deadline = new Promise<never>((_, reject) => {
+    abort = () => reject(new StandardError({ code: "DEPENDENCY_TIMEOUT" }));
+    signal.addEventListener("abort", abort, { once: true });
+    timer = setTimeout(
+      () => reject(new StandardError({ code: "DEPENDENCY_TIMEOUT" })),
+      READ_TIMEOUT_MILLISECONDS,
+    );
+  });
+  try {
+    return await Promise.race([
+      store.read(file.object_key, file.sha256, file.size_bytes),
+      deadline,
+    ]);
+  } catch (error) {
+    if (error instanceof StandardError) throw error;
+    if (
+      error instanceof SkillFileStoreError &&
+      error.code === "SKILL_CONTENT_INTEGRITY_FAILED"
+    ) {
+      throw new StandardError({ code: "SKILL_CONTENT_INTEGRITY_FAILED" });
+    }
+    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    signal.removeEventListener("abort", abort);
+  }
+}
+
 export function createCatalogHandlers(
   secret: string,
   options: Readonly<{
@@ -1272,6 +1324,93 @@ export function createCatalogHandlers(
             id: last.id,
           })
           : null,
+      };
+    },
+
+    /**
+     * One version by id, for a page that already knows which version it shows.
+     *
+     * Visibility is the skill's: a version of another person's personal skill is
+     * not found, so the answer never confirms that one exists. A reserved draft
+     * is not a version yet, and the listing does not show one either.
+     */
+    async getSkillVersion(context: ActionContext) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const result = await transaction.query<SkillVersionRow>(
+        `select ${VERSION_COLUMNS}
+           from bakery.skill_versions
+          where organization_id = $1 and id = $2 and status <> 'draft'
+            and skill_id in (
+              select id from bakery.skills
+               where organization_id = $1 and ${SKILL_VISIBLE_TO("$3")}
+            )`,
+        [organizationId, idFromPath(context), principalId],
+      );
+      const row = result.rows[0];
+      if (row === undefined) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      return toSkillVersion(row);
+    },
+
+    /**
+     * One file's bytes from a published version, read back from the store.
+     *
+     * The row is the manifest's own record of the file, so the digest checked
+     * here is the digest the version was published with; a store that answers
+     * other bytes fails as an integrity error rather than serving them. The
+     * handler returns the bytes and their facts; the route turns that into the
+     * raw response the schema describes.
+     */
+    async readSkillFile(context: ActionContext, input: { path: string }) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const versionId = idFromPath(context);
+      if (options.skillFileStore === undefined) {
+        throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+      }
+      const version = await transaction.query<{ id: string }>(
+        `select version.id
+           from bakery.skill_versions as version
+           join bakery.skills as skill
+             on skill.organization_id = version.organization_id
+            and skill.id = version.skill_id
+          where version.organization_id = $1 and version.id = $2
+            and version.status <> 'draft'
+            and (skill.scope <> 'personal'
+              or skill.owner_principal_id = $3::uuid)`,
+        [organizationId, versionId, principalId],
+      );
+      if (version.rows.length === 0) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      const file = (await transaction.query<{
+        path: string;
+        media_type: string;
+        object_key: string;
+        size_bytes: number;
+        sha256: string;
+      }>(
+        `select path, media_type, object_key, size_bytes, sha256
+           from bakery.skill_files
+          where organization_id = $1 and skill_version_id = $2 and path = $3`,
+        [organizationId, versionId, input.path],
+      )).rows[0];
+      if (file === undefined) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      const content = await readStoredFile(
+        options.skillFileStore,
+        file,
+        context.signal,
+      );
+      return {
+        path: file.path,
+        contentType: file.media_type,
+        contentLength: file.size_bytes,
+        contentDigest: file.sha256,
+        content,
       };
     },
 
