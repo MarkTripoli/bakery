@@ -56,6 +56,10 @@ import {
 } from "../execution/step-notes.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
 import {
+  type DeliveryStepRunner,
+  isDeliveryStepAction,
+} from "../delivery/delivery-steps.ts";
+import {
   nextPlanStep,
   planActionAgentsFromSnapshot,
   planInputsFromSnapshot,
@@ -453,11 +457,21 @@ function stateFromRow(
     });
   }
   const terminal = isTerminal(row);
-  const admission = row.jobId === null ? undefined : {
-    key,
-    terminal,
-    ...(row.jobId ? { jobId: row.jobId } : {}),
-  };
+  // A delivery step has no job. While its next look is not due it reads as
+  // admitted and retryable, so the engine sleeps; once due it reads as not
+  // admitted, so the engine admits it again and the step reads its effect back.
+  const deliveryRetryAt = row.jobId === null && !terminal
+    ? deliveryRetryAtOf(row.stepDispatch)
+    : null;
+  const deliveryWaiting = deliveryRetryAt !== null &&
+    deliveryRetryAt.getTime() > Date.now();
+  const admission = row.jobId === null
+    ? (deliveryWaiting ? { key, terminal } : undefined)
+    : {
+      key,
+      terminal,
+      ...(row.jobId ? { jobId: row.jobId } : {}),
+    };
   const result = terminalResult(row);
   const attempts = Number(row.terminalAttemptCount);
   const liveAttempts = Number(row.liveAttemptCount);
@@ -468,7 +482,9 @@ function stateFromRow(
     attempts,
     liveAttempts,
     maxAttempts: persistedMaxAttempts(row, configuredMaxAttempts),
-    ...(row.availableAt && new Date(row.availableAt).getTime() > Date.now()
+    ...(deliveryWaiting && deliveryRetryAt !== null
+      ? { nextRetryAt: deliveryRetryAt }
+      : row.availableAt && new Date(row.availableAt).getTime() > Date.now()
       ? { nextRetryAt: new Date(row.availableAt) }
       : {}),
   };
@@ -1145,6 +1161,29 @@ async function completeProjectionStep(
     );
     return { key, terminal: true };
   }
+  return await finishEngineStep(
+    transaction,
+    row,
+    key,
+    action,
+    output,
+    WORKFLOW_PROJECTION_OPERATION,
+  );
+}
+
+/**
+ * Completes a step the engine settled itself, in the caller's transaction:
+ * output written, a queued run moved to running with `run.updated`, one audit
+ * entry. A step that is no longer pending is left as it is.
+ */
+async function finishEngineStep(
+  transaction: PgTransactionClient,
+  row: AdmissionStepRow,
+  key: LogicalInvocationKey,
+  action: string,
+  output: unknown,
+  operation: string,
+): Promise<AdmissionRecord> {
   const completed = await transaction.query<{ version: number }>(
     `update bakery.run_steps
         set status = 'completed', output = $3::jsonb,
@@ -1170,14 +1209,16 @@ async function completeProjectionStep(
   const audited = await appendAudit(transaction, {
     organizationId: row.organizationId,
     principalId: row.requestedBy,
-    operation: WORKFLOW_PROJECTION_OPERATION,
+    operation,
     resourceType: "run_step",
     resourceId: row.runStepId,
     requestId: `projection:${row.runStepId}`,
     traceId: originalTraceId(row),
     details: { runId: row.runId, stepKey: key.stepKey, action },
   });
-  if (audited !== 1) throw new Error("WORKFLOW_PROJECTION_AUDIT_INSERT_FAILED");
+  if (audited !== 1) {
+    throw new Error("WORKFLOW_ENGINE_STEP_AUDIT_INSERT_FAILED");
+  }
   return { key, terminal: true };
 }
 
@@ -1465,10 +1506,153 @@ async function projectRunEnd(
   });
 }
 
+/** Audit operation recorded when the engine settles a delivery step itself. */
+export const WORKFLOW_DELIVERY_STEP_OPERATION = "workflow.delivery.complete";
+
+/** How long a delivery step that is not done waits before the engine looks at it again. */
+const DELIVERY_STEP_RETRY_MS = 10_000;
+
+/** When the engine looks at a waiting delivery step again, as it recorded on the step row. */
+function deliveryRetryAtOf(dispatch: unknown): Date | null {
+  const at = jsonRecord(dispatch)?.deliveryRetryAt;
+  if (typeof at !== "string") return null;
+  const time = Date.parse(at);
+  return Number.isNaN(time) ? null : new Date(time);
+}
+
+/**
+ * Settles a delivery step (`delivery.prepare`, `delivery.deploy`,
+ * `delivery.health`) the way a projection is settled: no job, no budget. The
+ * target is called outside any transaction, between two short ones: the first
+ * decides the step is still due, the second records what the call answered.
+ * A step that is not done keeps its row pending and carries the time of its
+ * next look, so a crash anywhere in between replays into the same effect key.
+ */
+async function admitDeliveryStep(
+  database: PgDatabase,
+  runner: DeliveryStepRunner | undefined,
+  key: LogicalInvocationKey,
+  owner: EngineOwner | undefined,
+): Promise<AdmissionRecord | null> {
+  const due = await withPgTransaction(database, async (transaction) => {
+    await requireEngineOwner(transaction, key.runId, owner);
+    const row = await loadLogical(transaction, key) as AdmissionStepRow;
+    if (key.actionVersion !== row.workflowVersionId) {
+      throw new StandardError({ code: "STATE_CONFLICT" });
+    }
+    if (!carriesPlanRuntime(row.runSnapshot)) return null;
+    if (planDispatchFromRow(row.stepDispatch) === null) return null;
+    const { action, input } = actionAndInputFromSnapshot(row);
+    if (!isDeliveryStepAction(action)) return null;
+    const eligible = eligibleRunStatuses[row.runStatus] &&
+      eligibleStepStatuses[row.stepStatus] && row.cancelRequestedAt === null;
+    return { row, action, input, eligible: eligible === true };
+  });
+  if (due === null) return null;
+  if (!due.eligible) return { key, terminal: true };
+  if (runner === undefined) {
+    return await withPgTransaction(database, async (transaction) => {
+      await projectFailure(
+        transaction,
+        due.row,
+        "DELIVERY_STEP_UNAVAILABLE:Deployment steps are not configured on this server.",
+        owner,
+      );
+      return { key, terminal: true };
+    });
+  }
+  const requestedBy = due.row.requestedBy;
+  if (requestedBy === null) {
+    // A deployment and its evidence belong to a person; a run with none has no one to answer for it.
+    return await withPgTransaction(database, async (transaction) => {
+      await projectFailure(
+        transaction,
+        due.row,
+        "DELIVERY_REQUESTER_MISSING:The run has no requesting person to record the deployment under.",
+        owner,
+      );
+      return { key, terminal: true };
+    });
+  }
+  const result = await runner.run({
+    organizationId: due.row.organizationId,
+    runId: due.row.runId,
+    taskId: due.row.taskId,
+    repositoryId: due.row.runRepositoryId,
+    requestedBy,
+    traceId: originalTraceId(due.row),
+    stepKey: due.row.stepKey,
+    iteration: due.row.iteration,
+    action: due.action,
+    input: due.input,
+  });
+  return await withPgTransaction(database, async (transaction) => {
+    await requireEngineOwner(transaction, key.runId, owner);
+    const row = await loadLogical(transaction, key, true) as AdmissionStepRow;
+    // Cancelled, ended or finished meanwhile: whatever the call answered, the
+    // step is no longer ours to write.
+    if (
+      !eligibleRunStatuses[row.runStatus] ||
+      !eligibleStepStatuses[row.stepStatus] || row.cancelRequestedAt !== null
+    ) {
+      return { key, terminal: true };
+    }
+    if (result.kind === "completed") {
+      return await finishEngineStep(
+        transaction,
+        row,
+        key,
+        due.action,
+        result.output,
+        WORKFLOW_DELIVERY_STEP_OPERATION,
+      );
+    }
+    if (result.kind === "failed") {
+      await projectFailure(
+        transaction,
+        row,
+        `${result.code}:${result.message}`,
+        owner,
+      );
+      return { key, terminal: true };
+    }
+    // Not done: the row stays pending, started, with the time of the next look.
+    await transaction.query(
+      `update bakery.run_steps
+          set dispatch = dispatch || jsonb_build_object(
+                'deliveryRetryAt',
+                to_char(
+                  (clock_timestamp() + ($3::integer * interval '1 millisecond'))
+                    at time zone 'UTC',
+                  'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                )
+              ),
+              started_at = coalesce(started_at, clock_timestamp()),
+              updated_at = clock_timestamp(), version = version + 1
+        where organization_id = $1 and id = $2 and status = 'pending'`,
+      [row.organizationId, row.runStepId, DELIVERY_STEP_RETRY_MS],
+    );
+    const runUpdate = await transaction.query<{ version: number }>(
+      `update bakery.workflow_runs
+          set status = 'running', started_at = coalesce(started_at, now()),
+              updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2 and status = 'queued'
+        returning version`,
+      [row.organizationId, row.runId],
+    );
+    if (runUpdate.rows[0]) {
+      await appendRunUpdated(transaction, row, runUpdate.rows[0].version);
+    }
+    return { key, terminal: false };
+  });
+}
+
 export function createBakeryPostgresWorkflowRepository(options: {
   database: PgDatabase;
   maxAttempts: number;
   budgetPolicy?: BudgetPolicy;
+  /** Settles the delivery steps of a plan (prepare, deploy, health); none fails them with a stable code. */
+  deliverySteps?: DeliveryStepRunner;
   /** The host's view of a plan run (`$delivery`, a halt); none leaves both unresolved. */
   planHost?: PlanHostReader;
 }): BakeryPostgresWorkflowRepository {
@@ -1908,6 +2092,13 @@ export function createBakeryPostgresWorkflowRepository(options: {
     },
     async admit(key, owner) {
       assertLogicalKey(key);
+      const delivery = await admitDeliveryStep(
+        options.database,
+        options.deliverySteps,
+        key,
+        owner,
+      );
+      if (delivery !== null) return delivery;
       return await withPgTransaction(options.database, async (transaction) => {
         await lockExistingJob(transaction, key);
         const row = await loadLogical(

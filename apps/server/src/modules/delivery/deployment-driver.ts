@@ -59,6 +59,9 @@ export type DriveOutcome = Readonly<{
 /** Names the effect keys of a call. Default: the deployment's own id. */
 export type DriveScope = Readonly<{ scope?: string }>;
 
+/** Where settling an unknown deploy stops: `deploying` leaves health to its own step. */
+export type SettleOptions = DriveScope & Readonly<{ stopAt?: "deploying" }>;
+
 export type DeploymentDriver = Readonly<{
   /** Prepares, deploys and verifies a queued deployment. */
   deploy(
@@ -78,7 +81,7 @@ export type DeploymentDriver = Readonly<{
   settle(
     deploymentId: string,
     effectKey: string,
-    input?: DriveScope,
+    input?: SettleOptions,
   ): Promise<DriveOutcome>;
 }>;
 
@@ -284,7 +287,7 @@ export function createDeploymentDriver(
   async function settle(
     deploymentId: string,
     effectKey: string,
-    input?: DriveScope,
+    input?: SettleOptions,
   ): Promise<DriveOutcome> {
     const record = await ledger.read(deploymentId);
     if (record.status !== "unknown") return done(record);
@@ -306,10 +309,15 @@ export function createDeploymentDriver(
       case "queued":
       case "deploying": {
         const deploying = await move(record, "deploying");
+        if (input?.stopAt === "deploying") return done(deploying);
         return await verify(await move(deploying, "verifying"), scope);
       }
       case "healthy":
       case "degraded":
+        // A deploy step settling is not the health step: it stops at deploying.
+        if (input?.stopAt === "deploying") {
+          return done(await move(record, "deploying"));
+        }
         return await verify(await move(record, "verifying"), scope);
       case "rolling_back":
       case "rolled_back":
