@@ -1009,9 +1009,21 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0255_private_skills.sql"
       },
+      "slack_app_settings": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0283_slack_app_settings.sql"
+      },
       "slack_identity_attempts": {
         "module": "integrations",
         "migration": "apps/server/src/modules/integrations/migrations/bakery/0153_slack_identity_attempts.sql"
+      },
+      "slack_milestone_posts": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0242_slack_milestone_posts.sql"
+      },
+      "slack_request_receipts": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0281_slack_request_receipts.sql"
       },
       "ssoProvider": {
         "module": "auth",
