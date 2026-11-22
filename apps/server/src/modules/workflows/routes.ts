@@ -5,6 +5,7 @@ import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createWorkflowActionRuntime } from "./action-runtime.ts";
 import { createWorkflowsActionRegistry } from "./actions.ts";
 import { createWorkflowsHandlers } from "./postgres.ts";
+import type { SkillFileStoreOperations } from "../catalog/storage.ts";
 
 export function createWorkflowsRoutes(options: {
   database: PgDatabase;
@@ -17,6 +18,8 @@ export function createWorkflowsRoutes(options: {
   tokenSession?: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  /** Where skill files live; needed to carry skills in a package. */
+  skillFileStore?: SkillFileStoreOperations;
 }) {
   // Startup proof that the workflow action runtime matches the registry.
   createWorkflowActionRuntime();
@@ -39,7 +42,9 @@ export function createWorkflowsRoutes(options: {
     createApiRouter({
       registry: createWorkflowsActionRegistry(
         options.database,
-        createWorkflowsHandlers(options.cursorSecret),
+        createWorkflowsHandlers(options.cursorSecret, {
+          skillFileStore: options.skillFileStore,
+        }),
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

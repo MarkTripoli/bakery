@@ -34709,24 +34709,46 @@ export const clientManifest = {
           "description": "Display name of the package, at most 120 characters, written into the package and shown wherever an import of it is listed. PackageExport.name must contain at least 1 characters. PackageExport.name must contain at most 120 characters."
         },
         "workflowIds": {
-          "description": "Workflow definitions to export, at most 50 across this list and artifactKindKeys. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots. PackageExport.workflowIds must contain at most 50 items.",
+          "description": "Workflow definitions to export, at most 50 across all four lists. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots. PackageExport.workflowIds must contain at most 50 items.",
           "maxItems": 50,
           "type": "array",
           "items": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Workflow definitions to export, at most 50 across this list and artifactKindKeys. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots. Each array item follows this format."
+            "description": "Workflow definitions to export, at most 50 across all four lists. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots. Each array item follows this format."
           }
         },
         "artifactKindKeys": {
-          "description": "Keys of the artifact kinds to export, at most 50 across this list and workflowIds. The latest published version of each kind travels. PackageExport.artifactKindKeys must contain at most 50 items.",
+          "description": "Keys of the artifact kinds to export, at most 50 across all four lists. The latest published version of each kind travels. PackageExport.artifactKindKeys must contain at most 50 items.",
           "maxItems": 50,
           "type": "array",
           "items": {
             "type": "string",
             "maxLength": 65536,
-            "description": "Keys of the artifact kinds to export, at most 50 across this list and workflowIds. The latest published version of each kind travels. Each array item follows this format."
+            "description": "Keys of the artifact kinds to export, at most 50 across all four lists. The latest published version of each kind travels. Each array item follows this format."
+          }
+        },
+        "skillIds": {
+          "description": "Organization skills to export, at most 50 across all four lists. Each must have a published active version; its manifest and files travel. A personal or global skill is refused: neither belongs to the organization's library. PackageExport.skillIds must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Organization skills to export, at most 50 across all four lists. Each must have a published active version; its manifest and files travel. A personal or global skill is refused: neither belongs to the organization's library. Each array item follows this format."
+          }
+        },
+        "agentIds": {
+          "description": "Agents to export, at most 50 across all four lists. Each must have an active version. Billing never travels, and every skill an agent binds must be in skillIds. PackageExport.agentIds must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Agents to export, at most 50 across all four lists. Each must have an active version. Billing never travels, and every skill an agent binds must be in skillIds. Each array item follows this format."
           }
         }
       },
@@ -34734,7 +34756,7 @@ export const clientManifest = {
         "name"
       ],
       "additionalProperties": false,
-      "description": "Names the workflows and artifact kinds to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
+      "description": "Names the workflows, artifact kinds, skills and agents to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
     },
     "PackageImport": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -122831,14 +122853,59 @@ export const clientManifest = {
             "description": "One entry per imported item, in package order. Each array item follows this format."
           },
           "description": "One entry per imported item, in package order. PackageImportResult.imported must contain at most 50 items."
+        },
+        "openBindings": {
+          "maxItems": 512,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent. Each array item follows this format."
+          },
+          "description": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent. PackageImportResult.openBindings must contain at most 512 items."
         }
       },
       "required": [
         "packageDigest",
-        "imported"
+        "imported",
+        "openBindings"
       ],
       "additionalProperties": false,
-      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of the draft definition or kind version it became.",
+      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of what it became, plus the bindings still left to make.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -122940,6 +123007,117 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }

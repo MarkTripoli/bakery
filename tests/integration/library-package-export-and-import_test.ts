@@ -1,4 +1,6 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
+import { buildPackage } from "../../packages/contracts/src/library-packages.ts";
+import { canonicalJson } from "../../packages/contracts/src/workflow-compiler/canonical.ts";
 import {
   readTestDatabaseConfig,
   readTestDatabaseResetOptions,
@@ -168,8 +170,8 @@ Deno.test("a package leaves one organization and arrives whole in another, with 
       200,
     );
     assertEquals(pkg.items.map((item) => `${item.kind}:${item.key}`), [
-      "workflow:triage",
       "artifactKind:brief",
+      "workflow:triage",
     ]);
 
     // A tampered item is refused and nothing is written.
@@ -235,5 +237,214 @@ Deno.test("a package leaves one organization and arrives whole in another, with 
     );
   } finally {
     await fixture.close();
+  }
+});
+
+async function sha256(value: string | Uint8Array): Promise<string> {
+  const bytes = typeof value === "string"
+    ? new TextEncoder().encode(value)
+    : value;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new Uint8Array(bytes).buffer as ArrayBuffer,
+  );
+  return Array.from(
+    new Uint8Array(digest),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+Deno.test("skills and agents travel, workflows are rebound to the new ids, and nothing from the source leaks", async () => {
+  await resetDatabase();
+  const root = await Deno.makeTempDir({ prefix: "bakery-426-skill-store-" });
+  const fixture = await openAuthFixture({
+    databaseConfig,
+    skillFileRoot: root,
+  });
+  const owner = fixture.database;
+  try {
+    const from = await seedOrganization(fixture, "from");
+    const to = await seedOrganization(fixture, "to");
+
+    // A published organization skill with one file.
+    const skill = await from.json<{ id: string }>(
+      await from.send("POST", "/v1/skills", {
+        slug: "research",
+        name: "Research",
+      }),
+      201,
+    );
+    const body = new TextEncoder().encode("# Research\nAsk first.\n");
+    const manifest = {
+      schemaVersion: 1,
+      license: "MIT",
+      entryPath: "SKILL.md",
+      files: [{
+        path: "SKILL.md",
+        mediaType: "text/markdown",
+        sizeBytes: body.byteLength,
+        sha256: await sha256(body),
+        isExecutable: false,
+      }],
+    };
+    const published = await from.json<{ id: string }>(
+      await from.send("POST", `/v1/skills/${skill.id}/versions`, {
+        revision: 1,
+        digest: await sha256(canonicalJson(manifest)),
+        entryPath: "SKILL.md",
+        manifest,
+        files: [{
+          path: "SKILL.md",
+          mediaType: "text/markdown",
+          isExecutable: false,
+          contentBase64: btoa(String.fromCharCode(...body)),
+        }],
+      }),
+      201,
+    );
+
+    // An agent that binds that skill.
+    const agent = await from.json<{ id: string }>(
+      await from.send("POST", "/v1/agents", {
+        slug: "reviewer",
+        name: "Reviewer",
+        description: "Reviews.",
+      }),
+      201,
+    );
+    const config = {
+      harness: "claude_code",
+      allowedCapabilities: [],
+      skillBindings: { research: published.id },
+    };
+    const agentVersion = await from.json<{ id: string }>(
+      await from.send("POST", `/v1/agents/${agent.id}/versions`, {
+        revision: 1,
+        config,
+        digest: await sha256(canonicalJson(config)),
+      }),
+      201,
+    );
+    await from.json(
+      await from.send(
+        "POST",
+        `/v1/agents/${agent.id}/activations`,
+        { versionId: agentVersion.id },
+        { "If-Match": '"1"' },
+      ),
+      200,
+    );
+
+    // An agent that binds a skill the package leaves out is refused, naming it.
+    const missing = await from.send("POST", "/v1/library-packages/export", {
+      name: "Incomplete",
+      agentIds: [agent.id],
+    });
+    assertEquals(missing.status, 422);
+    assert((await missing.text()).includes("agent_skill_not_in_package"));
+
+    const exported = await from.json<{
+      items: { kind: string; key: string; data: unknown }[];
+    }>(
+      await from.send("POST", "/v1/library-packages/export", {
+        name: "Review kit",
+        skillIds: [skill.id],
+        agentIds: [agent.id],
+      }),
+      200,
+    );
+    assertEquals(
+      exported.items.map((item) => `${item.kind}:${item.key}`).sort(),
+      ["agent:reviewer", "skill:research"],
+    );
+    const text = JSON.stringify(exported);
+    for (
+      const id of [
+        skill.id,
+        published.id,
+        agent.id,
+        agentVersion.id,
+        from.organizationId,
+      ]
+    ) {
+      assertEquals(text.includes(id), false, `${id} must not leave`);
+    }
+
+    // The package gains a workflow that names both by package reference and
+    // one skill from nowhere, as an export of such a workflow would write it.
+    const workflowDefinition = {
+      kind: "fixed",
+      steps: [{
+        id: "first",
+        uses: "workflow.noop",
+        skills: ["package:skill/research"],
+        agentVersionId: "package:agent/reviewer",
+      }],
+    };
+    const pkg = await buildPackage("Review kit", [
+      ...exported.items.map((item) => ({ ...item }) as never),
+      {
+        kind: "workflow",
+        key: "triage",
+        data: {
+          slug: "triage",
+          name: "Triage",
+          description: "Sort.",
+          definition: canonicalJson(workflowDefinition),
+          openBindings: [{
+            path: "/steps/1/skills/0",
+            kind: "skill",
+            name: "House rules",
+          }],
+        },
+      },
+    ]);
+    const result = await to.json<{
+      imported: { kind: string; key: string; resultingId: string }[];
+      openBindings: { key: string; kind: string; name: string }[];
+    }>(
+      await to.send("POST", "/v1/library-packages/import", { package: pkg }),
+      201,
+    );
+    assertEquals(result.imported.length, 3);
+
+    const newSkill =
+      (await owner`select id, active_version_id from bakery.skills where organization_id = ${to.organizationId} and slug = 'research'`)[
+        0
+      ]!;
+    assert(newSkill.active_version_id, "the skill arrives published");
+    assert(
+      newSkill.id !== skill.id && newSkill.active_version_id !== published.id,
+    );
+    const newAgent =
+      (await owner`select agent.id, version.id as version_id, version.config from bakery.agent_definitions agent join bakery.agent_versions version on version.agent_id = agent.id where agent.organization_id = ${to.organizationId}`)[
+        0
+      ]!;
+    assertEquals(
+      (newAgent.config as { skillBindings: Record<string, string> })
+        .skillBindings.research,
+      newSkill.active_version_id,
+    );
+    assertEquals(
+      "billing" in (newAgent.config as Record<string, unknown>),
+      false,
+      "billing never travels",
+    );
+    const draft =
+      (await owner`select draft.definition from bakery.workflow_drafts draft join bakery.workflow_definitions definition on definition.id = draft.workflow_id where definition.organization_id = ${to.organizationId}`)[
+        0
+      ]!;
+    const step = (draft.definition as {
+      steps: { skills: string[]; agentVersionId: string }[];
+    }).steps[0]!;
+    assertEquals(step.skills, [newSkill.active_version_id]);
+    assertEquals(step.agentVersionId, newAgent.version_id);
+    assertEquals(
+      result.openBindings.map((b) => `${b.key}:${b.kind}:${b.name}`).sort(),
+      ["reviewer:billing:Reviewer", "triage:skill:House rules"],
+    );
+  } finally {
+    await fixture.close();
+    await Deno.remove(root, { recursive: true });
   }
 });

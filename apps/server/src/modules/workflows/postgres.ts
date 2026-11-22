@@ -43,7 +43,7 @@ import {
   validateWorkflowSourceYaml,
   type WorkflowValidationIssue,
 } from "./validation.ts";
-import { exportPackage, importPackage } from "./packages.ts";
+import { createPackageHandlers, type PackageDependencies } from "./packages.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
 import { readStarts } from "./start-read.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
@@ -1632,15 +1632,17 @@ export async function validateWorkflow(
 
 export function createWorkflowsHandlers(
   secret: string,
+  packageDependencies: PackageDependencies = {},
 ): WorkflowsActionHandlers {
+  const packages = createPackageHandlers(packageDependencies);
   return {
     listWorkflows: createWorkflowDefinitionsListHandler(secret),
     getWorkflow: getWorkflowDefinition,
     createWorkflow: createWorkflowDefinition,
     updateWorkflow: updateWorkflowDefinition,
     copyWorkflow: copyWorkflowDefinition,
-    exportPackage: exportPackage as never,
-    importPackage: importPackage as never,
+    exportPackage: packages.exportPackage as never,
+    importPackage: packages.importPackage as never,
     listVersions: createWorkflowVersionsListHandler(secret),
     getVersion: getWorkflowVersion,
     getVersionSkills: readWorkflowVersionSkills,

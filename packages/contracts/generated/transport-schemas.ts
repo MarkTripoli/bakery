@@ -15170,7 +15170,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 50
           },
-          "description": "Workflow definitions to export, at most 50 across this list and artifactKindKeys. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots."
+          "description": "Workflow definitions to export, at most 50 across all four lists. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots."
         },
         {
           "name": "artifactKindKeys",
@@ -15179,10 +15179,28 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 50
           },
-          "description": "Keys of the artifact kinds to export, at most 50 across this list and workflowIds. The latest published version of each kind travels."
+          "description": "Keys of the artifact kinds to export, at most 50 across all four lists. The latest published version of each kind travels."
+        },
+        {
+          "name": "skillIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Organization skills to export, at most 50 across all four lists. Each must have a published active version; its manifest and files travel. A personal or global skill is refused: neither belongs to the organization's library."
+        },
+        {
+          "name": "agentIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Agents to export, at most 50 across all four lists. Each must have an active version. Billing never travels, and every skill an agent binds must be in skillIds."
         }
       ],
-      "description": "Names the workflows and artifact kinds to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
+      "description": "Names the workflows, artifact kinds, skills and agents to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
     },
     "PackageImport": {
       "fields": [
@@ -38236,19 +38254,23 @@ const transportSchemas = {
     "PackageImportResult": {
       "fields": [
         "packageDigest",
-        "imported"
+        "imported",
+        "openBindings"
       ],
       "fieldTypes": {
         "packageDigest": "sha256",
-        "imported": "json[]"
+        "imported": "json[]",
+        "openBindings": "json[]"
       },
       "bounds": {
-        "importedMaxItems": 50
+        "importedMaxItems": 50,
+        "openBindingsMaxItems": 512
       },
-      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of the draft definition or kind version it became.",
+      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of what it became, plus the bindings still left to make.",
       "fieldDescriptions": {
         "packageDigest": "The digest of the imported package, which the lineage rows record.",
-        "imported": "One entry per imported item, in package order."
+        "imported": "One entry per imported item, in package order.",
+        "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
       }
     }
   },

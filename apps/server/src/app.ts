@@ -1121,6 +1121,7 @@ export function createApp(options: {
       tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      skillFileStore,
     }),
   );
   app.route(
