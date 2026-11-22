@@ -1626,6 +1626,26 @@ for (
       await expect(skills).not.toContainText("Every skill that fits this step");
     });
 
+    test("an edit made while a save is still answering waits, then saves on the version that save returned", async ({ page }) => {
+      const { seen, skills } = await openSkills(page, {
+        skills: { items: [] },
+        catalog: [catalogSkill({})],
+        saveDelayMs: 1500,
+      });
+      await skills.getByLabel("Attach a skill").selectOption({
+        label: "Code style · Version 2",
+      });
+      // The attach is still being saved when the person takes it off again.
+      await expect.poll(() => seen.draftSaves.length).toBe(1);
+      await skills.getByRole("button", { name: "Remove Code style" }).click();
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBe(2);
+      await expect(page.getByText("Not saved")).toHaveCount(0);
+      // The second save carries what the first returned (version 2), not what was read before it.
+      expect(seen.draftSaves[1].ifMatch).toBe('"v2"');
+      expect(savedSkills(seen).skills ?? []).toEqual([]);
+    });
+
     test("with no skill to offer the picker says so", async ({ page }) => {
       const { skills } = await openSkills(page, {
         skills: { items: [] },

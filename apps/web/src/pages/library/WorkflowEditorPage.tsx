@@ -222,6 +222,9 @@ export function WorkflowEditorPage(
   // null until the version being edited is known: an unknown baseline is not a
   // change, so the leave warning is never armed on a page nobody has touched.
   const lastSaved = useRef<string | null>(null);
+  // The version the last save returned: a second edit made while the draft is
+  // still being read again must send this one, not the one it last read.
+  const savedVersion = useRef<{ id: string; version: number } | null>(null);
 
   // A different version being edited starts the editor again.
   useEffect(() => {
@@ -248,7 +251,10 @@ export function WorkflowEditorPage(
         organizationId: scope.organizationId as string,
         workflowId,
         versionId: draft.id,
-        version: draft.version,
+        version: savedVersion.current?.id === draft.id &&
+            savedVersion.current.version > draft.version
+          ? savedVersion.current.version
+          : draft.version,
         input: {
           definition: definitionOf(
             record(draft.normalizedSpec),
@@ -268,11 +274,13 @@ export function WorkflowEditorPage(
         idempotencyKey: crypto.randomUUID(),
       });
       if (!result.ok) throw result.error;
+      savedVersion.current = { id: draft.id, version: result.data.version };
       return result.data;
     },
     onMutate: () => setSaveState({ kind: "saving" }),
-    onSuccess: () => {
-      lastSaved.current = JSON.stringify(editor.steps);
+    onSuccess: (_saved, written) => {
+      // What was written is what is saved: an edit made meanwhile is still to save.
+      lastSaved.current = JSON.stringify(written);
       setSaveState({ kind: "saved" });
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
     },
@@ -435,10 +443,11 @@ export function WorkflowEditorPage(
   // "Try again" rather than looping.
   useEffect(() => {
     if (!canManage || draft === null || saveState.kind === "failed") return;
-    if (!changed) return;
+    // One write at a time: the next waits for this one, then saves what changed since.
+    if (!changed || save.isPending) return;
     const timer = setTimeout(() => save.mutate(steps), SAVE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [changed, steps, canManage, draft, saveState.kind]);
+  }, [changed, steps, canManage, draft, saveState.kind, save.isPending]);
 
   // Leaving while the latest change is not saved asks first.
   useEffect(() => {

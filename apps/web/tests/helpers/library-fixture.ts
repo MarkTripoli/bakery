@@ -99,6 +99,8 @@ export type Options = {
   skills?: { items: unknown[] } | "fail";
   /** The skills the picker may offer (the skills list read): the skills, or "fail". Empty by default. */
   catalog?: unknown[] | "fail";
+  /** Milliseconds the draft save takes to answer, so a test can edit while one is in flight. */
+  saveDelayMs?: number;
 };
 
 const json = (body: unknown, status = 200) => ({
@@ -363,7 +365,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   );
   await page.route(
     (url) => /^\/v1\/workflows\/[^/]+\/versions\/[^/]+$/.test(url.pathname),
-    (route) => {
+    async (route) => {
       const parts = new URL(route.request().url()).pathname.split("/");
       seen.draftSaves.push({
         versionId: parts[5] ?? "",
@@ -389,6 +391,11 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         updatedAt: "2026-01-01T00:00:00.000Z",
         version: 2,
       };
+      if (options.saveDelayMs) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, options.saveDelayMs)
+        );
+      }
       return route.fulfill(json(saved));
     },
   );
