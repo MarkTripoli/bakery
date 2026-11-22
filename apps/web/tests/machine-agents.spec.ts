@@ -392,6 +392,7 @@ test.describe("the Coding agents rows", () => {
       row(page, "claude").getByRole("button", { name: "Sign in", exact: true }),
     ).toHaveCount(0);
     await expect(banner(page).getByRole("button")).toHaveCount(0);
+    await shot(page, "machine-agents-not-heard");
   });
 
   test("ready, not checked and signed out each have their badge and the buttons beside it", async ({ page }) => {
