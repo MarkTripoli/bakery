@@ -20,7 +20,12 @@ export const MAX_PACKAGE_ITEMS = 50;
 export const MAX_PACKAGE_WORKFLOW_BYTES = 100_000;
 
 /** The kinds of item a T0 package can carry today. */
-export const PACKAGE_ITEM_KINDS = ["workflow", "artifactKind"] as const;
+export const PACKAGE_ITEM_KINDS = [
+  "workflow",
+  "artifactKind",
+  "skill",
+  "agent",
+] as const;
 export type PackageItemKind = (typeof PACKAGE_ITEM_KINDS)[number];
 
 /**
@@ -28,6 +33,37 @@ export type PackageItemKind = (typeof PACKAGE_ITEM_KINDS)[number];
  * that name it. The definition is a string so its digest is the digest of
  * exactly these bytes, whatever reads it.
  */
+/**
+ * How one item of a package names another. A workflow step that used a skill or
+ * an agent from the package carries this string where the exporting
+ * organization had an id, and the importer swaps in the id it just made. An id
+ * the package does not carry is removed and listed as an open binding, because
+ * an id from another organization means nothing here.
+ */
+export const PACKAGE_REFERENCE_PATTERN =
+  /^package:(skill|agent)\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+export function packageReference(
+  kind: "skill" | "agent",
+  key: string,
+): string {
+  return `package:${kind}/${key}`;
+}
+
+export const OpenBindingSchema = z.object({
+  path: z.string().max(500).describe(
+    "JSON Pointer to the step or definition member that named something the package does not carry.",
+  ),
+  kind: z.enum(["skill", "agent"]).describe(
+    "Whether the removed reference named a skill or an agent.",
+  ),
+  name: z.string().max(200).describe(
+    "The name of the skill or agent in the exporting organization, so someone can rebind it by hand.",
+  ),
+}).strict().describe(
+  "A reference the exporter removed because its target does not travel with the package.",
+);
+export type OpenBinding = z.output<typeof OpenBindingSchema>;
+
 export const WorkflowPackageDataSchema = z.object({
   slug: z.string().min(1).max(64).regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/)
     .describe(
@@ -40,12 +76,74 @@ export const WorkflowPackageDataSchema = z.object({
     "What the workflow does, in at most 1000 characters.",
   ),
   definition: z.string().min(2).max(MAX_PACKAGE_WORKFLOW_BYTES).describe(
-    "Canonical JSON of the workflow definition, personal skills already replaced by open slots.",
+    "Canonical JSON of the workflow definition, personal skills already replaced by open slots, with references to skills and agents in the package written as package references.",
+  ),
+  openBindings: z.array(OpenBindingSchema).max(256).default([]).describe(
+    "References removed because the skill or agent they named does not travel with the package.",
   ),
 }).strict().describe(
   "One workflow in a package: its name and its canonical definition. Starts travel inside the definition as authored data and are never switched on by an import.",
 );
 export type WorkflowPackageData = z.output<typeof WorkflowPackageDataSchema>;
+
+export const SkillPackageDataSchema = z.object({
+  slug: z.string().min(1).max(120).describe(
+    "Slug of the skill in the exporting organization, which the importer keeps when it is free.",
+  ),
+  name: z.string().min(1).max(200).describe("Display name of the skill."),
+  entryPath: z.string().min(1).max(500).describe(
+    "Path of the file the skill starts from.",
+  ),
+  manifest: z.record(
+    z.string().describe("A manifest member name."),
+    z.json().describe("A manifest member value."),
+  ).describe(
+    "The skill version's manifest exactly as it was published: schema version, license and per-file digests.",
+  ),
+  files: z.array(
+    z.object({
+      path: z.string().min(1).max(500).describe(
+        "Path of the file in the skill.",
+      ),
+      mediaType: z.string().min(1).max(255).describe("Media type of the file."),
+      isExecutable: z.boolean().describe("Whether the file is executable."),
+      contentBase64: z.string().describe("The file's bytes, base64 encoded."),
+    }).strict().describe("One file of the skill."),
+  ).min(1).max(256).describe(
+    "The files of the skill's active version.",
+  ),
+}).strict().describe(
+  "One organization-scope skill: its active version's manifest and files. A skill is data and never runs from a package. Personal skills never travel.",
+);
+export type SkillPackageData = z.output<typeof SkillPackageDataSchema>;
+
+export const AgentPackageDataSchema = z.object({
+  slug: z.string().min(1).max(64).describe(
+    "Slug of the agent in the exporting organization.",
+  ),
+  name: z.string().min(1).max(120).describe("Display name of the agent."),
+  description: z.string().max(1000).describe("What the agent is for."),
+  harness: z.enum(["pi", "claude_code", "codex", "mastra"]).describe(
+    "The harness the agent runs under.",
+  ),
+  allowedCapabilities: z.array(
+    z.string().min(1).max(100).describe("One capability name."),
+  ).max(100).default([])
+    .describe("Capabilities the agent may use."),
+  skillBindings: z.record(
+    z.string().min(1).max(100).describe(
+      "The name the agent uses the skill by.",
+    ),
+    z.string().regex(PACKAGE_REFERENCE_PATTERN).describe(
+      "A package reference to a skill the package carries.",
+    ),
+  ).default({}).describe(
+    "Named skills the agent uses, each a package reference to a skill the package carries.",
+  ),
+}).strict().describe(
+  "One agent's definition. Billing never travels: the billing account, provider route and pricing snapshot belong to the exporting organization, so an imported agent has none until someone gives it one.",
+);
+export type AgentPackageData = z.output<typeof AgentPackageDataSchema>;
 
 export const PackageItemSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -66,6 +164,22 @@ export const PackageItemSchema = z.discriminatedUnion("kind", [
     ),
     data: ArtifactKindDefinitionSchema,
   }).strict().describe("An artifact kind item."),
+  z.object({
+    kind: z.literal("skill").describe("An organization-scope skill."),
+    key: z.string().min(1).max(120).describe("The skill's slug."),
+    digest: z.string().regex(/^[0-9a-f]{64}$/).describe(
+      "SHA-256 of the canonical JSON of kind, key and data.",
+    ),
+    data: SkillPackageDataSchema,
+  }).strict().describe("A skill item."),
+  z.object({
+    kind: z.literal("agent").describe("An agent definition."),
+    key: z.string().min(1).max(64).describe("The agent's slug."),
+    digest: z.string().regex(/^[0-9a-f]{64}$/).describe(
+      "SHA-256 of the canonical JSON of kind, key and data.",
+    ),
+    data: AgentPackageDataSchema,
+  }).strict().describe("An agent item."),
 ]).describe("One validated item of data a package carries.");
 export type PackageItem = z.output<typeof PackageItemSchema>;
 
@@ -94,7 +208,9 @@ export type PackageItemDraft =
     kind: "artifactKind";
     key: string;
     data: z.output<typeof ArtifactKindDefinitionSchema>;
-  };
+  }
+  | { kind: "skill"; key: string; data: SkillPackageData }
+  | { kind: "agent"; key: string; data: AgentPackageData };
 
 export function packageItemDigest(
   item: Pick<PackageItemDraft, "kind" | "key" | "data">,
@@ -170,7 +286,8 @@ export type PackageDefect = Readonly<{
     | "duplicate_item"
     | "installation_only_member"
     | "workflow_definition_not_json"
-    | "workflow_definition_not_canonical";
+    | "workflow_definition_not_canonical"
+    | "unresolved_package_reference";
   path: readonly (string | number)[];
   message: string;
 }>;
@@ -210,6 +327,9 @@ export async function packageDefects(
 ): Promise<readonly PackageDefect[]> {
   const defects: PackageDefect[] = [];
   const seen = new Set<string>();
+  const allKeys = new Set(
+    value.items.map((item) => `${item.kind}:${item.key}`),
+  );
   for (const [index, item] of value.items.entries()) {
     const identity = `${item.kind}:${item.key}`;
     if (seen.has(identity)) {
@@ -247,6 +367,32 @@ export async function packageDefects(
         });
       }
       memberDefects(parsed, ["items", index, "data", "definition"], defects);
+      for (const reference of packageReferencesIn(parsed)) {
+        const [, kind, key] = /^package:(skill|agent)\/(.+)$/.exec(reference)!;
+        if (!seen.has(`${kind}:${key}`) && !allKeys.has(`${kind}:${key}`)) {
+          defects.push({
+            code: "unresolved_package_reference",
+            path: ["items", index, "data", "definition"],
+            message:
+              `${identity} names ${reference}, which the package does not carry.`,
+          });
+        }
+      }
+    } else if (item.kind === "agent") {
+      for (const [name, reference] of Object.entries(item.data.skillBindings)) {
+        const key = reference.slice("package:skill/".length);
+        if (
+          !reference.startsWith("package:skill/") ||
+          !allKeys.has(`skill:${key}`)
+        ) {
+          defects.push({
+            code: "unresolved_package_reference",
+            path: ["items", index, "data", "skillBindings", name],
+            message:
+              `${identity} binds ${name} to ${reference}, which the package does not carry.`,
+          });
+        }
+      }
     }
   }
   if (
@@ -260,4 +406,143 @@ export async function packageDefects(
     });
   }
   return defects;
+}
+
+/** What the exporter knows about a skill or agent version a workflow names. */
+export type KnownReference = Readonly<{
+  /** The item's key when the package carries it, otherwise null. */
+  key: string | null;
+  /** The name in the exporting organization, written into an open binding. */
+  name: string;
+}>;
+
+export type ReferenceMap = {
+  skills: ReadonlyMap<string, KnownReference>;
+  agents: ReadonlyMap<string, KnownReference>;
+};
+
+type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+
+const isObject = (value: unknown): value is { [k: string]: Json } =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const pointer = (segments: readonly (string | number)[]): string =>
+  segments.map((s) =>
+    `/${String(s).replaceAll("~", "~0").replaceAll("/", "~1")}`
+  )
+    .join("");
+
+function isStep(value: { [k: string]: Json }): boolean {
+  return typeof value.uses === "string" || typeof value.action === "string";
+}
+
+/**
+ * Rewrites a workflow definition for export. Each skill or agent version the
+ * package carries becomes a package reference; every other one is removed and
+ * listed, so no id from the exporting organization leaves with the package.
+ */
+export function exportReferences(
+  definition: unknown,
+  known: ReferenceMap,
+): { definition: unknown; openBindings: OpenBinding[] } {
+  const openBindings: OpenBinding[] = [];
+  const swap = (
+    kind: "skill" | "agent",
+    id: string,
+    path: readonly (string | number)[],
+  ): string | null => {
+    const info = (kind === "skill" ? known.skills : known.agents).get(
+      id.toLowerCase(),
+    );
+    if (info?.key) return packageReference(kind, info.key);
+    openBindings.push({
+      path: pointer(path),
+      kind,
+      name: info?.name ?? `unnamed ${kind}`,
+    });
+    return null;
+  };
+  const visit = (value: Json, path: (string | number)[]): Json => {
+    if (Array.isArray(value)) {
+      return value.map((entry, index) => visit(entry, [...path, index]));
+    }
+    if (!isObject(value)) return value;
+    const out: { [k: string]: Json } = {};
+    const step = isStep(value);
+    for (const [name, entry] of Object.entries(value)) {
+      const here = [...path, name];
+      if (step && name === "skills" && Array.isArray(entry)) {
+        const kept: Json[] = [];
+        for (const [index, item] of entry.entries()) {
+          if (typeof item !== "string") {
+            kept.push(item);
+            continue;
+          }
+          const swapped = swap("skill", item, [...here, index]);
+          if (swapped !== null) kept.push(swapped);
+        }
+        if (kept.length > 0) out[name] = kept;
+      } else if (
+        step && name === "agentVersionId" && typeof entry === "string"
+      ) {
+        const swapped = swap("agent", entry, here);
+        if (swapped !== null) out[name] = swapped;
+      } else if (path.length === 0 && name === "agents" && isObject(entry)) {
+        const agents: { [k: string]: Json } = {};
+        for (const [action, id] of Object.entries(entry)) {
+          if (typeof id !== "string") {
+            agents[action] = id;
+            continue;
+          }
+          const swapped = swap("agent", id, [...here, action]);
+          if (swapped !== null) agents[action] = swapped;
+        }
+        if (Object.keys(agents).length > 0) out[name] = agents;
+      } else {
+        out[name] = visit(entry, here);
+      }
+    }
+    return out;
+  };
+  return { definition: visit(definition as Json, []), openBindings };
+}
+
+/** The package references a definition names, for the importer to check. */
+export function packageReferencesIn(definition: unknown): string[] {
+  const found: string[] = [];
+  const visit = (value: unknown): void => {
+    if (typeof value === "string") {
+      if (PACKAGE_REFERENCE_PATTERN.test(value)) found.push(value);
+    } else if (Array.isArray(value)) value.forEach(visit);
+    else if (isObject(value)) Object.values(value).forEach(visit);
+  };
+  visit(definition);
+  return found;
+}
+
+/** Replaces each package reference with the id the importer just made. */
+export function importReferences(
+  definition: unknown,
+  ids: {
+    skill: ReadonlyMap<string, string>;
+    agent: ReadonlyMap<string, string>;
+  },
+): unknown {
+  const visit = (value: Json): Json => {
+    if (typeof value === "string") {
+      const match = /^package:(skill|agent)\/(.+)$/.exec(value);
+      if (match && PACKAGE_REFERENCE_PATTERN.test(value)) {
+        return (ids[match[1] as "skill" | "agent"].get(match[2]!)) ?? value;
+      }
+      return value;
+    }
+    if (Array.isArray(value)) return value.map(visit);
+    if (isObject(value)) {
+      return Object.fromEntries(
+        Object.entries(value).map(([k, v]) => [k, visit(v)]),
+      );
+    }
+    return value;
+  };
+  return visit(definition as Json);
 }

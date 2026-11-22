@@ -2,6 +2,8 @@ import { assert, assertEquals } from "@std/assert";
 import {
   BakeryPackageSchema,
   buildPackage,
+  exportReferences,
+  importReferences,
   packageDefects,
   type PackageItemDraft,
 } from "../../packages/contracts/src/library-packages.ts";
@@ -18,6 +20,7 @@ const workflow = (definition: unknown): PackageItemDraft => ({
     name: "Triage",
     description: "Sort what arrives.",
     definition: canonicalJson(definition),
+    openBindings: [],
   },
 });
 
@@ -121,4 +124,85 @@ Deno.test("the format has no field that accepts code or an unknown member", () =
     script: "evil()",
   });
   assertEquals(extra.success, false);
+});
+
+const SKILL_VERSION = "11111111-1111-4111-8111-111111111111";
+const OTHER_SKILL = "22222222-2222-4222-8222-222222222222";
+const AGENT_VERSION = "33333333-3333-4333-8333-333333333333";
+const OTHER_AGENT = "44444444-4444-4444-8444-444444444444";
+
+const known = {
+  skills: new Map([
+    [SKILL_VERSION, { key: "review-style", name: "Review style" }],
+    [OTHER_SKILL, { key: null, name: "House rules" }],
+  ]),
+  agents: new Map([
+    [AGENT_VERSION, { key: "reviewer", name: "Reviewer" }],
+    [OTHER_AGENT, { key: null, name: "Planner" }],
+  ]),
+};
+
+const withReferences = () => ({
+  agents: { "review.independent": AGENT_VERSION, "rpi.plan": OTHER_AGENT },
+  steps: [
+    {
+      id: "a",
+      uses: "review.independent",
+      skills: [SKILL_VERSION, OTHER_SKILL],
+      agentVersionId: AGENT_VERSION,
+    },
+    {
+      id: "b",
+      uses: "rpi.plan",
+      skills: [OTHER_SKILL],
+      agentVersionId: OTHER_AGENT,
+    },
+  ],
+});
+
+Deno.test("export keeps references to what the package carries and removes the rest, naming it", () => {
+  const { definition, openBindings } = exportReferences(
+    withReferences(),
+    known,
+  );
+  const text = JSON.stringify(definition);
+  for (const id of [SKILL_VERSION, OTHER_SKILL, AGENT_VERSION, OTHER_AGENT]) {
+    assertEquals(text.includes(id), false, `${id} must not leave`);
+  }
+  assert(text.includes("package:skill/review-style"));
+  assert(text.includes("package:agent/reviewer"));
+  assertEquals(
+    openBindings.map((b) => `${b.kind}:${b.name}`).sort(),
+    [
+      "agent:Planner",
+      "agent:Planner",
+      "skill:House rules",
+      "skill:House rules",
+    ],
+  );
+});
+
+Deno.test("import swaps each package reference for the id it just made", () => {
+  const { definition } = exportReferences(withReferences(), known);
+  const back = importReferences(definition, {
+    skill: new Map([["review-style", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]]),
+    agent: new Map([["reviewer", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]]),
+  });
+  const text = JSON.stringify(back);
+  assert(text.includes("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"));
+  assert(text.includes("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"));
+  assertEquals(text.includes("package:"), false);
+});
+
+Deno.test("a reference to something the package does not carry is a defect", async () => {
+  const pkg = await buildPackage("Starter", [
+    workflow({
+      steps: [{ id: "a", uses: "x", skills: ["package:skill/missing"] }],
+    }),
+  ]);
+  assert(
+    (await packageDefects(pkg)).some((d) =>
+      d.code === "unresolved_package_reference"
+    ),
+  );
 });
