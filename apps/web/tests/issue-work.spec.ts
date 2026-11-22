@@ -210,12 +210,15 @@ for (
         .toHaveCount(0);
     });
 
-    test("a stopped start can be started again", async ({ page }) => {
+    test("a stopped start is started again from the status card, not the row", async ({ page }) => {
       await open(page, { issue: 201, progress: "canceled" });
       await expect(section(page).getByText("Stopped", { exact: true }))
         .toBeVisible();
+      // One Start work on the page, and it is the card's.
       await expect(section(page).getByRole("button", { name: "Start work" }))
-        .toBeVisible();
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Start work" }))
+        .toHaveCount(1);
     });
 
     test("work started by a label names the label, not a person", async ({ page }) => {
@@ -479,8 +482,11 @@ for (
         timeout: 15_000,
       });
       await expect(work.getByText("Stopping…")).toHaveCount(0);
+      // Start work is the status card's button, shown once.
       await expect(work.getByRole("button", { name: "Start work" }))
-        .toBeVisible();
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Start work" }))
+        .toHaveCount(1);
       await expect(stopButton(page)).toHaveCount(0);
       // The issue's own status card follows the row: nothing still says the
       // work is under way.
@@ -515,6 +521,25 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "issue-work-stopping-slow");
     });
+
+    test(
+      "on a phone Open task and Stop work are one row of equal buttons",
+      async ({ page }, testInfo) => {
+        test.skip(viewport.name !== "phone", "a phone layout");
+        await open(page, WITH_RUN);
+        const open_ = (await section(page).getByRole("button", {
+          name: "Open task",
+        }).boundingBox())!;
+        const stop_ = (await stopButton(page).boundingBox())!;
+        expect(Math.abs(open_.y - stop_.y)).toBeLessThan(2);
+        expect(Math.abs(open_.width - stop_.width)).toBeLessThan(2);
+        // The 44px touch size is the phone project's; a narrow desktop window is not a touch screen.
+        if (testInfo.project.name === "mobile") {
+          expect(open_.height).toBeGreaterThanOrEqual(44);
+          expect(stop_.height).toBeGreaterThanOrEqual(44);
+        }
+      },
+    );
 
     test("a person who may not stop the run sees no Stop work", async ({ page }) => {
       await open(page, { ...ONE_REPOSITORY, run: { mayStop: false } });

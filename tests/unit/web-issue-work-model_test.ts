@@ -29,8 +29,9 @@ Deno.test("every progress value has the design's one next step", () => {
   assertEquals(progressNext("active"), "openTask");
   assertEquals(progressNext("completed"), "openTask");
   assertEquals(progressNext("failed"), "openTask");
-  assertEquals(progressNext("canceled"), "startWork");
-  assertEquals(progressNext("rejected"), "startWork");
+  // Start work is the status card's button, so the row has no next step.
+  assertEquals(progressNext("canceled"), "none");
+  assertEquals(progressNext("rejected"), "none");
 });
 
 Deno.test("only waiting, paused and not-started lines quote the reason", () => {

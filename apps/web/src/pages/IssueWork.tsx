@@ -352,7 +352,7 @@ function NoteLine(
  * pull requests and Bakery's note on GitHub. Not shown until there is some work.
  */
 export function IssueWork(
-  { issueId, issueNumber, issueUrl, canWrite, reasonSentence, onStart }: {
+  { issueId, issueNumber, issueUrl, canWrite, reasonSentence }: {
     readonly issueId: string;
     /** The issue's number, for the question Stop work asks. */
     readonly issueNumber: number | null;
@@ -361,7 +361,6 @@ export function IssueWork(
     readonly canWrite: boolean;
     /** The sentence for a reason code, in the issue's own words. */
     readonly reasonSentence: (code: string) => string;
-    readonly onStart: () => void;
   },
 ) {
   const api = useBakeryApi();
@@ -511,6 +510,24 @@ export function IssueWork(
     </UI.Button>
   );
 
+  const openTaskButton = next === "openTask" && own !== undefined && !stopping
+    ? (
+      <UI.Button
+        variant="secondary"
+        onClick={() =>
+          void navigate({
+            to: "/tasks/$taskId",
+            params: { taskId: own.taskId },
+          })}
+      >
+        {translate("issues.work.openTask" as never)}
+      </UI.Button>
+    )
+    : null;
+  // On a phone a row with both buttons shows them as one row of equal buttons.
+  const openAndStopTogether = phone && openTaskButton !== null && mayStop &&
+    !stopping;
+
   return (
     <UI.Stack
       gap="standard"
@@ -588,30 +605,20 @@ export function IssueWork(
                   ago(request.createdAt, translate),
                 ].filter(Boolean).join(" · ")}
               </UI.Text>
-              {next === "openTask" && own !== undefined && !stopping
-                ? (
-                  <UI.Button
-                    variant="secondary"
-                    onClick={() =>
-                      void navigate({
-                        to: "/tasks/$taskId",
-                        params: { taskId: own.taskId },
-                      })}
-                  >
-                    {translate("issues.work.openTask" as never)}
-                  </UI.Button>
-                )
-                : null}
-              {next === "startWork"
-                ? (
-                  <UI.Button variant="secondary" onClick={onStart}>
-                    {translate("issues.start.button" as never)}
-                  </UI.Button>
-                )
-                : null}
+              {!openAndStopTogether ? openTaskButton : null}
               {mayStop && !stopping && !phone ? stopButton : null}
             </UI.Inline>
-            {mayStop && !stopping && phone ? stopButton : null}
+            {openAndStopTogether
+              ? (
+                // One row of two equal buttons, so they read as a pair.
+                <UI.Inline variant="actions" gap="compact">
+                  {openTaskButton}
+                  {stopButton}
+                </UI.Inline>
+              )
+              : mayStop && !stopping && phone
+              ? stopButton
+              : null}
             {stop.isError && !stopping
               ? (
                 <UI.InlineNotice tone="error">

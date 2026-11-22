@@ -41,7 +41,7 @@ export function progressReason(
 }
 
 /** What the person can do next from a progress line. */
-export type WorkNext = "openTask" | "startWork" | "none";
+export type WorkNext = "openTask" | "none";
 
 /** The one next step per progress value (the design's progress table). */
 export function progressNext(progress: WorkProgress): WorkNext {
@@ -51,9 +51,9 @@ export function progressNext(progress: WorkProgress): WorkNext {
     case "completed":
     case "failed":
       return "openTask";
+    // Starting again is the status card's button, not the work row's.
     case "canceled":
     case "rejected":
-      return "startWork";
     case "pending":
     case "waiting":
     case "suspended":
