@@ -2817,7 +2817,7 @@ test("the fixing headline names what the running try was asked to fix", async ({
   const section = await openDelivery(page, FIXING_ONE);
   const now = section.getByTestId("delivery-now");
   await expect(now).toContainText(
-    "It is working on 1 check and 1 review finding. Nothing for you to do yet.",
+    "It is working on 1 failed check and 1 review finding. Nothing for you to do yet.",
   );
   // Not the last try: nothing about what happens if it fails.
   await expect(now).not.toContainText("If this try fails");
@@ -2825,7 +2825,7 @@ test("the fixing headline names what the running try was asked to fix", async ({
   // The last try says what happens next, and counts its own checks.
   const last = await openDelivery(page, TRIES);
   await expect(last.getByTestId("delivery-now")).toContainText(
-    "It is working on 2 checks. Nothing for you to do yet. If this try fails, Bakery stops and asks you.",
+    "It is working on 2 failed checks. Nothing for you to do yet. If this try fails, Bakery stops and asks you.",
   );
 });
 

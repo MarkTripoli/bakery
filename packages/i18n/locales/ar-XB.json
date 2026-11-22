@@ -6141,9 +6141,7 @@
   "tasks.delivery.now.fixing.bodyLast": "⟪It is working on the problems it found. Nothing for you to do yet. If this try fails, Bakery stops and asks you.⟫",
   "tasks.delivery.now.fixing.bodyWhat": "⟪It is working on {what}. Nothing for you to do yet.⟫",
   "tasks.delivery.now.fixing.bodyWhatLast": "⟪It is working on {what}. Nothing for you to do yet. If this try fails, Bakery stops and asks you.⟫",
-  "tasks.delivery.now.fixing.whatChecks": "⟪{checks, plural, one {# check} other {# checks}}⟫",
   "tasks.delivery.now.fixing.whatFindings": "⟪{blocking, plural, one {# review finding} other {# review findings}}⟫",
-  "tasks.delivery.now.fixing.whatBoth": "⟪{checks, plural, one {# check} other {# checks}} and {blocking, plural, one {# review finding} other {# review findings}}⟫",
   "tasks.delivery.now.checking.stale.title": "⟪Checking the updated changes⟫",
   "tasks.delivery.now.checking.stale.body": "⟪The changes were updated, so earlier results no longer count. Nothing for you to do yet.⟫",
   "tasks.delivery.now.stopped.notMerged": "⟪Nothing was merged.⟫",
@@ -6304,5 +6302,7 @@
   "tasks.delivery.now.approval.body": "⟪Approving lets Bakery merge these changes.⟫",
   "tasks.delivery.now.approvalUnknown.body": "⟪Try again to see whether the change is waiting for approval.⟫",
   "session.thread.noSessionNamed": "⟪{step} has no agent session.⟫",
-  "auth.desktopSignIn.confirm.askedAgo": "⟪{minutes, plural, =0 {just now} one {# minute ago} other {# minutes ago}}⟫"
+  "auth.desktopSignIn.confirm.askedAgo": "⟪{minutes, plural, =0 {just now} one {# minute ago} other {# minutes ago}}⟫",
+  "tasks.delivery.now.fixing.whatChecks": "⟪{checks, plural, one {# failed check} other {# failed checks}}⟫",
+  "tasks.delivery.now.fixing.whatBoth": "⟪{checks, plural, one {# failed check} other {# failed checks}} and {blocking, plural, one {# review finding} other {# review findings}}⟫"
 }

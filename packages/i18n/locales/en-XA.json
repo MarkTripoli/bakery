@@ -6142,9 +6142,7 @@
   "tasks.delivery.now.fixing.bodyLast": "⟦Ïŧ ïš ŵôŕķïñĝ ôñ ŧĥë þŕôƀļëɱš ïŧ ƒôûñð. Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô ÿëŧ. Ïƒ ŧĥïš ŧŕÿ ƒàïļš, Ɓàķëŕÿ šŧôþš àñð àšķš ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.delivery.now.fixing.bodyWhat": "⟦Ïŧ ïš ŵôŕķïñĝ ôñ {what}. Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "tasks.delivery.now.fixing.bodyWhatLast": "⟦Ïŧ ïš ŵôŕķïñĝ ôñ {what}. Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô ÿëŧ. Ïƒ ŧĥïš ŧŕÿ ƒàïļš, Ɓàķëŕÿ šŧôþš àñð àšķš ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "tasks.delivery.now.fixing.whatChecks": "⟦{checks, plural, one {# check} other {# checks}} ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.delivery.now.fixing.whatFindings": "⟦{blocking, plural, one {# review finding} other {# review findings}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "tasks.delivery.now.fixing.whatBoth": "⟦{checks, plural, one {# check} other {# checks}} àñð {blocking, plural, one {# review finding} other {# review findings}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "tasks.delivery.now.checking.stale.title": "⟦Çĥëçķïñĝ ŧĥë ûþðàŧëð çĥàñĝëš ŧëšŧ çô⟧",
   "tasks.delivery.now.checking.stale.body": "⟦Ŧĥë çĥàñĝëš ŵëŕë ûþðàŧëð, šô ëàŕļïëŕ ŕëšûļŧš ñô ļôñĝëŕ çôûñŧ. Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "tasks.delivery.now.stopped.notMerged": "⟦Ñôŧĥïñĝ ŵàš ɱëŕĝëð. ŧëšŧ⟧",
@@ -6304,5 +6302,7 @@
   "tasks.delivery.now.approval.title": "⟦Ŕëàðÿ ƒôŕ ÿôûŕ àþþŕôṽàļ ŧëšŧ ç⟧",
   "tasks.delivery.now.approval.body": "⟦Àþþŕôṽïñĝ ļëŧš Ɓàķëŕÿ ɱëŕĝë ŧĥëšë çĥàñĝëš. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.delivery.now.approvalUnknown.body": "⟦Ŧŕÿ àĝàïñ ŧô šëë ŵĥëŧĥëŕ ŧĥë çĥàñĝë ïš ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "session.thread.noSessionNamed": "⟦{step} ĥàš ñô àĝëñŧ šëššïôñ. ŧëšŧ çô⟧"
+  "session.thread.noSessionNamed": "⟦{step} ĥàš ñô àĝëñŧ šëššïôñ. ŧëšŧ çô⟧",
+  "tasks.delivery.now.fixing.whatChecks": "⟦{checks, plural, one {# failed check} other {# failed checks}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "tasks.delivery.now.fixing.whatBoth": "⟦{checks, plural, one {# failed check} other {# failed checks}} àñð {blocking, plural, one {# review finding} other {# review findings}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }
