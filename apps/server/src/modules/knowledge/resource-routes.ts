@@ -52,6 +52,12 @@ import {
   trashStorageEntry,
 } from "./storage-working-areas.ts";
 import {
+  createFolderGrant,
+  listFolderGrants,
+  revokeFolderGrant,
+  setFolderRestriction,
+} from "./folder-grants.ts";
+import {
   createFileContentReader,
   createFileProbeReader,
   createFileUseLister,
@@ -947,6 +953,56 @@ function registerStorageActions(
       handler: async (context, input) =>
         contractSchemas.StorageEntry.parse(
           await createStorageFolder(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageFolderGrantsCreate,
+      method: HttpMethod.Post,
+      path: "/v1/storage/folders/:id/grants",
+      input: contractSchemas.FolderGrantCreate,
+      output: contractSchemas.FolderGrant,
+      explicitIdempotency: "key",
+      successStatus: 201,
+      policy: storageWritePolicy(A.StorageFolderGrantsCreate),
+      handler: async (context, input) =>
+        contractSchemas.FolderGrant.parse(
+          await createFolderGrant(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageFolderGrantsList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/folders/:id/grants",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.FolderGrantList,
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas.FolderGrantList.parse(await listFolderGrants(context)),
+    })
+    .register({
+      name: A.StorageFolderGrantsRevoke,
+      method: HttpMethod.Post,
+      path: "/v1/storage/folder-grants/:id/revoke",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.FolderGrant,
+      explicitIdempotency: "key",
+      successStatus: 200,
+      policy: storageWritePolicy(A.StorageFolderGrantsRevoke),
+      handler: async (context) =>
+        contractSchemas.FolderGrant.parse(await revokeFolderGrant(context)),
+    })
+    .register({
+      name: A.StorageFoldersRestrict,
+      method: HttpMethod.Post,
+      path: "/v1/storage/folders/:id/restriction",
+      input: contractSchemas.FolderRestrictionSet,
+      output: contractSchemas.FolderRestriction,
+      explicitIdempotency: "key",
+      successStatus: 200,
+      policy: storageWritePolicy(A.StorageFoldersRestrict),
+      handler: async (context, input) =>
+        contractSchemas.FolderRestriction.parse(
+          await setFolderRestriction(context, input),
         ),
     })
     .register({

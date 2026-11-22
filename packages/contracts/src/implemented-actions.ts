@@ -825,6 +825,10 @@ export const StorageImplementedAction = Object.freeze(
   {
     StorageFilesPut: "storageFiles.put",
     StorageFoldersCreate: "storageFolders.create",
+    StorageFolderGrantsCreate: "storageFolderGrants.create",
+    StorageFolderGrantsList: "storageFolderGrants.list",
+    StorageFolderGrantsRevoke: "storageFolderGrants.revoke",
+    StorageFoldersRestrict: "storageFolders.restrict",
     StorageEntriesCopy: "storageEntries.copy",
     StorageEntriesMove: "storageEntries.move",
     StorageEntriesTrash: "storageEntries.trash",

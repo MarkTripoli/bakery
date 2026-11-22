@@ -64,6 +64,7 @@ import {
   type StoragePolicy,
   storageQueryOf,
 } from "./storage-tree.ts";
+import { mayEditAt, mayViewAt } from "./folder-access-store.ts";
 import {
   type EntryNow,
   planStepUndo,
@@ -93,6 +94,7 @@ type Row = {
   trash_name: string | null;
   purged_at: Date | null;
   updated_at: Date;
+  restricted: boolean;
 };
 
 const COLUMN_NAMES = [
@@ -112,6 +114,7 @@ const COLUMN_NAMES = [
   "trash_name",
   "purged_at",
   "updated_at",
+  "restricted",
 ];
 const COLUMNS = COLUMN_NAMES.join(", ");
 const ENTRY_COLUMNS = COLUMN_NAMES.map((name) => "entry." + name).join(", ");
@@ -199,7 +202,31 @@ async function visibleEntry(
   if (!row || row.purged_at !== null || !isVisibleTo(area(row), principalId)) {
     notFound();
   }
+  // A restricted folder is open only to people granted inside it; to anyone
+  // else it does not exist, so no refusal confirms the path (#449).
+  if (!(await mayViewAt(tx, organizationId, principalId, row.id))) notFound();
+  // A trashed entry sits under /trash, so what hid it before it was trashed is
+  // the folder it came from.
+  if (
+    row.trash_parent_id !== null &&
+    !(await mayViewAt(tx, organizationId, principalId, row.trash_parent_id))
+  ) notFound();
   return row;
+}
+
+/**
+ * Refuses a change to an entry the caller may see but not edit: a view grant
+ * on a restricted folder reads it and writes nothing (#449).
+ */
+async function requireEdit(
+  tx: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  folderId: string,
+): Promise<void> {
+  if (!(await mayEditAt(tx, organizationId, principalId, folderId))) {
+    refuse("folder_view_only");
+  }
 }
 
 /** Resolves absolute path segments one by one to a live, visible entry. */
@@ -222,6 +249,11 @@ async function resolvePath(
     if (!row || row.purged_at !== null) return undefined;
     if (!isVisibleTo(area(row), principalId)) return undefined;
     parentId = row.id;
+  }
+  // Only the entry the path ends at is returned, so one check covers every
+  // restricted folder on the way: it hides the path as if it were not there.
+  if (row && !(await mayViewAt(tx, organizationId, principalId, row.id))) {
+    return undefined;
   }
   return row;
 }
@@ -848,6 +880,7 @@ async function writableParent(
   if (!parent || parent.kind !== "folder") notFound();
   const refusal = writeRefusal(area(parent), principalId);
   if (refusal) refuse(refusal);
+  await requireEdit(tx, organizationId, principalId, parent.id);
   const leaf = segments[segments.length - 1];
   return { parent, name: leaf.name, nameKey: leaf.nameKey };
 }
@@ -1320,6 +1353,7 @@ export async function moveStorageEntry(
   if (entry.trashed_at !== null) conflict("entry_trashed");
   const refusal = changeRefusal(area(entry));
   if (refusal) refuse(refusal);
+  await requireEdit(tx, organizationId, principalId, entry.id);
   requireExpectedVersion(context, entry);
   // A move is a write in both folders: the one it leaves and the one it enters.
   await agentLeaves(tx, context, organizationId, principalId, entry);
@@ -1381,6 +1415,7 @@ export async function trashStorageEntry(context: ActionContext) {
   if (entry.trashed_at !== null) conflict("entry_trashed");
   const refusal = changeRefusal(area(entry));
   if (refusal) refuse(refusal);
+  await requireEdit(tx, organizationId, principalId, entry.id);
   requireExpectedVersion(context, entry);
   const agent = await agentLeaves(
     tx,
@@ -1433,6 +1468,9 @@ export async function restoreStorageEntry(context: ActionContext) {
     context.params.id ?? "",
   );
   if (entry.trashed_at === null) conflict("entry_not_trashed");
+  if (entry.trash_parent_id !== null) {
+    await requireEdit(tx, organizationId, principalId, entry.trash_parent_id);
+  }
   requireExpectedVersion(context, entry);
   const parent = await restoreFromTrash(tx, organizationId, entry);
   await audit(tx, context, {
@@ -1578,7 +1616,16 @@ export function createTrashLister(secret: string) {
       limit + 1,
     ]);
     const rows = found.rows.slice(0, limit);
-    const items = rows.map((row) => entryView(row, row.original_folder_path));
+    // An entry trashed out of a restricted folder is listed only to people who
+    // could see that folder. The cursor still follows the unfiltered page.
+    const listed = [];
+    for (const row of rows) {
+      if (
+        row.trash_parent_id === null ||
+        await mayViewAt(tx, organizationId, principalId, row.trash_parent_id)
+      ) listed.push(row);
+    }
+    const items = listed.map((row) => entryView(row, row.original_folder_path));
     const last = rows.at(-1);
     return {
       items,
