@@ -5243,6 +5243,13 @@
       "frames": []
     },
     {
+      "routeId": "library-skill",
+      "path": "/library/skills/$skillId",
+      "status": "no-mock",
+      "rationale": "One skill, read only (its files as the version in use lists them, its versions, what uses it, who may use a private one, where it came from) is designed by design-ux on #74 (revision 3, mocks at design-74/v3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "library-evaluation",
       "path": "/library/evaluations/$batchId",
       "status": "no-mock",

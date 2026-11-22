@@ -93,6 +93,7 @@ Deno.test("the review loop module exports what chapter 25 says it owns, and noth
     "assertIndependentReviewer",
     "decideDelivery",
     "planReviewLoopLimits",
+    "planReviewRepeatKey",
     "reviewLoopSteps",
     "verifyFindings",
   ]);
