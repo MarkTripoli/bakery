@@ -110,6 +110,33 @@
   }
 }
 
+/* A notice with an action: at a very narrow width (a 320px screen at 200%
+   zoom) the action drops to its own row instead of pushing past the edge. */
+.ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) {
+  flex-wrap: wrap;
+}
+
+/* A dismissible notice at a very narrow width (a 320px screen, or a phone at
+   200% zoom): the icon and the dismiss button share the first row and the text
+   takes the full width under them, so a word is never broken to fit beside
+   the two. An action, when there is one, follows the text. */
+@media (max-width: 20rem) {
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) {
+    flex-wrap: wrap;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) > .ui-feedback-dismiss {
+    margin-inline-start: auto;
+    order: 1;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) > .ui-inline-notice__content {
+    flex-basis: 100%;
+    order: 2;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) > .ui-inline-notice__action {
+    order: 3;
+  }
+}
+
 .ui-inline-notice__icon {
   /* auth.css:8 `.icon` is inline-flex, so the box is exactly the glyph: an
      inline box would add the line's descender space and make a one-line

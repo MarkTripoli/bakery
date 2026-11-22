@@ -10,6 +10,11 @@ import {
   attemptOrigin,
 } from "../auth/application/agent-power-grants.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import {
+  childRunEnvironment,
+  type RunEnvironment,
+  toRunEnvironment,
+} from "./run-environment.ts";
 
 /**
  * An agent starting a run is a spawn, and a spawn is the one agent power that
@@ -215,6 +220,8 @@ export type SpawnAdmission = Readonly<{
   parentRunId: string;
   parentDepth: number;
   sessionId: string | null;
+  /** The spawning run's environment, which the spawned run inherits. */
+  parentEnvironment: RunEnvironment;
 }>;
 
 /**
@@ -293,8 +300,10 @@ export async function admitAgentSpawn(
         and status not in ${TERMINAL}`,
     [input.organizationId, origin.runId],
   );
-  const parent = await transaction.query<{ limit: string; spent: string }>(
-    `select run.budget_limit_usd::text as "limit",
+  const parent = await transaction.query<
+    { limit: string; spent: string; environment: string }
+  >(
+    `select run.budget_limit_usd::text as "limit", run.environment,
             coalesce((
               select account.reserved_usd + account.settled_usd
                 from bakery.budget_accounts as account
@@ -326,6 +335,7 @@ export async function admitAgentSpawn(
     parentRunId: origin.runId,
     parentDepth: depth,
     sessionId: origin.agentSessionId,
+    parentEnvironment: toRunEnvironment(parentRow?.environment),
   };
 }
 
@@ -400,10 +410,19 @@ export function withAgentSpawnChecks<
       requestedBudgetUsd: (input as { budgetLimitUsd?: string }).budgetLimitUsd,
       limits,
     });
+    // A spawned run is pinned to its parent's environment unless it asks for
+    // one, and an offline parent can never open a live child.
+    const pinned = admission === null ? input : {
+      ...(input as Record<string, unknown>),
+      environment: childRunEnvironment(
+        admission.parentEnvironment,
+        (input as { environment?: RunEnvironment }).environment,
+      ),
+    };
     const run =
       await (create as unknown as (c: ActionContext, i: unknown) => Promise<
         { id: string }
-      >)(context, input);
+      >)(context, pinned);
     if (admission !== null) {
       await recordAgentSpawn(transaction, context, {
         organizationId,

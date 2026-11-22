@@ -94,6 +94,69 @@ Deno.test("fixed workflow repository requirements use declarative markers", () =
     workflowRequiresRepository({
       ...WORKFLOW,
       steps: [{
+        id: "cases",
+        forEach: {
+          items: "$step.prepare.cases",
+          max: 2,
+          as: "case",
+          steps: [{ id: "nested", requires: ["git"] }],
+        },
+      }],
+    }),
+    true,
+  );
+  assertEquals(
+    workflowRequiresRepository({
+      ...WORKFLOW,
+      steps: [{
+        id: "cases",
+        forEach: {
+          items: "$step.prepare.cases",
+          max: 2,
+          as: "case",
+          steps: [{
+            id: "nested",
+            with: { target: "$each.case.repositoryId" },
+          }],
+        },
+      }],
+    }),
+    true,
+  );
+  assertEquals(
+    workflowRequiresRepository({
+      ...WORKFLOW,
+      steps: [{
+        id: "cases",
+        forEach: {
+          items: "$step.prepare.cases",
+          max: 2,
+          as: "case",
+          steps: [{ id: "nested", with: { note: "$each.case.name" } }],
+        },
+      }],
+    }),
+    false,
+  );
+  assertEquals(
+    workflowRequiresRepository({
+      ...WORKFLOW,
+      steps: [{
+        id: "cases",
+        forEach: {
+          items: "$step.prepare.repositoryId",
+          max: 2,
+          as: "case",
+          steps: [{ id: "nested", with: { note: "$each.case.name" } }],
+        },
+      }],
+    }),
+    true,
+  );
+  assertEquals(
+    workflowRequiresRepository({
+      ...WORKFLOW,
+      steps: [{
         id: "repeat",
         repeat: {
           steps: [{
@@ -478,6 +541,7 @@ Deno.test("run projection marks admission budget accounting as unknown", () => {
     inngest_run_id: null,
     status: "queued",
     budget_limit_usd: "0.005000",
+    environment: "live",
     started_at: null,
     finished_at: null,
     created_at: "2026-09-19T00:00:00.000Z",

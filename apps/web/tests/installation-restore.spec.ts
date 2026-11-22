@@ -85,6 +85,9 @@ async function restoreWorld(
       json: {
         bootstrapped: true,
         restoreHeld: state.taken !== null && state.taken < 3,
+        // The rest of the public status the shell reads (#59): no update.
+        updatePaused: false,
+        release: "bakery@1111111",
       },
     }));
   await page.route("**/v1/installation/restore", (route) => {

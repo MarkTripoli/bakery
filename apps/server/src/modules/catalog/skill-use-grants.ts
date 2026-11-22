@@ -265,6 +265,7 @@ type GrantRow = {
   id: string;
   skill_id: string;
   skill_version_id: string;
+  revision: number;
   workflow_id: string;
   workflow_name: string;
   step_path: string;
@@ -279,6 +280,7 @@ function toGrant(row: GrantRow) {
     id: row.id,
     skillId: row.skill_id,
     skillVersionId: row.skill_version_id,
+    revision: row.revision,
     workflowId: row.workflow_id,
     workflowName: row.workflow_name,
     stepPath: row.step_path,
@@ -348,6 +350,7 @@ export async function listSkillUseGrants(
   const limit = input.limit ?? 25;
   const result = await transaction.query<GrantRow>(
     `select grant_row.id, grant_row.skill_id, grant_row.skill_version_id,
+            version.revision,
             grant_row.workflow_id, workflow.name as workflow_name,
             grant_row.step_path, grant_row.granted_by, grant_row.created_at,
             to_char(grant_row.created_at at time zone 'UTC',
@@ -357,6 +360,9 @@ export async function listSkillUseGrants(
        join bakery.workflow_definitions as workflow
          on workflow.organization_id = grant_row.organization_id
         and workflow.id = grant_row.workflow_id
+       join bakery.skill_versions as version
+         on version.organization_id = grant_row.organization_id
+        and version.id = grant_row.skill_version_id
       where grant_row.organization_id = $1 and grant_row.skill_id = $2
         and ($3::timestamptz is null
           or (grant_row.created_at, grant_row.id) < ($3, $4::uuid))

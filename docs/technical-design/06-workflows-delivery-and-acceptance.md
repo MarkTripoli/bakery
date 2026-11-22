@@ -336,7 +336,7 @@ they cannot invoke an action or read a secret.
   that run even when `until` already holds; `until` is not asked before round
   `min`. `repeat.allow` (min..max) is a soft cap: a loop that uses it below `max`
   with `until` still false pauses the run, and no allowance goes past `max`.
-  Interpreter revision 3 honors both; earlier revisions ignore them. A repeat terminates with exactly one outcome:
+  Interpreter revision 4 honors both; earlier revisions ignore them. A repeat terminates with exactly one outcome:
   `completed`, `exhausted`, `canceled`, `failed`, or `timed_out`; `exhausted`
   cannot satisfy a delivery gate.
 - `if` and `until` must evaluate to a boolean. A missing path is invalid unless

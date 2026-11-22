@@ -95,6 +95,7 @@ const RUN_COLUMNS = "run.id, run.kind, run.task_id, run.workflow_version_id, " +
   "run.repository_profile_revision, run.repository_profile_digest, " +
   "run.observation_id, run.observation_digest, run.base_sha, " +
   "run.requested_by, run.inngest_run_id, run.status, run.budget_limit_usd, " +
+  "run.environment, " +
   "run.started_at, run.finished_at, run.created_at, run.updated_at, run.version, " +
   runWorkspaceBaseShaColumn("run");
 type RunControlRow = RunRow & {
@@ -355,7 +356,12 @@ export async function runControlAction(
        left join bakery.tasks as task
          on task.organization_id = run.organization_id
         and task.id = run.task_id
-      where run.organization_id = $1 and run.id = $2`,
+      where run.organization_id = $1 and run.id = $2
+      -- Two controls on one run, from an agent and a person or from two
+      -- agents, take turns: the second reads what the first committed (a
+      -- cancelled run is then ALREADY_TERMINAL), so only one can take the
+      -- run's last transition.
+      for update of run`,
     [organizationId, runId],
   );
   const run = runResult.rows[0];
@@ -503,6 +509,19 @@ export async function runControlAction(
             : { sessionId: exercised.origin.agentSessionId }),
         }),
       },
+    });
+  } else {
+    // A person's control is recorded as theirs, so a read can say who
+    // stopped a run (#61: "Stopped by {name}" on a ticket request).
+    await appendAudit(transaction, {
+      organizationId,
+      principalId,
+      operation: "runs.control",
+      resourceType: "workflow_run",
+      resourceId: runId,
+      requestId: context.requestId,
+      traceId: context.traceId,
+      details: { action: input.action },
     });
   }
   await appendDomainEvent(transaction, {

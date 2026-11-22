@@ -7,6 +7,7 @@ import type {
 import { isSecretName } from "../secrets.ts";
 import type { ObjectField, ValueType } from "../types.ts";
 import {
+  eachContext,
   type FlowIndex,
   type FlowNode,
   guardsOf,
@@ -47,6 +48,13 @@ export type Resolution =
 const REPEAT_OUTCOMES: readonly string[] = Object.freeze([
   "completed",
   "exhausted",
+  "canceled",
+  "failed",
+  "timed_out",
+]);
+
+const FOR_EACH_OUTCOMES: readonly string[] = Object.freeze([
+  "completed",
   "canceled",
   "failed",
   "timed_out",
@@ -377,6 +385,29 @@ function resolveStep(
         position += 1;
         continue;
       }
+      case "forEach": {
+        if (segment === undefined) return fieldUnknown;
+        if (segment === "iterations" || segment === "outcome") {
+          const failure = flowCheck(reader, flow, undefined);
+          if (failure) return { ok: false, code: failure };
+          return finishWalk(
+            segment === "iterations"
+              ? { kind: "number", integer: true }
+              : { kind: "string", enum: FOR_EACH_OUTCOMES },
+            path.slice(position + 1),
+          );
+        }
+        const scope = flow.bodyScope!;
+        if (!scope.byId.has(segment)) return fieldUnknown;
+        // A step inside the loop names the iteration the reader is in, so
+        // only a reader inside the same loop may name one.
+        if (!insideScope(reader, scope)) {
+          return { ok: false, code: "reference_each_scope" };
+        }
+        node = scope.byId.get(segment)!;
+        position += 1;
+        continue;
+      }
       case "parallel": {
         if (segment === undefined) return fieldUnknown;
         const lane = flow.lanes.get(segment);
@@ -411,6 +442,7 @@ function resolveStep(
  * Resolves one typed reference at a reader position. `$input.*` names a
  * declared workflow input; `$task.*` walks the catalog task type;
  * `$repeat.currentCandidate.*` reads the enclosing repeat's candidate;
+ * `$each.<as>.*` reads the current item of the enclosing forEach named `as`;
  * `$step.*` walks absolute node paths from the workflow root, descending into
  * containers by the scope rules and stopping at an action output or a
  * container export. A failure carries only a code: nothing submitted is
@@ -455,6 +487,11 @@ export function resolveReference(
         return { ok: false, code: "reference_field_unknown" };
       }
       return finishWalk(reader.repeat.candidate, path.slice(1));
+    }
+    case "each": {
+      const loop = eachContext(reader.scope, path[0]!);
+      if (!loop) return { ok: false, code: "reference_each_scope" };
+      return finishWalk(loop.eachItem, path.slice(1));
     }
     case "step":
       return resolveStep(env, reader, path);

@@ -106,7 +106,7 @@ coordination lane gate. After convergence there is one.
   on the flat loop, then that code is deleted. No live run is migrated.
 - The **plan interpreter becomes the engine**. Its revisions stay append-only
   and pinned per run: revision 3 adds delivery facts and `forEach`, revision 4
-  adds `route`.
+  adds loop bounds, and a later revision adds `route`.
 - The **coordination lane gate becomes the split primitive** (section 5).
 
 The decision is recorded in
@@ -358,7 +358,7 @@ inside Deliver) has an optional **minimum** and **maximum** iteration count, set
 in the loop's panel.
 
 - **Minimum** means "run at least N times even if the exit condition is already
-  met" (`repeat.min`, built in interpreter revision 3: `until` is not asked
+  met" (`repeat.min`, built in interpreter revision 4: `until` is not asked
   before round `min`).
 - **Maximum** is `repeat.max`. It is bounded by the compiler's iteration cap,
   which is 1 to 8 today, and by the workflow's `limits.maxRepairCycles`. So
@@ -473,8 +473,9 @@ paths.
     to O21, as replaced in section 9).
 11. **Kinds and facts.** The kind definition API for organizations, rule types,
     facts and validation at publication (O6).
-12. **`forEach`, `call` and loop bounds.** Interpreter revision 3; `call`
-    inlined with workflow outputs; `repeat.min` (O10).
+12. **`forEach`, `call` and loop bounds.** Interpreter revisions 3 (`forEach`)
+    and 4 (loop bounds); `call` inlined with workflow outputs; `repeat.min`
+    (O10).
 13. **Unlisted definitions and proposals.** `origin` and visibility on
     definitions; run a frozen conversation draft; the `definitionProposal`
     coordinator effect; coordinator skills; save as workflow.

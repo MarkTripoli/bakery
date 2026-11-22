@@ -28,6 +28,7 @@ import type {
   WorkflowActionNode,
   WorkflowBranchNode,
   WorkflowExpressionNode,
+  WorkflowForEachNode,
   WorkflowInputSlot,
   WorkflowLane,
   WorkflowNode,
@@ -107,6 +108,7 @@ const KIND_KEYS = [
   "repeat",
   "wait",
   "parallel",
+  "forEach",
 ] as const;
 const ACTION_LIMIT_KEYS: ReadonlySet<string> = new Set([
   "maxDuration",
@@ -160,6 +162,17 @@ const PARALLEL_BODY_KEYS: ReadonlySet<string> = new Set([
   "branches",
   "outputs",
 ]);
+const FOR_EACH_NODE_KEYS: ReadonlySet<string> = new Set([
+  ...NODE_BASE_KEYS,
+  "forEach",
+]);
+const FOR_EACH_BODY_KEYS: ReadonlySet<string> = new Set([
+  "items",
+  "max",
+  "as",
+  "steps",
+]);
+const FOR_EACH_AS = /^[a-z][A-Za-z0-9]{0,63}$/;
 const WORKFLOW_LIMIT_KEYS: ReadonlySet<string> = new Set([
   "wallClock",
   "maxCostUsd",
@@ -1275,6 +1288,86 @@ function shapeRepeat(
   return node;
 }
 
+/**
+ * A bounded sequential forEach: `forEach: {items, max, as, steps}`. Whether
+ * `items` is a list, and the type of its items, is checked by the flow pass.
+ */
+function shapeForEach(
+  context: Context,
+  raw: Raw,
+  path: Path,
+  id: string,
+  needs: string[],
+  condition: WorkflowExpressionNode | undefined,
+): WorkflowForEachNode | undefined {
+  checkKeys(context, raw, path, FOR_EACH_NODE_KEYS, NODE_PRESENTATION);
+  const body = raw["forEach"];
+  const bodyPath = [...path, "forEach"];
+  if (!isPlainObject(body)) {
+    report(context, bodyPath, "field_invalid");
+    return undefined;
+  }
+  checkKeys(context, body, bodyPath, FOR_EACH_BODY_KEYS);
+  let failed = false;
+  let items: WorkflowValueNode | undefined;
+  if (!Object.hasOwn(body, "items")) {
+    report(context, [...bodyPath, "items"], "field_missing");
+    failed = true;
+  } else {
+    items = compileWorkflowValue(
+      body["items"],
+      [...bodyPath, "items"],
+      context.collector,
+    );
+    if (!items) failed = true;
+  }
+  let max = 0;
+  if (!Object.hasOwn(body, "max")) {
+    report(context, [...bodyPath, "max"], "field_missing");
+    failed = true;
+  } else if (!isInteger(body["max"], 1, WORKFLOW_COMPILER_LIMITS.forEachMax)) {
+    report(context, [...bodyPath, "max"], "for_each_max_invalid");
+    failed = true;
+  } else {
+    max = body["max"];
+  }
+  let as = "";
+  if (!Object.hasOwn(body, "as")) {
+    report(context, [...bodyPath, "as"], "field_missing");
+    failed = true;
+  } else if (typeof body["as"] !== "string" || !FOR_EACH_AS.test(body["as"])) {
+    report(context, [...bodyPath, "as"], "for_each_as_invalid");
+    failed = true;
+  } else {
+    as = body["as"];
+  }
+  let steps: WorkflowNode[] | undefined;
+  if (!Object.hasOwn(body, "steps")) {
+    report(context, [...bodyPath, "steps"], "field_missing");
+    failed = true;
+  } else {
+    steps = shapeNodeList(
+      context,
+      body["steps"],
+      [...bodyPath, "steps"],
+      false,
+    );
+    if (!steps) failed = true;
+  }
+  if (failed || !items || !steps) return undefined;
+  const node: WorkflowForEachNode = {
+    kind: "forEach",
+    id,
+    needs,
+    items,
+    max,
+    as,
+    steps,
+  };
+  if (condition) node.if = condition;
+  return node;
+}
+
 function shapeWait(
   context: Context,
   raw: Raw,
@@ -1400,6 +1493,8 @@ export const STRUCTURAL_KEY_NAMES: ReadonlySet<string> = new Set([
   ...WAIT_BODY_KEYS,
   ...PARALLEL_NODE_KEYS,
   ...PARALLEL_BODY_KEYS,
+  ...FOR_EACH_NODE_KEYS,
+  ...FOR_EACH_BODY_KEYS,
   ...WORKFLOW_LIMIT_KEYS,
   ...BRANCH_ARM_KEYS,
   ...INPUT_KEYS,
@@ -1613,6 +1708,7 @@ function shapeNode(
     repeat: shapeRepeat,
     wait: shapeWait,
     parallel: shapeParallel,
+    forEach: shapeForEach,
   } as const;
   const node = shapers[kind](
     context,

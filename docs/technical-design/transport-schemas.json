@@ -3802,6 +3802,16 @@
           "description": "Execution environment for this run: `repository` requires repositoryProfileId and runs inside a cloned repository worktree; `cloud_only` must omit repositoryProfileId and runs without a repository checkout."
         },
         {
+          "name": "environment",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "live",
+            "offline"
+          ],
+          "description": "Where this run may reach, pinned at creation: `live` (the default) admits external effects and brokered integration credentials; `offline` refuses every external effect and brokered credential while metered model calls stay allowed. A run an agent spawns inherits the spawning run's environment when omitted, and an offline run may not spawn a live one (409 `environment_offline_parent`)."
+        },
+        {
           "name": "budgetLimitUsd",
           "type": "decimal",
           "required": false,
@@ -7964,6 +7974,13 @@
       "pagination": "pagination",
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the request version required; refused with STATE_CONFLICT ticket_request_has_run (with the run id) while the request or its task has a live run, and ticket_request_finished once the request ended."
+      ],
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
@@ -8041,6 +8058,16 @@
             "maxLength": 200
           },
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria."
+        },
+        {
+          "name": "preset",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
         }
       ],
       "rules": [
@@ -12395,9 +12422,9 @@
       "fields": [
         {
           "name": "power",
-          "type": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
+          "type": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection|ask)",
           "required": true,
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) draft_connection (draft a personal connection with no secret that a person completes) or ask (ask, on the agent's own run, the one role or group the grant names, through run requests)."
         },
         {
           "name": "workflowId",
@@ -12410,12 +12437,35 @@
           "type": "uuid|null",
           "required": false,
           "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp|null",
+          "required": false,
+          "description": "When the grant stops working. Null or absent means it never expires; once past, every use is refused with AUTH_FORBIDDEN agent_power_grant_expired, checked live on each call. Must be in the future."
+        },
+        {
+          "name": "roleKey",
+          "type": "string|null",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "For an ask grant only: the role the agent may ask (admin, developer or a custom role's key). An ask grant names exactly one of roleKey and groupId."
+        },
+        {
+          "name": "groupId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "For an ask grant only: the organization group the agent may ask. An ask grant names exactly one of roleKey and groupId."
         }
       ],
       "rules": [
         "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
         "An unknown or foreign workflow and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
-        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
+        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists.",
+        "An ask grant names exactly one of roleKey and groupId (agent_power_grant_audience_required); any other power names neither (agent_power_grant_audience_unexpected). An unknown role or group answers RESOURCE_NOT_FOUND. An expiresAt in the past is agent_power_grant_expiry_past."
       ],
       "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
     },
@@ -13475,8 +13525,8 @@
         {
           "name": "recipientId",
           "type": "uuid",
-          "required": true,
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+          "required": false,
+          "description": "The one person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it. Name exactly one of recipientId, recipientRoleKey and recipientGroupId."
         },
         {
           "name": "intent",
@@ -13514,12 +13564,30 @@
           "type": "uuid",
           "required": false,
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to ask instead of one person. Every active member of the group, other than the asker, is asked, each with their own request, resolved and frozen when the request is made. An agent may ask only a group its live ask grant names."
         }
       ],
       "rules": [
-        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request.",
+        "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
+        "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
       ],
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
     },
     "StorageFileContentQuery": {
       "fields": [
@@ -14691,6 +14759,38 @@
         "rpoSeconds is present exactly when cutoffAt is."
       ],
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "PluginBrokerRequest": {
+      "fields": [
+        {
+          "name": "requestId",
+          "type": "string<=128bytes",
+          "required": true,
+          "description": "Names one effect. A repeat of an id that already ran returns the recorded result and does not run the operation again."
+        },
+        {
+          "name": "sequence",
+          "type": "positiveInteger",
+          "required": true,
+          "description": "Strictly higher than the last request the broker accepted for this attempt; a reused or lower number is refused."
+        },
+        {
+          "name": "operation",
+          "type": "string<=64bytes",
+          "required": true,
+          "description": "Dotted name of a typed operation the host registered. The install must hold the grant of the same name."
+        },
+        {
+          "name": "args",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "The operation's arguments, an object. Identity is never taken from here: the install and organization come from the job the server wrote."
+        }
+      ],
+      "description": "One request from a contained plugin job, relayed by its worker to the install-scoped broker. The whole body is bounded to 64 KiB."
     },
     "BackupWalReport": {
       "fields": [
@@ -22818,6 +22918,7 @@
         "inngestRunId",
         "status",
         "budgetLimitUsd",
+        "environment",
         "startedAt",
         "finishedAt",
         "createdAt",
@@ -22845,6 +22946,7 @@
         "inngestRunId": "string|null",
         "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
         "budgetLimitUsd": "decimal",
+        "environment": "enum(live|offline)",
         "startedAt": "timestamp|null",
         "finishedAt": "timestamp|null",
         "createdAt": "timestamp",
@@ -22902,6 +23004,7 @@
         "inngestRunId": "Stable UUID linking this record to the related inngest run entity.",
         "status": "Current lifecycle status of the record.",
         "budgetLimitUsd": "Maximum execution budget measured in US dollars.",
+        "environment": "Where the run may reach, pinned when the run is created and never changed: `live` lets admitted effects and brokered integration credentials leave Bakery; `offline` refuses every external effect (environment_offline) and every brokered credential while metered model calls stay allowed. A run spawned by an offline run is offline.",
         "startedAt": "UTC timestamp when processing started.",
         "finishedAt": "UTC timestamp when processing finished.",
         "createdAt": "UTC timestamp when the record was created.",
@@ -28949,6 +29052,7 @@
         "activeRequest",
         "linkedTaskIds",
         "linkedTaskCount",
+        "openQuestionCount",
         "createdAt",
         "updatedAt",
         "version"
@@ -28973,7 +29077,8 @@
         "updatedAt": "timestamp",
         "version": "integer",
         "linkedTaskIds": "uuid[]",
-        "linkedTaskCount": "integer"
+        "linkedTaskCount": "integer",
+        "openQuestionCount": "integer"
       },
       "nullableFields": [
         "number",
@@ -29001,19 +29106,24 @@
         "updatedAt": "Timestamp recording the last update to this external ticket record.",
         "version": "Monotonic revision used to order or conditionally update this external ticket record.",
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
-        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it."
+        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
+        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
         "activeRequest",
         "linkedTaskIds",
-        "linkedTaskCount"
+        "linkedTaskCount",
+        "openQuestionCount"
       ],
       "fieldBounds": {
         "linkedTaskIds": {
           "maxItems": 25
         },
         "linkedTaskCount": {
+          "min": 0
+        },
+        "openQuestionCount": {
           "min": 0
         }
       }
@@ -29187,6 +29297,10 @@
         "pausedReason",
         "progress",
         "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName",
+        "presetId",
+        "presetRevision",
         "createdAt",
         "updatedAt",
         "version",
@@ -29201,11 +29315,15 @@
         "requestedByPrincipalId": "uuid|null",
         "triggerLabelName": "string|null",
         "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled|request_canceled)|null",
         "pausedAt": "timestamp|null",
         "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
         "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
         "workflowRunId": "uuid|null",
+        "stoppedByPrincipalId": "uuid|null",
+        "stoppedByName": "string|null",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
+        "presetRevision": "integer",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
@@ -29217,7 +29335,9 @@
         "dispositionReasonCode",
         "pausedAt",
         "pausedReason",
-        "workflowRunId"
+        "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName"
       ],
       "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
       "fieldDescriptions": {
@@ -29229,15 +29349,30 @@
         "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
         "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
         "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded.",
         "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
         "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
         "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
         "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "stoppedByPrincipalId": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it.",
+        "stoppedByName": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it.",
         "createdAt": "When the request was admitted.",
         "updatedAt": "When the request last changed.",
         "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository.",
+        "presetId": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+        "presetRevision": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "presetId",
+        "presetRevision",
+        "stoppedByPrincipalId",
+        "stoppedByName"
+      ],
+      "fieldBounds": {
+        "presetRevision": {
+          "min": 1
+        }
       }
     },
     "Page<TicketRequestView>": {
@@ -29892,21 +30027,27 @@
         "wouldStart",
         "planOnly",
         "held",
-        "blocked"
+        "blocked",
+        "labeledBeforeWindow"
       ],
       "fieldTypes": {
         "wouldStart": "integer",
         "planOnly": "integer",
         "held": "integer",
-        "blocked": "integer"
+        "blocked": "integer",
+        "labeledBeforeWindow": "integer"
       },
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one of wouldStart, planOnly, held and blocked. labeledBeforeWindow is a part of blocked, not a bucket of its own.",
       "fieldDescriptions": {
         "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
         "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
         "held": "Issues carrying the hold label; the hold wins over every other label.",
-        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which.",
+        "labeledBeforeWindow": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it."
       },
+      "optionalFields": [
+        "labeledBeforeWindow"
+      ],
       "fieldBounds": {
         "wouldStart": {
           "min": 0
@@ -29918,6 +30059,9 @@
           "min": 0
         },
         "blocked": {
+          "min": 0
+        },
+        "labeledBeforeWindow": {
           "min": 0
         }
       }
@@ -33664,31 +33808,48 @@
         "accessTokenId",
         "grantedBy",
         "createdAt",
-        "version"
+        "version",
+        "expiresAt",
+        "roleKey",
+        "groupId"
       ],
       "fieldTypes": {
         "id": "uuid",
-        "power": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection)",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer|comment|edit_work|draft_connection|ask)",
         "workflowId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "expiresAt": "timestamp|null",
+        "roleKey": "string|null",
+        "groupId": "uuid|null"
       },
       "nullableFields": [
         "workflowId",
-        "accessTokenId"
+        "accessTokenId",
+        "expiresAt",
+        "roleKey",
+        "groupId"
       ],
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection.",
+        "power": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work, draft_connection or ask.",
         "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
         "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
+        "version": "Optimistic-concurrency version a revoke must name in If-Match.",
+        "expiresAt": "When the grant stops working, or null when it never expires.",
+        "roleKey": "The role an ask grant lets the agent ask, otherwise null.",
+        "groupId": "The group an ask grant lets the agent ask, otherwise null."
+      },
+      "optionalFields": [
+        "expiresAt",
+        "roleKey",
+        "groupId"
+      ]
     },
     "RouteContinuationTarget": {
       "fields": [
@@ -35066,6 +35227,7 @@
         "id",
         "skillId",
         "skillVersionId",
+        "revision",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35077,6 +35239,7 @@
         "id": "uuid",
         "skillId": "uuid",
         "skillVersionId": "uuid",
+        "revision": "integer",
         "workflowId": "uuid",
         "workflowName": "string",
         "stepPath": "string",
@@ -35090,6 +35253,7 @@
         "id": "Stable UUID identifying the grant.",
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
@@ -35294,6 +35458,28 @@
         "displayName": "The person's saved display name."
       }
     },
+    "RunRequestAudience": {
+      "fields": [
+        "roleKey",
+        "groupId",
+        "name"
+      ],
+      "fieldTypes": {
+        "roleKey": "string|null",
+        "groupId": "uuid|null",
+        "name": "string"
+      },
+      "nullableFields": [
+        "roleKey",
+        "groupId"
+      ],
+      "description": "The role or group a request was asked of, frozen when the request was made with its members.",
+      "fieldDescriptions": {
+        "roleKey": "The role asked (admin, developer or a custom role's key), or null when a group was asked.",
+        "groupId": "The group asked, or null when a role was asked or the group has since been deleted.",
+        "name": "The role's or group's name when the request was made."
+      }
+    },
     "RunRequest": {
       "projection": "person_requests",
       "fields": [
@@ -35313,7 +35499,8 @@
         "createdAt",
         "updatedAt",
         "version",
-        "questionId"
+        "questionId",
+        "audience"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -35332,7 +35519,8 @@
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "questionId": "uuid|null"
+        "questionId": "uuid|null",
+        "audience": "RunRequestAudience|null"
       },
       "nullableFields": [
         "stepKey",
@@ -35340,7 +35528,8 @@
         "note",
         "neededBy",
         "fallbackForName",
-        "questionId"
+        "questionId",
+        "audience"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -35360,10 +35549,12 @@
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
-        "questionId": "The approval or question the request asks about, or null when it asks for none."
+        "questionId": "The approval or question the request asks about, or null when it asks for none.",
+        "audience": "The role or group this request was asked of, or null when one person was asked."
       },
       "optionalFields": [
-        "questionId"
+        "questionId",
+        "audience"
       ]
     },
     "RunRequests": {
@@ -37627,6 +37818,63 @@
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
+    "PluginBrokerOutcome": {
+      "fields": [
+        "ok",
+        "result",
+        "replayed",
+        "denial"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "result": "json|null",
+        "replayed": "boolean|null",
+        "denial": "string|null"
+      },
+      "description": "The broker's answer to one relayed plugin job request: the operation's result, or a typed denial. Exactly one of result and denial is non-null.",
+      "fieldDescriptions": {
+        "ok": "True when the broker ran the operation (or returned the recorded result of an earlier run of the same request id).",
+        "result": "The operation's result when ok is true; otherwise null.",
+        "replayed": "True when the request id had already run and this is its recorded result; null when ok is false.",
+        "denial": "Why the broker refused when ok is false, a short code such as install_off or not_granted; otherwise null."
+      }
+    },
+    "PluginJobFile": {
+      "fields": [
+        "path",
+        "contentBase64"
+      ],
+      "fieldTypes": {
+        "path": "string",
+        "contentBase64": "base64"
+      },
+      "description": "One file of the bundle a contained plugin job runs from.",
+      "fieldDescriptions": {
+        "path": "The file's path inside the bundle, relative and with no way out of the job's code directory; the worker checks it again before writing.",
+        "contentBase64": "The file's exact bytes, base64 encoded."
+      }
+    },
+    "PluginJobFiles": {
+      "fields": [
+        "bundleDigest",
+        "entry",
+        "files"
+      ],
+      "fieldTypes": {
+        "bundleDigest": "sha256",
+        "entry": "string",
+        "files": "PluginJobFile[]"
+      },
+      "bounds": {
+        "filesMaxItems": 256
+      },
+      "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
+      "fieldDescriptions": {
+        "bundleDigest": "SHA-256 of the install's pinned bundle archive.",
+        "entry": "The path inside the bundle that the job was admitted to run.",
+        "files": "Every file of the bundle, at most 256 and 8 MiB in all."
+      }
+    },
     "Page<InstallationUpdateEvent>": {
       "pageOf": "InstallationUpdateEvent",
       "description": "Cursor page of the update history returned by `GET /v1/installation/updates`, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
@@ -39639,6 +39887,19 @@
         "storage"
       ],
       "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored. The worker makes one bounded judge call (rubric, output text and answer schema; no tools, no worktree) and reports its usage against the job's budget reservation; a worker with no judge provider, a timeout, or a schema-invalid answer reports unscored with the reason."
+    },
+    "plugin.job": {
+      "inputFields": {
+        "installId": "uuid",
+        "entry": "string"
+      },
+      "outputFields": {
+        "resultJson": "string<=65536"
+      },
+      "capabilities": [
+        "plugin.job.contained"
+      ],
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {
