@@ -43,6 +43,18 @@
   overflow-wrap: anywhere;
 }
 
+/* On a phone the card is a sheet at the bottom of the window, so a long id
+   never runs off the screen. */
+@media (max-width: 743px) {
+  .ui-reference__card {
+    inline-size: auto;
+    inset-block: auto var(--space-4);
+    inset-inline: var(--space-4);
+    max-inline-size: none;
+    position: fixed;
+  }
+}
+
 .ui-reference__copy {
   display: inline-flex;
 }
