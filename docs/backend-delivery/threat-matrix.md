@@ -24,13 +24,19 @@ any measurement.
 | Slow and greedy event consumers        | A slow consumer is closed; one person's sockets are capped; fifty clients still get live events inside budget                          | `tests/integration/deliver-bounded-authorized-websocket-events-and-replay_test.ts`, `tests/load/run-bounded-load-acceptance_test.ts` (fifty event clients)                                                                                                     |
 | Load on list and replay reads          | Reads stay inside their latency budget over the reference workload, by index, never by sequential scan                                 | `tests/load/run-bounded-load-acceptance_test.ts`                                                                                                                                                                                                               |
 
-## Known limit
+## Event delivery and fairness
 
-The outbox delivers events first in, first out across organizations. One
-organization's flood of events delays another's event delivery by the length of
-the backlog. Worker queues are per organization and are not affected. The load
-lane measures event fanout under the reference workload; per-organization outbox
-fairness is not implemented.
+Live event delivery to clients is per organization: each socket polls its own
+organization's event clock every 500 ms and never reads the shared outbox, so
+one organization's flood of events does not delay another's clients (the
+fifty-client load test measures this path). Worker queues are per organization
+as well.
+
+The outbox, which dispatches workflow wake-ups, is first in, first out across
+organizations: a backlog from one organization delays another's wake-ups by its
+length, though every row still progresses. No acceptance criterion of #48 asks
+for per-organization ordering there, so it is not added; healthy work
+progresses, which AC2 requires.
 
 ## Running it
 
