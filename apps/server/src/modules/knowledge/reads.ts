@@ -304,6 +304,9 @@ async function loadContentMetadata(
              on t.organization_id=v.organization_id and t.id=v.task_id
           where v.organization_id=$1
             and v.id=$2
+            -- Only a published version serves bytes: a staged one waits for its
+            -- probe and a refused one failed it (O29), so both read as missing.
+            and v.publication_status='current'
             and (
               v.run_step_id is null or exists (
                 select 1
@@ -749,6 +752,9 @@ export function createArtifactReadHandlers(
                on t.organization_id=v.organization_id and t.id=v.task_id
             where v.organization_id=$1
               and v.id=$2
+              -- Only a published version serves bytes: a staged one waits for its
+              -- probe and a refused one failed it (O29), so both read as missing.
+              and v.publication_status='current'
               and (
                 v.run_step_id is null or exists (
                   select 1
@@ -807,6 +813,9 @@ export function createArtifactReadHandlers(
              on t.organization_id=v.organization_id and t.id=v.task_id
           where v.organization_id=$1
             and v.id=$2
+            -- Only a published version serves bytes: a staged one waits for its
+            -- probe and a refused one failed it (O29), so both read as missing.
+            and v.publication_status='current'
             and (
               v.run_step_id is null or exists (
                 select 1

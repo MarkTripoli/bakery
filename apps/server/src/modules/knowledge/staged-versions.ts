@@ -3,8 +3,9 @@
  * 17.5, O29, #437 final slice).
  *
  * A version published under a kind with a probe-backed rule is written staged:
- * it exists, it can be read by its id, and it is not the artifact's current
- * version. This module is the only thing that moves it on, and it runs in the
+ * it exists, it is not the artifact's current version, and no reader serves it
+ * (content, preview, extract, comments and handoff all answer not-found) until
+ * its probe publishes it. This module is the only thing that moves it on, and it runs in the
  * same transaction that stores the probe's answer, so an answer can never be
  * stored while the version it decides stays undecided.
  *

@@ -560,3 +560,189 @@ Deno.test("the runner settles under the request's row lock, so an enqueue in fli
     assertEquals(current.publication_status, "current");
     assertEquals(await openRequests(fixture, published.versionId), 0);
   }));
+
+// ---- QA PROBES (qapool-qa2, not part of the PR) ----
+async function getContent(
+  fixture: WorkerFixture,
+  versionId: string,
+  range?: string,
+) {
+  const headers: Record<string, string> = {
+    Origin: fixture.config.publicBaseUrl,
+    "Bakery-Organization-Id": fixture.organizationId,
+    Cookie: fixture.adminCookie,
+  };
+  if (range) headers.Range = range;
+  return await fixture.app.fetch(
+    new Request(
+      `${fixture.config.publicBaseUrl}/v1/artifact-versions/${versionId}/content`,
+      { headers },
+    ),
+  );
+}
+
+Deno.test("QA PROBE: the bytes of a staged version are not served by the content route", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Staged probe",
+      bytes: bytes("staged bytes that no one vetted"),
+    });
+    assertEquals(published.publicationStatus, "staged");
+    const full = await getContent(fixture, published.versionId);
+    const text = await full.text();
+    console.log(
+      `QAPROBE staged content status=${full.status} len=${text.length}`,
+    );
+    const ranged = await getContent(fixture, published.versionId, "bytes=0-3");
+    console.log(`QAPROBE staged ranged status=${ranged.status}`);
+    assert(
+      full.status !== 200 && ranged.status !== 206 && ranged.status !== 200,
+      `staged bytes served: full=${full.status} range=${ranged.status}`,
+    );
+  }));
+
+Deno.test("QA PROBE: the bytes of a refused version are not served by the content route", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Refused probe",
+      bytes: bytes("pretend png, too many pixels"),
+    });
+    const result = await tick(
+      fixture,
+      `printf '%s' '${frame({ width: 20, height: 20 })}'`,
+    );
+    assertEquals(result.answered, 1, JSON.stringify(result));
+    const row = await state(fixture, published.artifactId, published.versionId);
+    assertEquals(row.publication_status, "refused");
+    const full = await getContent(fixture, published.versionId);
+    const text = await full.text();
+    console.log(
+      `QAPROBE refused content status=${full.status} len=${text.length}`,
+    );
+    assert(full.status !== 200, `refused bytes served: ${full.status}`);
+  }));
+
+Deno.test("QA PROBE: a staged version cannot be given a preview grant", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Preview probe",
+      bytes: bytes("staged bytes for preview"),
+    });
+    const response = await fixture.app.fetch(
+      new Request(
+        `${fixture.config.publicBaseUrl}/v1/artifact-versions/${published.versionId}/preview-grants`,
+        {
+          method: "POST",
+          headers: {
+            Origin: fixture.config.publicBaseUrl,
+            "Bakery-Organization-Id": fixture.organizationId,
+            Cookie: fixture.adminCookie,
+          },
+        },
+      ),
+    );
+    const body = await response.text();
+    console.log(
+      `QAPROBE staged preview-grant status=${response.status} body=${
+        body.slice(0, 120)
+      }`,
+    );
+    assert(
+      response.status >= 400,
+      `preview grant issued for a staged version: ${response.status}`,
+    );
+  }));
+
+/** A storage file over the artifact, so the storage routes can read it. */
+async function storageFile(fixture: WorkerFixture, artifactId: string) {
+  const folder = await fixture.pgDatabase.query<{ id: string }>(
+    "insert into bakery.storage_entries (organization_id, parent_id, name, name_key, kind, policy) values ($1, null, $2, $2, 'folder', 'record') returning id",
+    [fixture.organizationId, "staged-" + crypto.randomUUID().slice(0, 8)],
+  );
+  const entry = await fixture.pgDatabase.query<{ id: string }>(
+    "insert into bakery.storage_entries (organization_id, parent_id, name, name_key, kind, policy, artifact_id) values ($1, $2, 'still.png', 'still.png', 'file', 'record', $3) returning id",
+    [fixture.organizationId, folder.rows[0].id, artifactId],
+  );
+  return entry.rows[0].id;
+}
+
+async function getStorage(fixture: WorkerFixture, path: string) {
+  return await fixture.app.fetch(
+    new Request(`${fixture.config.publicBaseUrl}${path}`, {
+      headers: {
+        Origin: fixture.config.publicBaseUrl,
+        "Bakery-Organization-Id": fixture.organizationId,
+        Cookie: fixture.adminCookie,
+      },
+    }),
+  );
+}
+
+Deno.test("a staged version is not in a storage file's history and is not read by revision", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedTask(fixture);
+    // Published before the kind has a probe-backed rule, so it is current.
+    const first = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Storage probe",
+      bytes: bytes("published bytes"),
+    });
+    assertEquals(first.publicationStatus, "current");
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const second = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Storage probe",
+      bytes: bytes("staged bytes"),
+    });
+    assertEquals(second.publicationStatus, "staged");
+    const revisions = await fixture.pgDatabase.query<
+      { id: string; revision: number }
+    >(
+      "select id, revision from bakery.artifact_versions where organization_id = $1 and artifact_id = $2",
+      [fixture.organizationId, first.artifactId],
+    );
+    const revisionOf = (id: string) =>
+      revisions.rows.find((row) => row.id === id)!.revision;
+    const fileId = await storageFile(fixture, first.artifactId);
+
+    const history = await getStorage(
+      fixture,
+      `/v1/storage/files/${fileId}/versions`,
+    );
+    assertEquals(history.status, 200, await history.clone().text());
+    const page = await history.json() as { items: { revision: number }[] };
+    assertEquals(
+      page.items.map((item) => item.revision),
+      [revisionOf(first.versionId)],
+    );
+
+    const staged = revisionOf(second.versionId);
+    const content = await getStorage(
+      fixture,
+      `/v1/storage/files/${fileId}/content?revision=${staged}`,
+    );
+    await content.body?.cancel();
+    assertEquals(content.status, 404);
+    const published = await getStorage(
+      fixture,
+      `/v1/storage/files/${fileId}/content?revision=${
+        revisionOf(first.versionId)
+      }`,
+    );
+    assertEquals(await published.text(), "published bytes");
+
+    const probeRead = await getStorage(
+      fixture,
+      `/v1/storage/files/${fileId}/probe?revision=${staged}&organizationId=${fixture.organizationId}`,
+    );
+    assertEquals(probeRead.status, 404, await probeRead.text());
+  }));
