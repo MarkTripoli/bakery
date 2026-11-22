@@ -11,8 +11,8 @@ import {
   STEP_VERIFY,
 } from "./helpers/run-rules-world.ts";
 
-const details = (page: Page) =>
-  page.getByText("Details", { exact: true }).first();
+// The run's own Details, not the Delivery card's, which comes first on the page.
+const details = (page: Page) => page.locator("#run-details > summary");
 const block = (page: Page) => page.getByTestId("run-rules");
 
 test.describe("Rules this run used", () => {
