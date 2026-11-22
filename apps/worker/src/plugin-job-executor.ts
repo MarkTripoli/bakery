@@ -8,6 +8,7 @@ import {
 } from "./plugin-job-code.ts";
 import {
   type ContainmentRuntime,
+  DEFAULT_CODE_MOUNT,
   DEFAULT_PLUGIN_JOB_LIMITS,
   type JobRelay,
   memoryResultSink,
@@ -32,8 +33,8 @@ export type PluginJobDeps = Readonly<{
   /** A directory the worker owns, where each attempt's code is written. */
   codeParent: string;
   limits?: PluginJobLimits;
-  /** The command that runs `entry` inside the boundary, relative to /code. */
-  command(entry: string): readonly string[];
+  /** The command that runs `entry` inside the boundary, under the code mount. */
+  command(entry: string, mount: string): readonly string[];
   /** Fetches the install's files; refusals arrive as a rejected promise. */
   fetchFiles(signal: AbortSignal): Promise<PluginCodeResponse>;
   /** Relays one request to the server's broker for this attempt. */
@@ -209,7 +210,10 @@ export async function executePluginJob(
       spec: {
         name: `job-${assignment.attemptId.slice(0, 8)}`,
         codeDir: code.dir,
-        command: deps.command(code.entry),
+        command: deps.command(
+          code.entry,
+          deps.runtime.codeMount ?? DEFAULT_CODE_MOUNT,
+        ),
         limits: deps.limits ?? DEFAULT_PLUGIN_JOB_LIMITS,
       },
       relay: (call) => deps.relay(call, signal),

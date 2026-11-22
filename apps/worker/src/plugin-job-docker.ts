@@ -113,6 +113,7 @@ export function createDockerRuntime(
 
   return {
     name: "docker",
+    codeMount: "/code",
     async probe() {
       if (env[DOCKER_FLAG] !== "1") {
         return unsupported(

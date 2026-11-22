@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   boundaryArgs,
+  BWRAP_CODE_MOUNT,
   BWRAP_FLAG,
   createBwrapRuntime,
 } from "../../apps/worker/src/plugin-job-bwrap.ts";
@@ -18,6 +19,7 @@ import {
  */
 
 const ENV = { [BWRAP_FLAG]: "1" };
+const MOUNT = BWRAP_CODE_MOUNT;
 const LIMITS: PluginJobLimits = {
   cpus: 1,
   memoryBytes: 256 * 1024 * 1024,
@@ -86,7 +88,7 @@ bwrapTest(
       [
         `net=ok; (exec 3<>/dev/tcp/1.1.1.1/53) 2>/dev/null || net=blocked`,
         `root=wrote; touch /escape 2>/dev/null || root=refused`,
-        `code=wrote; touch /code/escape 2>/dev/null || code=refused`,
+        `code=wrote; touch ${MOUNT}/escape 2>/dev/null || code=refused`,
         `home=seen; [ -z "$(ls /home 2>/dev/null)" ] && home=none`,
         `sock=seen; [ -e /var/run/docker.sock ] || sock=none`,
         `echo "{\\"result\\":{\\"net\\":\\"$net\\",\\"root\\":\\"$root\\",\\"code\\":\\"$code\\",\\"home\\":\\"$home\\",\\"sock\\":\\"$sock\\"}}"`,
@@ -97,7 +99,7 @@ bwrapTest(
       spec: {
         name: "t1",
         codeDir: dir,
-        command: ["bash", "/code/main.sh"],
+        command: ["bash", `${MOUNT}/main.sh`],
         limits: LIMITS,
       },
       relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
@@ -123,7 +125,7 @@ bwrapTest(
       spec: {
         name: "t2",
         codeDir: await job("while :; do :; done"),
-        command: ["sh", "/code/main.sh"],
+        command: ["sh", `${MOUNT}/main.sh`],
         limits: { ...LIMITS, timeoutMs: 2_000 },
       },
       relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
@@ -145,7 +147,7 @@ bwrapTest(
             `echo "{\\"result\\":{\\"forked\\":$count}}"`,
           ].join("\n"),
         ),
-        command: ["bash", "/code/main.sh"],
+        command: ["bash", `${MOUNT}/main.sh`],
         limits: LIMITS,
       },
       relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
@@ -155,5 +157,83 @@ bwrapTest(
     assertEquals(bomb.kind, "result");
     const forked = (bomb as { value: { forked: number } }).value.forked;
     assert(forked < LIMITS.pids, `forked ${forked} processes`);
+  },
+);
+
+const FORGED = `forged-${crypto.randomUUID()}`;
+
+bwrapTest(
+  "a job starts with a minimal environment and none of the worker's own",
+  async () => {
+    Deno.env.set("QA_FAKE_SECRET", FORGED);
+    try {
+      const dir = await job(
+        `echo "{\\"result\\":{\\"names\\":\\"$(env | cut -d= -f1 | sort | tr '\\n' ' ')\\"}}"`,
+      );
+      const end = await runPluginJob({
+        runtime: createBwrapRuntime({ env: ENV }),
+        spec: {
+          name: "env",
+          codeDir: dir,
+          command: ["sh", `${MOUNT}/main.sh`],
+          limits: LIMITS,
+        },
+        relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+        identity: "i:j:env",
+        sink: memoryResultSink(),
+      });
+      assertEquals(end.kind, "result");
+      const names = (end as { value: { names: string } }).value.names
+        .split(" ").filter(Boolean);
+      assertEquals(names.includes("QA_FAKE_SECRET"), false);
+      assertEquals(names.includes("PATH"), true);
+      for (const name of names) {
+        assertEquals(
+          ["HOME", "PATH", "PWD", "SHLVL", "_", "OLDPWD"].includes(name),
+          true,
+          `the job saw ${name}`,
+        );
+      }
+    } finally {
+      Deno.env.delete("QA_FAKE_SECRET");
+    }
+  },
+);
+
+async function readsStateFile(hide: readonly string[], dir: string) {
+  const code = await job(
+    `if cat "${dir}/registration.json" >/dev/null 2>&1; then r=read; else r=hidden; fi; echo "{\\"result\\":{\\"state\\":\\"$r\\"}}"`,
+  );
+  const end = await runPluginJob({
+    runtime: createBwrapRuntime({ env: ENV, hide }),
+    spec: {
+      name: "state",
+      codeDir: code,
+      command: ["sh", `${MOUNT}/main.sh`],
+      limits: LIMITS,
+    },
+    relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+    identity: "i:j:state",
+    sink: memoryResultSink(),
+  });
+  assertEquals(end.kind, "result");
+  return (end as { value: { state: string } }).value.state;
+}
+
+bwrapTest(
+  "the worker's state directory, outside /home, is hidden from a job",
+  async () => {
+    const dir = await Deno.makeTempDir({ dir: "/var/tmp", prefix: "state-" })
+      .catch(() => null);
+    if (dir === null) return;
+    try {
+      await Deno.writeTextFile(`${dir}/registration.json`, "{}");
+      // Without the directory in the hide list the file is readable, which is
+      // what makes the next assertion mean something.
+      assertEquals(await readsStateFile([], dir), "read");
+      assertEquals(await readsStateFile([dir], dir), "hidden");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
   },
 );

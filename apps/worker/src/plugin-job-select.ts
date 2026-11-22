@@ -1,6 +1,9 @@
 import { BWRAP_FLAG, createBwrapRuntime } from "./plugin-job-bwrap.ts";
 import { createDockerRuntime, DOCKER_FLAG } from "./plugin-job-docker.ts";
-import type { ContainmentRuntime } from "./plugin-job-runtime.ts";
+import {
+  type ContainmentRuntime,
+  DEFAULT_CODE_MOUNT,
+} from "./plugin-job-runtime.ts";
 
 /**
  * Chooses the containment runtime a worker will run plugin jobs in (#29).
@@ -24,6 +27,10 @@ export async function selectPluginRuntime(
     docker?: () => ContainmentRuntime;
     bwrap?: () => ContainmentRuntime;
   }> = {},
+  options: Readonly<{
+    /** Host directories a contained job must not see, such as the worker's state directory. */
+    hide?: readonly string[];
+  }> = {},
 ): Promise<PluginRuntimeChoice> {
   const candidates: ContainmentRuntime[] = [];
   if (env[DOCKER_FLAG] === "1") {
@@ -32,7 +39,8 @@ export async function selectPluginRuntime(
     );
   }
   if (env[BWRAP_FLAG] === "1") {
-    candidates.push((factories.bwrap ?? (() => createBwrapRuntime({ env })))());
+    candidates.push((factories.bwrap ??
+      (() => createBwrapRuntime({ env, hide: options.hide })))());
   }
   if (candidates.length === 0) {
     return {
@@ -49,14 +57,18 @@ export async function selectPluginRuntime(
   return { kind: "none", reasons };
 }
 
-/** The command that runs a job's entry inside the boundary; the entry sits under /code. */
+/**
+ * The command that runs a job's entry inside the boundary; the entry sits under
+ * the directory the runtime mounts the code at.
+ */
 export function jobCommand(
   env: Readonly<Record<string, string | undefined>>,
   entry: string,
+  mount: string = DEFAULT_CODE_MOUNT,
 ): readonly string[] {
   const configured = (env.BAKERY_PLUGIN_JOB_COMMAND ?? "").trim();
   const base = configured.length > 0
     ? configured.split(/\s+/)
     : ["deno", "run", "--no-prompt", "--no-remote"];
-  return [...base, `/code/${entry}`];
+  return [...base, `${mount}/${entry}`];
 }

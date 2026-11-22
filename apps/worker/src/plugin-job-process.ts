@@ -19,12 +19,15 @@ export function startProcessJob(
     bin: string;
     args: readonly string[];
     limits: PluginJobLimits;
+    /** When set, the client starts with exactly this environment and nothing inherited. */
+    env?: Readonly<Record<string, string>>;
     /** Runs after the client is ended; returns whether memory limits killed the job. */
     cleanup(): Promise<{ oomKilled: boolean }>;
   }>,
 ): RunningPluginJob {
   const child = new Deno.Command(options.bin, {
     args: [...options.args],
+    ...(options.env ? { clearEnv: true, env: { ...options.env } } : {}),
     stdin: "piped",
     stdout: "piped",
     stderr: "null",

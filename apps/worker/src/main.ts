@@ -164,7 +164,9 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     };
     const pluginRuntime = options.executor
       ? { kind: "none", reasons: [] } as const
-      : await selectPluginRuntime(pluginEnv);
+      : await selectPluginRuntime(pluginEnv, {}, {
+        hide: [config.stateDir],
+      });
     if (pluginRuntime.kind === "selected") {
       if (!config.capabilities.includes(PLUGIN_JOB_CAPABILITY)) {
         config.capabilities.push(PLUGIN_JOB_CAPABILITY);
@@ -191,7 +193,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         return {
           runtime: pluginRuntime.runtime,
           codeParent: `${config.stateDir}/plugin-jobs`,
-          command: (entry) => jobCommand(pluginEnv, entry),
+          command: (entry, mount) => jobCommand(pluginEnv, entry, mount),
           fetchFiles: async (signal) =>
             (await client.getPluginJobFiles(
               assignment.attemptId,
