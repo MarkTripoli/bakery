@@ -131,6 +131,15 @@ export const artifactVersionReferences = [
     protection: "retained-evidence",
   },
   {
+    // An ingest records which version a remote file revision became (#452).
+    // It never keeps the bytes alive: collecting the version removes the row,
+    // and the next use of the remote file ingests it again.
+    kind: "connection-ingest",
+    table: "storage_connection_ingests",
+    constraint: "storage_connection_ingests_artifact_version_fk",
+    protection: "none",
+  },
+  {
     // A cached extract is a copy of bytes that already exist elsewhere, so it
     // never keeps a version alive: the purge deletes the extracts with the
     // version, and a cache row that outlived its source would be text nobody

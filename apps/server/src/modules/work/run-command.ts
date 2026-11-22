@@ -76,6 +76,10 @@ import {
   resolvePlanAdmission,
 } from "./plan-run-admission.ts";
 import {
+  ingestConnectionInput,
+  type StorageConnectionDeps,
+} from "../knowledge/storage-connections.ts";
+import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
   presetBriefInputs,
@@ -893,6 +897,7 @@ function assertJobInputsFit(
 export async function createRunCommand(
   context: ActionContext,
   input: RunCreateInput,
+  deps: Readonly<{ storageConnections?: StorageConnectionDeps }> = {},
 ): Promise<RunOutput> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
@@ -1000,9 +1005,26 @@ export async function createRunCommand(
   if (preset && input.inputPaths !== undefined) {
     throw unprocessable(["inputPaths"], "input_paths_not_allowed_with_preset");
   }
+  // A path under /connections is ingested on use (#452) when the host binds
+  // storage providers, and the run pins the version the file became.
+  const storageConnections = deps.storageConnections;
   const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
     transaction,
-    { organizationId, inputs: suppliedInputs, inputPaths: input.inputPaths },
+    {
+      organizationId,
+      inputs: suppliedInputs,
+      inputPaths: input.inputPaths,
+      ...(storageConnections === undefined ? {} : {
+        connections: (path: string) =>
+          ingestConnectionInput(
+            context,
+            transaction,
+            { isAdmin: false },
+            storageConnections,
+            { organizationId, principalId, taskId: task.id, path },
+          ),
+      }),
+    },
   );
   validateRunInputs(inputs);
 

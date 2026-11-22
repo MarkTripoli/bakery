@@ -27,6 +27,10 @@ import {
 import { createIntegrationIntakeRetention } from "../integrations/intake-retention.ts";
 import { createBlobUploadReaper } from "../knowledge/blob-upload-reaper.ts";
 import { createStorageRetentionReaper } from "../knowledge/storage-retention-reaper.ts";
+import {
+  createStorageConnectionSyncWorkflow,
+  noStorageProviders,
+} from "../knowledge/storage-connections.ts";
 import { createProviderProbeWorkflow } from "./provider-probe.ts";
 import {
   createIntegrationIntakeRecovery,
@@ -229,6 +233,13 @@ export function createDefaultInngestFunctions(options: {
         createStorageRetentionReaper({
           client: options.client,
           database: options.database,
+        }),
+        // No hosted storage provider is deployed yet (#452), so the sync
+        // workflow binds none and a recorded sync is counted as failed.
+        createStorageConnectionSyncWorkflow({
+          client: options.client,
+          database: options.database,
+          storage: { resolver: noStorageProviders },
         }),
         createIntegrationFactSweep({
           client: options.client,

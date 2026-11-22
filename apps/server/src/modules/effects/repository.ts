@@ -249,6 +249,70 @@ export async function insertPreparedEffect(
   return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);
 }
 
+/**
+ * Columns a host effect writes: an effect Bakery performs itself through a
+ * family port (writing a file out to a storage connection, #452) rather than
+ * through an integration action. It carries no integration resource, grant or
+ * manifest, so its target never takes the integration prefix and the
+ * integration invariant does not apply; the ledger, key and state machine are
+ * the same.
+ */
+export type HostEffectInsert = Readonly<{
+  id: string;
+  organizationId: string;
+  operation: string;
+  actionVersion: number;
+  target: string;
+  integrationConnectionId: string;
+  requestingPrincipalId: string;
+  actorRef: string;
+  idempotencyKey: string;
+  requestDigest: string;
+  safeArguments: unknown;
+  argumentArtifactVersionId: string | null;
+  adapterVersion: string;
+}>;
+
+/**
+ * Inserts a prepared host effect. Returns the new row, or null when the
+ * idempotency key already names a row (the caller reads it and compares).
+ */
+export async function insertPreparedHostEffect(
+  tx: PgTransactionClient,
+  row: HostEffectInsert,
+): Promise<ExternalEffectRow | null> {
+  const result = await tx.query(
+    `insert into bakery.external_effects (
+       id, organization_id, operation, action_version, target,
+       integration_connection_id, requesting_principal_id, actor_ref,
+       idempotency_key, request_digest, safe_arguments,
+       argument_artifact_version_id, adapter_version, status
+     ) values (
+       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13,
+       'prepared'
+     )
+     on conflict (organization_id, operation, target, idempotency_key)
+     do nothing
+     returning ${SELECT_COLUMNS}`,
+    [
+      row.id,
+      row.organizationId,
+      row.operation,
+      row.actionVersion,
+      row.target,
+      row.integrationConnectionId,
+      row.requestingPrincipalId,
+      row.actorRef,
+      row.idempotencyKey,
+      row.requestDigest,
+      JSON.stringify(row.safeArguments ?? null),
+      row.argumentArtifactVersionId,
+      row.adapterVersion,
+    ],
+  );
+  return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);
+}
+
 /** Job facts the claim reads under a share lock. */
 export type StepJobFacts = Readonly<{
   id: string;
