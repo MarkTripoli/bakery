@@ -846,7 +846,7 @@
       },
       "repair_allowances": {
         "module": "delivery",
-        "migration": "apps/server/src/modules/delivery/migrations/bakery/0327_repair_allowances.sql"
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0330_repair_allowances.sql"
       },
       "repository_onboardings": {
         "module": "projects",
