@@ -47,6 +47,7 @@ import {
   closePgDatabase,
   openDatabase,
   openPgDatabase,
+  SERVER_POOL_MAX,
 } from "./platform/database.ts";
 
 export type MainRouteName = "cleanup" | "control" | "app";
@@ -162,7 +163,7 @@ async function main(): Promise<void> {
 async function runServer(config: RuntimeConfig): Promise<void> {
   const databaseConfig = readDatabaseConfig();
   const database = openDatabase(databaseConfig.url);
-  const pgDatabase = openPgDatabase(databaseConfig.url);
+  const pgDatabase = openPgDatabase(databaseConfig.url, SERVER_POOL_MAX);
   try {
     await assertApplicationDatabase(pgDatabase);
   } catch (error) {

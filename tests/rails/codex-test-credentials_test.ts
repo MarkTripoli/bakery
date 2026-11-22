@@ -388,6 +388,8 @@ const MAY_NAME_VARIABLES: Record<string, string> = {
     "sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
   "tests/e2e/run-deterministic-checks-bound-to-candidate-and-metadata.child.ts":
     "sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
+  "tests/e2e/prove-full-headless-factory-delivery-and-recovery-from-a-fresh-checkout.child.ts":
+    "sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${harnessDir}/codex-auth, a directory it creates, for the stand-in review worker",
   "tests/helpers/deterministic-checks/runner-cases.ts":
     "sets BAKERY_CODEX_AUTH_SOURCE_DIR to syntheticAuthSource(), a generated stand-in",
   "tests/helpers/harness-conformance.ts":
@@ -412,6 +414,8 @@ const MAY_READ_ENVIRONMENT: Record<string, string> = {
     "the stack helpers it imports pass HOME to the processes they start, but it sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
   "tests/e2e/run-deterministic-checks-bound-to-candidate-and-metadata.child.ts":
     "the stack helpers it imports pass HOME to the processes they start, but it sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
+  "tests/e2e/prove-full-headless-factory-delivery-and-recovery-from-a-fresh-checkout.child.ts":
+    "the stack helpers it imports pass HOME to the processes they start, but it sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${harnessDir}/codex-auth, a directory it creates",
 };
 
 // Files that run the Codex CLI themselves, or that the pattern takes for it.

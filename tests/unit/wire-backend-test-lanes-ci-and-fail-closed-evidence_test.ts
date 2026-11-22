@@ -607,6 +607,7 @@ Deno.test("ordinary ci evidence writers propagate workflow SHA locally", async (
       "format",
       "git_diff_check",
       "integration",
+      "load",
       "native_worker",
       "provider",
       "rails",
