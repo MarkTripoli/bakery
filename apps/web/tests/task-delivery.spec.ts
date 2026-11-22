@@ -609,7 +609,16 @@ const STOPPED: Scenario = {
   ],
 };
 
-test("a clean run says nothing is waiting, offers no buttons and draws no step the server did not report", async ({ page }) => {
+/** Opens a disclosure's summary once; a closed one holds its content in the page already. */
+const openLink = async (section: Locator, testId: string) => {
+  const link = section.getByTestId(testId);
+  if ((await link.getAttribute("open")) === null) {
+    await link.locator("summary").first().click();
+  }
+  return link;
+};
+
+test("a clean run says nothing is waiting, offers no buttons and lists nothing that needs attention", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, CLEAN);
   await page.goto(`/tasks/${id}`);
@@ -617,25 +626,40 @@ test("a clean run says nothing is waiting, offers no buttons and draws no step t
   await expect(section.getByRole("heading", { name: "Delivery", level: 2 }))
     .toBeVisible();
   const now = section.getByTestId("delivery-now");
-  await expect(now).toContainText(
-    "Checks passed and the review found nothing blocking",
-  );
-  await expect(now).toContainText("Nothing is waiting for you.");
+  await expect(now).toContainText("Nothing is waiting for you");
   await expect(now.getByRole("button")).toHaveCount(0);
   await expect(now).toHaveAttribute("data-variant", "success");
-  await expect(section).toContainText(
-    "Whether this change is ready, and what it is waiting for.",
-  );
+  // The old purpose line is gone: the headline already says where it stands.
+  await expect(section).not.toContainText("Whether this change is ready");
   await expect(section).not.toContainText("release");
-  const steps = section.getByRole("list", { name: "Delivery steps" });
-  await expect(steps.getByRole("listitem")).toHaveCount(3);
-  await expect(steps).toContainText("Commit 91d0aa3 on top of a7254e7");
-  await expect(steps).toContainText("2 of 2 passed");
-  await expect(steps).toContainText(
+  // Nothing needs attention, so no list is drawn; what is settled is one short line each.
+  await expect(section.getByTestId("delivery-attention")).toHaveCount(0);
+  await expect(section.getByTestId("delivery-settled-checks")).toHaveText(
+    "2 checks passed",
+  );
+  await expect(section.getByTestId("delivery-settled-review")).toHaveText(
+    "Review found nothing blocking",
+  );
+  // The step list, its marks and its chips are gone. Two links hold the rest,
+  // and "What Bakery tried" is not drawn when nothing was tried.
+  await expect(section.getByRole("list", { name: "Delivery steps" }))
+    .toHaveCount(0);
+  await expect(section.getByTestId("delivery-tried")).toHaveCount(0);
+  const details = section.getByTestId("delivery-details");
+  await expect(details).not.toHaveAttribute("open");
+  await openLink(section, "delivery-details");
+  await expect(details).toContainText("Commit 91d0aa3 on top of a7254e7");
+  await expect(details.getByTestId("delivery-checks-rows")).toContainText(
+    "tests",
+  );
+  await expect(details.getByTestId("delivery-checks-rows")).toContainText(
+    "lint",
+  );
+  await expect(details).toContainText(
     "Approved by the reviewing agent · 2 notes, nothing blocking",
   );
   for (
-    const absent of ["Approval", "Fixing", "Pull request", "Release"]
+    const absent of ["Fixing", "Pull request", "Release", "Needs attention"]
   ) {
     await expect(section).not.toContainText(absent);
   }
@@ -644,101 +668,58 @@ test("a clean run says nothing is waiting, offers no buttons and draws no step t
   ).toHaveCount(0);
 });
 
-test("results for an older commit are marked and the card says a fix is running", async ({ page }) => {
+test("results for an older commit are said once, in the headline, and the card says a fix is running", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, FIXING);
   await page.goto(`/tasks/${id}`);
   const section = page.getByTestId("delivery-section");
   const now = section.getByTestId("delivery-now");
-  const notice = section.getByTestId("delivery-out-of-date");
-  await expect(notice).toContainText(
-    "The changes were updated after these results",
-  );
-  // Nothing is wrong and nothing is asked of the person: a neutral notice,
-  // under the card that says whose turn it is.
-  await expect(notice).toHaveAttribute("data-variant", "neutral");
-  await expect(now).toContainText("Fixing review findings · try 1 of 2");
+  await expect(now).toContainText("Bakery is fixing this");
+  await expect(now).toContainText("It is working on");
+  await expect(now).toContainText("Nothing for you to do yet.");
   await expect(now).toHaveAttribute("data-variant", "information");
   // The count never breaks across lines ("try 1 of" / "2" on a phone).
   expect(await now.getByRole("heading").textContent()).toContain(
     "try\u00a01\u00a0of\u00a02",
   );
-  const nowBox = await now.boundingBox();
-  const noticeBox = await notice.boundingBox();
-  expect(nowBox).not.toBeNull();
-  expect(noticeBox).not.toBeNull();
-  expect(nowBox!.y).toBeLessThan(noticeBox!.y);
-  await expect(section.getByText("Older commit 4be19c2").first()).toBeVisible();
-  const steps = section.getByRole("list", { name: "Delivery steps" });
-  await expect(steps).toContainText("Try 1 of 2 is running.");
-  // A result that no longer counts is never drawn as passed.
-  const checks = steps.getByRole("listitem").filter({ hasText: "Checks" });
-  await expect(checks).toContainText("Running again for commit 91d0aa3.");
-  await expect(checks.getByText("Passed on older commit 4be19c2"))
-    .toBeVisible();
-  await expect(checks.getByText("Passed", { exact: true })).toHaveCount(0);
-  // Every step lines up, whether or not it has a help button: the mark is level
-  // with the title, the title sits the same distance from its summary, and
-  // every mark is drawn at the tick's size.
-  const metrics = await steps.evaluate((list) =>
-    [...list.querySelectorAll(":scope > li")].map((item) => {
-      const rect = (selector: string) => {
-        const element = item.querySelector(selector);
-        if (element === null) throw new Error(`missing ${selector}`);
-        const box = element.getBoundingClientRect();
-        return {
-          top: box.top,
-          bottom: box.bottom,
-          height: box.height,
-          width: box.width,
-        };
-      };
-      const mark = rect(".ui-step-item__mark");
-      const title = rect(".ui-step-item__title");
-      const summary = rect(".ui-step-item__summary");
-      const icon = rect(".ui-step-item__mark svg");
-      return {
-        markMiddle: mark.top + mark.height / 2,
-        titleMiddle: title.top + title.height / 2,
-        gap: summary.top - title.bottom,
-        icon: [icon.width, icon.height],
-      };
-    })
+  // One state, one place: no second notice and no "Older commit" chip repeat it.
+  await expect(section.getByTestId("delivery-out-of-date")).toHaveCount(0);
+  await expect(section.getByText(/^Older commit [0-9a-f]{7}$/)).toHaveCount(0);
+  // Results that no longer count are never drawn as passed, and the old
+  // commit's findings are not a thing to attend to now.
+  await expect(section.getByTestId("delivery-attention")).toHaveCount(0);
+  await expect(section.getByTestId("delivery-settled-checks")).toContainText(
+    "checks finished",
   );
-  expect(metrics).toHaveLength(4);
-  for (const row of metrics) {
-    expect(Math.abs(row.markMiddle - row.titleMiddle)).toBeLessThanOrEqual(3);
-    expect(Math.abs(row.gap - metrics[0].gap)).toBeLessThanOrEqual(1);
-    expect(row.icon).toEqual([16, 16]);
-  }
-  const findings = steps.getByRole("listitem").filter({ hasText: "Review" });
-  await expect(findings.getByText("Blocker", { exact: true })).toBeVisible();
-  await expect(findings.getByText("Major", { exact: true })).toBeVisible();
-  await expect(findings.getByText("Note", { exact: true })).toBeVisible();
+  const details = await openLink(section, "delivery-details");
+  await expect(details).toContainText("Earlier results, for commit 4be19c2");
+  const tried = await openLink(section, "delivery-tried");
+  await expect(tried).toContainText("Try 1");
 });
 
-test("a stopped run names the reason and its one button moves focus to the message box", async ({ page }) => {
+test("a stopped run names the reason once, lists what remains, and its one button moves focus to the message box", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, STOPPED);
   await page.goto(`/tasks/${id}`);
-  const now = page.getByTestId("delivery-section").getByTestId("delivery-now");
+  const section = page.getByTestId("delivery-section");
+  const now = section.getByTestId("delivery-now");
   await expect(now).toContainText("Bakery could not fix this");
   await expect(now).toContainText(
-    "It tried 2 times and 1 blocking finding remains.",
+    "It stopped after 2 tries. Nothing was merged. Send a message to say what to do next.",
   );
-  await expect(now).toContainText("Send a message to say what to do next.");
   await expect(now).toHaveAttribute("data-variant", "warning");
-  // The last step, not the last list item: the Fixing step lists its tries.
-  const fixing = page.getByRole("list", { name: "Delivery steps" })
-    .locator(":scope > li").last();
-  await expect(fixing).toContainText(
-    "Stopped after 2 tries. 1 blocking finding remains.",
+  // What remains is in the list, not in the headline.
+  const attention = section.getByTestId("delivery-attention");
+  await expect(attention).toContainText("Needs attention");
+  await expect(attention).toContainText("Review finding");
+  await expect(attention).toContainText(
+    "Refund amount is not validated against the original charge.",
   );
-  await expect(fixing).toContainText("Failed");
-  // The summary never says a try finished (the list of tries has its own badge).
-  await expect(fixing.locator(".ui-step-item__summary")).not.toContainText(
-    "finished",
-  );
+  // The tries are behind a closed link, and the try count is said nowhere else.
+  const tried = section.getByTestId("delivery-tried");
+  await expect(tried).not.toHaveAttribute("open");
+  await openLink(section, "delivery-tried");
+  await expect(tried).toContainText("Try 2");
   await expect(now.getByRole("button")).toHaveCount(1);
   await now.getByRole("button", { name: "Tell Bakery what to change" }).click();
   await expect(page.locator("#task-message-field")).toBeFocused();
@@ -767,8 +748,8 @@ test("a denied read says there is no access and draws no steps", async ({ page }
   await expect(section).toContainText(
     "You do not have access to this run's delivery status.",
   );
-  await expect(section.getByRole("list", { name: "Delivery steps" }))
-    .toHaveCount(0);
+  await expect(section.getByTestId("delivery-settled")).toHaveCount(0);
+  await expect(section.getByTestId("delivery-details")).toHaveCount(0);
 });
 
 test("a failed load offers Try again, and the retry shows the steps", async ({ page }) => {
@@ -799,8 +780,7 @@ test("a failed load offers Try again, and the retry shows the steps", async ({ p
   await expect(section).toContainText("Delivery status could not be loaded.");
   failing = false;
   await section.getByRole("button", { name: "Try again" }).click();
-  await expect(section.getByRole("list", { name: "Delivery steps" }))
-    .toBeVisible();
+  await expect(section.getByTestId("delivery-settled")).toBeVisible();
 });
 
 test("a run with no changes yet draws no delivery section", async ({ page }) => {
@@ -818,8 +798,10 @@ test("the section has no accessibility violations and fits a 390px screen", asyn
   await mockDelivery(page, FIXING);
   await page.goto(`/tasks/${id}`);
   const section = page.getByTestId("delivery-section");
-  await expect(section.getByRole("list", { name: "Delivery steps" }))
-    .toBeVisible();
+  await expect(section.getByTestId("delivery-settled")).toBeVisible();
+  // Both links open, so the whole section is what is checked.
+  await openLink(section, "delivery-details");
+  await openLink(section, "delivery-tried");
   const results = await new AxeBuilder({ page })
     .include('[data-testid="delivery-section"]')
     .analyze();
@@ -836,25 +818,22 @@ const nowCard = (page: Page) =>
 const notice = (page: Page) => page.getByTestId("delivery-approval-notice");
 const button = (card: Locator, name: string) =>
   card.getByRole("button", { name, exact: true });
-const approvalStep = (page: Page) => page.getByTestId("delivery-approval-step");
 
 async function openApproval(page: Page, approvals = [approvalRow()]) {
   await mockRun(page);
   await mockDelivery(page, CLEAN);
   const mock = await mockApprovals(page, approvals);
   await page.goto(`/tasks/${id}`);
-  await expect(nowCard(page)).toContainText("Waiting for approval");
+  await expect(nowCard(page)).toContainText("Ready for your approval");
   return mock;
 }
 
 test("an open approval asks for a decision with three visible answers, Approve first", async ({ page }) => {
   await openApproval(page);
   const now = nowCard(page);
-  await expect(now).toContainText(
-    "Checks passed and the reviewer found nothing blocking. Approving lets Bakery merge these changes.",
-  );
-  // The page cannot know who may decide, so it does not call the approval theirs.
-  await expect(now).not.toContainText("your approval");
+  await expect(now).toContainText("Approving lets Bakery merge these changes.");
+  // The headline says it is ready for approval, once; no other line repeats it.
+  await expect(now).toContainText("Ready for your approval");
   await expect(now).toHaveAttribute("data-variant", "warning");
   // Beside the text the primary is first; on a phone they are stacked with it last.
   const phone = (page.viewportSize()?.width ?? 1280) <= 743;
@@ -864,30 +843,11 @@ test("an open approval asks for a decision with three visible answers, Approve f
       : ["Approve", "Request changes", "Reject"],
   );
   await expect(now.getByRole("button", { name: "More" })).toHaveCount(0);
-  const steps = page.getByRole("list", { name: "Delivery steps" });
-  await expect(steps.getByRole("listitem")).toHaveCount(4);
-  const step = approvalStep(page);
-  await expect(step).toContainText("Waiting for you");
-  await expect(step).toContainText("Waiting for approval.");
-  // Keyboard focus opens a help tip on every screen. On a phone, scrolling closes
-  // it, and focusing a button that is below the fold scrolls the page, so the
-  // button is brought into view first and the scroll's own event is let through.
-  const help = step.getByRole("button", { name: "About approval" });
-  await help.scrollIntoViewIfNeeded();
-  await page.evaluate(() =>
-    new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    )
-  );
-  await help.focus();
-  await expect(
-    page.getByRole("tooltip").filter({
-      hasText: "Your workflow asks a person to approve at this point.",
-    }),
-  ).toBeVisible();
-  await expect(help).toHaveAccessibleDescription(
-    "Your workflow asks a person to approve at this point.",
-  );
+  // The approval is the headline and its three answers: no step repeats it.
+  const section = page.getByTestId("delivery-section");
+  await expect(section.getByRole("list", { name: "Delivery steps" }))
+    .toHaveCount(0);
+  await expect(section.getByTestId("delivery-attention")).toHaveCount(0);
 });
 
 test("approving asks first, sends the version it saw once, and the card announces the result", async ({ page }) => {
@@ -918,7 +878,6 @@ test("approving asks first, sends the version it saw once, and the card announce
   });
   expect(mock.posted[0]?.key).toMatch(/^[0-9a-f-]{36}$/);
   await expect(page.locator("#delivery-now-title")).toBeFocused();
-  await expect(approvalStep(page)).toContainText("Approved");
   await expect(now.getByRole("button")).toHaveCount(0);
 });
 
@@ -956,7 +915,6 @@ test("changes need a note, which is sent as the decision's comment", async ({ pa
     comment: "Validate the refund amount against the original charge.",
     expectedVersion: 4,
   });
-  await expect(approvalStep(page)).toContainText("Changes requested");
 });
 
 test("rejecting asks first and says what it does", async ({ page }) => {
@@ -978,7 +936,6 @@ test("rejecting asks first and says what it does", async ({ page }) => {
     decision: "reject",
     expectedVersion: 4,
   });
-  await expect(approvalStep(page)).toContainText("Rejected");
 });
 
 test("a decision that lost to another says so under the card, moves focus to it and shows the latest state", async ({ page }) => {
@@ -1042,7 +999,7 @@ test("a person who may not decide is told so, the answers go away and nothing ch
   await expect(button(dialog, "Approve")).toBeDisabled();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(notice(page)).toContainText("You cannot decide this approval.");
-  await expect(now).toContainText("Waiting for approval");
+  await expect(now).toContainText("Ready for your approval");
   await expect(now.getByRole("button")).toHaveCount(0);
 });
 
@@ -1088,7 +1045,7 @@ test("an approval asked about an earlier candidate is not shown", async ({ page 
   await page.goto(`/tasks/${id}`);
   const now = nowCard(page);
   await expect(now).toContainText(
-    "Checks passed and the review found nothing blocking",
+    "Nothing is waiting for you",
   );
   await expect(page.getByTestId("delivery-section")).not.toContainText(
     "Approval",
@@ -1202,7 +1159,7 @@ test("a failed approvals read says it could not check, not that nothing is waiti
   await expect(now).toHaveAttribute("data-variant", "warning");
   mock.listFails = false;
   await button(now, "Try again").click();
-  await expect(now).toContainText("Waiting for approval");
+  await expect(now).toContainText("Ready for your approval");
   await expect(now.getByRole("button")).toHaveCount(3);
 });
 
@@ -1349,8 +1306,7 @@ for (
         await mockDelivery(page, scenario);
         await page.goto(`/tasks/${id}`);
         const section = page.getByTestId("delivery-section");
-        await expect(section.getByRole("list", { name: "Delivery steps" }))
-          .toBeVisible();
+        await expect(section.getByTestId("delivery-now")).toBeVisible();
         await section.scrollIntoViewIfNeeded();
         await section.screenshot({
           path: `${STILLS}/delivery-${name}-${label}-${scheme}.png`,
@@ -1429,7 +1385,7 @@ for (const name of APPROVAL_STILLS) {
         await expect(now).toContainText(
           unavailable
             ? "Bakery could not check whether approval is needed"
-            : "Waiting for approval",
+            : "Ready for your approval",
         );
         // A dialog is pictured alone: the page behind it is not what changed.
         const dialogPicture = async () => {
@@ -1503,65 +1459,49 @@ const approvedRow = () =>
     decidedAt: at(6),
   });
 
-const afterApprovalHeading = (page: Page) =>
-  page.getByTestId("delivery-section").getByRole("heading", {
-    name: "After approval",
-  });
+/** The pull request, once approved, is one link on the settled line. */
+const pullRequestLine = (page: Page) =>
+  page.getByTestId("delivery-pull-request-line");
 
-const pullRequestStep = (page: Page) =>
-  page.getByTestId("delivery-pull-request-step");
-
-const mergeStep = (page: Page) => page.getByTestId("delivery-merge-step");
+/** The merge sentence and commit live in Details; a closed link keeps them in the page. */
+const mergeStep = (page: Page) => page.getByTestId("delivery-details");
 
 async function openApproved(page: Page, scenario: Scenario) {
   await mockRun(page);
   await mockDelivery(page, { ...CLEAN, ...scenario });
   await mockApprovals(page, [approvedRow()]);
   await page.goto(`/tasks/${id}`);
-  await expect(afterApprovalHeading(page)).toBeVisible();
+  await expect(nowCard(page)).toBeVisible();
 }
 
-test("before approval the after-approval group and its badge are not drawn", async ({ page }) => {
+test("before approval no pull request line and no merge sentence are drawn", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, {
     ...CLEAN,
     pullRequests: [pullRequestRow(482)],
   });
   await page.goto(`/tasks/${id}`);
-  // A clean candidate with no approval asked: the trace ends at review, so the
-  // group that ends it has nothing to stand on yet.
-  await expect(
-    page.getByTestId("delivery-section").getByRole("list", {
-      name: "Delivery steps",
-    }),
-  ).toBeVisible();
-  await expect(afterApprovalHeading(page)).toHaveCount(0);
-  await expect(pullRequestStep(page)).toHaveCount(0);
-  await expect(mergeStep(page)).toHaveCount(0);
+  // A clean candidate with no approval asked: the trace ends at review, so
+  // nothing about a pull request stands yet.
+  await expect(nowCard(page)).toBeVisible();
+  await expect(pullRequestLine(page)).toHaveCount(0);
+  await expect(mergeStep(page)).not.toContainText("Not merged yet.");
   await expect(page.getByTestId("delivery-outcome-badge")).toHaveCount(0);
 });
 
-test("an approved run with a pull request open says so, badges Ready to merge and links to GitHub", async ({ page }) => {
+test("an approved run with a pull request open links to it from the settled line", async ({ page }) => {
   await openApproved(page, { pullRequests: [pullRequestRow(482)] });
-  const section = page.getByTestId("delivery-section");
-  await expect(pullRequestStep(page)).toContainText(
-    "Pull request #482 is open.",
-  );
+  const link = pullRequestLine(page).getByRole("link", {
+    name: /Pull request #482/,
+  });
+  await expect(link).toHaveAttribute("href", "https://github.com/o/r/pull/482");
+  await expect(link).toHaveAttribute("target", "_blank");
   await expect(mergeStep(page)).toContainText("Not merged yet.");
-  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Ready to merge",
-  );
-  await expect(section).toContainText(
+  // Said once: the "Release" note and the outcome badge are gone.
+  await expect(page.getByTestId("delivery-section")).not.toContainText(
     "Releases are not tracked in Bakery yet.",
   );
-  const link = pullRequestStep(page).getByRole("link", {
-    name: /Open on GitHub/,
-  });
-  await expect(link).toHaveAttribute(
-    "href",
-    "https://github.com/o/r/pull/482",
-  );
-  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveCount(0);
 });
 
 test("a recorded merge commit is said as Merged as <sha>, confirmed by GitHub, and Copy copies all of it", async ({ page }) => {
@@ -1585,7 +1525,7 @@ test("a recorded merge commit is said as Merged as <sha>, confirmed by GitHub, a
   await expect(mergeStep(page)).toContainText(
     `Merged as ${sha("9").slice(0, 7)}, confirmed by GitHub.`,
   );
-  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText("Merged");
+  await openLink(page.getByTestId("delivery-section"), "delivery-details");
   await button(mergeStep(page), "Copy").click();
   await expect(button(mergeStep(page), "Copied")).toBeVisible();
   await expect.poll(() =>
@@ -1593,34 +1533,21 @@ test("a recorded merge commit is said as Merged as <sha>, confirmed by GitHub, a
   ).toEqual([sha("9")]);
 });
 
-test("a pull request closed without merging is failed, badged Not merged and never called merged", async ({ page }) => {
+test("a pull request closed without merging is never called merged", async ({ page }) => {
   await openApproved(page, {
     pullRequests: [pullRequestRow(482, { status: "closed" })],
   });
-  await expect(pullRequestStep(page)).toContainText(
-    "Pull request #482 was closed without merging.",
-  );
   await expect(mergeStep(page)).toContainText("Not merged.");
-  await expect(pullRequestStep(page)).toHaveAttribute("data-state", "failed");
-  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Not merged",
-  );
+  await expect(mergeStep(page)).not.toContainText("Merged as");
+  await expect(pullRequestLine(page)).toContainText("Pull request #482");
 });
 
-test("with no pull request the group says Bakery has seen none and cannot tell whether the work merged", async ({ page }) => {
+test("with no pull request Bakery draws none and says it cannot tell whether the work merged", async ({ page }) => {
   await openApproved(page, {});
-  await expect(pullRequestStep(page)).toContainText(
-    "Bakery has not seen a pull request for this task. If one was opened, check GitHub.",
-  );
   await expect(mergeStep(page)).toContainText(
     "Bakery cannot tell whether these changes were merged.",
   );
-  await expect(pullRequestStep(page)).toHaveAttribute("data-state", "unknown");
-  await expect(mergeStep(page)).toHaveAttribute("data-state", "unknown");
-  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Approved",
-  );
-  await expect(pullRequestStep(page).getByRole("link")).toHaveCount(0);
+  await expect(pullRequestLine(page)).toHaveCount(0);
 });
 
 test("this run's pull request wins, and the task's others open in place, newest first", async ({ page }) => {
@@ -1638,9 +1565,8 @@ test("this run's pull request wins, and the task's others open in place, newest 
       pullRequestRow(482),
     ],
   });
-  await expect(pullRequestStep(page)).toContainText(
-    "Pull request #482 is open.",
-  );
+  await expect(pullRequestLine(page)).toContainText("Pull request #482");
+  await openLink(page.getByTestId("delivery-section"), "delivery-details");
   const earlier = page.getByTestId("delivery-earlier-pull-requests");
   // A count the person can open, and nothing listed until they do.
   const control = earlier.getByText("and 2 earlier", { exact: true });
@@ -1649,17 +1575,6 @@ test("this run's pull request wins, and the task's others open in place, newest 
   await expect(earlier).not.toHaveAttribute("open");
   const rows = earlier.getByRole("listitem");
   await expect(rows).toHaveCount(0);
-  // On a phone the step's own button must not read as the button for the last
-  // row: it comes before the list (design-ux, 2026-11-16).
-  if ((page.viewportSize()?.width ?? 1280) <= 743) {
-    const ownButton = pullRequestStep(page).getByRole("link", {
-      name: /Open on GitHub/,
-    });
-    await expect(ownButton).toHaveCount(1);
-    const buttonTop = (await ownButton.boundingBox())?.y ?? 0;
-    const controlTop = (await earlier.locator("summary").boundingBox())?.y ?? 0;
-    expect(buttonTop).toBeLessThan(controlTop);
-  }
   await earlier.locator("summary").click();
   await expect(earlier).toHaveAttribute("open", "");
   await expect(rows).toHaveCount(2);
@@ -1668,15 +1583,17 @@ test("this run's pull request wins, and the task's others open in place, newest 
   await expect(rows.nth(0)).toContainText("Merged");
   await expect(rows.nth(1)).toContainText("#480");
   await expect(rows.nth(1)).toContainText("Closed");
-  await expect(rows.nth(1).getByRole("link", { name: /Open on GitHub/ }))
-    .toHaveAttribute("href", "https://github.com/o/r/pull/480");
+  await expect(rows.nth(1).getByRole("link")).toHaveAttribute(
+    "href",
+    "https://github.com/o/r/pull/480",
+  );
   // Pressing it again closes the list.
   await earlier.locator("summary").click();
   await expect(earlier).not.toHaveAttribute("open");
   await expect(rows).toHaveCount(0);
 });
 
-test("the after-approval group has no accessibility violations and fits a 390px screen", async ({ page }) => {
+test("the settled line and Details after approval have no accessibility violations and fit a 390px screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openApproved(page, {
     pullRequests: [
@@ -1684,6 +1601,7 @@ test("the after-approval group has no accessibility violations and fits a 390px 
     ],
   });
   const section = page.getByTestId("delivery-section");
+  await openLink(section, "delivery-details");
   const overflow = await section.evaluate((node) =>
     node.scrollWidth - node.clientWidth
   );
@@ -1730,24 +1648,18 @@ for (const [name, scenario] of AFTER_APPROVAL_STILLS) {
         await mockDelivery(fresh, { ...CLEAN, ...scenario });
         await mockApprovals(fresh, [approvedRow()]);
         await fresh.goto(`/tasks/${id}`);
-        await expect(fresh.getByTestId("delivery-merge-step")).toBeVisible();
-        // Framed on the group, so the whole group is in the shot: the step
-        // list is taller than the window and clips at its pane otherwise.
-        await fresh.getByTestId("delivery-merge-step").scrollIntoViewIfNeeded();
+        await expect(fresh.getByTestId("delivery-now")).toBeVisible();
+        // The section is framed whole, with Details open so the merge sentence
+        // and commit are in the shot.
+        await openLink(
+          fresh.getByTestId("delivery-section"),
+          "delivery-details",
+        );
+        await fresh.getByTestId("delivery-section").scrollIntoViewIfNeeded();
         await fresh.screenshot({
           path: `${STILLS}/after-approval-${name}-${size}-${scheme}.png`,
           animations: "disabled",
         });
-        if (size === "1440" && scheme === "light") {
-          // The badge sits beside the section's heading, so it is captured with
-          // it rather than cropped alone.
-          await fresh.getByTestId("delivery-outcome-badge")
-            .scrollIntoViewIfNeeded();
-          await fresh.screenshot({
-            path: `${STILLS}/after-approval-header-${name}.png`,
-            animations: "disabled",
-          });
-        }
         await fresh.close();
       }
     }
@@ -1782,6 +1694,7 @@ test("still: the task's other pull requests, closed and opened", async ({ page }
     await mockDelivery(fresh, { ...CLEAN, pullRequests: earlier });
     await mockApprovals(fresh, [approvedRow()]);
     await fresh.goto(`/tasks/${id}`);
+    await openLink(fresh.getByTestId("delivery-section"), "delivery-details");
     const disclosure = fresh.getByTestId("delivery-earlier-pull-requests");
     await expect(disclosure).toBeVisible();
     // Closed first, then opened, both framed on the step that carries them.
@@ -1837,7 +1750,7 @@ async function openMerge(
     await route.fulfill({ json: { reconciled: 0, merged: 0, refused: 0 } });
   });
   await page.goto(`/tasks/${id}`);
-  await expect(afterApprovalHeading(page)).toBeVisible();
+  await expect(nowCard(page)).toBeVisible();
   return seen;
 }
 
@@ -1872,9 +1785,6 @@ test("an approved candidate at the reviewed head offers Merge, asks first, and q
   // has nothing to do. Focus goes to its title so the change is announced.
   await expect(now).toContainText("Checking before the merge");
   await expect(now.getByRole("button")).toHaveCount(0);
-  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Merging",
-  );
   await expect(mergeStep(page)).toContainText(
     "About to check that nothing changed since the review.",
   );
@@ -1914,14 +1824,7 @@ for (
       "Bakery is checking that nothing changed since the review, then it merges. Nothing for you to do.",
     );
     await expect(now.getByRole("button")).toHaveCount(0);
-    await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-      "Merging",
-    );
     await expect(mergeStep(page)).toContainText(sentence);
-    await expect(mergeStep(page)).toHaveAttribute("data-state", "running");
-    // The mark says In progress; "Running" is for the run's own steps.
-    await expect(mergeStep(page)).toContainText("In progress");
-    await expect(mergeStep(page)).not.toContainText("Running");
     // A reload, or another person looking, sees the same.
     await page.reload();
     await expect(nowCard(page)).toContainText("Checking before the merge");
@@ -2018,11 +1921,7 @@ for (
     const now = nowCard(page);
     await expect(now).toContainText(title);
     await expect(now).toContainText(text);
-    await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-      "Not merged",
-    );
     await expect(mergeStep(page)).toContainText("Bakery did not merge.");
-    await expect(mergeStep(page)).toHaveAttribute("data-state", "failed");
     // One primary action, or none: pressing it must be able to help.
     const buttons = now.getByRole("button");
     const links = now.getByRole("link", { name: /Open on GitHub/ });
@@ -2112,9 +2011,6 @@ test("an attempt whose outcome is unknown says so after a reload, offers only Ch
   await expect(button(now, "Check again")).toBeVisible();
   await expect(now.getByRole("button", { name: "Merge", exact: true }))
     .toHaveCount(0);
-  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Merge unknown",
-  );
   await expect(mergeStep(page)).toContainText(
     "Bakery cannot tell whether these changes were merged.",
   );
@@ -2203,27 +2099,20 @@ test("a pull request that moved after the approval is not offered to merge, and 
   // The results, review and approval are marked as being for the older commit,
   // not shown as green for the commit the pull request no longer ends at.
   const section = page.getByTestId("delivery-section");
-  // One notice, not two: the warning card says it, the steps are marked.
+  // One notice, not two: the warning card says it, and no second banner or
+  // "Older commit" chip repeats it.
   await expect(section.getByTestId("delivery-out-of-date")).toHaveCount(0);
+  await expect(section.getByText(/^Older commit [0-9a-f]{7}$/)).toHaveCount(0);
   await expect(now).toContainText(
     "The results below are for the older commit and no longer count.",
   );
   await expect(now).toContainText(
     "Checks and the review need to pass for 4be19c2, and it needs approving again, before it can merge.",
   );
-  await expect(page.getByTestId("delivery-outcome-badge")).toContainText(
-    "Changed after approval",
-  );
-  await expect(section).toContainText("Older commit 91d0aa3");
-  // The approval was for that older commit: it says so and promises nothing.
-  await expect(page.getByTestId("delivery-approval-step")).toContainText(
-    "Approved for older commit 91d0aa3. Commit 4be19c2 needs approving again.",
-  );
-  await expect(page.getByTestId("delivery-approval-step")).not.toContainText(
-    "Bakery may merge these changes",
-  );
+  // The earlier results are kept, labelled, inside Details.
+  const details = await openLink(section, "delivery-details");
+  await expect(details).toContainText("Earlier results, for commit 91d0aa3");
   // Nothing is re-running: the page must not say the results are running again.
-  await expect(section).toContainText("No results for commit 4be19c2.");
   await expect(section).not.toContainText("Running again");
 });
 
@@ -2434,9 +2323,6 @@ test("an approved commit with no check results says so, offers no Merge, and nev
   await expect(now.getByRole("button")).toHaveCount(0);
   await expect(now.getByRole("link", { name: /Open on GitHub/ }))
     .toHaveAttribute("href", "https://github.com/o/r/pull/482");
-  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Approved",
-  );
   expect(seen.merges).toHaveLength(0);
 });
 
@@ -2747,83 +2633,119 @@ async function openDelivery(page: Page, scenario: Scenario) {
   return section;
 }
 
-test("every check shows its reason, its time and its output, and the list opens while one has not passed", async ({ page }) => {
+test("what needs attention lists each check that did not pass with its reason, and everything settled is counted", async ({ page }) => {
   const section = await openDelivery(page, REASONS);
-  const detail = section.getByTestId("delivery-checks-detail");
-  const toggle = detail.getByRole("button", { name: "Hide the 4 checks" });
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  const rows = detail.getByTestId("delivery-check-row");
-  await expect(rows).toHaveCount(4);
-  // Not passed first, in the server's order; the pass last.
-  await expect(rows.nth(0)).toContainText("tests");
-  await expect(rows.nth(0)).toContainText("Failed");
-  await expect(rows.nth(0)).toContainText("Ended with exit code 2.");
-  await expect(rows.nth(0)).toContainText("Took 2 min 14 s.");
-  await expect(rows.nth(0).getByRole("link", { name: "Open the output" }))
+  const now = section.getByTestId("delivery-now");
+  // Failed, could not run: counted once, in the title, as not passed.
+  await expect(now).toContainText("3 checks did not pass");
+  await expect(now).toContainText(
+    "The change stays blocked. Send a message to say what to do next.",
+  );
+  const attention = section.getByTestId("delivery-attention");
+  await expect(attention).toContainText("Needs attention");
+  const row = (name: string) =>
+    attention.getByRole("row").filter({ hasText: name });
+  // A failed command always says it ended with an error; its exit code is in Details.
+  await expect(row("tests")).toContainText("Ended with an error.");
+  await expect(row("tests")).not.toContainText("exit code");
+  await expect(row("tests").getByRole("link", { name: "Open the output" }))
     .toHaveAttribute("href", `/files/versions/${OUTPUT_VERSION}`);
-  await expect(rows.nth(1)).toContainText("pull request title");
-  await expect(rows.nth(1)).toContainText(
+  // A broken rule links to the rules, and says its sentence once.
+  await expect(row("pull request title")).toContainText(
     "Does not follow the repository's rule.",
   );
-  await expect(rows.nth(1)).toContainText("A repository rule.");
-  await expect(rows.nth(1).getByRole("link")).toHaveCount(0);
-  await expect(rows.nth(2)).toContainText("security scan");
-  await expect(rows.nth(2)).toContainText(
-    "The tool it needs is not on the machine. This counts as not passed.",
+  await expect(row("pull request title")).not.toContainText(
+    "A repository rule.",
   );
-  await expect(rows.nth(3)).toContainText("lint");
-  await expect(rows.nth(3)).toContainText("Passed");
-  await expect(rows.nth(3)).toContainText("Took 1 s.");
-  // The person can close it, and it says how to open it again.
-  await toggle.click();
-  await expect(rows).toHaveCount(0);
-  await expect(detail.getByRole("button", { name: "Show the 4 checks" }))
-    .toHaveAttribute("aria-expanded", "false");
+  await expect(
+    row("pull request title").getByRole("button", {
+      name: "Open repository rules",
+    }),
+  ).toBeVisible();
+  await expect(row("security scan")).toContainText(
+    "The tool it needs is not on the machine.",
+  );
+  // The pass is counted on one line and is not a row.
+  await expect(attention).not.toContainText("lint");
+  await expect(section.getByTestId("delivery-settled-checks")).toHaveText(
+    "1 check passed",
+  );
+  // Details lists every check with its result, time and exit code.
+  const details = await openLink(section, "delivery-details");
+  const all = details.getByTestId("delivery-checks-rows");
+  await expect(all.getByRole("row").filter({ hasText: "tests" })).toContainText(
+    "2 min 14 s",
+  );
+  await expect(all.getByRole("row").filter({ hasText: "tests" })).toContainText(
+    "2",
+  );
+  await expect(all.getByRole("row").filter({ hasText: "lint" })).toContainText(
+    "Passed",
+  );
 });
 
-test("when every check passed the list is closed until opened", async ({ page }) => {
-  const section = await openDelivery(page, CLEAN);
-  const detail = section.getByTestId("delivery-checks-detail");
-  const toggle = detail.getByRole("button", { name: "Show the 2 checks" });
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(detail.getByTestId("delivery-check-row")).toHaveCount(0);
-  await toggle.click();
-  await expect(detail.getByTestId("delivery-check-row")).toHaveCount(2);
-  await expect(detail.getByRole("button", { name: "Hide the 2 checks" }))
-    .toBeVisible();
+test("a check list of more than five rows folds under Show all", async ({ page }) => {
+  const many: Scenario = {
+    ...CLEAN,
+    checks: ["a", "b", "c", "d", "e", "f", "g"].map((name) => ({
+      name,
+      head: NEW,
+      result: "failed" as const,
+      minute: 1,
+      exitCode: 1,
+    })),
+  };
+  const section = await openDelivery(page, many);
+  const attention = section.getByTestId("delivery-attention");
+  const rows = attention.getByTestId("delivery-attention-rows").getByRole(
+    "row",
+  );
+  // Five rows and the hidden heading row; Show all brings the rest.
+  await expect(rows).toHaveCount(6);
+  await attention.getByRole("button", { name: "Show all" }).click();
+  await expect(rows).toHaveCount(8);
+  await expect(attention.getByRole("button", { name: "Show all" }))
+    .toHaveCount(0);
 });
 
-test("what Bakery tried lists every try, newest first, with what it was asked to fix", async ({ page }) => {
+test("what Bakery tried lists every try, newest first, behind one closed link", async ({ page }) => {
   const section = await openDelivery(page, TRIES);
-  const detail = section.getByTestId("delivery-tries-detail");
-  await expect(detail.getByRole("button", { name: "Hide what Bakery tried" }))
-    .toHaveAttribute("aria-expanded", "true");
-  const rows = detail.getByTestId("delivery-try-row");
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0)).toContainText("Try 2");
-  await expect(rows.nth(0)).toContainText("Running");
-  await expect(rows.nth(0)).toContainText(
-    "Asked to fix 2 checks that did not pass (tests and lint). Commit 91d0aa3.",
+  const tried = section.getByTestId("delivery-tried");
+  await expect(tried).not.toHaveAttribute("open");
+  await openLink(section, "delivery-tried");
+  const rows = tried.getByTestId("delivery-tried-rows").getByRole("row");
+  await expect(rows.filter({ hasText: "Try 2" })).toContainText(
+    "Asked to fix 2 checks that did not pass (tests and lint).",
   );
-  await expect(rows.nth(1)).toContainText("Try 1");
-  await expect(rows.nth(1)).toContainText("Finished");
-  await expect(rows.nth(1)).toContainText(
-    "Asked to fix 1 check that did not pass (tests) and 1 blocking finding. Commit 4be19c2.",
+  await expect(rows.filter({ hasText: "Try 2" })).toContainText("91d0aa3");
+  await expect(rows.filter({ hasText: "Try 1" })).toContainText(
+    "Asked to fix 1 check that did not pass (tests) and 1 blocking finding.",
   );
-  await expect(detail).toContainText(
+  await expect(rows.filter({ hasText: "Try 1" })).toContainText("4be19c2");
+  // No "Running" or "Finished" chip, and no "of 2" on the rows.
+  await expect(tried.getByTestId("delivery-tried-rows")).not.toContainText(
+    "Finished",
+  );
+  await expect(tried).toContainText(
     "Bakery stops after 2 tries or 10 minutes, whichever comes first.",
   );
-  await detail.getByRole("button", { name: "Hide what Bakery tried" }).click();
-  await expect(rows).toHaveCount(0);
+  // The headline says the try count once.
+  await expect(section.getByTestId("delivery-now")).toContainText(
+    "try\u00a02\u00a0of\u00a02",
+  );
 });
 
-test("a review accepted anyway says when and why, and a review nobody accepted shows no notice", async ({ page }) => {
+test("a review accepted anyway is one line with who, when and why, and leaves nothing remaining", async ({ page }) => {
   const section = await openDelivery(page, ACCEPTED);
-  const notice = section.getByTestId("delivery-review-accepted");
-  await expect(notice).toContainText(
-    "Accepted anyway by Ana Ruiz · Jan 1, 2026",
+  const line = section.getByTestId("delivery-review-accepted");
+  await expect(line).toContainText("Review accepted anyway");
+  await expect(line).toContainText("by Ana Ruiz on Jan 1, 2026");
+  await expect(line).toContainText("“The finding is about generated code.”");
+  // The accepted finding is not a thing to attend to, and the run is not stopped.
+  await expect(section.getByTestId("delivery-attention")).toHaveCount(0);
+  await expect(section.getByTestId("delivery-now")).not.toContainText(
+    "Bakery could not fix this",
   );
-  await expect(notice).toContainText("“The finding is about generated code.”");
   await page.goto("about:blank");
   const clean = await openDelivery(page, CLEAN);
   await expect(clean.getByTestId("delivery-review-accepted")).toHaveCount(0);

@@ -326,7 +326,74 @@ Deno.test("each stop reason gives a stopped card with what the sentence needs", 
     blocking: 2,
     unavailableChecks: 0,
     findingTitle: "Refund amount is not validated.",
+    merged: false,
   });
+});
+
+Deno.test("a stopped card says a merge happened only when an attempt merged", () => {
+  const stopped = (attempts: Parameters<typeof attempt>[0][]) =>
+    deliveryModel(input({
+      reviews: [review({
+        status: "changes_requested",
+        findingCount: 1,
+        blockingCount: 1,
+      })],
+      findings: [finding({ id: "b", severity: "blocker" })],
+      decisions: [
+        decision({ ordinal: 0, decision: "repair", reason: "repair_selected" }),
+        decision({
+          ordinal: 1,
+          decision: "stop",
+          reason: "repair_cycles_exhausted",
+          blockingFingerprints: ["f1"],
+        }),
+      ],
+      mergeAttempts: attempts.map((one) => attempt(one)),
+    })).now;
+  const merged = (card: unknown) => (card as { merged: boolean }).merged;
+  assertEquals(merged(stopped([])), false);
+  assertEquals(merged(stopped([{ state: "refused" }])), false);
+  assertEquals(merged(stopped([{ state: "unknown" }])), false);
+  assertEquals(merged(stopped([{ state: "merged" }])), true);
+});
+
+Deno.test("the headline counts every check that did not pass: failed, could not run and canceled", () => {
+  const model = deliveryModel(input({
+    checks: [
+      check({ id: "c1", checkId: "a", result: "failed", exitCode: 1 }),
+      check({ id: "c2", checkId: "b", result: "unavailable" }),
+      check({ id: "c3", checkId: "c", result: "canceled" }),
+      check({ id: "c4", checkId: "d", result: "passed" }),
+    ],
+    reviews: [review()],
+  }));
+  assertEquals(model.now, { kind: "checksFailed", failed: 3 });
+});
+
+Deno.test("a review accepted anyway leaves no blocking finding remaining and no stop", () => {
+  const model = deliveryModel(input({
+    reviews: [review({
+      status: "changes_requested",
+      findingCount: 1,
+      blockingCount: 1,
+      acceptedAt: "2026-11-13T12:00:00.000Z",
+      acceptReason: "Known and tracked",
+      acceptedByName: "Ana",
+    })],
+    findings: [finding({ id: "b", severity: "blocker" })],
+    decisions: [
+      decision({ ordinal: 0, decision: "repair", reason: "repair_selected" }),
+      decision({
+        ordinal: 1,
+        decision: "stop",
+        reason: "repair_cycles_exhausted",
+        blockingFingerprints: ["f1"],
+      }),
+    ],
+  }));
+  // The stop was about findings the person has now accepted: nothing remains.
+  assertEquals(model.now.kind, "clean");
+  assertEquals(model.review?.accepted?.by, "Ana");
 });
 
 Deno.test("a stopped run marks the Fixing step stopped with the blocking count", () => {

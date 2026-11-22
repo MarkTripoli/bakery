@@ -74,6 +74,34 @@ export function took(
   };
 }
 
+/** How long a check took as a table cell ("2 s", "2 min 14 s"), else null for a rule or no time. */
+export function tookCell(
+  row: Pick<CheckRow, "rule" | "durationMs">,
+):
+  | { key: "tasks.delivery.details.tookInstant" }
+  | { key: "tasks.delivery.details.tookSeconds"; values: { seconds: number } }
+  | {
+    key: "tasks.delivery.details.tookMinutes";
+    values: { minutes: number; seconds: number };
+  }
+  | null {
+  if (row.rule || row.durationMs === null || row.durationMs < 0) return null;
+  const whole = Math.round(row.durationMs / 1000);
+  if (row.durationMs < 1000) {
+    return { key: "tasks.delivery.details.tookInstant" };
+  }
+  if (whole < 60) {
+    return {
+      key: "tasks.delivery.details.tookSeconds",
+      values: { seconds: whole },
+    };
+  }
+  return {
+    key: "tasks.delivery.details.tookMinutes",
+    values: { minutes: Math.floor(whole / 60), seconds: whole % 60 },
+  };
+}
+
 const ORDER: Readonly<Record<CheckRow["result"], number>> = {
   failed: 0,
   unavailable: 0,

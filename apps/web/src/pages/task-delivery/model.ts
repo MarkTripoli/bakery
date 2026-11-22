@@ -470,6 +470,7 @@ export type NowCard =
   >
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
+  /** `failed` counts every check that did not pass: failed, could not run or canceled. */
   | Readonly<{ kind: "checksFailed"; failed: number }>
   | Readonly<
     {
@@ -479,6 +480,8 @@ export type NowCard =
       blocking: number;
       unavailableChecks: number;
       findingTitle: string | null;
+      /** A merge attempt on this pull request merged, so "Nothing was merged." would be false. */
+      merged: boolean;
     }
   >;
 
@@ -582,6 +585,14 @@ const SEVERITY_ORDER: Readonly<Record<FindingSeverity, number>> = {
   minor: 2,
   note: 3,
 };
+
+/** The stops that are about findings a person can accept anyway. */
+const FINDING_STOPS: ReadonlySet<string> = new Set<StopReason>([
+  "repeated_blocker",
+  "repair_cycles_exhausted",
+  "repair_time_exhausted",
+  "repair_budget_exhausted",
+]);
 
 const DEFAULT_MAX_REPAIRS = 2;
 
@@ -1154,11 +1165,17 @@ function nowCard(
   >,
 ): NowCard {
   if (input.paused) return { kind: "paused" };
-  const blocking = open.filter((finding) => finding.blocking);
+  // A person accepted the review anyway: its blocking findings are accepted,
+  // so none of them remains, and a stop for them no longer applies.
+  const accepted = review?.accepted != null;
+  const blocking = accepted ? [] : open.filter((finding) => finding.blocking);
   if (latestDecision?.decision === "stop") {
-    // Stale evidence is the out-of-date notice's job; the card says checking.
+    // Stale evidence is not a stop: the card says the results are being checked.
     if (latestDecision.reason === "stale_evidence") return { kind: "checking" };
-    if (STOP_REASONS.has(latestDecision.reason)) {
+    if (
+      STOP_REASONS.has(latestDecision.reason) &&
+      !(accepted && FINDING_STOPS.has(latestDecision.reason))
+    ) {
       return {
         kind: "stopped",
         reason: latestDecision.reason as StopReason,
@@ -1167,18 +1184,22 @@ function nowCard(
           blocking.length,
         unavailableChecks: checks.unavailable,
         findingTitle: blocking[0] ? findingTitle(blocking[0].body) : null,
+        merged: input.mergeAttempts.some((attempt) =>
+          attempt.state === "merged"
+        ),
       };
     }
   }
-  if (latestDecision?.decision === "repair") {
+  if (latestDecision?.decision === "repair" && !accepted) {
     return { kind: "fixing", attempt: repairs, max: maxRepairs };
   }
   if (checks.running > 0 || review === null || review.status === "running") {
     return { kind: "checking" };
   }
-  if (review.status === "approved") {
-    if (checks.failed > 0) {
-      return { kind: "checksFailed", failed: checks.failed };
+  if (review.status === "approved" || accepted) {
+    const notPassed = checks.failed + checks.unavailable + checks.canceled;
+    if (notPassed > 0) {
+      return { kind: "checksFailed", failed: notPassed };
     }
     // Results for an older commit cannot be approved: the notice says so and
     // the card keeps saying the results are being checked.

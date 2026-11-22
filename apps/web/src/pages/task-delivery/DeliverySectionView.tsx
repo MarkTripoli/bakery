@@ -3,23 +3,11 @@ import { focusAfterPaint } from "../../app/focus.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { formatDate, formatList, type MessageKey } from "@bakery/i18n";
-import {
-  countsAsNotPassed,
-  limitMinutes,
-  nameList,
-  needsAttention,
-  orderChecks,
-  reasonSentence,
-  took,
-  tryKey,
-} from "./check-copy.ts";
+import { formatList, type MessageKey } from "@bakery/i18n";
+import { DeliveryBody } from "./DeliveryBody.tsx";
 import type {
   ApprovalChoice,
-  ApprovalState,
-  CheckRow,
   DeliveryModel,
-  FindingRow,
   MergeView,
   NowCard,
 } from "./model.ts";
@@ -31,7 +19,6 @@ import {
   type MergeCardAction,
   mergeNoChecksCopy,
   mergeReadyCopy,
-  mergeStepCopy,
   type MergeTarget,
   mergeWorkingCopy,
 } from "./merge-copy.ts";
@@ -74,9 +61,6 @@ export type DeliverySectionViewProps = Readonly<{
 const NOW_TITLE_ID = "delivery-now-title";
 const NOTICE_ID = "delivery-approval-notice";
 
-/** At most this many findings or checks show before "Show all". */
-const SHOWN = 5;
-
 type Translate = ReturnType<typeof useI18n>["translate"];
 
 type NowCopy = Readonly<{
@@ -91,22 +75,69 @@ type NowCopy = Readonly<{
     | null;
 }>;
 
-function nowCopy(t: Translate, now: NowCard): NowCopy {
+/**
+ * What the running try is working on, as one phrase: "2 checks and 1 review
+ * finding". It comes from the newest try, which is the one running.
+ */
+function fixingWhat(
+  t: Translate,
+  locale: Parameters<typeof formatList>[1],
+  model: DeliveryModel,
+): string {
+  const running = model.fixing?.tries[0];
+  const parts: string[] = [];
+  if (running !== undefined && running.checkNames.length > 0) {
+    parts.push(
+      t("tasks.delivery.now.fixing.whatChecks", {
+        count: running.checkNames.length,
+      }),
+    );
+  }
+  if (running !== undefined && running.blocking > 0) {
+    parts.push(
+      t("tasks.delivery.now.fixing.whatFindings", { count: running.blocking }),
+    );
+  }
+  return parts.length === 0
+    ? t("tasks.delivery.now.fixing.whatNothing")
+    : formatList(parts, locale);
+}
+
+function nowCopy(
+  t: Translate,
+  now: NowCard,
+  context: Readonly<
+    { model: DeliveryModel; locale: Parameters<typeof formatList>[1] }
+  >,
+): NowCopy {
   const next = t("tasks.delivery.now.nextStep");
   switch (now.kind) {
     case "checking":
-      return {
-        title: t("tasks.delivery.now.checking.title"),
-        body: t("tasks.delivery.now.checking.body"),
-        action: null,
-      };
+      // Results for an older commit: one sentence here says so, and no second
+      // banner repeats it (#57 redesign).
+      return context.model.outOfDate
+        ? {
+          title: t("tasks.delivery.now.checking.stale.title"),
+          body: t("tasks.delivery.now.checking.stale.body"),
+          action: null,
+        }
+        : {
+          title: t("tasks.delivery.now.checking.title"),
+          body: t("tasks.delivery.now.checking.body"),
+          action: null,
+        };
     case "fixing":
       return {
         title: t("tasks.delivery.now.fixing.title", {
           attempt: now.attempt,
           max: now.max,
         }),
-        body: t("tasks.delivery.now.fixing.body"),
+        body: t(
+          now.attempt >= now.max
+            ? "tasks.delivery.now.fixing.bodyLast"
+            : "tasks.delivery.now.fixing.body",
+          { what: fixingWhat(t, context.locale, context.model) },
+        ),
         action: null,
       };
     case "paused":
@@ -192,10 +223,10 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
       };
     case "checksFailed":
       return {
-        title: t("tasks.delivery.now.checksFailed.title"),
-        body: `${
-          t("tasks.delivery.now.checksFailed.body", { count: now.failed })
-        } ${next}`,
+        title: t("tasks.delivery.now.checksFailed.title", {
+          count: now.failed,
+        }),
+        body: `${t("tasks.delivery.now.checksFailed.body")} ${next}`,
         action: "tell",
       };
     case "stopped":
@@ -208,9 +239,13 @@ function stoppedCopy(
   now: Extract<NowCard, { kind: "stopped" }>,
   next: string,
 ): NowCopy {
+  // "Nothing was merged." goes after the reason and before what to do next,
+  // unless a merge attempt did merge (#62, folded into the #57 redesign).
   const tell = (title: string, body: string): NowCopy => ({
     title,
-    body: `${body} ${next}`,
+    body: now.merged
+      ? `${body} ${next}`
+      : `${body} ${t("tasks.delivery.now.stopped.notMerged")} ${next}`,
     action: "tell",
   });
   switch (now.reason) {
@@ -300,93 +335,6 @@ function nowTone(now: NowCard): "success" | "information" | "warning" {
   }
 }
 
-/** The Approval step's mark and word for each state of the approval. */
-const APPROVAL_STEP: Readonly<
-  Record<
-    ApprovalState,
-    Readonly<{
-      status: "waiting" | "done" | "failed" | "unknown";
-      label: MessageKey | null;
-    }>
-  >
-> = {
-  waiting: { status: "waiting", label: null },
-  approved: {
-    status: "done",
-    label: "tasks.delivery.approval.status.approved",
-  },
-  changesRequested: {
-    status: "failed",
-    label: "tasks.delivery.approval.status.changesRequested",
-  },
-  rejected: {
-    status: "failed",
-    label: "tasks.delivery.approval.status.rejected",
-  },
-  closed: {
-    status: "unknown",
-    label: "tasks.delivery.approval.status.closed",
-  },
-};
-
-const CHECK_TONE = {
-  passed: "success",
-  failed: "danger",
-  pending: "neutral",
-  unavailable: "warning",
-  canceled: "neutral",
-} as const;
-
-const CHECK_LABEL: Readonly<Record<CheckRow["result"], MessageKey>> = {
-  passed: "tasks.delivery.check.passed",
-  failed: "tasks.delivery.check.failed",
-  pending: "tasks.delivery.check.running",
-  unavailable: "tasks.delivery.check.unavailable",
-  canceled: "tasks.delivery.check.canceled",
-};
-
-const OLDER_RESULT_LABEL: Readonly<Record<CheckRow["result"], MessageKey>> = {
-  passed: "tasks.delivery.olderResult.passed",
-  failed: "tasks.delivery.olderResult.failed",
-  pending: "tasks.delivery.olderResult.running",
-  unavailable: "tasks.delivery.olderResult.unavailable",
-  canceled: "tasks.delivery.olderResult.canceled",
-};
-
-const SEVERITY_LABEL: Readonly<Record<FindingRow["severity"], MessageKey>> = {
-  blocker: "tasks.delivery.severity.blocker",
-  major: "tasks.delivery.severity.major",
-  minor: "tasks.delivery.severity.minor",
-  note: "tasks.delivery.severity.note",
-};
-
-const SEVERITY_TONE = {
-  blocker: "danger",
-  major: "warning",
-  minor: "neutral",
-  note: "neutral",
-} as const;
-
-/** The badge beside "Delivery" once the work is approved, and the tone it takes. */
-const AFTER_APPROVAL_TONE = {
-  readyToMerge: "warning",
-  mergeUnknown: "neutral",
-  waitingForMerge: "information",
-  merging: "information",
-  mergeBlocked: "danger",
-  changedAfterApproval: "warning",
-  merged: "success",
-  notMerged: "warning",
-  approved: "neutral",
-} as const;
-
-/** A pull request's status in the list of the task's other pull requests. */
-const PULL_REQUEST_TONE = {
-  open: "information",
-  merged: "success",
-  closed: "neutral",
-} as const;
-
 export function DeliverySectionView(
   {
     decisionPhase,
@@ -408,32 +356,14 @@ export function DeliverySectionView(
 ) {
   const { translate: t } = useI18n();
   const heading = t("tasks.delivery.heading");
-  // The badge is the verdict on the whole trace, so it appears with the group
-  // that ends it: never before the work is approved.
-  const approved = model?.approval?.state === "approved";
   return (
     <UI.PaneSection
       aria-label={heading}
       data-testid="delivery-section"
       heading="strong"
       title={heading}
-      trailing={!approved || model === null ? undefined : (
-        <UI.Badge
-          data-testid="delivery-outcome-badge"
-          tone={AFTER_APPROVAL_TONE[model.afterApproval.badge]}
-        >
-          {t(
-            `tasks.delivery.afterApproval.badge.${
-              model.afterApproval.badge === "mergeBlocked"
-                ? "notMerged"
-                : model.afterApproval.badge
-            }` as MessageKey,
-          )}
-        </UI.Badge>
-      )}
     >
       <UI.Stack>
-        <UI.Text>{t("tasks.delivery.purpose")}</UI.Text>
         {state === "loading" && (
           <UI.Stack aria-label={t("tasks.delivery.loading")} role="status">
             <UI.Skeleton shape="surface" />
@@ -536,7 +466,7 @@ function ReadyView(
     onTellBakery: () => void;
   }>,
 ) {
-  const { translate: t } = useI18n();
+  const { locale, translate: t } = useI18n();
   const phone = useShellViewport() === "phone";
   const fieldId = useId();
   const changesFieldId = `${fieldId}-changes`;
@@ -544,7 +474,7 @@ function ReadyView(
   const [mergeOpen, setMergeOpen] = useState(false);
   const [comment, setComment] = useState("");
   const deciding = decisionPhase === "deciding";
-  const copy = nowCopy(t, model.now);
+  const copy = nowCopy(t, model.now, { model, locale });
   const head = model.headSha === null ? "" : model.headSha.slice(0, 7);
   const note = comment.trim();
   const tooLong = note.length > MAX_NOTE;
@@ -885,19 +815,7 @@ function ReadyView(
         </UI.InlineNotice>
       )}
       {!noticeAbove && mergeNoticeElement}
-      {model.outOfDate && !model.pullRequestMoved && (
-        <UI.InlineNotice
-          data-testid="delivery-out-of-date"
-          icon="refresh"
-          tone="neutral"
-        >
-          <UI.Heading level="subsection">
-            {t("tasks.delivery.outOfDate.title")}
-          </UI.Heading>
-          <UI.Text>{t("tasks.delivery.outOfDate.body")}</UI.Text>
-        </UI.InlineNotice>
-      )}
-      <Steps model={model} />
+      <DeliveryBody model={model} onOpenRules={onOpenRules} />
       <UI.AlertDialog
         cancelAction={
           <UI.Button
@@ -1070,594 +988,6 @@ function ReadyView(
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
         {dialog === "reject" && dialogNotice}
       </UI.AlertDialog>
-    </>
-  );
-}
-
-/** One check: its name and result, then why, how long it took and where its output is. */
-function CheckLine({ row }: Readonly<{ row: CheckRow }>) {
-  const { translate: t } = useI18n();
-  const sentence = reasonSentence(row);
-  const time = took(row);
-  return (
-    <UI.StackedRow
-      data-testid="delivery-check-row"
-      flush
-      role="listitem"
-      status={row.olderSha === null
-        ? (
-          <UI.Badge tone={CHECK_TONE[row.result]}>
-            {t(CHECK_LABEL[row.result])}
-          </UI.Badge>
-        )
-        : (
-          <UI.Badge>
-            {t(OLDER_RESULT_LABEL[row.result], { sha: row.olderSha })}
-          </UI.Badge>
-        )}
-      title={<UI.DataText fit>{row.name}</UI.DataText>}
-      titleLines="wrap"
-    >
-      {sentence !== null && (
-        <UI.Text>
-          {t(sentence.key, sentence.values)}
-          {countsAsNotPassed(row)
-            ? ` ${t("tasks.delivery.check.countsAsNotPassed")}`
-            : ""}
-        </UI.Text>
-      )}
-      {/* A rule has no time; its sentence already says it is a rule. */}
-      {row.rule
-        ? sentence === null && (
-          <UI.Text>{t("tasks.delivery.check.rule")}</UI.Text>
-        )
-        : time !== null && (
-          <UI.Text>
-            {t(
-              time.key,
-              "values" in time ? time.values : undefined,
-            )}
-          </UI.Text>
-        )}
-      {row.evidenceVersionId !== null && (
-        <UI.Link href={`/files/versions/${row.evidenceVersionId}`}>
-          {t("tasks.delivery.check.openOutput")}
-        </UI.Link>
-      )}
-    </UI.StackedRow>
-  );
-}
-
-/** Every check with its reason, opened in place under the line it explains. */
-function CheckDetails(
-  { onToggle, open, rows }: Readonly<{
-    rows: readonly CheckRow[];
-    open: boolean;
-    onToggle: () => void;
-  }>,
-) {
-  const { translate: t } = useI18n();
-  const listId = useId();
-  return (
-    <UI.Stack data-testid="delivery-checks-detail" gap="compact">
-      <UI.Button
-        aria-controls={listId}
-        aria-expanded={open}
-        onClick={onToggle}
-        variant="text"
-      >
-        {t(
-          open ? "tasks.delivery.checks.hide" : "tasks.delivery.checks.show",
-          { count: rows.length },
-        )}
-      </UI.Button>
-      {open && (
-        <UI.Stack gap="compact" id={listId} role="list">
-          {orderChecks(rows).map((row) => <CheckLine key={row.id} row={row} />)}
-        </UI.Stack>
-      )}
-    </UI.Stack>
-  );
-}
-
-/** What Bakery tried to fix, newest first, and what bounds it. */
-function TryDetails(
-  { fixing, onToggle, open }: Readonly<{
-    fixing: NonNullable<DeliveryModel["fixing"]>;
-    open: boolean;
-    onToggle: () => void;
-  }>,
-) {
-  const { locale, translate: t } = useI18n();
-  const listId = useId();
-  const minutes = limitMinutes(fixing.limits.durationMs);
-  const names = (all: readonly string[]) => {
-    const { shown, more } = nameList(all);
-    const list = formatList(shown, locale);
-    return more === 0
-      ? list
-      : t("tasks.delivery.fixing.tried.andMore", { names: list, count: more });
-  };
-  return (
-    <UI.Stack data-testid="delivery-tries-detail" gap="compact">
-      <UI.Button
-        aria-controls={listId}
-        aria-expanded={open}
-        onClick={onToggle}
-        variant="text"
-      >
-        {t(
-          open
-            ? "tasks.delivery.fixing.tried.hide"
-            : "tasks.delivery.fixing.tried.show",
-        )}
-      </UI.Button>
-      {open && (
-        <UI.Stack gap="compact" id={listId} role="list">
-          {fixing.tries.map((entry) => (
-            <UI.StackedRow
-              data-testid="delivery-try-row"
-              flush
-              key={entry.n}
-              role="listitem"
-              status={
-                <UI.Badge>
-                  {t(
-                    entry.running
-                      ? "tasks.delivery.fixing.tried.running"
-                      : "tasks.delivery.fixing.tried.finished",
-                  )}
-                </UI.Badge>
-              }
-              title={t("tasks.delivery.fixing.tried.try", { n: entry.n })}
-            >
-              <UI.Text>
-                {t(
-                  tryKey({
-                    checks: entry.checkNames.length,
-                    blocking: entry.blocking,
-                  }),
-                  {
-                    checks: entry.checkNames.length,
-                    names: names(entry.checkNames),
-                    blocking: entry.blocking,
-                    sha: entry.sha,
-                  },
-                )}
-              </UI.Text>
-            </UI.StackedRow>
-          ))}
-          <UI.Text variant="caption">
-            {minutes === null
-              ? t("tasks.delivery.fixing.tried.limitTries", {
-                max: fixing.limits.max,
-              })
-              : t("tasks.delivery.fixing.tried.limit", {
-                max: fixing.limits.max,
-                minutes,
-              })}
-          </UI.Text>
-        </UI.Stack>
-      )}
-    </UI.Stack>
-  );
-}
-
-function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
-  const { locale, timeZone, translate: t } = useI18n();
-  // Until the person opens or closes a list it follows the facts: the checks
-  // open by themselves while any has not passed, the tries while one runs or
-  // the loop stopped.
-  const [checksToggled, setChecksToggled] = useState<boolean | null>(null);
-  const [triesToggled, setTriesToggled] = useState<boolean | null>(null);
-  const [showAllFindings, setShowAllFindings] = useState(false);
-  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
-  useEffect(() => {
-    if (copied !== "copied") return;
-    const timer = globalThis.setTimeout(() => setCopied("idle"), 2500);
-    return () => globalThis.clearTimeout(timer);
-  }, [copied]);
-  const phone = useShellViewport() === "phone";
-  const { checks, review, fixing } = model;
-  // The group ends the trace, so it appears once the work is approved and
-  // never before (design rule 5).
-  const after = model.approval?.state === "approved"
-    ? model.afterApproval
-    : null;
-  const pullRequest = after?.pullRequest ?? null;
-  const mergeCommit = pullRequest?.mergedSha ?? null;
-  // The Merge step's mark and sentence follow what Bakery recorded.
-  const mergeStep = mergeStepCopy(t, {
-    merge: model.merge,
-    pullRequest,
-    mergeCommit,
-  });
-  // The approval was for the commit the pull request no longer ends at.
-  const approvalOlder =
-    model.pullRequestMoved && model.merge?.approvedSha != null
-      ? model.merge.approvedSha.slice(0, 7)
-      : null;
-  const copyMergeCommit = async () => {
-    if (mergeCommit === null) return;
-    try {
-      await navigator.clipboard.writeText(mergeCommit);
-      setCopied("copied");
-    } catch {
-      setCopied("failed");
-    }
-  };
-
-  const changesSummary = model.headSha === null
-    ? t("tasks.delivery.changes.preparing")
-    : model.baseSha === null
-    ? t("tasks.delivery.changes.summaryNoBase", {
-      head: model.headSha.slice(0, 7),
-    })
-    : t("tasks.delivery.changes.summary", {
-      head: model.headSha.slice(0, 7),
-      base: model.baseSha.slice(0, 7),
-    });
-
-  const failedAny = checks.failed > 0;
-  const olderRows = checks.rows.filter((row) => row.olderSha !== null);
-  const headShort = model.headSha === null ? null : model.headSha.slice(0, 7);
-  const checksStatus = failedAny
-    ? "failed"
-    : checks.running > 0 || (checks.rows.length > 0 && olderRows.length > 0)
-    ? "running"
-    : checks.unavailable > 0
-    ? "unknown"
-    : checks.total > 0 && checks.passed === checks.total
-    ? "done"
-    : "upcoming";
-  const checksOpen = checksToggled ?? needsAttention(checks.rows);
-  const triesOpen = triesToggled ?? (fixing !== null &&
-    (fixing.running || fixing.stopped));
-
-  const reviewStatus = review === null
-    ? "upcoming"
-    : review.status === "approved"
-    ? review.olderSha === null ? "done" : "running"
-    : review.status === "running"
-    ? "running"
-    : "failed";
-  const findings = review?.findings ?? [];
-  const shownFindings = showAllFindings ? findings : findings.slice(0, SHOWN);
-
-  const label = (status: string) =>
-    t(`tasks.delivery.status.${status}` as MessageKey);
-  const helpTip = (
-    key: "checks" | "review" | "fixing" | "approval",
-    args?: Record<string, number>,
-  ) => (
-    <UI.HelpTip label={t(`tasks.delivery.help.${key}.label` as MessageKey)}>
-      {t(`tasks.delivery.help.${key}.text` as MessageKey, args)}
-    </UI.HelpTip>
-  );
-
-  const pullRequestLink = pullRequest === null ? undefined : (
-    <UI.Link
-      href={pullRequest.url}
-      rel="noreferrer"
-      target="_blank"
-      variant="button"
-    >
-      {t("tasks.delivery.afterApproval.openOnGitHub")}
-      <span aria-hidden="true">↗</span>
-    </UI.Link>
-  );
-  // One control that leads somewhere: the task's other pull requests, newest
-  // first, opened in place (design-ux, 2026-11-16).
-  const earlierList = after === null || after.others.length === 0
-    ? null
-    : (
-      <UI.Disclosure
-        data-testid="delivery-earlier-pull-requests"
-        summary={t("tasks.delivery.afterApproval.earlier", {
-          count: after.others.length,
-        })}
-      >
-        <UI.Stack gap="compact" role="list">
-          {after.others.map((other) => (
-            <UI.Inline
-              gap="compact"
-              key={other.providerNumber}
-              role="listitem"
-            >
-              <UI.Text>
-                {t("tasks.delivery.afterApproval.earlierRow", {
-                  number: other.providerNumber,
-                })}
-              </UI.Text>
-              <UI.Badge tone={PULL_REQUEST_TONE[other.status]}>
-                {t(
-                  `tasks.delivery.afterApproval.status.${other.status}` as MessageKey,
-                )}
-              </UI.Badge>
-              <UI.Link
-                href={other.url}
-                rel="noreferrer"
-                target="_blank"
-                variant="quiet"
-              >
-                {t("tasks.delivery.afterApproval.openOnGitHub")}
-                <span aria-hidden="true">↗</span>
-              </UI.Link>
-            </UI.Inline>
-          ))}
-        </UI.Stack>
-      </UI.Disclosure>
-    );
-  return (
-    <>
-      <UI.StepList label={t("tasks.delivery.steps")}>
-        <UI.StepItem
-          status={model.headSha === null ? "running" : "done"}
-          statusLabel={label(model.headSha === null ? "running" : "done")}
-          summary={changesSummary}
-          title={t("tasks.delivery.changes.title")}
-        />
-        <UI.StepItem
-          status={checksStatus}
-          statusLabel={label(checksStatus)}
-          summary={checks.rows.length === 0
-            ? t("tasks.delivery.checks.none")
-            : olderRows.length > 0 && headShort !== null
-            ? t(
-              model.pullRequestMoved
-                ? "tasks.delivery.checks.noneForCommit"
-                : "tasks.delivery.checks.runningAgain",
-              { sha: headShort },
-            )
-            : failedAny
-            ? t("tasks.delivery.checks.failedOf", {
-              failed: checks.failed,
-              total: checks.total,
-            })
-            : t("tasks.delivery.checks.passedOf", {
-              passed: checks.passed,
-              total: checks.total,
-            })}
-          title={<>{t("tasks.delivery.checks.title")}{helpTip("checks")}</>}
-        >
-          {checks.rows.length === 0 ? null : (
-            <CheckDetails
-              onToggle={() => setChecksToggled(!checksOpen)}
-              open={checksOpen}
-              rows={checks.rows}
-            />
-          )}
-        </UI.StepItem>
-        <UI.StepItem
-          status={reviewStatus}
-          statusLabel={label(reviewStatus)}
-          summary={review === null ? t("tasks.delivery.review.none") : (
-            <>
-              {review.status === "approved"
-                ? t("tasks.delivery.review.approved", { count: review.others })
-                : review.status === "running"
-                ? t("tasks.delivery.review.running")
-                : review.status === "failed"
-                ? t("tasks.delivery.review.failed")
-                : review.others === 0
-                ? t("tasks.delivery.review.changesBlockingOnly", {
-                  blocking: review.blocking,
-                })
-                : t("tasks.delivery.review.changes", {
-                  blocking: review.blocking,
-                  others: review.others,
-                })}
-              {review.olderSha !== null && (
-                <>
-                  {" "}
-                  <UI.Badge>
-                    {t("tasks.delivery.olderCommit", { sha: review.olderSha })}
-                  </UI.Badge>
-                </>
-              )}
-            </>
-          )}
-          title={<>{t("tasks.delivery.review.title")}{helpTip("review")}</>}
-        >
-          {review?.accepted != null && (
-            <UI.InlineNotice
-              data-testid="delivery-review-accepted"
-              icon="info"
-              tone="neutral"
-            >
-              <UI.Text>
-                {review.accepted.by === null
-                  ? t("tasks.delivery.review.accepted.title", {
-                    date: formatDate(new Date(review.accepted.at), locale, {
-                      dateStyle: "medium",
-                      timeZone,
-                    }),
-                  })
-                  : t("tasks.delivery.review.accepted.titleBy", {
-                    name: review.accepted.by,
-                    date: formatDate(new Date(review.accepted.at), locale, {
-                      dateStyle: "medium",
-                      timeZone,
-                    }),
-                  })}
-              </UI.Text>
-              <UI.Text>
-                {t("tasks.delivery.review.accepted.reason", {
-                  reason: review.accepted.reason,
-                })}
-              </UI.Text>
-            </UI.InlineNotice>
-          )}
-          {findings.length === 0 ? null : (
-            <UI.Stack gap="compact">
-              {shownFindings.map((finding) => (
-                <UI.Text key={finding.id}>
-                  <UI.Badge tone={SEVERITY_TONE[finding.severity]}>
-                    {t(SEVERITY_LABEL[finding.severity])}
-                  </UI.Badge>{" "}
-                  {finding.body}{" "}
-                  <UI.DataText variant="code">
-                    {finding.line === null
-                      ? finding.path
-                      : `${finding.path}:${finding.line}`}
-                  </UI.DataText>
-                </UI.Text>
-              ))}
-              {!showAllFindings && findings.length > SHOWN && (
-                <UI.Button
-                  onClick={() => setShowAllFindings(true)}
-                  variant="text"
-                >
-                  {t("tasks.delivery.showAll")}
-                </UI.Button>
-              )}
-            </UI.Stack>
-          )}
-        </UI.StepItem>
-        {fixing !== null && (
-          <UI.StepItem
-            status={fixing.stopped
-              ? "failed"
-              : fixing.running
-              ? "running"
-              : "done"}
-            statusLabel={label(
-              fixing.stopped ? "failed" : fixing.running ? "running" : "done",
-            )}
-            summary={fixing.stopped
-              ? t("tasks.delivery.fixing.stopped", {
-                attempt: fixing.attempt,
-                count: fixing.blocking,
-              })
-              : fixing.running
-              ? t("tasks.delivery.fixing.running", {
-                attempt: fixing.attempt,
-                max: fixing.max,
-              })
-              : t("tasks.delivery.fixing.done", {
-                attempt: fixing.attempt,
-                max: fixing.max,
-              })}
-            title={
-              <>
-                {t("tasks.delivery.fixing.title")}
-                {helpTip("fixing", { max: fixing.max })}
-              </>
-            }
-          >
-            <TryDetails
-              fixing={fixing}
-              onToggle={() => setTriesToggled(!triesOpen)}
-              open={triesOpen}
-            />
-          </UI.StepItem>
-        )}
-        {model.approval !== null && (
-          <UI.StepItem
-            data-testid="delivery-approval-step"
-            status={approvalOlder === null
-              ? APPROVAL_STEP[model.approval.state].status
-              : "running"}
-            statusLabel={approvalOlder !== null
-              ? label("running")
-              : APPROVAL_STEP[model.approval.state].label === null
-              ? label(APPROVAL_STEP[model.approval.state].status)
-              : t(APPROVAL_STEP[model.approval.state].label as MessageKey)}
-            summary={approvalOlder === null
-              ? t(
-                `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
-              )
-              : t("tasks.delivery.approval.step.approvedOlder", {
-                sha: approvalOlder,
-                current: (model.headSha ?? "").slice(0, 7),
-              })}
-            title={
-              <>
-                {t("tasks.delivery.approval.title")}
-                {helpTip("approval")}
-              </>
-            }
-          />
-        )}
-        {after !== null && (
-          <UI.StepItem
-            action={phone && earlierList !== null
-              // On a phone the action column comes after the step's detail, so
-              // the button and the list are handed over together to keep the
-              // design's order: sentence, button, then the list.
-              ? (
-                // The button keeps its label's width in both states: a column
-                // would stretch it to the opened list's width (design-ux, #482).
-                <UI.Stack gap="compact">
-                  <UI.Inline>{pullRequestLink}</UI.Inline>
-                  {earlierList}
-                </UI.Stack>
-              )
-              : pullRequestLink}
-            data-testid="delivery-pull-request-step"
-            group={t("tasks.delivery.afterApproval.group")}
-            status={pullRequest === null
-              ? "unknown"
-              : pullRequest.status === "closed"
-              ? "failed"
-              : "done"}
-            statusLabel={label(
-              pullRequest === null
-                ? "unknown"
-                : pullRequest.status === "closed"
-                ? "failed"
-                : "done",
-            )}
-            summary={pullRequest === null
-              ? t("tasks.delivery.afterApproval.pullRequest.none")
-              : pullRequest.status === "open"
-              ? t("tasks.delivery.afterApproval.pullRequest.open", {
-                number: pullRequest.providerNumber,
-              })
-              : pullRequest.status === "merged"
-              ? t("tasks.delivery.afterApproval.pullRequest.merged", {
-                number: pullRequest.providerNumber,
-              })
-              : t("tasks.delivery.afterApproval.pullRequest.closed", {
-                number: pullRequest.providerNumber,
-              })}
-            title={t("tasks.delivery.afterApproval.pullRequest.title")}
-          >
-            {phone || after.others.length === 0 ? null : earlierList}
-          </UI.StepItem>
-        )}
-        {after !== null && (
-          <UI.StepItem
-            action={mergeCommit === null ? undefined : (
-              <UI.Button
-                onClick={() => void copyMergeCommit()}
-                type="button"
-                variant="secondary"
-              >
-                {t(
-                  copied === "copied"
-                    ? "tasks.delivery.afterApproval.merge.copied"
-                    : copied === "failed"
-                    ? "tasks.delivery.afterApproval.merge.copyFailed"
-                    : "tasks.delivery.afterApproval.merge.copy",
-                )}
-              </UI.Button>
-            )}
-            data-testid="delivery-merge-step"
-            status={mergeStep.status}
-            statusLabel={mergeStep.status === "running"
-              ? t("tasks.delivery.status.inProgress")
-              : label(mergeStep.status)}
-            summary={mergeStep.summary}
-            title={t("tasks.delivery.afterApproval.merge.title")}
-          />
-        )}
-      </UI.StepList>
-      {after === null ? null : (
-        <UI.Text variant="muted">
-          {t("tasks.delivery.afterApproval.note")}
-        </UI.Text>
-      )}
     </>
   );
 }
