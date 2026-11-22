@@ -76,8 +76,8 @@ const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
   run.repository_profile_revision, run.repository_profile_digest,
   run.observation_id, run.observation_digest, run.base_sha, run.requested_by,
-  run.inngest_run_id, run.status, run.budget_limit_usd, run.started_at,
-  run.finished_at, run.created_at, run.updated_at, run.version,
+  run.inngest_run_id, run.status, run.budget_limit_usd, run.environment,
+  run.started_at, run.finished_at, run.created_at, run.updated_at, run.version,
   ${runWorkspaceBaseShaColumn("run")}`;
 
 type CursorInput = { cursor?: string; limit?: number };
@@ -585,7 +585,7 @@ export async function admitSkillImport(
            repository_profile_id, repository_profile_revision,
            repository_profile_digest, observation_id, observation_digest,
            base_sha, null::text as workspace_base_sha, requested_by,
-           inngest_run_id, status, budget_limit_usd,
+           inngest_run_id, status, budget_limit_usd, environment,
            started_at, finished_at, created_at, updated_at, version`,
     [
       runId,

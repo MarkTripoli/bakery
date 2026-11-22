@@ -157,6 +157,32 @@ test.describe("Storybook containment rails", () => {
     ).toBe(true);
   });
 
+  test("does not count a file shown through a smaller view box as escaping its svg", async ({ page }) => {
+    await openByTitle(page, "Bakery/Atoms/Text");
+    await page.locator(".storybook-story").evaluate((story) => {
+      story.innerHTML = `
+        <svg height="24" viewBox="50 50 100 100" width="24">
+          <image height="300" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" width="300"></image>
+        </svg>
+      `;
+    });
+    expect(await page.evaluate(renderedContainmentIssues)).toEqual([]);
+  });
+
+  test("does not treat a table's column definitions as content overlapping its rows", async ({ page }) => {
+    await openByTitle(page, "Bakery/Atoms/Text");
+    await page.locator(".storybook-story").evaluate((story) => {
+      story.innerHTML = `
+        <table style="inline-size: 200px; table-layout: fixed">
+          <colgroup><col style="width: 50%"><col style="width: 50%"></colgroup>
+          <thead><tr><th>One</th><th>Two</th></tr></thead>
+          <tbody><tr><td>a</td><td>b</td></tr></tbody>
+        </table>
+      `;
+    });
+    expect(await page.evaluate(renderedContainmentIssues)).toEqual([]);
+  });
+
   test("does not let vertical scrolling hide horizontal text clipping", async ({ page }) => {
     await openByTitle(page, "Bakery/Atoms/Text");
     await page.locator(".storybook-story").evaluate((story) => {
