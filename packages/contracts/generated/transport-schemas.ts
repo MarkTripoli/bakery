@@ -15150,6 +15150,54 @@ const transportSchemas = {
         "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "PackageExport": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Display name of the package, at most 120 characters, written into the package and shown wherever an import of it is listed."
+        },
+        {
+          "name": "workflowIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Workflow definitions to export, at most 50 across this list and artifactKindKeys. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots."
+        },
+        {
+          "name": "artifactKindKeys",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Keys of the artifact kinds to export, at most 50 across this list and workflowIds. The latest published version of each kind travels."
+        }
+      ],
+      "description": "Names the workflows and artifact kinds to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
+    },
+    "PackageImport": {
+      "fields": [
+        {
+          "name": "package",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 5000000
+          },
+          "description": "A BakeryPackage exactly as an export wrote it. Every item digest and the package digest are checked, every workflow slug must be free in this organization, and every definition is validated before anything is written; the import then happens whole or not at all."
+        }
+      ],
+      "configSchema": "package: { formatVersion: 1, name: <=120, items: [{ kind: workflow|artifactKind, key, digest: sha256, data }] 1..50, packageDigest: sha256 }. The strict BakeryPackageSchema in @bakery/contracts/library-packages enforces it; unknown members are refused.",
+      "description": "Imports a T0 package into this organization as ordinary drafts (workflows) and new kind versions (artifact kinds), and records where each came from. Nothing is switched on: starts stay off until someone uses a version."
     }
   },
   "projections": {
@@ -38159,6 +38207,48 @@ const transportSchemas = {
         "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
+    },
+    "BakeryPackage": {
+      "fields": [
+        "formatVersion",
+        "name",
+        "items",
+        "packageDigest"
+      ],
+      "fieldTypes": {
+        "formatVersion": "integer",
+        "name": "string",
+        "items": "json[]",
+        "packageDigest": "sha256"
+      },
+      "bounds": {
+        "itemsMaxItems": 50
+      },
+      "description": "A T0 package: validated data addressed by digest, free of grants, credentials, connections, repository bindings, run history and active starts.",
+      "fieldDescriptions": {
+        "formatVersion": "The package format version; an importer refuses a version it does not know.",
+        "name": "Display name of the package.",
+        "items": "The exported items, each with its kind, key, digest and data.",
+        "packageDigest": "SHA-256 of the canonical JSON of the item digests, in order."
+      }
+    },
+    "PackageImportResult": {
+      "fields": [
+        "packageDigest",
+        "imported"
+      ],
+      "fieldTypes": {
+        "packageDigest": "sha256",
+        "imported": "json[]"
+      },
+      "bounds": {
+        "importedMaxItems": 50
+      },
+      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of the draft definition or kind version it became.",
+      "fieldDescriptions": {
+        "packageDigest": "The digest of the imported package, which the lineage rows record.",
+        "imported": "One entry per imported item, in package order."
       }
     }
   },
