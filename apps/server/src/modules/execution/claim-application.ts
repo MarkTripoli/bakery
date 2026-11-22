@@ -147,6 +147,11 @@ export function assignmentFromJob(
     currentCheckpoints: jsonValue(job.currentCheckpoints, []),
     agentConfig: jsonValue(job.agentConfig, {}),
     skillRefs: jsonValue(job.skillRefs, []),
+    // Omitted when the step declared no slots, so such an assignment is the
+    // same bytes it was before slots existed.
+    ...(Array.isArray(job.contextInputs) && job.contextInputs.length > 0
+      ? { contextInputs: jsonValue(job.contextInputs, []) }
+      : {}),
     agentVersionId: job.agentVersionId,
     billing: jsonValue(job.billing, null),
     installationReservationId: job.installationReservationId,

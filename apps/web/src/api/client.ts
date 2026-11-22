@@ -359,6 +359,19 @@ export type WorkflowStepSkill = WorkflowVersionSkills["items"][number];
 /** One skill as the picker lists it: its name and scope, and the active version people attach. */
 export type SkillResponse = ClientOutputMap["Skill"];
 export type SkillListResponse = ClientOutputMap["Page<Skill>"];
+/** Who a skill belongs to: comes with Bakery, the organization's, or one person's own. */
+export type SkillScope = SkillResponse["scope"];
+/** One revision of a skill, draft, published or retired, with its file manifest. */
+export type SkillVersionResponse = ClientOutputMap["SkillVersion"];
+export type SkillVersionListResponse = ClientOutputMap["Page<SkillVersion>"];
+/** One agent or workflow version that names a skill, and which of its versions. */
+export type SkillUsageListResponse = ClientOutputMap["Page<SkillUsage>"];
+export type SkillUsage = SkillUsageListResponse["items"][number];
+/** One shared workflow step the owner of a private skill let use it. */
+export type SkillUseGrantListResponse = ClientOutputMap["Page<SkillUseGrant>"];
+export type SkillUseGrant = SkillUseGrantListResponse["items"][number];
+/** Where a skill was added from: a git repository, a web address or an uploaded bundle. */
+export type SkillSource = ClientOutputMap["SkillSource"];
 export type WorkflowVersionListResponse =
   ClientOutputMap["Page<WorkflowVersion>"];
 export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
@@ -1935,10 +1948,50 @@ export type BakeryApiClient = {
   /** The skills the caller can see (global, organization, and their own personal ones), one page of a cursor list. */
   readonly listSkills: (options: {
     readonly organizationId: string;
+    /** Only the skills of one scope; left out, every skill the caller can see. */
+    readonly scope?: SkillScope;
+    /** Text to find in skill names; the cursor is bound to it. */
+    readonly q?: string;
     readonly cursor?: string;
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillListResponse>>;
+  /** One skill the caller can see. */
+  readonly getSkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  /** The versions of one skill, one page of a cursor list. */
+  readonly listSkillVersions: (options: {
+    readonly organizationId: string;
+    readonly skillId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillVersionListResponse>>;
+  /** The agent and workflow versions that use one skill, one page of a cursor list. */
+  readonly listSkillUsedBy: (options: {
+    readonly organizationId: string;
+    readonly skillId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillUsageListResponse>>;
+  /** The shared workflow steps a private skill's owner let use it; only its owner may read them. */
+  readonly listSkillUseGrants: (options: {
+    readonly organizationId: string;
+    readonly skillId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillUseGrantListResponse>>;
+  /** One skill source: its kind, address, publisher, licence and when it was last checked. */
+  readonly getSkillSource: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillSource>>;
   /** The versions of one workflow, one page of a cursor list. */
   readonly listWorkflowVersions: (options: {
     readonly organizationId: string;
@@ -2092,6 +2145,8 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly id: string;
     readonly state?: EvaluationResultState;
+    /** true: only the results that count toward the gate; false: only the sampled ones; omitted: both. */
+    readonly required?: boolean;
     readonly cursor?: string;
     readonly limit?: number;
     readonly signal?: AbortSignal;
@@ -6416,11 +6471,106 @@ export function createBakeryApiClient({
       try {
         const data = await client.actions["skills.list"](
           {
+            ...(options.scope === undefined ? {} : { scope: options.scope }),
+            ...(options.q === undefined ? {} : { q: options.q }),
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listSkillVersions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillVersions.list"](
+          {
+            id: options.skillId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listSkillUsedBy(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.usedBy"](
+          {
+            id: options.skillId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listSkillUseGrants(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.useGrants.list"](
+          {
+            id: options.skillId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkillSource(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillSources.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);
@@ -6801,6 +6951,9 @@ export function createBakeryApiClient({
           {
             id: options.id,
             ...(options.state === undefined ? {} : { state: options.state }),
+            ...(options.required === undefined
+              ? {}
+              : { required: options.required }),
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },

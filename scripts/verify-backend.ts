@@ -26,6 +26,28 @@ export const VERIFY_BACKEND_STEPS = [
 export type VerifyBackendStep = (typeof VERIFY_BACKEND_STEPS)[number];
 
 /**
+ * Scenario files the e2e step must run (#50). The e2e lane runs every file
+ * under tests/e2e, so these are already in it; verify:backend refuses to start
+ * when one is missing, so a deleted or renamed scenario cannot drop out of the
+ * proof silently. Each file also checks its own required cases.
+ */
+export const VERIFY_BACKEND_REQUIRED_E2E_SCENARIOS = Object.freeze(
+  [
+    "tests/e2e/prove-full-headless-factory-delivery-and-recovery-from-a-fresh-checkout_test.ts",
+  ] as const,
+);
+
+/** Required e2e scenario files absent from the checkout at root. */
+export function missingE2eScenarios(
+  root: string,
+  fileExists: (path: string) => boolean = existsSync,
+): string[] {
+  return VERIFY_BACKEND_REQUIRED_E2E_SCENARIOS.filter((path) =>
+    !fileExists(join(root, path))
+  );
+}
+
+/**
  * Cloud credentials the repository's code or tooling reads. Exact names come
  * from the code (GITHUB_TOKEN, GH_TOKEN, SENTRY_AUTH_TOKEN, RAILWAY_TOKEN,
  * OPENAI_API_KEY) and from the SDKs it bundles
@@ -310,6 +332,8 @@ export type VerifyBackendOptions = {
   /** Overrides revision/toolchain collection (tests). */
   readonly revision?: () => Promise<VerifyBackendRevision>;
   readonly toolchain?: () => Promise<VerifyBackendToolchain>;
+  /** Overrides the scenario-file check (tests). */
+  readonly fileExists?: (path: string) => boolean;
 };
 
 export type VerifyBackendResult = {
@@ -340,6 +364,15 @@ export async function runVerifyBackend(
   } catch (error) {
     log("verify:backend: " + (error as Error).message);
     return { exitCode: 2 };
+  }
+  if (parsed.lanes.includes("e2e")) {
+    const missing = missingE2eScenarios(options.root, options.fileExists);
+    if (missing.length > 0) {
+      log(
+        "verify:backend: required e2e scenario missing: " + missing.join(", "),
+      );
+      return { exitCode: 2 };
+    }
   }
   const startedAt = new Date(now()).toISOString();
   const revision = await (options.revision ??

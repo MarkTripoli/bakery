@@ -1,12 +1,20 @@
-import { assert, assertEquals, assertMatch } from "@std/assert";
+import { assert, assertEquals, assertMatch, assertThrows } from "@std/assert";
+import {
+  assertFullAcceptanceCases,
+  formatFullAcceptanceCase,
+  FULL_ACCEPTANCE_REQUIRED_CASES,
+  parseFullAcceptanceCases,
+} from "../helpers/full-acceptance/cases.ts";
 import {
   CLOUD_CREDENTIAL_ENVIRONMENT,
   cloudCredentialsPresent,
   collectRevision,
   composeImages,
   CREDENTIAL_REFUSAL_EXIT,
+  missingE2eScenarios,
   parseVerifyBackendArgs,
   runVerifyBackend,
+  VERIFY_BACKEND_REQUIRED_E2E_SCENARIOS,
   VERIFY_BACKEND_STEPS,
   type VerifyBackendCapture,
   VerifyBackendManifestSchema,
@@ -56,6 +64,7 @@ function harness(exitCodes: Partial<Record<string, number>> = {}) {
       },
       revision: () => Promise.resolve(REVISION),
       toolchain: () => Promise.resolve({ deno: "2.9.1", node: "v24.1.0" }),
+      fileExists: () => true,
     }),
   };
 }
@@ -240,5 +249,56 @@ Deno.test("package.json wires verify:backend to the script", async () => {
     String(pkg.scripts["verify:backend"]).endsWith(
       " scripts/verify-backend.ts",
     ),
+  );
+});
+
+Deno.test("the #50 full acceptance scenario is in the e2e lane verify:backend runs by default", () => {
+  assert((VERIFY_BACKEND_STEPS as readonly string[]).includes("e2e"));
+  assertEquals(missingE2eScenarios(root), []);
+  for (const path of VERIFY_BACKEND_REQUIRED_E2E_SCENARIOS) {
+    // scripts/run-tests.ts e2e runs every *_test.ts under tests/e2e.
+    assertMatch(path, /^tests\/e2e\/[^/]+_test\.ts$/);
+  }
+});
+
+Deno.test("verify:backend refuses to start when a required e2e scenario is missing", async () => {
+  const run = harness();
+  const result = await runVerifyBackend({
+    ...run.options([]),
+    fileExists: () => false,
+  });
+  assertEquals(result.exitCode, 2);
+  assertEquals(run.ran, []);
+  assert(run.logs.some((line) => line.includes("required e2e scenario")));
+  const narrowed = harness();
+  const unit = await runVerifyBackend({
+    ...narrowed.options(["--lanes", "unit"]),
+    fileExists: () => false,
+  });
+  assertEquals(unit.exitCode, 0);
+});
+
+Deno.test("the full acceptance run fails unless every required case passed, in order", () => {
+  const passed = FULL_ACCEPTANCE_REQUIRED_CASES.map((name) => ({
+    name,
+    outcome: "passed" as const,
+    facts: {},
+  }));
+  const output = ["noise", ...passed.map(formatFullAcceptanceCase)].join("\n");
+  assertFullAcceptanceCases(parseFullAcceptanceCases(output));
+  assertThrows(
+    () => assertFullAcceptanceCases(passed.slice(1)),
+    Error,
+    "FULL_ACCEPTANCE_CASES_INCOMPLETE",
+  );
+  assertThrows(
+    () => assertFullAcceptanceCases([...passed].reverse()),
+    Error,
+    "FULL_ACCEPTANCE_CASES_INCOMPLETE",
+  );
+  assertThrows(
+    () => assertFullAcceptanceCases([...passed, passed[0]!]),
+    Error,
+    "FULL_ACCEPTANCE_CASES_INCOMPLETE",
   );
 });
