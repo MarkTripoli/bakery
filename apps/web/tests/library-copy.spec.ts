@@ -199,7 +199,7 @@ for (
         "Our release flow",
       );
       await expect(page.getByTestId("workflow-page")).toContainText(
-        "Not used yet",
+        "To use this workflow, publish a version in the editor.",
       );
     });
 
