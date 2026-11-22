@@ -12992,6 +12992,21 @@
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     },
+    "RepairAllowanceCreate": {
+      "fields": [
+        {
+          "name": "tries",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 8
+          },
+          "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes."
+        }
+      ],
+      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+    },
     "BatchCreate": {
       "fields": [
         {
@@ -21057,6 +21072,10 @@
       "pageOf": "DeliveryDecision",
       "description": "Cursor page of one run's delivery decisions in decision order, returned by GET /v1/runs/{id}/delivery-decisions. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
+    "Page<RepairTry>": {
+      "pageOf": "RepairTry",
+      "description": "Cursor page of one run's repair tries in try order, returned by GET /v1/runs/{id}/repair-tries. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
     "Page<ReviewFinding>": {
       "pageOf": "ReviewFinding",
       "description": "Cursor page of one review cycle's structured, deduplicated findings, returned by GET /v1/reviews/{id}/findings. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
@@ -22212,6 +22231,91 @@
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
         "version": "Always 1 because delivery decision rows are immutable."
+      }
+    },
+    "RepairTry": {
+      "fields": [
+        "id",
+        "runId",
+        "number",
+        "decision",
+        "reason",
+        "fixedFindings",
+        "cameBackFindings",
+        "newFindings",
+        "blockingFindings",
+        "checksPassed",
+        "startedAt",
+        "durationMs",
+        "costUsd",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "number": "integer",
+        "decision": "enum(proceed|repair|stop)",
+        "reason": "enum(clean|repair_selected|policy_missing|stale_evidence|checks_unavailable|repeated_blocker|repair_cycles_exhausted|repair_time_exhausted|repair_budget_exhausted|reviewer_unavailable|review_failed)",
+        "fixedFindings": "integer",
+        "cameBackFindings": "integer",
+        "newFindings": "integer",
+        "blockingFindings": "integer",
+        "checksPassed": "boolean",
+        "startedAt": "timestamp|null",
+        "durationMs": "integer|null",
+        "costUsd": "decimal|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "fieldBounds": {
+        "number": {
+          "min": 1
+        },
+        "fixedFindings": {
+          "min": 0
+        },
+        "cameBackFindings": {
+          "min": 0
+        },
+        "newFindings": {
+          "min": 0
+        },
+        "blockingFindings": {
+          "min": 0
+        },
+        "durationMs": {
+          "min": 0
+        },
+        "version": {
+          "min": 1
+        }
+      },
+      "nullableFields": [
+        "startedAt",
+        "durationMs",
+        "costUsd"
+      ],
+      "description": "One repair try of a run's review and repair loop, read from what the run already recorded: what the try fixed, whether a finding of the earlier review came back, what is still blocking, whether the required checks passed, and the time and money the try used. Try 1 is the first repair and its review; the first review before any repair is not a try. It is derived, never edited: updatedAt equals createdAt and version is always 1.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the review cycle that judged this try.",
+        "runId": "Stable UUID of the workflow run the try belongs to.",
+        "number": "One-based position of the try among the run's repair tries; try 1 is the first repair and the review that followed it.",
+        "decision": "What the loop did after this try's review: proceed when the candidate was clean, repair when another try was selected, stop when the loop ended. When a person allowed more tries after a stop, this is still the first decision the loop itself took.",
+        "reason": "Machine-readable reason for that decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted.",
+        "fixedFindings": "How many blocking findings of the earlier review are gone from this try's review.",
+        "cameBackFindings": "How many blocking findings of the earlier review are still there in this try's review, matched by fingerprint.",
+        "newFindings": "How many blocking findings this try's review reported that the earlier review did not.",
+        "blockingFindings": "How many blocking findings this try's review reported in all.",
+        "checksPassed": "True when no required check was failing on the candidate this try produced.",
+        "startedAt": "UTC timestamp when the try's first step started, or null when the run kept no start time for it.",
+        "durationMs": "Milliseconds from the start of the try to the end of its review, or null when the start is not known.",
+        "costUsd": "US dollars the try's steps cost, as a decimal string, or null when no usage was recorded for them.",
+        "createdAt": "UTC timestamp when the try's review was recorded.",
+        "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because a try is derived.",
+        "version": "Always 1 because a repair try is derived from immutable records."
       }
     },
     "Application": {

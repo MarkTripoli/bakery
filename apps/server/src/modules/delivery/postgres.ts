@@ -31,6 +31,7 @@ import type {
   OrganizationActor,
 } from "../auth/application/authority.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { readRepairTries } from "./repair-tries.ts";
 import {
   DECISION_REVIEW_STATUSES,
   type DecisionReviewStatus,
@@ -295,7 +296,7 @@ export const ACCEPTANCE_JOIN = `
      limit 1
   ) as acceptance on true`;
 
-const DELIVERY_DECISION_COLUMNS =
+export const DELIVERY_DECISION_COLUMNS =
   "id, run_id, ordinal, review_cycle_id, decision, reason, head_sha, " +
   "base_sha, policy_digest, failed_checks, blocking_fingerprints, limits, " +
   "created_at";
@@ -323,7 +324,7 @@ export type ReviewCycleRow = {
   accepted_by_name: string | null;
 };
 
-type DeliveryDecisionRow = {
+export type DeliveryDecisionRow = {
   id: string;
   run_id: string;
   ordinal: number;
@@ -386,7 +387,7 @@ export function toReviewCycle(row: ReviewCycleRow) {
 }
 
 /** The `DeliveryDecision` projection. */
-function toDeliveryDecision(row: DeliveryDecisionRow) {
+export function toDeliveryDecision(row: DeliveryDecisionRow) {
   if (
     !isDeliveryDecision(row.decision) ||
     !isDeliveryDecisionReason(row.reason) ||
@@ -593,6 +594,71 @@ export function createRunDeliveryDecisionsListHandler(secret: string) {
         })
         : null,
     } as DeliveryDecisionPage;
+  };
+}
+
+type RepairTryPage = z.output<typeof contractSchemas["Page<RepairTry>"]>;
+
+/**
+ * `runRepairTries.list`: one run's repair tries in try order, derived by
+ * `readRepairTries` and paged like the other run lists: the try number is the
+ * keyset position, so a page boundary survives later tries being appended.
+ */
+export function createRunRepairTriesListHandler(secret: string) {
+  return async (
+    context: ActionContext,
+    input: CursorQuery,
+  ): Promise<RepairTryPage> => {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const runId = await assertRunVisible(
+      transaction,
+      organizationId,
+      context.params.id,
+    );
+    const binding = runBinding(
+      "runRepairTries.list",
+      organizationId,
+      principalId,
+      runId,
+    );
+    const position = await decodeCursor(secret, input.cursor, binding);
+    const limit = input.limit ?? 25;
+    const tries =
+      (await readRepairTries(transaction, { organizationId, runId }))
+        .filter(({ number }) =>
+          position?.position === undefined || number > position.position
+        );
+    const visible = tries.slice(0, limit);
+    const last = visible.at(-1);
+    return {
+      items: visible.map((record) => ({
+        id: record.id,
+        runId,
+        number: record.number,
+        decision: record.decision,
+        reason: record.reason,
+        fixedFindings: record.fixedFindings,
+        cameBackFindings: record.cameBackFindings,
+        newFindings: record.newFindings,
+        blockingFindings: record.blockingFindings,
+        checksPassed: record.checksPassed,
+        startedAt: record.startedAt === null ? null : toIso(record.startedAt),
+        durationMs: record.durationMs,
+        costUsd: record.costUsd,
+        createdAt: toIso(record.createdAt),
+        updatedAt: toIso(record.createdAt),
+        version: 1,
+      })),
+      nextCursor: tries.length > limit && last
+        ? await encodeCursor(secret, binding, {
+          position: last.number,
+          iteration: 0,
+          id: last.id,
+        })
+        : null,
+    } as RepairTryPage;
   };
 }
 

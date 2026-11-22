@@ -24,9 +24,11 @@ import {
   createPullRequestsListHandler,
   createReviewFindingsListHandler,
   createRunDeliveryDecisionsListHandler,
+  createRunRepairTriesListHandler,
   createRunReviewsListHandler,
 } from "./postgres.ts";
 import { acceptReview } from "./review-accept.ts";
+import { createRepairAllowance } from "./repair-allowance-action.ts";
 import { createMetricSourcesLister, getMetricSeries } from "./metrics.ts";
 
 export function createDeliveryHandlers(
@@ -41,6 +43,11 @@ export function createDeliveryHandlers(
       contractSchemas.ReviewCycle.parse(await acceptReview(context, input)),
     reviewFindingsList: createReviewFindingsListHandler(secret),
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
+    runRepairTriesList: createRunRepairTriesListHandler(secret),
+    runRepairAllowancesCreate: async (context, input) =>
+      contractSchemas.DeliveryDecision.parse(
+        await createRepairAllowance(context, input),
+      ),
     pullRequestsList: createPullRequestsListHandler(secret),
     metricsGet: async (context, input) =>
       contractSchemas.MetricSeries.parse(await getMetricSeries(context, input)),

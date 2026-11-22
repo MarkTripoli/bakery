@@ -26,6 +26,7 @@ import {
 } from "./passes/shape.ts";
 import { checkWorkflowBounds } from "./passes/bounds.ts";
 import { checkWorkflowNeeds } from "./passes/needs.ts";
+import { checkWorkflowReviewLoops } from "./passes/review-loop.ts";
 import { buildWorkflowPlan, type WorkflowPlan } from "./plan.ts";
 import {
   type WorkflowSemanticDocument,
@@ -216,6 +217,7 @@ export async function compileWorkflowDocumentDetailed(
     index = buildFlowIndex(document, locations);
     checkWorkflowNeeds(document, locations, collector, index);
     checkWorkflowFlow(document, locations, options.catalog, collector, index);
+    checkWorkflowReviewLoops(document, locations, collector);
     checkWorkflowBounds(document, locations, collector);
   }
   if (!document || !index || collector.size > 0) {

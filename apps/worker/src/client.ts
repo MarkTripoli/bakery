@@ -61,7 +61,7 @@ export type WorkerArtifactPublishRequest = {
   workerSessionId: string;
   workerSessionGeneration: string;
   idempotencyKey: string;
-  artifactType: "plan" | "patch" | "check";
+  artifactType: "plan" | "patch" | "check" | "other";
   mediaType: string;
   name: string;
   bytes: Uint8Array;
