@@ -4220,11 +4220,11 @@ const transportSchemas = {
         {
           "name": "revision",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
             "maxLength": 255
           },
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head."
+          "description": "Upstream revision to import, pinned so the imported version is reproducible: a Git commit, tag or branch for a Git source; for a web-address archive either a strong ETag or a content digest (sha256:<hex>). A web-address archive may omit it: Bakery fetches the archive once and pins its content digest, so importing unchanged content again is the same import and changed content is a new version. A Git source must name one."
         },
         {
           "name": "path",
@@ -4234,6 +4234,21 @@ const transportSchemas = {
             "maxLength": 500
           },
           "description": "Path within the source's repository or archive that the skill's manifest and files live under, for a source that bundles more than the skill at its root; omit to import from the source's root."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest."
+        },
+        {
+          "name": "scope",
+          "type": "enum(organization|personal)",
+          "required": false,
+          "description": "Who the imported skill is for: organization (the default; visible to everyone in the organization, and importing into it needs the Admin role) or personal (shown as Private, owned by the person importing, who must be a person rather than an agent or a token)."
         }
       ],
       "description": "Creates a durable import run that fetches a skill from a registered skill source at a pinned revision, and optional path, and publishes it as a new skill version."
@@ -23988,7 +24003,9 @@ const transportSchemas = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "publishedAt",
+        "label"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -24002,9 +24019,14 @@ const transportSchemas = {
         "createdBy": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "publishedAt": "timestamp|null",
+        "label": "string|null"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "publishedAt",
+        "label"
+      ],
       "manifestContract": {
         "schemaVersion": 1,
         "files": "SkillFileManifestEntry[]",
@@ -24026,7 +24048,9 @@ const transportSchemas = {
         "createdBy": "Principal who created the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "publishedAt": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated).",
+        "label": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
       }
     },
     "IntegrationConnection": {

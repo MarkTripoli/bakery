@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "db286b23bef74fb5e122814f49ddc43079619d2b"
+    "27ba7621c7a2d02f2caa7b61b169b85e56eaf491"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
-  "reason": "#72 handoff read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main db286b23bef74fb5e122814f49ddc43079619d2b: RunStep gains a required, nullable handoffManifest {id, status, savedAt} so the UI can tell a step has a saved handoff manifest. Main's own #59 slice 3 approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:037922122f3525d7c08bd3ab4f96a96f9bf45e0687a2cac8469f1482cc9f14ee",
+  "reason": "#42 and #74 by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09): Skill carries its description and SkillSource its name; skills.list takes a name search; skillVersions.list is implemented; skills.setActiveVersion, skillImports.get, skills.takeSourceUpdate and skillDraftFiles.rename are new; SkillVersion carries publishedAt and label; skills.import takes an optional revision (a web-address archive is pinned by its digest), label and scope. Main's own approval it displaces is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "db286b23bef74fb5e122814f49ddc43079619d2b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:841cef85d52d11f531540be0ec23de9b726c9029570bf9c724d3931350a6de9a",
+      "reason": "#72 handoff read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main db286b23bef74fb5e122814f49ddc43079619d2b: RunStep gains a required, nullable handoffManifest {id, status, savedAt} so the UI can tell a step has a saved handoff manifest. Main's own #59 slice 3 approval it displaces is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

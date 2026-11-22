@@ -2802,8 +2802,8 @@ export const clientManifest = {
       "method": "POST",
       "path": "/v1/skill-imports",
       "action": "skills.import",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
       "input": "SkillImport",
       "output": "Run",
       "event": "skill.import.requested",
@@ -21652,20 +21652,32 @@ export const clientManifest = {
           "description": "Skill source to import from; determines which locator and permitted-origin policy governs the fetch."
         },
         "revision": {
+          "description": "Upstream revision to import, pinned so the imported version is reproducible: a Git commit, tag or branch for a Git source; for a web-address archive either a strong ETag or a content digest (sha256:<hex>). A web-address archive may omit it: Bakery fetches the archive once and pins its content digest, so importing unchanged content again is the same import and changed content is a new version. A Git source must name one. SkillImport.revision must contain at most 255 characters.",
           "type": "string",
-          "maxLength": 255,
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head. SkillImport.revision must contain at most 255 characters."
+          "maxLength": 255
         },
         "path": {
           "description": "Path within the source's repository or archive that the skill's manifest and files live under, for a source that bundles more than the skill at its root; omit to import from the source's root. SkillImport.path must contain at most 500 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 500
+        },
+        "label": {
+          "description": "Optional name for the version this import makes, shown beside its revision; useful for a web-address archive, whose version is its content digest. SkillImport.label must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "scope": {
+          "description": "Who the imported skill is for: organization (the default; visible to everyone in the organization, and importing into it needs the Admin role) or personal (shown as Private, owned by the person importing, who must be a person rather than an agent or a token).",
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ]
         }
       },
       "required": [
-        "sourceId",
-        "revision"
+        "sourceId"
       ],
       "additionalProperties": false,
       "description": "Creates a durable import run that fetches a skill from a registered skill source at a pinned revision, and optional path, and publishes it as a new skill version."
@@ -45886,6 +45898,35 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "publishedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillVersion.publishedAt may be null in this transport value."
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SkillVersion.label may be null in this transport value."
               }
             },
             "required": [
@@ -45900,7 +45941,9 @@ export const clientManifest = {
               "createdBy",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "publishedAt",
+              "label"
             ],
             "additionalProperties": false,
             "description": "One revision of a skill, draft or published: its source revision and entry path, plus a manifest digest that must match the exact file inventory. A draft cannot become a skill's active version until publish verifies every file was durably written."
@@ -67371,6 +67414,35 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "publishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the version was published; null for a version still reserved as a draft, and for versions published before Bakery started recording this time (they are not back-dated)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillVersion.publishedAt may be null in this transport value."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Optional name a person gave this version, such as \"Spring release\", shown beside its revision; null when none was given. An archive imported from a web address has its content digest as its version and may carry a label."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillVersion.label may be null in this transport value."
         }
       },
       "required": [
@@ -67385,7 +67457,9 @@ export const clientManifest = {
         "createdBy",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "publishedAt",
+        "label"
       ],
       "additionalProperties": false,
       "description": "One revision of a skill, draft or published: its source revision and entry path, plus a manifest digest that must match the exact file inventory. A draft cannot become a skill's active version until publish verifies every file was durably written.",
@@ -79728,9 +79802,8 @@ export const clientManifest = {
               "automationFiring:read",
               "skillSource:read",
               "skillSource:manage",
-              "skill:manage",
-              "skill:read",
               "skill:author",
+              "skill:read",
               "library:read",
               "skillVersion:read",
               "skillVersion:readPinned",

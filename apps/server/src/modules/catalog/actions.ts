@@ -164,7 +164,12 @@ export const skillImportAuthorizationAction: ActionDefinition<
   path: "/v1/skill-imports",
   input: contractSchemas.SkillImport,
   output: contractSchemas.Run,
-  policy: commandPolicy,
+  // Developer for a personal import; the handler raises the bar to Admin for an
+  // organization import, which one access value cannot express.
+  policy: {
+    ...commandPolicy,
+    access: ActionAccess.DeveloperForPersonalAdminForOrganization,
+  },
   handler: () => {
     throw new Error("SKILL_IMPORT_AUTHORIZATION_ONLY");
   },

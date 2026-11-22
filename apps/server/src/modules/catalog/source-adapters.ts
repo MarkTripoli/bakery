@@ -252,13 +252,29 @@ function requireGitRevision(value: string): string {
   return value;
 }
 
+/** A web-address archive pinned by its content: sha256 of the archive bytes. */
+const ARCHIVE_DIGEST_REVISION = /^sha256:[0-9a-f]{64}$/;
+
+/** The revision a web-address archive is pinned by: a strong ETag or its digest. */
+function requireUrlRevision(value: string): string {
+  return ARCHIVE_DIGEST_REVISION.test(value) ? value : requireStrongEtag(value);
+}
+
 export function normalizeSkillSourceRevision(
   sourceType: SkillSourceType,
   value: string,
 ): string {
   return sourceType === "git"
     ? requireGitRevision(value)
-    : requireStrongEtag(value);
+    : requireUrlRevision(value);
+}
+
+/**
+ * The revision a web-address archive fetched with no revision is pinned by: the
+ * sha256 of its bytes, as `sha256:<hex>`.
+ */
+export function archiveDigestRevision(proof: SkillSourceProof): string {
+  return `sha256:${proof.sourceProofDigest.replace(/^sha256:/, "")}`;
 }
 
 async function sha256(bytes: Uint8Array | string): Promise<string> {
@@ -717,7 +733,14 @@ async function fetchUrlSource(
     request.locator,
     dependencies.allowInsecureLoopback,
   );
-  const requestedRevision = requireStrongEtag(request.requestedRevision);
+  // An empty revision asks for whatever the address serves now (an import that
+  // names no version); a sha256: revision pins the archive's bytes; anything
+  // else is a strong ETag the server must still answer with.
+  const unpinned = request.requestedRevision === "";
+  const requestedRevision = unpinned
+    ? ""
+    : requireUrlRevision(request.requestedRevision);
+  const byDigest = ARCHIVE_DIGEST_REVISION.test(requestedRevision);
   if (
     request.expectedSourceRevision !== undefined &&
     request.expectedSourceRevision !== requestedRevision
@@ -731,7 +754,9 @@ async function fetchUrlSource(
     try {
       response = await dependencies.httpFetch(normalizedLocator, {
         method: "GET",
-        headers: new Headers({ "if-match": requestedRevision }),
+        headers: new Headers(
+          unpinned || byDigest ? {} : { "if-match": requestedRevision },
+        ),
         redirect: "error",
         credentials: "omit",
         cache: "no-store",
@@ -747,12 +772,14 @@ async function fetchUrlSource(
     if (response.status !== 200 || response.body === null) {
       fail("SOURCE_UNAVAILABLE");
     }
-    const responseEtag = response.headers.get("etag");
-    if (
-      responseEtag === null ||
-      requireStrongEtag(responseEtag) !== requestedRevision
-    ) {
-      fail("SOURCE_REVISION_MISMATCH");
+    if (!unpinned && !byDigest) {
+      const responseEtag = response.headers.get("etag");
+      if (
+        responseEtag === null ||
+        requireStrongEtag(responseEtag) !== requestedRevision
+      ) {
+        fail("SOURCE_REVISION_MISMATCH");
+      }
     }
     const compressed = await readBoundedBody(
       response.body,
@@ -760,6 +787,10 @@ async function fetchUrlSource(
       budget.signal,
     );
     const sourceProofDigest = await sha256(compressed);
+    const contentRevision = `sha256:${sourceProofDigest}`;
+    if (byDigest && contentRevision !== requestedRevision) {
+      fail("SOURCE_REVISION_MISMATCH");
+    }
     let inventory: SkillArchiveInventory;
     try {
       inventory = await parseGzipUstarArchive(compressed, normalizedPath);
@@ -771,7 +802,9 @@ async function fetchUrlSource(
       sourceType: "url",
       normalizedLocator,
       requestedRevision,
-      sourceRevision: requestedRevision,
+      sourceRevision: unpinned || byDigest
+        ? contentRevision
+        : requestedRevision,
       sourceProofDigest,
       normalizedPath,
       inventory,

@@ -20,6 +20,8 @@ An organization workflow can bind a private user skill (owner decision, 14 Novem
 
 A skill is never deleted (orchestrator ruling, 21 November 2026). Turning it off is the only removal: it blocks new use, and its published versions stay, because they are immutable, workflows and runs pin them, and audit keeps them. There is no delete operation for a skill or a skill version.
 
+An archive imported from a web address needs no typed version (orchestrator ruling, 22 November 2026). Bakery fetches the archive once and pins it by its content digest (`sha256:...`, shown short); the person may add an optional label, kept on the version. Importing unchanged content again is the same import; changed content becomes a new version. A strong ETag still works when one is given. An import may also be Private: its importer owns the skill, under the same rules as a Private copy. A version records when it was published; versions published before that was recorded show no time rather than a guessed one.
+
 The library has All skills, Global, Organization and My skills filters, search, version, latest comparable evaluation and status. One row represents a skill identity, not each revision. Skill details contain Instructions, Test cases, Evaluations and Versions, plus compatible action, requirements and Used by references. Versions shows the full immutable history and draft status. A workflow's Setup panel offers an explicit version update with compatibility validation and Undo.
 
 ## Authoring and workflow continuity

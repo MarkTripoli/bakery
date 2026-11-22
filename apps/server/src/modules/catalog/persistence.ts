@@ -37,6 +37,11 @@ import {
 import type { SkillFileStoreOperations } from "./storage.ts";
 import { listSkillUsage } from "./skill-usage.ts";
 import {
+  type ArchiveRevisionContext,
+  ArchiveRevisionPreflightRollbackError,
+  archiveRevisionStage,
+} from "./archive-revision.ts";
+import {
   type SkillVersionRow,
   toSkillVersion,
   VERSION_COLUMNS,
@@ -127,8 +132,14 @@ export const SkillSourceRegistrationPersistenceSchema = z.object({
 
 export const SkillImportAdmissionPersistenceSchema = z.object({
   sourceId: z.string().uuid().describe("Registered remote source UUID."),
-  revision: z.string().min(1).max(255).describe(
-    "Requested Git revision or strong HTTP ETag.",
+  revision: z.string().min(1).max(255).optional().describe(
+    "Requested Git revision, strong HTTP ETag or sha256: content digest; a web-address archive may omit it and is pinned by its digest.",
+  ),
+  label: z.string().trim().min(1).max(200).optional().describe(
+    "Optional name for the version the import makes.",
+  ),
+  scope: z.enum(["organization", "personal"]).optional().describe(
+    "Whether the imported skill is the organization's (default) or the importer's own.",
   ),
   path: z.string().max(500).optional().describe(
     "Optional normalized path containing the imported skill.",
@@ -484,6 +495,9 @@ export async function admitSkillImport(
     requestedRevision: string;
     sourcePath: string;
     followedRevision?: string;
+    scope?: "organization" | "personal";
+    ownerPrincipalId?: string | null;
+    label?: string;
   },
 ): Promise<ReturnType<typeof toRun>> {
   const {
@@ -493,7 +507,10 @@ export async function admitSkillImport(
     requestedRevision,
     sourcePath,
     followedRevision,
+    label,
   } = facts;
+  const scope = facts.scope ?? "organization";
+  const ownerPrincipalId = facts.ownerPrincipalId ?? null;
   const existing = await transaction.query<ExistingSkillImportRow>(
     `select ${IMPORT_RUN_COLUMNS}, import.registered_source_type,
                 import.registered_locator, import.registered_license
@@ -502,8 +519,17 @@ export async function admitSkillImport(
              on run.organization_id = import.organization_id
             and run.id = import.run_id
           where import.organization_id = $1 and import.source_id = $2
-            and import.requested_revision = $3 and import.source_path = $4`,
-    [organizationId, source.id, requestedRevision, sourcePath],
+            and import.requested_revision = $3 and import.source_path = $4
+            and import.scope = $5
+            and import.owner_principal_id is not distinct from $6::uuid`,
+    [
+      organizationId,
+      source.id,
+      requestedRevision,
+      sourcePath,
+      scope,
+      ownerPrincipalId,
+    ],
   );
   const replay = existing.rows[0];
   if (replay) {
@@ -539,6 +565,7 @@ export async function admitSkillImport(
       requestedRevision,
       sourcePath,
       ...(followedRevision === undefined ? {} : { followedRevision }),
+      ...(label === undefined ? {} : { label }),
     },
   };
   const inserted = await transaction.query<RunRow>(
@@ -567,8 +594,8 @@ export async function admitSkillImport(
     `insert into bakery.skill_imports (
            id, organization_id, run_id, source_id, requested_revision,
            source_path, registered_source_type, registered_locator,
-           registered_license, state
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued')`,
+           registered_license, state, scope, owner_principal_id
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', $10, $11)`,
     [
       crypto.randomUUID(),
       organizationId,
@@ -579,6 +606,8 @@ export async function admitSkillImport(
       source.source_type,
       source.locator,
       source.license,
+      scope,
+      ownerPrincipalId,
     ],
   );
   await appendAudit(transaction, {
@@ -621,6 +650,8 @@ export async function admitReviewedSkillUpdate(
     sourcePath: string;
     revision: string;
     followedRevision: string;
+    scope: "organization" | "personal";
+    ownerPrincipalId: string | null;
   }>,
 ): Promise<ReturnType<typeof toRun>> {
   await assertNotQuiesced(transaction, "intake");
@@ -655,6 +686,8 @@ export async function admitReviewedSkillUpdate(
     requestedRevision,
     sourcePath: facts.sourcePath,
     followedRevision: facts.followedRevision,
+    scope: facts.scope,
+    ownerPrincipalId: facts.ownerPrincipalId,
   });
   await appendAudit(transaction, {
     organizationId: facts.organizationId,
@@ -779,14 +812,55 @@ export function createCatalogHandlers(
           params: { reason: "skill_import_source_unsupported" },
         });
       }
+      // A personal import is its importer's own skill, and only a person owns
+      // one; an organization import is an Admin's.
+      const scope = parsed.data.scope ?? "organization";
+      if (
+        scope === "personal" &&
+        attributeAction(context, principalId).actorKind !== "person"
+      ) {
+        throw new StandardError({
+          code: "AUTH_FORBIDDEN",
+          params: { reason: "personal_skill_requires_person" },
+        });
+      }
+      const ownerPrincipalId = scope === "personal" ? principalId : null;
+      await assertMayAuthorSkill(transaction, organizationId, principalId, {
+        scope,
+        ownerPrincipalId,
+      });
       let requestedRevision: string;
       let sourcePath: string;
+      let followedRevision: string | undefined;
       try {
-        requestedRevision = normalizeSkillSourceRevision(
-          source.source_type,
-          parsed.data.revision,
-        );
         sourcePath = normalizeSkillSourcePath(parsed.data.path);
+        if (parsed.data.revision !== undefined) {
+          requestedRevision = normalizeSkillSourceRevision(
+            source.source_type,
+            parsed.data.revision,
+          );
+        } else {
+          // Only an archive at a web address can be pinned by its content; a
+          // Git source must name what to import.
+          if (source.source_type !== "url") invalidSourceInput();
+          const stage = (context as ArchiveRevisionContext)[
+            archiveRevisionStage
+          ];
+          if (stage === undefined) {
+            throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+          }
+          if (stage.revision === undefined) {
+            stage.locator = source.locator;
+            stage.path = sourcePath;
+            throw new ArchiveRevisionPreflightRollbackError();
+          }
+          requestedRevision = normalizeSkillSourceRevision(
+            source.source_type,
+            stage.revision,
+          );
+          // The next update check reads the address as it is then.
+          followedRevision = "";
+        }
       } catch (error) {
         if (error instanceof SkillSourceAdapterError) invalidSourceInput(error);
         throw error;
@@ -797,6 +871,10 @@ export function createCatalogHandlers(
         source,
         requestedRevision,
         sourcePath,
+        followedRevision,
+        scope,
+        ownerPrincipalId,
+        label: parsed.data.label,
       });
     },
 

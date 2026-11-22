@@ -28,6 +28,7 @@ import {
   admitReviewedSkillUpdate,
   createCatalogHandlers,
 } from "./persistence.ts";
+import { createArchiveRevisionAuthority } from "./archive-revision.ts";
 import {
   finalizeLocalSkillVersionPublication,
   type LocalSkillVersionPublicationPreparation,
@@ -160,7 +161,10 @@ export function createCatalogRoutes(options: {
     }),
   );
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
-  const catalogAuthority = createGlobalSkillAuthority(postgresAuthority, store);
+  const catalogAuthority = createArchiveRevisionAuthority(
+    createGlobalSkillAuthority(postgresAuthority, store),
+    options.sourceAdapter,
+  );
   const postgresCommandRunner = createPostgresCommandRunner();
   const publicationCommandRunner: CommandRunner = {
     async run(request) {

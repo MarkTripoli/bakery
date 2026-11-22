@@ -362,6 +362,8 @@ export async function confirmSkillSourceUpdateTake(
     sourceId: string;
     sourcePath: string;
     followedRevision: string;
+    scope: "organization" | "personal";
+    ownerPrincipalId: string | null;
   }>
 > {
   const facts = await authorableSkill(context);
@@ -416,5 +418,8 @@ export async function confirmSkillSourceUpdateTake(
     sourceId: preparation.sourceId,
     sourcePath: skill.source_path ?? "",
     followedRevision: preparation.requestedRevision,
+    // The update is a new version of this same skill, so it keeps its scope.
+    scope: facts.scope === "personal" ? "personal" : "organization",
+    ownerPrincipalId: facts.scope === "personal" ? facts.principalId : null,
   });
 }
