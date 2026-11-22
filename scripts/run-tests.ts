@@ -109,7 +109,9 @@ const permissions = lane === "native" ? ["--allow-all"] : [
     ? [`--allow-write=${temporaryDirectory}`]
     : []),
   ...(lane === "contract" ? ["--allow-sys=statfs"] : []),
-  ...(lane === "e2e" || lane === "connected" ? ["--allow-sys=statfs"] : []),
+  ...(lane === "e2e" || lane === "connected"
+    ? ["--allow-sys=uid,statfs,osRelease"]
+    : []),
   ...(lane === "unit" || lane === "integration" || lane === "security"
     ? ["--allow-sys=uid,statfs,osRelease"]
     : lane === "rails" || lane === "recovery"
