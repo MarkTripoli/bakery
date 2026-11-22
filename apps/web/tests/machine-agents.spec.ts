@@ -141,6 +141,8 @@ function workerBody(w: World) {
     failedCheckIds: w.failedChecks.map((check) => check.checkId),
     lastHeartbeatAt: new Date().toISOString(),
     credentialGeneration: 1,
+    archivedAt: null,
+    cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     version: 1,

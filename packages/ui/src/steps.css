@@ -437,7 +437,8 @@
    area, so the whole row is the target (#67 UX ruling 6934081003 fix 2). The
    spans are spans, not text paragraphs: a paragraph cannot sit inside a
    button. */
-[data-pick-step] {
+[data-pick-step],
+[data-pick-skill] {
   align-items: start;
   display: flex;
   /* Each row keeps its own height when the list is shorter than its contents:
@@ -574,7 +575,8 @@
 }
 /* The list is the only part that scrolls; the search field above it and Cancel
    below it are siblings, so they stay visible at both ends of the popover. */
-[data-testid="step-picker"] > [data-picker-list="true"] {
+[data-testid="step-picker"] > [data-picker-list="true"],
+[data-testid="skill-picker"] > [data-picker-list="true"] {
   flex: 0 1 auto;
   min-block-size: 0;
   overflow-y: auto;
@@ -621,13 +623,15 @@
  * useful the popover opens above its trigger instead (`data-flip`). The list
  * inside scrolls; the search field and Cancel never do.
  */
-.ui-popover__content:has([data-testid="step-picker"]) {
+.ui-popover__content:has([data-testid="step-picker"]),
+.ui-popover__content:has([data-testid="skill-picker"]) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 /* Too little room below: open above the "+" and grow upward instead. */
-.ui-popover__content:has([data-testid="step-picker"])[data-flip="true"] {
+.ui-popover__content:has([data-testid="step-picker"])[data-flip="true"],
+.ui-popover__content:has([data-testid="skill-picker"])[data-flip="true"] {
   inset-block-end: calc(100% + var(--space-2));
   inset-block-start: auto;
 }

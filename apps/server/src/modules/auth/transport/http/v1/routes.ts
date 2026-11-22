@@ -129,6 +129,8 @@ export type AuthActionRegistryOptions = {
   publicBaseUrl?: string;
   /** The auth provider's password hashing and length rule; password reset redemption refuses without it. */
   passwordHasher?: () => Promise<PasswordHasher>;
+  /** The release this server runs, shown on the public installation status. */
+  release?: string;
 };
 
 /**
@@ -849,7 +851,12 @@ export function createAuthActionRegistry(
       access: ActionAccess.Public,
     },
     handler: (context, input) =>
-      installationStatus(context, input, options.database),
+      installationStatus(
+        context,
+        input,
+        options.database,
+        options.release ?? "unknown",
+      ),
   }).register({
     name: AuthImplementedAction.OrganizationInvitationPreview,
     method: HttpMethod.Get,

@@ -8995,6 +8995,83 @@ export const clientManifest = {
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates/status",
+      "action": "installationUpdates.status",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUpdateStatus",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/updates",
+      "action": "installationUpdates.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<InstallationUpdateEvent>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/updates/{id}/dismiss",
+      "action": "installationUpdates.dismiss",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "IdPath",
+      "output": "InstallationUpdateEvent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; dismissing again returns the same event",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",
@@ -11861,6 +11938,56 @@ export const clientManifest = {
         "VERSION_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "POST",
+      "path": "/v1/plugin-authoring-runs",
+      "action": "pluginAuthoringRuns.create",
+      "access": "Developer",
+      "permission": "pluginInstall:manage",
+      "input": "PluginAuthoringRunCreate",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-authoring-runs/{id}",
+      "action": "pluginAuthoringRuns.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "IdPath",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
       ],
@@ -19420,6 +19547,9 @@ export const clientManifest = {
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -19546,6 +19676,8 @@ export const clientManifest = {
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -24113,6 +24245,14 @@ export const clientManifest = {
             "any_user"
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
+        },
+        "updateFailurePolicy": {
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal.",
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ]
         }
       },
       "required": [
@@ -33797,6 +33937,62 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
     },
+    "PluginAuthoringRunCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "What the backend plugin should do, in the requester's own words. The generator reads it with the pinned authoring kit; its SHA-256 is kept as the version's source evidence. PluginAuthoringRunCreate.request must contain at least 1 characters. PluginAuthoringRunCreate.request must contain at most 8000 characters. PluginAuthoringRunCreate.request must match the pattern ^(?!\\s)(?=.*\\S)."
+        },
+        "authorizedCapabilities": {
+          "maxItems": 7,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. Each array item follows this format."
+          },
+          "description": "The capabilities the requester allows the plugin to hold. A package whose manifest asks for anything else fails the authority check and is never published; the generator never sees or sets this list. PluginAuthoringRunCreate.authorizedCapabilities must contain at most 7 items."
+        },
+        "budgetUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "How many packages the generator may write, 1 to 3. Each failed attempt is handed back with every diagnostic; when the last one fails the run ends blocked and nothing is published. PluginAuthoringRunCreate.maxAttempts must be at least 1. PluginAuthoringRunCreate.maxAttempts must be at most 3."
+        },
+        "installId": {
+          "description": "The caller's own personal install of an authored plugin to revise. Omitted for a new plugin, which is installed privately for the caller. A revision moves that install to the new version only after its preview passes, approving exactly the added capabilities, and puts it back as it was when the preview or state migration fails.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "request",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "maxAttempts"
+      ],
+      "additionalProperties": false,
+      "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -40027,6 +40223,48 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "handoffManifest": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the stored manifest, the id GET /v1/handoff-manifests/{id} reads."
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "continued",
+                          "blocked"
+                        ],
+                        "description": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused)."
+                      },
+                      "savedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when the source attempt saved the manifest."
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "status",
+                      "savedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The newest handoff manifest an attempt of this step saved, so a reader can tell the step has somewhere to continue from; null until one is saved. Read the whole manifest with GET /v1/handoff-manifests/{id}."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunStep.handoffManifest may be null in this transport value."
               }
             },
             "required": [
@@ -40042,7 +40280,8 @@ export const clientManifest = {
               "finishedAt",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "handoffManifest"
             ],
             "additionalProperties": false,
             "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body."
@@ -45162,6 +45401,21 @@ export const clientManifest = {
                 ],
                 "description": "Skill.activeVersionId may be null in this transport value."
               },
+              "activeRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.activeRevision may be null in this transport value."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether the record is enabled."
@@ -45245,6 +45499,7 @@ export const clientManifest = {
               "slug",
               "name",
               "activeVersionId",
+              "activeRevision",
               "enabled",
               "scope",
               "ownerPrincipalId",
@@ -47618,6 +47873,9 @@ export const clientManifest = {
                   "backups.drills.list",
                   "installationRestore.get",
                   "installationUncertainActions.get",
+                  "installationUpdates.status",
+                  "installationUpdates.list",
+                  "installationUpdates.dismiss",
                   "installationRestore.step",
                   "backups.status",
                   "backups.start",
@@ -47744,6 +48002,8 @@ export const clientManifest = {
                   "pluginPageDocuments.get",
                   "userPreferences.get",
                   "userPreferences.update",
+                  "pluginAuthoringRuns.create",
+                  "pluginAuthoringRuns.get",
                   "artifacts.update",
                   "worker.output.open",
                   "worker.output.close",
@@ -56032,6 +56292,48 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "handoffManifest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the stored manifest, the id GET /v1/handoff-manifests/{id} reads."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "continued",
+                    "blocked"
+                  ],
+                  "description": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused)."
+                },
+                "savedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the source attempt saved the manifest."
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "savedAt"
+              ],
+              "additionalProperties": false,
+              "description": "The newest handoff manifest an attempt of this step saved, so a reader can tell the step has somewhere to continue from; null until one is saved. Read the whole manifest with GET /v1/handoff-manifests/{id}."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunStep.handoffManifest may be null in this transport value."
         }
       },
       "required": [
@@ -56047,7 +56349,8 @@ export const clientManifest = {
         "finishedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "handoffManifest"
       ],
       "additionalProperties": false,
       "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body.",
@@ -66723,6 +67026,21 @@ export const clientManifest = {
           ],
           "description": "Skill.activeVersionId may be null in this transport value."
         },
+        "activeRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the active version, the number people read as the skill's version; null when the skill has no active version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.activeRevision may be null in this transport value."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether the record is enabled."
@@ -66806,6 +67124,7 @@ export const clientManifest = {
         "slug",
         "name",
         "activeVersionId",
+        "activeRevision",
         "enabled",
         "scope",
         "ownerPrincipalId",
@@ -69336,6 +69655,9 @@ export const clientManifest = {
             "backups.drills.list",
             "installationRestore.get",
             "installationUncertainActions.get",
+            "installationUpdates.status",
+            "installationUpdates.list",
+            "installationUpdates.dismiss",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -69462,6 +69784,8 @@ export const clientManifest = {
             "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
+            "pluginAuthoringRuns.create",
+            "pluginAuthoringRuns.get",
             "artifacts.update",
             "worker.output.open",
             "worker.output.close",
@@ -76753,15 +77077,21 @@ export const clientManifest = {
         "updatePaused": {
           "type": "boolean",
           "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
+        },
+        "release": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running, the same value the health check reports as its version; a page that sees it change knows the server was updated or went back."
         }
       },
       "required": [
         "bootstrapped",
         "restoreHeld",
-        "updatePaused"
+        "updatePaused",
+        "release"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, whether an update has paused work, and which release this server runs; carries no identity."
     },
     "BrowserSessionList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -88592,6 +88922,14 @@ export const clientManifest = {
           ],
           "description": "Installation administrators only, or any authenticated human, may create organizations."
         },
+        "updateFailurePolicy": {
+          "type": "string",
+          "enum": [
+            "go_back",
+            "ask"
+          ],
+          "description": "What the launcher does when an update does not become healthy: go_back returns to the earlier version by itself; ask leaves the choice to the person at the server's terminal."
+        },
         "version": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -88623,6 +88961,7 @@ export const clientManifest = {
       "required": [
         "registrationMode",
         "organizationCreationPolicy",
+        "updateFailurePolicy",
         "version",
         "updatedByPrincipalId",
         "updatedAt"
@@ -116971,6 +117310,329 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
     },
+    "InstallationUpdateEvent": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The event's id, made by the launcher so a resent event is recorded once."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "installed",
+            "updated",
+            "rolled_back",
+            "went_back",
+            "refused",
+            "decided_go_back",
+            "decided_stay",
+            "interrupted"
+          ],
+          "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it happened, on the server's clock."
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.by may be null in this transport value."
+        },
+        "fromRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+        },
+        "toRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release id the event moved to or kept, or null when it does not apply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The launcher's first line for a refusal, in words; null for every other kind."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.detail may be null in this transport value."
+        },
+        "dismissedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "at",
+        "by",
+        "fromRelease",
+        "toRelease",
+        "detail",
+        "dismissedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+    },
+    "InstallationUpdateStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runningRelease": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The release id this server is running now."
+        },
+        "runningSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the launcher made this release the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.runningSince may be null in this transport value."
+        },
+        "healthy": {
+          "type": "boolean",
+          "description": "Whether this server's own health check passes: its database and configuration answer."
+        },
+        "previousRelease": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The release the launcher keeps so it can go back, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRelease may be null in this transport value."
+        },
+        "previousRanFrom": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release became the running one, or null when the history does not say."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanFrom may be null in this transport value."
+        },
+        "previousRanUntil": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the kept release stopped running, which is when the current one took over, or null when none is kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.previousRanUntil may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The event's id, made by the launcher so a resent event is recorded once."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "installed",
+                    "updated",
+                    "rolled_back",
+                    "went_back",
+                    "refused",
+                    "decided_go_back",
+                    "decided_stay",
+                    "interrupted"
+                  ],
+                  "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When it happened, on the server's clock."
+                },
+                "by": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.by may be null in this transport value."
+                },
+                "fromRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+                },
+                "toRelease": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The release id the event moved to or kept, or null when it does not apply."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.detail may be null in this transport value."
+                },
+                "dismissedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "at",
+                "by",
+                "fromRelease",
+                "toRelease",
+                "detail",
+                "dismissedAt"
+              ],
+              "additionalProperties": false,
+              "description": "The latest update that went back, was decided at the terminal or was interrupted, and was not dismissed; null when none, or once a later update succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationUpdateStatus.lastFailure may be null in this transport value."
+        }
+      },
+      "required": [
+        "runningRelease",
+        "runningSince",
+        "healthy",
+        "previousRelease",
+        "previousRanFrom",
+        "previousRanUntil",
+        "lastFailure"
+      ],
+      "additionalProperties": false,
+      "description": "Which version of Bakery this server runs, whether it is healthy, the earlier version the launcher keeps so it can go back, and the last update that did not go through until someone dismisses it. Installation administrators only."
+    },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -117316,6 +117978,181 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of BackupDrill."
+    },
+    "Page<InstallationUpdateEvent>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The event's id, made by the launcher so a resent event is recorded once."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "installed",
+                  "updated",
+                  "rolled_back",
+                  "went_back",
+                  "refused",
+                  "decided_go_back",
+                  "decided_stay",
+                  "interrupted"
+                ],
+                "description": "installed: the first release was installed. updated: from was replaced by to. rolled_back: a person went back by hand from from to to. went_back: the update to from did not become ready and Bakery returned to to by itself. refused: the update to to was refused before anything changed. decided_go_back and decided_stay: a person at the terminal chose to go back from from to to, or to stay on from. interrupted: a switch to from did not finish and recover put to back."
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it happened, on the server's clock."
+              },
+              "by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The operating-system user at the server's terminal, or null when Bakery did it by itself."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.by may be null in this transport value."
+              },
+              "fromRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id (the commit it was built from) the event moved away from or tried to move to, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.fromRelease may be null in this transport value."
+              },
+              "toRelease": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The release id the event moved to or kept, or null when it does not apply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.toRelease may be null in this transport value."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The launcher's first line for a refusal, in words; null for every other kind."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.detail may be null in this transport value."
+              },
+              "dismissedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When an administrator dismissed the notice about this event, or null. The event stays in the history."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "InstallationUpdateEvent.dismissedAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "at",
+              "by",
+              "fromRelease",
+              "toRelease",
+              "detail",
+              "dismissedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One thing that happened to the installed version of Bakery: an install, an update, a going back, a refusal, an answer given at the server's terminal, or a switch that was interrupted. Words and release ids only: no path, secret or task title. Installation administrators only."
+          },
+          "description": "InstallationUpdateEvent items in this cursor page. Page<InstallationUpdateEvent>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<InstallationUpdateEvent>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<InstallationUpdateEvent>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<InstallationUpdateEvent>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<InstallationUpdateEvent>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of InstallationUpdateEvent."
     },
     "WorkerLinkCodeInspection": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -117881,6 +118718,1108 @@ export const clientManifest = {
       "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
       "type": "string",
       "format": "binary"
+    },
+    "PluginAuthoringRun": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this authoring run."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization that owns this run."
+        },
+        "actorPrincipalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person who asked for the plugin; only they can read the run."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "running",
+            "succeeded",
+            "unchanged",
+            "blocked",
+            "budget_exhausted",
+            "interrupted"
+          ],
+          "description": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone."
+        },
+        "request": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The request text as sent."
+        },
+        "requestDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the request text, the published version's source evidence."
+        },
+        "authorizedCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state.read",
+              "state.write",
+              "ui.page",
+              "ui.panel",
+              "commands.run",
+              "tools.invoke",
+              "jobs.schedule"
+            ],
+            "description": "The capabilities the request allowed, the only ones a package could ask for. Each array item follows this format."
+          },
+          "description": "The capabilities the request allowed, the only ones a package could ask for."
+        },
+        "budgetUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "The budget the request set, in USD."
+        },
+        "spentUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "What the attempts cost in total, in USD."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The attempt cap the request set."
+        },
+        "kitDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the pinned authoring kit the generator was shown."
+        },
+        "sdkVersion": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The plugin SDK version the host checked against."
+        },
+        "modelId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The generator's model id."
+        },
+        "basePluginInstallId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The install a revision started from; null for a new plugin."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.basePluginInstallId may be null in this transport value."
+        },
+        "pluginPackageId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The package published to; null unless the run succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginPackageId may be null in this transport value."
+        },
+        "pluginVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginVersionId may be null in this transport value."
+        },
+        "pluginInstallId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The personal install now running that version; null unless the run succeeded or was unchanged."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.pluginInstallId may be null in this transport value."
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure), install_moved (the install left the version the run started from), rollback_refused (a failed revision could not be moved back; the install stays on the published version) or run_interrupted (with the phase it stopped in); null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.failure may be null in this transport value."
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "attemptNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The attempt's position in the run, from 1."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "checked",
+                  "passed",
+                  "failed"
+                ],
+                "description": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise."
+              },
+              "filesDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.filesDigest may be null in this transport value."
+              },
+              "checkReport": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.checkReport may be null in this transport value."
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema2"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema2"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt. Each array item follows this format."
+                },
+                "description": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt."
+              },
+              "costUsd": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                "description": "What the generator reported this attempt cost."
+              },
+              "pluginVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The private version published from this attempt; null unless it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.pluginVersionId may be null in this transport value."
+              },
+              "previewResult": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema3"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema3"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The value the job returned in its private preview; null unless the attempt passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginAuthoringAttempt.previewResult may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the attempt was recorded."
+              }
+            },
+            "required": [
+              "attemptNumber",
+              "outcome",
+              "filesDigest",
+              "checkReport",
+              "diagnostics",
+              "costUsd",
+              "pluginVersionId",
+              "previewResult",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "Every attempt in order. Each array item follows this format."
+          },
+          "description": "Every attempt in order."
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "published",
+                  "compensated",
+                  "rolled_back",
+                  "rollback_refused",
+                  "install_moved",
+                  "interrupted"
+                ],
+                "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone. rollback_refused when the move back was refused (its lastUpdateFailure is in detail) and the install stays on the version this run published; install_moved when the install no longer ran the version the run was authored against, so nothing was published."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it was recorded."
+              }
+            },
+            "required": [
+              "kind",
+              "detail",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption. Each array item follows this format."
+          },
+          "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the run started."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the run last changed."
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the run reached its outcome; null while running."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginAuthoringRun.finishedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "actorPrincipalId",
+        "status",
+        "request",
+        "requestDigest",
+        "authorizedCapabilities",
+        "budgetUsd",
+        "spentUsd",
+        "maxAttempts",
+        "kitDigest",
+        "sdkVersion",
+        "modelId",
+        "basePluginInstallId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "pluginInstallId",
+        "failure",
+        "attempts",
+        "events",
+        "createdAt",
+        "updatedAt",
+        "finishedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One request to author a private backend plugin: what was asked and authorized, the kit, SDK and model it ran with, every attempt, and where it ended.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema3": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema4": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     }
   }
 } as const;
