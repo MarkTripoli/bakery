@@ -242,12 +242,26 @@ Deno.test("AC1: two admins demoting each other at once get a clean answer, never
       );
       const responses = await Promise.all([demote(a, b), demote(b, a)]);
       const statuses = responses.map((response) => response.status);
-      await Promise.all(responses.map((response) => response.body?.cancel()));
-      for (const status of statuses) {
+      const problems = await Promise.all(
+        responses.map(async (response) =>
+          JSON.parse(await response.text()) as {
+            code?: string;
+            reason?: string;
+          }
+        ),
+      );
+      for (const [index, status] of statuses.entries()) {
         assert(
           [200, 403, 409].includes(status),
           `round ${round}: ${statuses.join(", ")}`,
         );
+        // A lost deadlock is the named, retryable conflict, not any 409.
+        if (status === 409) {
+          assertEquals(
+            { code: problems[index].code, reason: problems[index].reason },
+            { code: "STATE_CONFLICT", reason: "concurrent_authority_change" },
+          );
+        }
       }
       // Whatever the order, at most one of the two demoted the other: the
       // second request either waited and found itself demoted, or lost the
