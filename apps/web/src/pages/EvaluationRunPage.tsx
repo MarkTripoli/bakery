@@ -180,19 +180,16 @@ function CostSection({ batch }: { readonly batch: EvaluationBatch }) {
   return (
     <UI.SettingsSection
       data-testid="evaluation-cost"
-      title={
-        <>
-          {translate("library.evaluation.cost.title")}
-          <UI.HelpTip label={translate("library.evaluation.cost.helpLabel")}>
-            {translate("library.evaluation.cost.help")}
-          </UI.HelpTip>
-        </>
-      }
+      title={translate("library.evaluation.cost.title")}
       variant="stack"
     >
       <UI.Inline gap="standard" variant="thirds">
         <UI.StatTile
           detail={spentDetail}
+          help={{
+            label: translate("library.evaluation.cost.helpLabel"),
+            text: translate("library.evaluation.cost.help"),
+          }}
           label={translate("library.evaluation.cost.spent.label")}
           value={unknown > 0
             ? translate("library.evaluation.cost.spent.atLeast", {
@@ -283,14 +280,7 @@ function SampledSection({ batch }: { readonly batch: EvaluationBatch }) {
   return (
     <UI.SettingsSection
       data-testid="evaluation-sampled"
-      title={
-        <>
-          {translate("library.evaluation.sampled.title")}
-          <UI.HelpTip label={translate("library.evaluation.sampled.helpLabel")}>
-            {translate("library.evaluation.sampled.help")}
-          </UI.HelpTip>
-        </>
-      }
+      title={translate("library.evaluation.sampled.title")}
       variant="stack"
     >
       <UI.Inline gap="standard">
@@ -302,9 +292,14 @@ function SampledSection({ batch }: { readonly batch: EvaluationBatch }) {
           </UI.Text>
         ))}
       </UI.Inline>
-      <UI.Text variant="muted">
-        {translate("library.evaluation.sampled.note")}
-      </UI.Text>
+      <UI.Inline gap="compact">
+        <UI.Text variant="muted">
+          {translate("library.evaluation.sampled.note")}
+        </UI.Text>
+        <UI.HelpTip label={translate("library.evaluation.sampled.helpLabel")}>
+          {translate("library.evaluation.sampled.help")}
+        </UI.HelpTip>
+      </UI.Inline>
     </UI.SettingsSection>
   );
 }
