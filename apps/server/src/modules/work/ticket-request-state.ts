@@ -26,6 +26,9 @@ export type TicketTerminalReason = `${
   | "run"
   | "task"}_${TicketFinishedDisposition}`;
 
+/** Why a request with no run ended: a person stopped it (`ticketRequests.cancel`). */
+export type TicketCancelReason = "request_canceled";
+
 /** Where a resumed request returns to: before a run, queued, or running. */
 export type TicketResumeTarget = "waiting" | "admitted" | "active";
 
@@ -296,7 +299,8 @@ export function decideRecheck(
 
 /**
  * Every reason a disposition stores: the suspension reasons (auto-resumable
- * and explicit-resume) and the run or task end a request finished with. The
+ * and explicit-resume), the run or task end a request finished with, and
+ * `request_canceled` for a request stopped before it had a run. The
  * non-suspending reasons never reach a disposition. `ticketRequests.list`
  * and `.get` (#69) answer this closed set as `dispositionReasonCode`.
  */
@@ -310,7 +314,12 @@ export const TICKET_DISPOSITION_REASON_CODES = Object.freeze(
     "task_completed",
     "task_failed",
     "task_canceled",
-  ] as const satisfies readonly (TicketReasonCode | TicketTerminalReason)[],
+    "request_canceled",
+  ] as const satisfies readonly (
+    | TicketReasonCode
+    | TicketTerminalReason
+    | TicketCancelReason
+  )[],
 );
 export type TicketDispositionReasonCode =
   typeof TICKET_DISPOSITION_REASON_CODES[number];
@@ -371,8 +380,25 @@ export type TicketRequestProgress =
   | "rejected";
 
 /**
- * The progress the ticket page shows. A terminal disposition, `pending` and
- * `suspended` are shown as stored. Otherwise the run decides, because the
+ * A suspended request shows suspended until its run ends: the run is paused
+ * by the suspension, but a cancel (Stop work) or a run that finished before
+ * the pause landed ends it, and the recheck that moves the disposition runs
+ * on its own schedule. A completed run shows completed only once delivery is
+ * proven, as for an open request.
+ */
+function suspendedProgress(
+  runStatus: string,
+  delivered: boolean,
+): TicketRequestProgress {
+  if (runStatus === "failed" || runStatus === "canceled") return runStatus;
+  if (runStatus === "completed" && delivered) return "completed";
+  return "suspended";
+}
+
+/**
+ * The progress the ticket page shows. A terminal disposition and `pending`
+ * are shown as stored; `suspended` is shown as stored until its run ends
+ * (`suspendedProgress`). Otherwise the run decides, because the
  * recheck that moves the disposition runs on its own schedule: a run that
  * failed or was canceled shows its end, a completed one shows completed only
  * once the source's completion policy is met (`delivered`), and active until
@@ -386,10 +412,12 @@ export function ticketRequestProgress(
   runStatus: string | null,
   delivered: boolean,
 ): TicketRequestProgress {
-  if (
-    !isNonterminalTicketDisposition(disposition) ||
-    disposition === "suspended" || runStatus === null
-  ) return disposition;
+  if (!isNonterminalTicketDisposition(disposition) || runStatus === null) {
+    return disposition;
+  }
+  if (disposition === "suspended") {
+    return suspendedProgress(runStatus, delivered);
+  }
   switch (runStatus) {
     // A finished run whose delivery is not proven yet is still open work.
     case "completed":

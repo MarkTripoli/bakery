@@ -464,6 +464,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketRequestsCreate: "ticketRequests.create",
     TicketRequestsList: "ticketRequests.list",
     TicketRequestsGet: "ticketRequests.get",
+    TicketRequestsCancel: "ticketRequests.cancel",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const ticketImplementedActions = Object.freeze(
