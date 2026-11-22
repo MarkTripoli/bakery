@@ -385,6 +385,96 @@ Deno.test("the same effect key answers with the first call, and nothing from out
   assertEquals(unknownEffect.deploymentId, null);
 });
 
+Deno.test("a deploy step and a health step drive one record apart, under the step's own effect key (#43)", async () => {
+  const h = await harness();
+  const driver = createDeploymentDriver({
+    ledger: h.ledger,
+    adapter: h.target,
+  });
+  const queued = await h.queue(SHA_A);
+  const scope = "run-1:deploy_release:0";
+  const prepared = await h.target.prepare({
+    repositoryId: REPOSITORY,
+    headSha: SHA_A,
+    profileRevision: 1,
+  });
+  // The deploy step stops at deploying: health is another step.
+  const started = await driver.startDeploy(queued.id, {
+    releaseId: prepared.releaseId,
+    scope,
+  });
+  assertEquals(started.deployment.status, "deploying");
+  assertEquals(started.accepted?.commitSha, SHA_A);
+  assertEquals(h.evidence.length, 0, "no health was read by the deploy step");
+  // The target knows the effect by the step's key, not the record's id.
+  assertEquals(
+    (await h.target.status({ effectKey: `deploy:${scope}` })).status,
+    "deploying",
+  );
+  assertEquals(
+    (await h.target.status({ effectKey: `deploy:${queued.id}` })).deploymentId,
+    null,
+  );
+  // Replaying the deploy step finds the record past queued and does nothing.
+  assertEquals(
+    (await driver.startDeploy(queued.id, {
+      releaseId: prepared.releaseId,
+      scope,
+    })).deployment.status,
+    "deploying",
+  );
+
+  const health = await driver.checkHealth(queued.id, { scope });
+  assertEquals(health.deployment.status, "healthy");
+  assertEquals(health.health?.status, "healthy");
+  assert(health.deployment.healthEvidenceId !== null);
+  // And a replayed health step reads the finished record.
+  assertEquals(
+    (await driver.checkHealth(queued.id, { scope })).deployment.status,
+    "healthy",
+  );
+});
+
+Deno.test("a deploy step whose answer is lost settles under the step's key, and a failed health rolls back under it (#43 AC2)", async () => {
+  const h = await harness({
+    probe: (served) => ({
+      version: served === SHA_B ? SHA_A : (served ?? "none"),
+      state: "ok",
+    }),
+  });
+  const plain = createDeploymentDriver({ ledger: h.ledger, adapter: h.target });
+  const first = await h.queue(SHA_A);
+  await plain.deploy(first.id, { profileRevision: 1 });
+
+  const second = await h.queue(SHA_B, await h.ledger.read(first.id));
+  const scope = "run-1:deploy_release:0";
+  const release = await h.target.prepare({
+    repositoryId: REPOSITORY,
+    headSha: SHA_B,
+    profileRevision: 1,
+  });
+  const lossy2 = createDeploymentDriver({
+    ledger: h.ledger,
+    adapter: lossy(h.target, h.calls, { deploy: "after" }),
+  });
+  const lost = await lossy2.startDeploy(second.id, {
+    releaseId: release.releaseId,
+    scope,
+  });
+  assertEquals(lost.deployment.status, "unknown");
+  assertEquals(lost.effectKey, `deploy:${scope}`);
+  const driver = createDeploymentDriver({
+    ledger: h.ledger,
+    adapter: h.target,
+  });
+  // Settling reads the step's key back and goes on to verify: the probe says
+  // the new release never took over, so it fails and is rolled back.
+  const settled = await driver.settle(second.id, lost.effectKey!, { scope });
+  assertEquals(settled.deployment.status, "rolled_back");
+  assertEquals(await h.served(), SHA_A);
+  assertEquals(h.calls.deploy, 1);
+});
+
 Deno.test("a deployment whose digest is not sha256:<64 hex> fails before anything is prepared (#43 AC3)", async () => {
   const h = await harness();
   const driver = createDeploymentDriver({
