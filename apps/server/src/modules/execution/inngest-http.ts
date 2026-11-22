@@ -1,4 +1,5 @@
 import type { BudgetRuntimeConfig, InngestRuntimeConfig } from "@bakery/config";
+import type { DeliveryStepRunner } from "../delivery/delivery-steps.ts";
 import type { PgDatabase } from "@bakery/persistence";
 import { Inngest } from "inngest";
 import { serve } from "inngest/hono";
@@ -133,6 +134,8 @@ export function createDefaultInngestFunctions(options: {
   ticketLabelWriter?: TicketLabelWriter;
   /** Coordinator executor override; default is the worker executor outside the test environment (see `readCoordinatorExecutor`). */
   coordinatorExecutor?: CoordinatorTurnExecutor;
+  /** Settles the delivery steps of a plan; absent, they fail with a stable code. */
+  deliverySteps?: DeliveryStepRunner;
 }): readonly unknown[] {
   const coordinatorExecutor = options.coordinatorExecutor ??
     readCoordinatorExecutor(readCoordinatorEnv(), {
@@ -149,12 +152,14 @@ export function createDefaultInngestFunctions(options: {
       engineRetries: options.config.engineRetries,
       budgetPolicy: options.budget,
       planHost: readPlanHost,
+      deliverySteps: options.deliverySteps,
     }),
     createBakeryWorkflowRecovery({
       client: options.client,
       database: options.database,
       budgetPolicy: options.budget,
       planHost: readPlanHost,
+      deliverySteps: options.deliverySteps,
     }),
     createBakeryBudgetRecovery({
       client: options.client,
@@ -345,6 +350,7 @@ export function createInngestHttpHandler(options: {
   integrations?: IntegrationsBackgroundDependencies;
   ticketNoteWriter?: TicketNoteWriter;
   ticketLabelWriter?: TicketLabelWriter;
+  deliverySteps?: DeliveryStepRunner;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -364,6 +370,7 @@ export function createInngestHttpHandler(options: {
         integrations: options.integrations,
         ticketNoteWriter: options.ticketNoteWriter,
         ticketLabelWriter: options.ticketLabelWriter,
+        deliverySteps: options.deliverySteps,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

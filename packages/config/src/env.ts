@@ -295,6 +295,64 @@ export function readProbeSpoolDirConfig(
   return parsed.data;
 }
 
+const ABSOLUTE_PATH = z.string().min(1).max(4096).regex(/^\//).refine(
+  (value) =>
+    Array.from(value).every((character) =>
+      character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127
+    ),
+  "Invalid absolute path.",
+).describe("An absolute Linux path without control characters.");
+
+export const DeliveryTargetConfigSchema = z.object({
+  releaseRoot: ABSOLUTE_PATH.describe(
+    "Absolute directory the local deployment target owns: its immutable releases, effect journal and the pointer to the release that serves.",
+  ),
+  artifactsDir: ABSOLUTE_PATH.describe(
+    "Absolute directory holding the built artifact of each merged commit, one file named <commit sha>.artifact.",
+  ),
+  healthUrl: z.url().describe(
+    "Address of the running app's readiness endpoint, which reports the revision it serves and its state.",
+  ),
+  environment: z.enum(["preview", "staging", "production"]).describe(
+    "The one environment this target serves.",
+  ),
+}).strict().describe(
+  "Server-only settings of the local deployment target the delivery steps deploy to.",
+);
+export type DeliveryTargetConfig = z.infer<typeof DeliveryTargetConfigSchema>;
+
+export const DELIVERY_TARGET_VARIABLES = [
+  "BAKERY_DELIVERY_RELEASE_ROOT",
+  "BAKERY_DELIVERY_ARTIFACTS_DIR",
+  "BAKERY_DELIVERY_HEALTH_URL",
+  "BAKERY_DELIVERY_ENVIRONMENT",
+] as const;
+
+/**
+ * The local deployment target, from four variables that come together or not
+ * at all (`BAKERY_DELIVERY_*`). Absent means delivery steps fail with a stable
+ * code instead of deploying; a partial or malformed set fails start-up.
+ */
+export function readDeliveryTargetConfig(
+  env: Record<string, string | undefined>,
+): DeliveryTargetConfig | undefined {
+  const [releaseRoot, artifactsDir, healthUrl, environment] =
+    DELIVERY_TARGET_VARIABLES.map((name) => env[name]?.trim() || undefined);
+  if (
+    [releaseRoot, artifactsDir, healthUrl, environment].every((value) =>
+      value === undefined
+    )
+  ) return undefined;
+  const parsed = DeliveryTargetConfigSchema.safeParse({
+    releaseRoot,
+    artifactsDir,
+    healthUrl,
+    environment,
+  });
+  if (!parsed.success) throw new Error("DELIVERY_TARGET_INVALID");
+  return parsed.data;
+}
+
 export type BudgetRuntimeConfig = {
   installationMonthlyLimitUsd: string;
   reservationTtlSeconds: number;
@@ -369,6 +427,8 @@ export type RuntimeConfig = {
    * reported `sandbox-unavailable` rather than described by other means.
    */
   probeSpoolDir?: ProbeSpoolDirConfig;
+  /** The local deployment target of the delivery steps (`BAKERY_DELIVERY_*`); server only. Absent means delivery steps fail with a stable code. */
+  deliveryTarget?: DeliveryTargetConfig;
   auth?: ServerAuthConfig;
   /**
    * Separate origin that serves artifact previews (`BAKERY_ARTIFACT_PREVIEW_ORIGIN`).
@@ -987,6 +1047,17 @@ export function readRuntimeConfig(
       invalidConfig.push("BAKERY_PROBE_SPOOL_DIR");
     }
   }
+  let deliveryTarget: DeliveryTargetConfig | undefined;
+  if (
+    kind === "server" &&
+    DELIVERY_TARGET_VARIABLES.some((name) => env[name] !== undefined)
+  ) {
+    try {
+      deliveryTarget = readDeliveryTargetConfig(env);
+    } catch {
+      invalidConfig.push(...DELIVERY_TARGET_VARIABLES);
+    }
+  }
   // An invalid size fails start-up (DRAFT_WORKER_POOL_SIZE_INVALID).
   const draftWorkerPoolSize = kind === "server"
     ? readDraftWorkerPoolSize(env)
@@ -1010,6 +1081,7 @@ export function readRuntimeConfig(
       : {}),
     ...(skillFileRoot ? { skillFileRoot } : {}),
     ...(probeSpoolDir ? { probeSpoolDir } : {}),
+    ...(deliveryTarget ? { deliveryTarget } : {}),
     ...(artifactPreviewOrigin ? { artifactPreviewOrigin } : {}),
     environment,
     host,

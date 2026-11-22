@@ -1,4 +1,6 @@
 import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
+import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
+import { createLocalDeliveryTargets } from "./modules/delivery/local-delivery-targets.ts";
 import {
   createSkillObjectStore,
   type probeSkillStorage,
@@ -782,6 +784,15 @@ export function createApp(options: {
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
+      // Delivery steps run only where the install configured a target.
+      ...(options.config.deliveryTarget
+        ? {
+          deliverySteps: createDeliveryStepRunner({
+            database: options.pgDatabase,
+            targets: createLocalDeliveryTargets(options.config.deliveryTarget),
+          }),
+        }
+        : {}),
       // The tool gateway's operations: whatever these registries already
       // implement, narrowed to the operation map a session is defined by.
       // Composed rather than re-registered so a session calls the same handler

@@ -2624,6 +2624,8 @@ export function createBakeryFixedWorkflow(options: {
   engineRetries: number;
   budgetPolicy?: BudgetPolicy;
   planHost?: PlanHostReader;
+  /** Settles the delivery steps of a plan; none fails them with a stable code. */
+  deliverySteps?: DeliveryStepRunner;
   /** Durable operations one function run may use; a test sets it small. */
   stepOperationBudget?: number;
 }) {
@@ -2634,6 +2636,7 @@ export function createBakeryFixedWorkflow(options: {
     maxAttempts: options.maxAttempts,
     budgetPolicy: options.budgetPolicy,
     planHost: options.planHost,
+    deliverySteps: options.deliverySteps,
   });
   const engineRetries = options.engineRetries as
     | 1
@@ -3195,12 +3198,14 @@ export function createBakeryWorkflowRecovery(options: {
   limit?: number;
   budgetPolicy?: BudgetPolicy;
   planHost?: PlanHostReader;
+  deliverySteps?: DeliveryStepRunner;
 }) {
   const repository = createBakeryPostgresWorkflowRepository({
     database: options.database,
     maxAttempts: 1,
     budgetPolicy: options.budgetPolicy,
     planHost: options.planHost,
+    deliverySteps: options.deliverySteps,
   });
   const limit = options.limit ?? 50;
   return options.client.createFunction(
