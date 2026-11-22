@@ -8,6 +8,8 @@ import type {
 } from "../catalog/integration-gate.ts";
 import { invokeIntegration } from "../catalog/integration-invoke.ts";
 import type { EffectExecutorDeps } from "../effects/index.ts";
+import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
+import { McpToolCallError } from "../mcp/tool-transport.ts";
 import {
   connectionInvokeDeps,
   toConnectionInvokeResponse,
@@ -53,6 +55,11 @@ export type ToolCallStepDeps = Readonly<{
       "leaseSeconds" | "deadlineMs" | "maxDispatchGenerations"
     >
   >;
+  /**
+   * What calls an MCP tool: the pinned-state port and the transport that sends the
+   * call. Absent, an MCP connection is refused by name.
+   */
+  mcp?: McpInvokeDeps;
   /** Finds which kind of connection an id names. Defaults to the connection tables. */
   connectionKind?: (
     organizationId: string,
@@ -116,6 +123,121 @@ export function createToolCallStepRunner(
   const connection = connectionInvokeDeps(deps.registry, deps.providerRequests);
   const kindOf = deps.connectionKind ?? postgresConnectionKind(deps.database);
 
+  /**
+   * A tool on an MCP connection. The step must have been pinned at publish (the
+   * version's binding names the connection, the snapshot digest and this tool);
+   * the call goes through the pinned-tool door, which re-checks the grant, the
+   * connection and drift, validates the arguments against the pinned schema and
+   * sends through the server's broker. Only a tool an Admin classified as a read,
+   * against the snapshot the step pinned, runs here: a write waits for the ledger
+   * path, and nothing that is not known to be a read is sent.
+   */
+  async function runMcp(
+    request: EngineStepRequest,
+    input: { connectionId: string; tool: string; arguments: unknown },
+  ): Promise<EngineStepResult> {
+    if (deps.mcp === undefined) {
+      return failed(
+        "TOOL_CALL_MCP_UNAVAILABLE",
+        "This server has no MCP tool broker configured.",
+      );
+    }
+    if (
+      input.arguments === null || typeof input.arguments !== "object" ||
+      Array.isArray(input.arguments)
+    ) {
+      return failed(
+        "TOOL_CALL_INPUT_INVALID",
+        "An MCP tool call takes its arguments as an object.",
+      );
+    }
+    // The binding is keyed by the step's id from the root; the run's step key
+    // also carries an @n for every enclosing repeat round.
+    const stepKey = request.stepKey.replace(/@\d+/g, "");
+    const facts = await withPgTransaction(deps.database, async (tx) => {
+      const run = await tx.query<{ workflow_version_id: string | null }>(
+        `select workflow_version_id from bakery.workflow_runs
+          where organization_id = $1 and id = $2`,
+        [request.organizationId, request.runId],
+      );
+      const versionId = run.rows[0]?.workflow_version_id ?? null;
+      if (versionId === null) return null;
+      const pin = await tx.query<{ digest: string }>(
+        `select mcp_snapshot_digest as digest from bakery.capability_bindings
+          where organization_id = $1 and workflow_version_id = $2
+            and step_key = $3 and mcp_connection_id = $4
+          limit 1`,
+        [request.organizationId, versionId, stepKey, input.connectionId],
+      );
+      if (pin.rows[0] === undefined) return null;
+      const effect = await tx.query<{ effect_class: string; digest: string }>(
+        `select effect_class, snapshot_digest as digest
+           from bakery.mcp_tool_classifications
+          where organization_id = $1 and connection_id = $2 and tool_name = $3`,
+        [request.organizationId, input.connectionId, input.tool],
+      );
+      return {
+        versionId,
+        pinnedDigest: pin.rows[0].digest,
+        effectClass: effect.rows[0]?.effect_class ?? null,
+        classifiedAgainst: effect.rows[0]?.digest ?? null,
+      };
+    });
+    if (facts === null) {
+      return failed(
+        "TOOL_CALL_MCP_NOT_PINNED",
+        "This step was not pinned to an MCP tool when its version was published.",
+      );
+    }
+    if (facts.effectClass !== "read") {
+      return failed(
+        "TOOL_CALL_MCP_WRITE_UNAVAILABLE",
+        "Only a tool classified as a read runs; a write or an unclassified tool is not sent.",
+      );
+    }
+    if (facts.classifiedAgainst !== facts.pinnedDigest) {
+      return failed(
+        "TOOL_CALL_MCP_CLASSIFICATION_STALE",
+        "The tool was classified against a different snapshot than the step pinned.",
+      );
+    }
+    try {
+      const result = await invokeMcpTool(deps.mcp, {
+        organizationId: request.organizationId,
+        actorRef: request.requestedBy,
+        connectionId: input.connectionId,
+        toolName: input.tool,
+        pinnedDigest: facts.pinnedDigest,
+        arguments: input.arguments as Record<string, unknown>,
+        hostId: null,
+        workflowVersionId: facts.versionId,
+        stepKey,
+        startedByPrincipalId: request.requestedBy,
+      });
+      return {
+        kind: "completed",
+        output: actionResultSchema().parse({
+          accepted: true,
+          operation: result.toolName,
+          externalEffectId: null,
+          result: result.output ?? null,
+        }),
+      };
+    } catch (error) {
+      if (error instanceof McpToolCallError) {
+        return failed(
+          `TOOL_CALL_MCP_${error.reason.toUpperCase()}`,
+          "The MCP server did not give a usable answer.",
+        );
+      }
+      if (!(error instanceof StandardError)) throw error;
+      return failed(
+        `TOOL_CALL_MCP_REFUSED_${refusalCode(error).toUpperCase()}`,
+        "The call was refused before anything was sent.",
+      );
+    }
+  }
+
   async function run(request: EngineStepRequest): Promise<EngineStepResult> {
     const parsed = contractSchemas.ToolCallInput.safeParse(request.input);
     if (!parsed.success) {
@@ -132,12 +254,7 @@ export function createToolCallStepRunner(
         "The organization has no connection with that id.",
       );
     }
-    if (kind === "mcp") {
-      return failed(
-        "TOOL_CALL_MCP_UNAVAILABLE",
-        "Calling a tool on an MCP connection is not available yet.",
-      );
-    }
+    if (kind === "mcp") return await runMcp(request, input);
     if (input.toolVersion === undefined || input.resourceId === undefined) {
       return failed(
         "TOOL_CALL_INPUT_INVALID",

@@ -84,12 +84,17 @@ export function createPostgresMcpPinnedStatePort(
             -- The dispatching host's eligibility is read from the worker's own
             -- row, not taken from the caller: a caller that asserts it is
             -- eligible would otherwise be believed.
-            coalesce((
-              select host.status = 'online' and host.desired_mode = 'accepting'
-                from bakery.worker_hosts host
-               where host.organization_id = connection.organization_id
-                 and host.id = ${input.hostId}
-            ), false) as dispatching_host_eligible
+            case
+              -- The server's own broker has no worker row; it is eligible, and
+              -- the transport decides what that is worth (stdio is not).
+              when ${input.hostId}::uuid is null then true
+              else coalesce((
+                select host.status = 'online' and host.desired_mode = 'accepting'
+                  from bakery.worker_hosts host
+                 where host.organization_id = connection.organization_id
+                   and host.id = ${input.hostId}::uuid
+              ), false)
+            end as dispatching_host_eligible
           from bakery.mcp_connections connection
           join bakery.mcp_servers server
             on server.organization_id = connection.organization_id
@@ -191,6 +196,7 @@ export function createPostgresMcpPinnedStatePort(
             id: row.pinned_id,
             digest: row.pinned_digest,
             toolNames: pinnedToolNames(row.pinned_manifest),
+            inputSchemas: pinnedInputSchemas(row.pinned_manifest),
           }
           : null,
         currentSnapshot: row.current_id && row.current_digest
@@ -199,6 +205,25 @@ export function createPostgresMcpPinnedStatePort(
       } satisfies McpPinnedState;
     },
   };
+}
+
+/** Each tool's declared input schema from a stored manifest, by tool name; a malformed manifest yields none. */
+function pinnedInputSchemas(manifest: unknown): Record<string, unknown> {
+  const schemas: Record<string, unknown> = {};
+  if (!manifest || typeof manifest !== "object") return schemas;
+  const tools = (manifest as { tools?: unknown }).tools;
+  if (!Array.isArray(tools)) return schemas;
+  for (const tool of tools) {
+    if (!tool || typeof tool !== "object") continue;
+    const { name, inputSchema } = tool as {
+      name?: unknown;
+      inputSchema?: unknown;
+    };
+    if (typeof name === "string" && inputSchema !== undefined) {
+      schemas[name] = inputSchema;
+    }
+  }
+  return schemas;
 }
 
 /** Tool names from a stored manifest, tolerating a malformed one by yielding none. */

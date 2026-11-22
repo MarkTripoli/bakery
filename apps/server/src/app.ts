@@ -1,6 +1,9 @@
 import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
 import { createToolCallStepRunner } from "./modules/tool-call/tool-call-step.ts";
+import { createPostgresMcpPinnedStatePort } from "./modules/mcp/postgres.ts";
+import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
+import { httpsMcpTransport } from "./modules/mcp/discovery-transport.ts";
 import { composeEngineStepRunners } from "./modules/workflow-adapter/engine-steps.ts";
 import { createLocalDeliveryTargets } from "./modules/delivery/local-delivery-targets.ts";
 import {
@@ -817,6 +820,16 @@ export function createApp(options: {
           database: options.pgDatabase,
           registry: integrationRegistry,
           providerRequests,
+          // A remote MCP tool is called by this server's own broker, through the
+          // pinned-tool door; the credential never leaves the server.
+          mcp: {
+            pinnedState: createPostgresMcpPinnedStatePort(options.database),
+            transport: createRemoteMcpToolTransport({
+              database: options.pgDatabase,
+              secretsKey: options.config.secretsKey,
+              transport: httpsMcpTransport(),
+            }),
+          },
         }),
         ...(options.config.deliveryTarget
           ? [createDeliveryStepRunner({
