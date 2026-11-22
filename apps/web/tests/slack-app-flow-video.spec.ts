@@ -20,6 +20,7 @@ import { expect, test } from "@playwright/test";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 const OUT = process.env.BAKERY_SLACK_FLOW_VIDEO_DIR;
 const PAGE_PATH = "/settings/installation/integrations";
@@ -47,7 +48,7 @@ test("the Slack app is set up, checked and removed in one path", async ({
   // The path is a real sign-in, four typed fields, a save, a check and a
   // removal against the real server; the default 30 s is a unit test's budget,
   // not a screen recording's.
-  test.setTimeout(180_000);
+  test.setTimeout(laneBudgetMs(180_000));
   await mkdir(OUT!, { recursive: true });
   const video = page.video();
   expect(video).not.toBeNull();
