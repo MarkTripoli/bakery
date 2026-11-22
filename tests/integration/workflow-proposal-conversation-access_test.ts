@@ -170,6 +170,13 @@ Deno.test("a member whose role cannot read gets a proposal only through a grant 
     };
 
     await answersAsUnknown(fixture, guest, proposal, "guest without a grant");
+    const listPath =
+      `/v1/conversations/${owner.conversationId}/workflow-definition-proposals`;
+    assertEquals(
+      (await refusal(await call(fixture, guest, listPath))).status,
+      404,
+      "no grant: the list is refused",
+    );
 
     await fixture.pgDatabase.query(
       `insert into bakery.conversation_access_grants
@@ -187,6 +194,11 @@ Deno.test("a member whose role cannot read gets a proposal only through a grant 
       200,
     );
     assertEquals(read.conversationId, owner.conversationId);
+    const page = await json<{ items: Proposal[] }>(
+      await call(fixture, guest, listPath),
+      200,
+    );
+    assertEquals(page.items.map((item) => item.id), [proposal.id]);
     const decided = await refusal(
       await decideAs(fixture, guest, proposal.id, proposal.version),
     );
