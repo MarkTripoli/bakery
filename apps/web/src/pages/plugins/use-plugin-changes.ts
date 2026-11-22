@@ -6,9 +6,24 @@ import type { PluginApproval } from "../../api/client.ts";
 import type { PluginScope } from "../../app/plugins.ts";
 
 /** What went wrong with a change, in the words the page has for it. */
-export type ChangeFailure = "conflict" | "offline" | "failed" | "changed";
+export type ChangeFailure =
+  | "conflict"
+  | "offline"
+  | "failed"
+  | "changed"
+  | "noCopy";
+
+/** Errors this page raises itself for a refusal the server recorded on the install. */
+export const APPROVAL_CHANGED = "plugin_approval_changed";
+export const NO_STATE_COPY = "plugin_state_snapshot_not_for_version";
 
 export function changeFailureOf(error: unknown): ChangeFailure {
+  if (error instanceof Error && error.message === APPROVAL_CHANGED) {
+    return "changed";
+  }
+  if (error instanceof Error && error.message === NO_STATE_COPY) {
+    return "noCopy";
+  }
   if (asyncKindForError(error) === "offline") return "offline";
   const status = failureStatus(error);
   return status === 409 || status === 412 ? "conflict" : "failed";

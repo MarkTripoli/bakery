@@ -6,6 +6,7 @@ import {
   capabilityDifference,
   type PluginCapability,
   type PluginScope,
+  type PluginStateCopy,
   type PluginVersion,
 } from "../../app/plugins.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -393,6 +394,111 @@ export function VersionChangeDialog(
         </UI.Inline>
       </UI.Stack>
     </UI.Dialog>
+  );
+}
+
+/**
+ * Going back to a version with the data it left (#76, case C). The move
+ * replaces what the plugin has saved since, so it is asked once, in words that
+ * say what goes and what comes back.
+ */
+export function RestoreDialog(
+  { name, to, from, copy, added, pending, failure, onCancel, onConfirm }: {
+    readonly name: string;
+    readonly to: PluginVersion;
+    readonly from: PluginVersion | undefined;
+    readonly copy: PluginStateCopy;
+    /** Permissions the version being restored asks for beyond the installed one. */
+    readonly added: readonly PluginCapability[];
+    readonly pending: boolean;
+    readonly failure: ChangeFailure | null;
+    readonly onCancel: () => void;
+    readonly onConfirm: (
+      approval: readonly PluginCapability[] | undefined,
+    ) => void;
+  },
+) {
+  const { locale, timeZone, translate } = useI18n();
+  const words = useCapabilityWords();
+  const when = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone,
+  }).format(new Date(copy.takenAt));
+  const current = from?.versionName ?? "";
+  return (
+    <UI.AlertDialog
+      open
+      onOpenChange={(next) => !next && !pending && onCancel()}
+      state={pending ? "confirming" : "open"}
+      title={translate("settings.plugins.restore.title", {
+        version: to.versionName,
+      })}
+      cancelAction={
+        <UI.Button variant="secondary" disabled={pending} onClick={onCancel}>
+          {translate("core.actions.cancel")}
+        </UI.Button>
+      }
+      confirmAction={
+        <UI.Button
+          variant="primary"
+          disabled={pending || failure === "noCopy"}
+          onClick={() => onConfirm(added.length > 0 ? added : undefined)}
+        >
+          {added.length > 0
+            ? translate("settings.plugins.restore.confirmAllow", {
+              count: added.length,
+            })
+            : translate("settings.plugins.restore.confirm")}
+        </UI.Button>
+      }
+    >
+      <UI.Stack gap="tight">
+        <UI.Text>
+          {translate("settings.plugins.restore.body", {
+            version: to.versionName,
+            name,
+            current,
+          })}
+        </UI.Text>
+        <UI.Text>
+          {translate("settings.plugins.restore.data", {
+            when,
+            count: copy.itemCount,
+          })}
+        </UI.Text>
+        <UI.Text>
+          {translate("settings.plugins.restore.removed", { current })}
+        </UI.Text>
+        {added.length === 0 ? null : (
+          <UI.Text variant="caption">
+            {translate("settings.plugins.update.added.label", {
+              version: to.versionName,
+            })} {words.list(added)}
+          </UI.Text>
+        )}
+        <UI.Text variant="caption">
+          {translate("settings.plugins.restore.caption", { current })}
+        </UI.Text>
+        {failure === "noCopy"
+          ? (
+            <UI.InlineNotice tone="warning" role="alert">
+              {translate("settings.plugins.restore.noCopy", {
+                version: to.versionName,
+                name,
+              })}
+            </UI.InlineNotice>
+          )
+          : failure === null
+          ? null
+          : (
+            <FailureNotice
+              failure={failure}
+              what={translate("settings.plugins.restore.confirm")}
+            />
+          )}
+      </UI.Stack>
+    </UI.AlertDialog>
   );
 }
 

@@ -13,7 +13,9 @@ import {
 } from "../api/query.ts";
 import {
   capabilitiesOf,
+  capabilityDifference,
   installedPlugins,
+  isApprovalRefusal,
   mayChangeInstall,
   type PluginActor,
   type PluginCapability,
@@ -36,12 +38,15 @@ import { SavedData } from "./plugins/SavedData.tsx";
 import {
   CapabilityList,
   RemoveDialog,
+  RestoreDialog,
   TurnOffDialog,
   VersionChangeDialog,
 } from "./plugins/PluginDialogs.tsx";
 import {
+  APPROVAL_CHANGED,
   type ChangeFailure,
   changeFailureOf,
+  NO_STATE_COPY,
   usePluginChanges,
 } from "./plugins/use-plugin-changes.ts";
 
@@ -50,6 +55,7 @@ const PLUGINS_PATH = "/settings/organization/plugins";
 type Dialog =
   | { readonly kind: "off" }
   | { readonly kind: "remove" }
+  | { readonly kind: "restore"; readonly version: PluginVersion }
   | {
     readonly kind: "version";
     readonly version: PluginVersion;
@@ -85,7 +91,9 @@ export function PluginPage({ installId }: { readonly installId: string }) {
   const changes = usePluginChanges();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [failure, setFailure] = useState<ChangeFailure | null>(null);
-  const [notice, setNotice] = useState<"on" | null>(null);
+  const [notice, setNotice] = useState<
+    "on" | { readonly restored: string; readonly when: string } | null
+  >(null);
   /** The version whose "Where it came from" is open. */
   const [origin, setOrigin] = useState<PluginVersion | null>(null);
   /** Versions this page tried to move to and that did not start. */
@@ -111,6 +119,13 @@ export function PluginPage({ installId }: { readonly installId: string }) {
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
       new Date(value),
     );
+
+  const dateTime = (value: string) =>
+    new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone,
+    }).format(new Date(value));
 
   const loading = installs.isPending || packages.isPending ||
     (install !== undefined && versionRead.isPending);
@@ -158,6 +173,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
   const moveTo = (
     version: PluginVersion,
     approval?: readonly PluginCapability[],
+    restore = false,
   ) =>
     void change(
       () =>
@@ -169,11 +185,21 @@ export function PluginPage({ installId }: { readonly installId: string }) {
             ...(approval === undefined
               ? {}
               : { approveCapabilities: [...approval] }),
+            ...(restore ? { restoreState: true } : {}),
           },
         }).then((result) => {
           // A refused version comes back as the install with the failure on it.
-          if (updateFailureOf(result)?.versionId === version.id) {
-            throw new Error("plugin_update_refused");
+          const refused = updateFailureOf(result);
+          if (refused?.versionId === version.id) {
+            // A changed list of new permissions, or a missing copy of the data,
+            // keeps the dialog open with one line; the rest is the page notice.
+            throw new Error(
+              isApprovalRefusal(refused.reason)
+                ? APPROVAL_CHANGED
+                : refused.reason === NO_STATE_COPY
+                ? NO_STATE_COPY
+                : "plugin_update_refused",
+            );
           }
           return result;
         }),
@@ -183,6 +209,12 @@ export function PluginPage({ installId }: { readonly installId: string }) {
           next.delete(version.id);
           return next;
         });
+        if (restore && row?.stateCopy != null) {
+          setNotice({
+            restored: version.versionName,
+            when: dateTime(row.stateCopy.takenAt),
+          });
+        }
         close();
       },
     ).catch((error) => {
@@ -198,12 +230,23 @@ export function PluginPage({ installId }: { readonly installId: string }) {
     })
     : translate("settings.plugins.remove.whoYou");
   // The failure the server remembers, or one this page just saw.
-  const failedNext = row?.updateFailure?.versionName ??
+  const recorded = row?.updateFailure ?? null;
+  // The permission refusals never raise a page notice (the dialog says it), and a
+  // version that cannot read the saved data has its own notice below.
+  const incompatible = recorded?.reason === "plugin_state_incompatible"
+    ? recorded
+    : null;
+  const quiet = recorded !== null &&
+    (isApprovalRefusal(recorded.reason) || incompatible !== null);
+  const failedNext = quiet ? null : row?.updateFailure?.versionName ??
     (row?.update === undefined || row?.update === null
       ? null
       : didNotStart.has(row.update.versionId)
       ? row.update.versionName
       : null);
+  const copyVersion = row?.stateCopy == null
+    ? undefined
+    : versions.find((item) => item.id === row.stateCopy?.versionId);
   // The version the last update tried, offered again from the notice.
   const retryVersion = row?.updateFailure === null || row === undefined
     ? undefined
@@ -339,6 +382,68 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                         </UI.Inline>
                       )
                       : null}
+                  </UI.InlineNotice>
+                )
+                : null}
+              {incompatible === null || row === undefined
+                ? null
+                : (
+                  <UI.InlineNotice tone="warning" role="alert">
+                    <UI.Text>
+                      {translate("settings.plugins.update.cannotRead.title", {
+                        next: incompatible.versionName,
+                      })}
+                    </UI.Text>
+                    <UI.Text>
+                      {translate("settings.plugins.update.cannotRead.body", {
+                        name,
+                        current: row.versionName,
+                      })}
+                    </UI.Text>
+                    {mayChange
+                      ? (
+                        <UI.Inline gap="compact">
+                          {copyVersion === undefined ||
+                              row.stateCopy?.versionId !==
+                                incompatible.versionId
+                            ? null
+                            : (
+                              <UI.Button
+                                variant="primary"
+                                disabled={changes.pending}
+                                onClick={() => {
+                                  setFailure(null);
+                                  setDialog({
+                                    kind: "restore",
+                                    version: copyVersion,
+                                  });
+                                }}
+                              >
+                                {translate(
+                                  "settings.plugins.update.cannotRead.restore",
+                                )}
+                              </UI.Button>
+                            )}
+                          <UI.Button
+                            variant="secondary"
+                            disabled={changes.pending}
+                            onClick={dismissFailure}
+                          >
+                            {translate("settings.plugins.update.dismiss")}
+                          </UI.Button>
+                        </UI.Inline>
+                      )
+                      : null}
+                  </UI.InlineNotice>
+                )}
+              {typeof notice === "object" && notice !== null
+                ? (
+                  <UI.InlineNotice tone="success" role="status">
+                    {translate("settings.plugins.restore.done", {
+                      name,
+                      version: notice.restored,
+                      date: notice.when,
+                    })}
                   </UI.InlineNotice>
                 )
                 : null}
@@ -549,11 +654,18 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                           })}
                         onClick={() => {
                           setFailure(null);
-                          setDialog({
-                            kind: "version",
-                            version,
-                            direction: newer ? "update" : "goBack",
-                          });
+                          // The version Bakery holds a copy for opens the restore
+                          // dialog when it cannot read today's data.
+                          setDialog(
+                            keptCopy(version) &&
+                              row.cannotReadVersionIds.includes(version.id)
+                              ? { kind: "restore", version }
+                              : {
+                                kind: "version",
+                                version,
+                                direction: newer ? "update" : "goBack",
+                              },
+                          );
                         }}
                       >
                         {newer
@@ -562,8 +674,21 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                       </UI.Button>
                     );
                   };
+                  const keptCopy = (version: PluginVersion) =>
+                    row.stateCopy?.versionId === version.id &&
+                    version.id !== row.versionId;
                   const publishedLine = (version: PluginVersion) =>
-                    cannotRead(version)
+                    keptCopy(version)
+                      ? `${
+                        translate("settings.plugins.update.published", {
+                          when: date(version.publishedAt!),
+                        })
+                      } · ${
+                        translate("settings.plugins.versions.dataKept", {
+                          date: date(row.stateCopy!.takenAt),
+                        })
+                      }`
+                      : cannotRead(version)
                       ? translate("settings.plugins.versions.cannotRead.hint", {
                         current: row.versionName,
                       })
@@ -704,6 +829,25 @@ export function PluginPage({ installId }: { readonly installId: string }) {
             onCancel={close}
             onConfirm={(approval) => moveTo(dialog.version, approval)}
             onShowOrigin={() => setOrigin(dialog.version)}
+          />
+        )}
+      {row === undefined || dialog?.kind !== "restore" ||
+          row.stateCopy === null
+        ? null
+        : (
+          <RestoreDialog
+            name={row.name}
+            to={dialog.version}
+            from={current}
+            copy={row.stateCopy}
+            added={capabilityDifference(
+              current === undefined ? [] : capabilitiesOf(current),
+              capabilitiesOf(dialog.version),
+            ).added}
+            pending={changes.update.isPending}
+            failure={failure}
+            onCancel={close}
+            onConfirm={(approval) => moveTo(dialog.version, approval, true)}
           />
         )}
       {origin === null || row === undefined ? null : (
