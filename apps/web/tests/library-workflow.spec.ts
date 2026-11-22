@@ -9,6 +9,7 @@ import {
 } from "./helpers/library-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 /**
  * The editor's save state, in the page's own status line. The shell adds an
@@ -1392,41 +1393,42 @@ for (
       await shot(page, "workflow-editor-skills");
     });
 
+    // Four slots on one step: a lost skill, one its owner stopped, a missing one and an unnamed lost one.
+    const fourSlots = () => [
+      skill({
+        skillVersionId: null,
+        skillName: "Gone skill",
+        revision: null,
+        scope: null,
+        status: "unavailable",
+      }),
+      skill({
+        skillVersionId: uuid(7005),
+        skillName: "Paused skill",
+        revision: 1,
+        scope: "personal",
+        ownerDisplayName: "Dana Lee",
+        status: "stopped",
+      }),
+      skill({
+        skillVersionId: null,
+        skillName: null,
+        revision: null,
+        scope: null,
+        status: "missing",
+      }),
+      skill({
+        skillVersionId: null,
+        skillName: null,
+        revision: null,
+        scope: null,
+        status: "unavailable",
+      }),
+    ];
+
     test("a skill that cannot be used says what happened, and names no control that is not there", async ({ page }) => {
       const { skills } = await openSkills(page, {
-        skills: {
-          items: [
-            skill({
-              skillVersionId: null,
-              skillName: "Gone skill",
-              revision: null,
-              scope: null,
-              status: "unavailable",
-            }),
-            skill({
-              skillVersionId: uuid(7005),
-              skillName: "Paused skill",
-              revision: 1,
-              scope: "personal",
-              ownerDisplayName: "Dana Lee",
-              status: "stopped",
-            }),
-            skill({
-              skillVersionId: null,
-              skillName: null,
-              revision: null,
-              scope: null,
-              status: "missing",
-            }),
-            skill({
-              skillVersionId: null,
-              skillName: null,
-              revision: null,
-              scope: null,
-              status: "unavailable",
-            }),
-          ],
-        },
+        skills: { items: fourSlots() },
       });
       await expect(skills).toContainText("Gone skill is no longer available");
       await expect(skills).toContainText(
@@ -1449,6 +1451,20 @@ for (
       await expect(skills.getByRole("link")).toHaveCount(0);
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-skills-slots");
+    });
+
+    test("with skills on offer every slot row has Choose a skill… beside Remove", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: { items: fourSlots() },
+        catalog: [catalogSkill({})],
+      });
+      await expect(skills.locator("[data-skill-status]")).toHaveCount(4);
+      await expect(skills.getByRole("button", { name: "Choose a skill…" }))
+        .toHaveCount(4);
+      await expect(skills.getByRole("button", { name: /^Remove/ }))
+        .toHaveCount(4);
+      await page.mouse.move(600, 700);
+      await still(page, "workflow-editor-skills-slots-choose");
     });
 
     test("a missing skill is chosen in place from its own row, and the save settles the slot", async ({ page }) => {

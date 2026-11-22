@@ -719,6 +719,16 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               </UI.InlineNotice>
             )
             : null}
+          {
+            /* With the page's other notices, at the top: a page this long scrolls a note at its end out of sight. */
+          }
+          {exported === null
+            ? null
+            : (
+              <UI.Toast tone="success" onDismiss={() => setExported(null)}>
+                {exported}
+              </UI.Toast>
+            )}
           {dialog === null ? failureNotice : null}
           {noneInUse
             ? (
@@ -977,13 +987,6 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
           </UI.Dialog>
         )
         : null}
-      {exported === null
-        ? null
-        : (
-          <UI.Toast tone="success" onDismiss={() => setExported(null)}>
-            {exported}
-          </UI.Toast>
-        )}
       {dialog?.kind === "copy" && shown !== null
         ? (
           <MakeCopyDialog
