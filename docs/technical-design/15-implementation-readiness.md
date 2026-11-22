@@ -48,7 +48,7 @@ No runtime dependency is adopted merely because its package imports. A failing c
 | Zero-iteration repair failure | Seed-preserving repeat state; only completed iteration outputs replace the candidate; bounded repair behavior in [Workflows](06-workflows-delivery-and-acceptance.md) |
 | Worker credential and journal disagreement | Worker generates credential; server stores hash and never returns it. Changed committed duplicate is `IDEMPOTENCY_PAYLOAD_MISMATCH` |
 | Automation enum/projection drift | `coalesce_one` or `skip`; explicit pending firing and skipped-count projection across runtime, schema and API |
-| Unregistered action / foreign expression syntax | `integration.action` is registered; the same `$input`, `$step`, `$repeat` expression grammar applies throughout |
+| Unregistered action / foreign expression syntax | `tool.call` is registered; the same `$input`, `$step`, `$repeat` expression grammar applies throughout |
 | Artifact retention and incomplete recovery | Pin fields, byte tombstones, reference-safe collection, capacity gates and full recovery set in [Artifacts](14-artifacts.md) |
 | Oversized first delivery / stale totals | Sequential gates above; generated inventory and dynamic verification totals replace independent counts |
 

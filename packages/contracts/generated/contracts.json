@@ -21124,7 +21124,7 @@
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -73894,6 +73894,193 @@
             }
           ]
         },
+        "ToolCallInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Connection the tool call runs through: an integration connection or an MCP server connection of the run's organization; the server finds which kind it is, the author never names it."
+            },
+            "tool": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Identifier of the tool to call: the registered integration action id, for example github.issue.comment.create, or the name of an MCP tool pinned in the connection's capability snapshot. ToolCallInput.tool must contain at most 200 characters."
+            },
+            "toolVersion": {
+              "description": "Exact registered version of an integration action, pinned in the workflow so retries and reconciliation stay bound to it; required for an integration connection and unused for an MCP tool. ToolCallInput.toolVersion must be at least 1.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "resourceId": {
+              "description": "Selected integration resource, such as one repository, that an integration action runs against; required for an integration connection and unused for an MCP tool.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "arguments": {
+              "description": "Tool-specific input, type-checked against the exact schema the pinned tool version declares before anything is sent; it cannot carry credentials, host, authority or budget overrides. ToolCallInput.arguments must contain at most 65536 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ToolCallInput____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/ToolCallInput____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 65536
+            }
+          },
+          "required": [
+            "connectionId",
+            "tool",
+            "arguments"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
+        },
+        "ToolCallInput____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
         "IntegrationEffectQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -76742,7 +76929,7 @@
             "arguments"
           ],
           "additionalProperties": false,
-          "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph."
+          "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph."
         },
         "IntegrationAction____schema0": {
           "description": "JSON value node.",
@@ -77489,7 +77676,7 @@
                 "harness.repair",
                 "quality.check",
                 "review.independent",
-                "integration.action",
+                "tool.call",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -181984,7 +182171,7 @@
                 "harness.repair",
                 "quality.check",
                 "review.independent",
-                "integration.action",
+                "tool.call",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -182147,7 +182334,7 @@
                       "harness.repair",
                       "quality.check",
                       "review.independent",
-                      "integration.action",
+                      "tool.call",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
                       "delivery.merge",
@@ -182363,7 +182550,7 @@
                 "harness.repair",
                 "quality.check",
                 "review.independent",
-                "integration.action",
+                "tool.call",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -182638,7 +182825,7 @@
                       "harness.repair",
                       "quality.check",
                       "review.independent",
-                      "integration.action",
+                      "tool.call",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
                       "delivery.merge",
@@ -224421,6 +224608,12 @@
                       "type": "string",
                       "maxLength": 65536,
                       "description": "Registered action input entry."
+                    },
+                    "versionId": {
+                      "description": "Registered action input versionId.",
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                     },
                     "repositoryProfile": {
                       "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
@@ -290567,7 +290760,7 @@
           "additionalProperties": false,
           "description": "WorkflowStopOutput is the pinned worker action output contract."
         },
-        "IntegrationActionOutput": {
+        "ToolCallOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
@@ -290619,7 +290812,7 @@
                     {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                        "$ref": "#/components/schemas/ToolCallOutput____schema0"
                       },
                       "description": "JSON array value."
                     },
@@ -290630,7 +290823,7 @@
                         "description": "JSON object key."
                       },
                       "additionalProperties": {
-                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                        "$ref": "#/components/schemas/ToolCallOutput____schema0"
                       },
                       "description": "JSON object value."
                     }
@@ -290654,7 +290847,7 @@
           "additionalProperties": false,
           "description": "Result of invoking one integration action: whether the request was accepted, which registered action ran, the linked external-effect identity when a write is involved, and the action's result payload. A read returns this immediately; a write returns it only after the external effect is reconciled by that stable effect identity."
         },
-        "IntegrationActionOutput____schema0": {
+        "ToolCallOutput____schema0": {
           "description": "JSON value node.",
           "anyOf": [
             {
@@ -290697,7 +290890,7 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON array value."
                   },
@@ -290708,7 +290901,7 @@
                       "description": "JSON object key."
                     },
                     "additionalProperties": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -290744,7 +290937,7 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON array value."
                   },
@@ -290755,7 +290948,7 @@
                       "description": "JSON object key."
                     },
                     "additionalProperties": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -290768,7 +290961,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:a9cda62efe4bce1b3e91189efe471849ad0914f7d69e7a5ac59f3f141c7284eb",
+  "compatibilityDigest": "sha256:d577154e76405718dcf298fce5b6ff1caddc46b0fff7a62693dcafe2254ac48f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -311915,6 +312108,195 @@
         }
       }
     },
+    "ToolCallInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Connection the tool call runs through: an integration connection or an MCP server connection of the run's organization; the server finds which kind it is, the author never names it."
+        },
+        "tool": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Identifier of the tool to call: the registered integration action id, for example github.issue.comment.create, or the name of an MCP tool pinned in the connection's capability snapshot. ToolCallInput.tool must contain at most 200 characters."
+        },
+        "toolVersion": {
+          "description": "Exact registered version of an integration action, pinned in the workflow so retries and reconciliation stay bound to it; required for an integration connection and unused for an MCP tool. ToolCallInput.toolVersion must be at least 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "resourceId": {
+          "description": "Selected integration resource, such as one repository, that an integration action runs against; required for an integration connection and unused for an MCP tool.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "arguments": {
+          "description": "Tool-specific input, type-checked against the exact schema the pinned tool version declares before anything is sent; it cannot carry credentials, host, authority or budget overrides. ToolCallInput.arguments must contain at most 65536 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 65536
+        }
+      },
+      "required": [
+        "connectionId",
+        "tool",
+        "arguments"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "IntegrationEffectQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -314777,7 +315159,7 @@
         "arguments"
       ],
       "additionalProperties": false,
-      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph.",
+      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -315528,7 +315910,7 @@
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -420333,7 +420715,7 @@
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -420496,7 +420878,7 @@
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -420712,7 +421094,7 @@
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -420987,7 +421369,7 @@
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -462794,6 +463176,12 @@
                   "type": "string",
                   "maxLength": 65536,
                   "description": "Registered action input entry."
+                },
+                "versionId": {
+                  "description": "Registered action input versionId.",
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 },
                 "repositoryProfile": {
                   "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
@@ -529052,7 +529440,7 @@
       "additionalProperties": false,
       "description": "WorkflowStopOutput is the pinned worker action output contract."
     },
-    "IntegrationActionOutput": {
+    "ToolCallOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {

@@ -7325,6 +7325,53 @@ const transportSchemas = {
       ],
       "description": "Body for invoking one registered action on this connection: which action, which pinned version, on which selected resource, with what arguments. Connection, organization and actor identity come from the route and trusted request context, never from this payload."
     },
+    "ToolCallInput": {
+      "fields": [
+        {
+          "name": "connectionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Connection the tool call runs through: an integration connection or an MCP server connection of the run's organization; the server finds which kind it is, the author never names it."
+        },
+        {
+          "name": "tool",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Identifier of the tool to call: the registered integration action id, for example github.issue.comment.create, or the name of an MCP tool pinned in the connection's capability snapshot."
+        },
+        {
+          "name": "toolVersion",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1
+          },
+          "description": "Exact registered version of an integration action, pinned in the workflow so retries and reconciliation stay bound to it; required for an integration connection and unused for an MCP tool."
+        },
+        {
+          "name": "resourceId",
+          "type": "uuid",
+          "required": false,
+          "description": "Selected integration resource, such as one repository, that an integration action runs against; required for an integration connection and unused for an MCP tool."
+        },
+        {
+          "name": "arguments",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Tool-specific input, type-checked against the exact schema the pinned tool version declares before anything is sent; it cannot carry credentials, host, authority or budget overrides."
+        }
+      ],
+      "rules": [
+        "A deterministic step with no agent. The organization and the acting person come from the run, never from this payload. Reads return at once; a write is keyed by the step and returns only after its effect is confirmed, and an effect whose outcome is not known waits instead of being sent again."
+      ],
+      "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -8892,7 +8939,7 @@ const transportSchemas = {
           "description": "Action-specific input payload, validated against the exact schema registered for the named action; the caller cannot use it to supply credentials, host, authority or budget overrides."
         }
       ],
-      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph."
+      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph."
     },
     "DesignInput": {
       "description": "Input to the rpi.design workflow action: the research artifact produced by the preceding rpi.research step, which the design step reads to ground its proposed design.",
@@ -9179,7 +9226,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -25899,7 +25946,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -25944,7 +25991,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -40218,7 +40265,8 @@ const transportSchemas = {
     "plugin.job": {
       "inputFields": {
         "installId": "uuid",
-        "entry": "string"
+        "entry": "string",
+        "versionId": "uuid?"
       },
       "outputFields": {
         "resultJson": "string<=65536"
@@ -40226,7 +40274,7 @@ const transportSchemas = {
       "capabilities": [
         "plugin.job.contained"
       ],
-      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package, or from the install's current version when versionId is omitted; the install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {
@@ -40335,7 +40383,7 @@ const transportSchemas = {
       "model-capability actions require non-null agentVersionId/billing/installationReservationId before dispatch",
       "resolve workflow.agents[actionName], else pinned repositoryProfile.config.agentBindings[actionName]; reject missing/out-of-scope binding",
       "billing is copied from pinned agent_versions.config.billing and narrowed by repository/run policy, never from mutable runtime defaults",
-      "integration.action receives actionId/actionVersion/resourceId/arguments; connection and organization bind through trusted route/run context. Read-only actions return typed ActionResult 200; writes persist external_effects and return IntegrationActionReceipt 202."
+      "tool.call receives connectionId/tool/toolVersion/resourceId/arguments; organization and actor bind through the run, never the input. Read-only tools return a typed ActionResult at once; writes persist external_effects and complete the step only when the effect is confirmed."
     ],
     "integrationActionInput": "IntegrationActionInput",
     "integrationActionResponse": "IntegrationActionResponse"

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="references-are-links" project="bakery">
+  <title>An id on a screen that has a page is a link: build one reference component, not hand-trimmed text</title>
+  <trigger>A screen shows a commit or release id, a pull request or issue number, or the id of a task, run, machine or person, in a table, a card, a notice or typed text.</trigger>
+  <mistake>The Updates page (pull request 919) showed release ids such as 4f2a9c1e and 9b81d3f0 dozens of times as plain text in its facts and its history, and the owner could not click through to see what they were. The same pattern was already in the audit log, the task run, the task list and the Delivery section: each page cut an id to 7 or 8 characters by hand (slice calls and a local shortSha helper) and styled it as monospace text. The UI package had a Link and a DataText identifier variant but nothing that joined them, so every page made its own and none linked.</mistake>
+  <rule>Make every identifier that has a destination an inline link to it. Show the short form. Show the full id on hover or focus with a copy action. In-app destinations open in place; outside destinations such as a commit or pull request on GitHub open in a new tab and say so.</rule>
+  <rule>When no destination exists (an id from another installation, or a page not built yet), show plain text with copy. Never render a link that goes nowhere.</rule>
+  <rule>Build the behaviour once as a shared reference component in packages/ui, with one place that decides the short form and the destination for each kind of id. A page passes the kind and the id; it does not trim, style or build a URL itself.</rule>
+  <rule>Numbers written in typed text, such as #123 in a message, link the same way through the same component.</rule>
+  <verification>
+    <requirement>No page in apps/web slices an id for display; a search for slice(0, 7) and slice(0, 8) on ids finds only the shared component.</requirement>
+    <requirement>A story for the component shows each kind of id with a destination and without one, and checks the focus ring, the copy action and the new-tab marker.</requirement>
+    <requirement>QA's Clarity result lists any id shown as plain text where a page exists for it.</requirement>
+  </verification>
+  <boundary>An id inside a code block, a log or a diff stays plain text, because there the person copies it as part of the output. An id a person must type into a terminal command keeps its copy action and need not link.</boundary>
+</learning>
