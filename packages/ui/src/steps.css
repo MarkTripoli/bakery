@@ -409,6 +409,19 @@
   min-inline-size: 0;
   padding: var(--space-3);
 }
+/* The block whose panel is open wears the selected card's border and ring, so a
+   person can tell which of several blocks the panel is about (#417 UX ruling
+   7086208998 change 2). An arm has no border of its own, so its ring is an
+   outline sitting in the gap around it. */
+[data-group][data-selected="true"] {
+  border-color: var(--color-selection);
+  box-shadow: inset 0 0 0 var(--border-emphasis) var(--color-selection);
+}
+[data-group-arm][data-selected="true"] {
+  border-radius: var(--radius-control);
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-1);
+}
 [data-group-label] {
   align-items: center;
   display: flex;

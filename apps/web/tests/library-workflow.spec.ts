@@ -2410,6 +2410,15 @@ for (
       await expect(page.getByTestId("workflow-steps")).not.toContainText(
         "Edited in code",
       );
+      // The path line runs on from a block as from a card (#417 UX ruling
+      // 7086208998 change 1): the two blocks that are not last are each followed
+      // by a connector, and the one nested as the last thing in a repeat is not.
+      for (const index of [0, 1]) {
+        await expect(
+          each.nth(index).locator("xpath=following-sibling::*[1]"),
+        ).toHaveAttribute("data-connector", /.+/);
+      }
+      await expect(repeat.locator(":scope > [data-connector]")).toHaveCount(0);
       await page.mouse.move(700, 700);
       await shot(page, "workflow-for-each");
     });
@@ -2421,7 +2430,32 @@ for (
       await expect(each).toContainText("For each item");
       await expect(each).toContainText("At most 12 items");
       await expect(each).toContainText("Edited in code");
-      await each.getByRole("button", { name: "For each item" }).click();
+      // A block that is not last is followed by the plain path line, with no "+":
+      // adding a step after a block is not part of this slice (change 1).
+      const after = each.locator("xpath=following-sibling::*[1]");
+      await expect(after).toHaveAttribute("data-connector", /.+/);
+      await expect(after.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      // A block inside a block does not say "Edited in code" again (change 3).
+      await expect(
+        page.locator("[data-group=repeat] [data-group-label]").filter({
+          hasText: "Edited in code",
+        }),
+      ).toHaveCount(1);
+      // Nothing is selected until a block is pressed.
+      const name = each.getByRole("button", { name: "For each item" });
+      await expect(each).not.toHaveAttribute("data-selected", "true");
+      await expect(name).toHaveAttribute("aria-pressed", "false");
+      await name.click();
+      // The pressed block, and only it, wears the selection (change 2).
+      await expect(each).toHaveAttribute("data-selected", "true");
+      await expect(name).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("[data-group=each][data-selected=true]"))
+        .toHaveCount(1);
+      // ...and the rule paints: its border differs from an unselected block's.
+      const plainBorder = await page.locator("[data-group=each]").nth(1)
+        .evaluate((el) => getComputedStyle(el).borderTopColor);
+      await expect(each).not.toHaveCSS("border-top-color", plainBorder);
       const panel = page.getByRole("complementary", {
         name: "The selected step",
       });

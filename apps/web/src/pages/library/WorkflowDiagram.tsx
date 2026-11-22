@@ -191,20 +191,20 @@ export function WorkflowDiagram(
 
   // The connector between two cards: the "+" a person presses to add a step,
   // or the bare line when the workflow cannot be changed here.
+  const plainConnector = (afterId: string | null, last = false): ReactNode => (
+    <div data-connector={afterId ?? "start"}>
+      <UI.StepConnector
+        label={translate("library.editor.pathLine" as never)}
+        readOnly
+        endLabel={last
+          ? translate("library.editor.pathEnd" as never)
+          : undefined}
+      />
+    </div>
+  );
+
   const connector = (afterId: string | null, last = false): ReactNode => {
-    if (!editable) {
-      return (
-        <div data-connector={afterId ?? "start"}>
-          <UI.StepConnector
-            label={translate("library.editor.pathLine" as never)}
-            readOnly
-            endLabel={last
-              ? translate("library.editor.pathEnd" as never)
-              : undefined}
-          />
-        </div>
-      );
-    }
+    if (!editable) return plainConnector(afterId, last);
     const open = pickerAt !== undefined && pickerAt === afterId;
     if (!canManage) return <div data-connector={afterId ?? "start"} />;
     // The picker is a popover beside the "+" it came from, and a bottom sheet
@@ -324,7 +324,10 @@ export function WorkflowDiagram(
             {translate("library.editor.group.noSteps" as never)}
           </UI.Text>
         )
-        : nodes(node.children)}
+        // Everything inside a block is already "edited in code" with it, so a
+        // block nested here does not say it again (#417 UX ruling 7086208998
+        // change 3); a step card inside keeps its own line.
+        : nodes(node.children, true)}
     </>
   );
 
@@ -338,7 +341,11 @@ export function WorkflowDiagram(
   ): ReactNode =>
     canManage
       ? (
-        <UI.Button variant="text" onClick={() => onSelect(node.id)}>
+        <UI.Button
+          variant="text"
+          aria-pressed={selectedId === node.id}
+          onClick={() => onSelect(node.id)}
+        >
           {translate(GROUP_LABEL[node.label] as never)}
         </UI.Button>
       )
@@ -347,6 +354,7 @@ export function WorkflowDiagram(
   /** A group's own label: its word, and "Edited in code" once for the group. */
   const groupLabel = (
     node: Extract<TreeNode, { kind: "group" }>,
+    inside: boolean,
   ): ReactNode => (
     <div data-group-label={node.id}>
       {groupWord(node)}
@@ -362,7 +370,7 @@ export function WorkflowDiagram(
             )}
           </UI.Text>
         )}
-      {editedInCode === undefined
+      {editedInCode === undefined || inside
         ? null
         : <UI.Text variant="caption">{editedInCode}</UI.Text>}
     </div>
@@ -378,9 +386,14 @@ export function WorkflowDiagram(
 
   const group = (
     node: Extract<TreeNode, { kind: "group" }>,
+    inside: boolean,
   ): ReactNode => (
-    <section key={`group-${node.id}`} data-group={node.label}>
-      {groupLabel(node)}
+    <section
+      key={`group-${node.id}`}
+      data-group={node.label}
+      data-selected={selectedId === node.id ? "true" : undefined}
+    >
+      {groupLabel(node, inside)}
       {groupBody(node)}
     </section>
   );
@@ -394,19 +407,24 @@ export function WorkflowDiagram(
         { kind: "group" }
       >[],
     ],
+    inside: boolean,
   ): ReactNode => (
     <section key={`if-${held[0].id}`} data-group="if" data-group-shape="if">
       <div data-group-label="if">
         <UI.Text variant="strong">
           {translate("library.editor.group.if" as never)}
         </UI.Text>
-        {editedInCode === undefined
+        {editedInCode === undefined || inside
           ? null
           : <UI.Text variant="caption">{editedInCode}</UI.Text>}
       </div>
       <div data-group-arms="true">
         {held.map((arm) => (
-          <div key={`arm-${arm.id}`} data-group-arm={arm.label}>
+          <div
+            key={`arm-${arm.id}`}
+            data-group-arm={arm.label}
+            data-selected={selectedId === arm.id ? "true" : undefined}
+          >
             {armLabel(arm)}
             {groupBody(arm)}
           </div>
@@ -415,7 +433,7 @@ export function WorkflowDiagram(
     </section>
   );
 
-  const nodes = (held: readonly TreeNode[]): ReactNode => {
+  const nodes = (held: readonly TreeNode[], inside = false): ReactNode => {
     const out: ReactNode[] = [];
     for (let index = 0; index < held.length; index += 1) {
       const node = held[index];
@@ -439,11 +457,16 @@ export function WorkflowDiagram(
         node.label === "yes" && next !== undefined && next.kind === "group" &&
         next.label === "otherwise"
       ) {
-        out.push(ifGroup([node, next]));
+        out.push(ifGroup([node, next], inside));
         index += 1;
+        if (index < held.length - 1) out.push(plainConnector(next.id));
         continue;
       }
-      out.push(group(node));
+      out.push(group(node, inside));
+      // The path line runs on from a block as it does from a card, but with no
+      // "+": adding a step after a block is not part of this slice (#417 UX
+      // ruling 7086208998 change 1).
+      if (index < held.length - 1) out.push(plainConnector(node.id));
     }
     return out;
   };
