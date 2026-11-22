@@ -415,7 +415,7 @@ The initial action registry is intentionally small:
 rpi.research, rpi.design, rpi.plan
 harness.implement, harness.repair
 quality.check, review.independent
-integration.action
+tool.call
 delivery.candidate_evidence, delivery.merge, delivery.prepare, delivery.deploy,
 delivery.health
 agent.freeform, workflow.noop
@@ -534,7 +534,7 @@ fields are rejected unless marked `required: false`.
 | `harness.repair` | `RepairInput` | `HarnessOutput` |
 | `quality.check` | `CheckInput` | `CheckOutput` |
 | `review.independent` | `ReviewInput` | `ReviewOutput` |
-| `integration.action` | `IntegrationActionInput` | `IntegrationActionOutput` |
+| `tool.call` | `ToolCallInput` | `ToolCallOutput` |
 | `delivery.candidate_evidence` | `CandidateEvidence` | `CandidateEvidence` |
 | `delivery.prepare` | `PrepareInput` | `PrepareOutput` |
 | `delivery.merge` | `MergeInput` | `MergeOutput` |
@@ -546,13 +546,14 @@ fields are rejected unless marked `required: false`.
 | `memory.promote` | `MemoryPromoteInput` | `MemoryOutput` |
 | `evaluation.sample` | `EvaluationInput` | `EvaluationOutput` |
 
-`integration.action` uses the same expression DSL as every workflow action:
-`actionId`, `actionVersion`, and `resourceId` are typed fields, while
+`tool.call` uses the same expression DSL as every workflow action:
+`connectionId`, `tool`, `toolVersion`, and `resourceId` are typed fields, while
 `arguments` may contain typed `$input.*`, `$task.*`, or `$step.<qualified-id>.*`
-references validated against the selected action schema. The run's authorized
-connection/binding is resolved from the resource and immutable run context;
-workflow data cannot supply a connection, credential, URL, actor, or effect
-authority. Reads return `ActionResult`; writes return the durable
+references validated against the selected tool schema. The step names its
+connection, but the authority is the run's: the call is made as the person who
+started the run, under that person's grant on the connection; workflow data
+cannot supply a credential, URL, actor, or effect authority. `tool.call`
+replaces the earlier `integration.action`. Reads return `ActionResult`; writes return the durable
 `ActionResult` after the receipt is reconciled by its stable effect identity.
 The REST transport may return `ActionResult` with 200 for reads or an
 `IntegrationActionReceipt` with 202 for writes. For a write, `prepared`,
@@ -572,7 +573,7 @@ The machine-readable registry metadata is:
   "harness.repair": {"input":"RepairInput","output":"HarnessOutput","capabilities":["git","shell","model"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["WORKER_UNAVAILABLE"]},"effectPolicy":"repository_revision"},
   "quality.check": {"input":"CheckInput","output":"CheckOutput","capabilities":["git","shell","browser"],"cancel":"cooperative_fenced","retry":{"maxAttempts":2,"backoff":"30s","faults":["WORKER_UNAVAILABLE","DEPENDENCY_TIMEOUT"]},"effectPolicy":"evidence_only"},
   "review.independent": {"input":"ReviewInput","output":"ReviewOutput","capabilities":["model","reviewer"],"cancel":"cooperative","retry":{"maxAttempts":1,"backoff":"0s","faults":["REVIEWER_UNAVAILABLE"]},"effectPolicy":"review_evidence"},
-  "integration.action": {"input":"IntegrationActionInput","output":"IntegrationActionOutput","capabilities":["integration"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_effect_keyed_reconcile"},
+  "tool.call": {"input":"ToolCallInput","output":"ToolCallOutput","capabilities":["integration"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_effect_keyed_reconcile"},
   "delivery.candidate_evidence": {"input":"CandidateEvidence","output":"CandidateEvidence","capabilities":[],"cancel":"immediate","retry":{"maxAttempts":1,"backoff":"0s","faults":[]},"effectPolicy":"projection_only"},
   "delivery.prepare": {"input":"PrepareInput","output":"PrepareOutput","capabilities":["delivery"],"cancel":"cooperative","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_prepare"},
   "delivery.merge": {"input":"MergeInput","output":"MergeOutput","capabilities":["delivery"],"cancel":"cooperative","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_effect_keyed"},
@@ -603,8 +604,9 @@ CheckOutput          = {allRequired: boolean, checkRunIds: uuid[] minItems=1 max
 CheckObservation     = {checkRunId: uuid, checkId: string minLength=1 maxLength=100, kind: enum(command|commits|title|description|merge_message), ruleKey: enum(commits.semantic|changeRequest.semanticTitle|changeRequest.description|code.magicNumbers|code.magicStrings)|null, result: enum(pending|passed|failed|unavailable|canceled), reason: enum(verified|exit_nonzero|signal|deadline|output_limit|rule_violation|description_placeholder|tool_missing|unsupported_checker|revision_unavailable|skipped|metadata_missing|metadata_too_large|rule_unbound|rule_binding_ambiguous|policy_missing|awaiting_result|canceled), exitCode: integer 0..255|null, durationMs: integer 0..86400000, outputDigest: sha256|null, evidence: ArtifactRef|null}
 ReviewInput          = {repositoryId: uuid, revision: string length=40, evidence: uuid[] minItems=1 maxItems=32}
 ReviewOutput         = {reviewId: uuid, sessionId: uuid, headSha: string minLength=1, baseSha: string minLength=1, policyDigest: string minLength=1, findings: Finding[] maxItems=25, blockingFindings: integer 0..25}
-IntegrationActionInput  = {actionId: string minLength=1, actionVersion: integer min=1, resourceId: uuid, arguments: json}
-IntegrationActionOutput = ActionResult (read or confirmed write)
+ToolCallInput  = {connectionId: uuid, tool: string minLength=1, toolVersion?: integer min=1, resourceId?: uuid, arguments: json}
+ToolCallOutput = ActionResult (read or confirmed write)
+(IntegrationActionInput stays the effect ledger's own record of one integration send.)
 IntegrationActionReceipt = transport-only write admission (HTTP 202; prepared|submitted|uncertain)
 CandidateEvidence    = {headSha: string minLength=1, baseSha: string minLength=1, policyDigest: string minLength=1, checksPassed: boolean, checkRunIds: uuid[] minItems=1, failedCheckIds: uuid[], blockingFindings: integer min=0, reviewId: uuid, findings: Finding[]}
 PrepareInput         = {repositoryId: uuid, headSha: string minLength=1, profileRevision: integer min=1}
