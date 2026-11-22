@@ -35,6 +35,11 @@ import {
 } from "./skill-drafts.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
 import { listSkillUsage } from "./skill-usage.ts";
+import {
+  type SkillVersionRow,
+  toSkillVersion,
+  VERSION_COLUMNS,
+} from "./publication.ts";
 import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
   type RunRow,
@@ -52,7 +57,7 @@ const PAGE_ORDERING = "createdAt:desc,id:desc";
 const SOURCE_COLUMNS = `id, source_type, locator, publisher, license,
   last_checked_at, enabled, created_at, updated_at, version`;
 export const SKILL_COLUMNS =
-  `id, source_id, slug, name, active_version_id, enabled,
+  `id, source_id, slug, name, description, active_version_id, enabled,
   scope, owner_principal_id, copied_from_skill_id, copied_from_version_id,
   created_at, updated_at, version`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
@@ -151,6 +156,7 @@ export type SkillRow = {
   source_id: string | null;
   slug: string;
   name: string;
+  description: string | null;
   active_version_id: string | null;
   enabled: boolean;
   scope: "global" | "organization" | "personal";
@@ -198,6 +204,7 @@ export function toSkill(row: SkillRow) {
     sourceId: row.source_id,
     slug: row.slug,
     name: row.name,
+    description: row.description,
     activeVersionId: row.active_version_id,
     enabled: row.enabled,
     scope: row.scope,
@@ -282,19 +289,33 @@ async function listPage<
   project: (row: T) => O;
   /** Only skills of this scope; the cursor is bound to it. Skills only. */
   scope?: "global" | "organization" | "personal";
+  /** Only skills whose name contains this text; the cursor is bound to it. */
+  q?: string;
 }) {
   const visibility = options.table === "skills"
     ? `and ${SKILL_VISIBLE_TO("$5")}`
     : "";
-  const scopeFilter = options.scope === undefined ? "" : "and scope = $6::text";
+  const scopeFilter = options.scope !== undefined
+    ? "and scope = $6::text"
+    : options.q !== undefined
+    ? "and $6::text is null"
+    : "";
+  // strpos, not LIKE, so a % or _ in the text is matched literally.
+  const nameFilter = options.q === undefined
+    ? ""
+    : "and strpos(lower(name), lower($7::text)) > 0";
   const binding: CursorBinding = {
     action: options.action,
     principalId: options.principalId,
     organizationId: options.organizationId,
     ordering: PAGE_ORDERING,
-    filters: options.scope === undefined
+    filters: options.scope === undefined && options.q === undefined
       ? "{}"
-      : JSON.stringify({ scope: options.scope }),
+      : options.q === undefined
+      ? JSON.stringify({ scope: options.scope })
+      : await sha256Hex(
+        canonicalJson({ scope: options.scope ?? null, q: options.q }),
+      ),
     schemaVersion: 1,
   };
   const position = await decodeCursor(
@@ -312,6 +333,7 @@ async function listPage<
         and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
         ${visibility}
         ${scopeFilter}
+        ${nameFilter}
       order by created_at desc, id desc
       limit $4`,
     [
@@ -320,7 +342,8 @@ async function listPage<
       position?.id ?? null,
       limit + 1,
       ...(visibility === "" ? [] : [options.principalId]),
-      ...(scopeFilter === "" ? [] : [options.scope]),
+      ...(scopeFilter === "" ? [] : [options.scope ?? null]),
+      ...(nameFilter === "" ? [] : [options.q]),
     ],
   );
   const visible = result.rows.slice(0, limit);
@@ -730,6 +753,7 @@ export function createCatalogHandlers(
         columns: SKILL_COLUMNS,
         project: toSkill,
         scope: input.scope,
+        q: input.q,
       });
     },
 
@@ -914,6 +938,128 @@ export function createCatalogHandlers(
       return Promise.reject(
         new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
       );
+    },
+
+    async listSkillVersions(context: ActionContext, input: CursorInput) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const skillId = idFromPath(context);
+      // The same visibility as skills.get: another person's personal skill is
+      // not found, and so are its versions.
+      const visible = await transaction.query(
+        `select 1 from bakery.skills
+          where organization_id = $1 and id = $2 and ${SKILL_VISIBLE_TO("$3")}`,
+        [organizationId, skillId, principalId],
+      );
+      if (visible.rows.length === 0) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      const binding: CursorBinding = {
+        action: "skillVersions.list",
+        principalId,
+        organizationId,
+        ordering: PAGE_ORDERING,
+        filters: await sha256Hex(canonicalJson({ skillId })),
+        schemaVersion: 1,
+      };
+      const position = await decodeCursor(secret, input.cursor, binding);
+      const limit = input.limit ?? 25;
+      // A reserved draft is not a version yet: only published and retired
+      // versions are listed, newest first (revisions are created in order).
+      const result = await transaction.query<
+        SkillVersionRow & { cursor_created_at: string }
+      >(
+        `select ${VERSION_COLUMNS},
+                to_char(created_at at time zone 'UTC',
+                  'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
+           from bakery.skill_versions
+          where organization_id = $1 and skill_id = $2
+            and status <> 'draft'
+            and ($3::timestamptz is null or (created_at, id) < ($3, $4::uuid))
+          order by created_at desc, id desc
+          limit $5`,
+        [
+          organizationId,
+          skillId,
+          position?.createdAt ?? null,
+          position?.id ?? null,
+          limit + 1,
+        ],
+      );
+      const page = result.rows.slice(0, limit);
+      const last = page.at(-1);
+      return {
+        items: page.map(toSkillVersion),
+        nextCursor: result.rows.length > limit && last
+          ? await encodeCursor(secret, binding, {
+            createdAt: last.cursor_created_at,
+            id: last.id,
+          })
+          : null,
+      };
+    },
+
+    async setSkillActiveVersion(
+      context: ActionContext,
+      input: { versionId: string },
+    ) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const skillId = idFromPath(context);
+      const expectedVersion = requireCommandMetadata(context).expectedVersion;
+      if (expectedVersion === undefined) {
+        throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+      }
+      const current = await transaction.query<
+        Pick<SkillRow, "scope" | "owner_principal_id">
+      >(
+        `select scope, owner_principal_id from bakery.skills
+          where organization_id = $1 and id = $2
+            and ${SKILL_VISIBLE_TO("$3")}
+          for update`,
+        [organizationId, skillId, principalId],
+      );
+      const target = current.rows[0];
+      if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      await assertMayAuthorSkill(transaction, organizationId, principalId, {
+        scope: target.scope,
+        ownerPrincipalId: target.owner_principal_id,
+      });
+      // Only a published version of this same skill can be put in use.
+      const chosen = await transaction.query<{ status: string }>(
+        `select status from bakery.skill_versions
+          where organization_id = $1 and skill_id = $2 and id = $3`,
+        [organizationId, skillId, input.versionId],
+      );
+      if (chosen.rows.length === 0) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      if (chosen.rows[0].status !== "published") {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "skill_version_not_published" },
+        });
+      }
+      const result = await transaction.query<SkillRow>(
+        `update bakery.skills
+            set active_version_id = $4, updated_at = now(),
+                version = version + 1
+          where organization_id = $1 and id = $2 and version = $3
+          returning ${SKILL_COLUMNS}`,
+        [organizationId, skillId, expectedVersion, input.versionId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new StandardError({ code: "PRECONDITION_FAILED" });
+      await recordMutation(transaction, context, {
+        organizationId,
+        principalId,
+        operation: "skills.setActiveVersion",
+        eventType: "skills.updated",
+        resourceType: "skill",
+        resourceId: skillId,
+        resourceVersion: row.version,
+      });
+      return toSkill(row);
     },
 
     async updateSkill(context: ActionContext, input: SkillUpdateInput) {

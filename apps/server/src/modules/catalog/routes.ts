@@ -342,6 +342,7 @@ export function createCatalogRoutes(options: {
             proof: stage.proof,
           });
         },
+        listSkillVersions: handlers.listSkillVersions,
       }, {
         authorityRunner: publicationAuthority,
         commandRunner: publicationCommandRunner,

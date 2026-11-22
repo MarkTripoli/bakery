@@ -3005,6 +3005,33 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/active-version",
+      "action": "skills.setActiveVersion",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillActiveVersionSet",
+      "output": "Skill",
+      "event": "skills.updated",
+      "mcp": "bakery_skills_setActiveVersion",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft",
       "action": "skillDrafts.open",
       "access": "Owner for personal; Admin for organization",
@@ -3307,6 +3334,29 @@ export const clientManifest = {
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/versions",
+      "action": "skillVersions.list",
+      "access": "Developer",
+      "permission": "skillVersion:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillVersion>",
+      "event": "",
+      "mcp": "bakery_skillVersions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -19116,6 +19166,7 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
@@ -19902,8 +19953,14 @@ export const clientManifest = {
             "personal"
           ]
         },
+        "q": {
+          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "cursor": {
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
@@ -19916,7 +19973,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -33773,6 +33830,30 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
     },
+    "SkillActiveVersionSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+        }
+      },
+      "required": [
+        "id",
+        "versionId"
+      ],
+      "additionalProperties": false,
+      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+    },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -45123,6 +45204,20 @@ export const clientManifest = {
                 "maxLength": 65536,
                 "description": "Human-readable name displayed for the record."
               },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.description may be null in this transport value."
+              },
               "activeVersionId": {
                 "anyOf": [
                   {
@@ -45220,6 +45315,7 @@ export const clientManifest = {
               "sourceId",
               "slug",
               "name",
+              "description",
               "activeVersionId",
               "enabled",
               "scope",
@@ -45286,6 +45382,306 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of Skill."
+    },
+    "Page<SkillVersion>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the skill version record."
+              },
+              "skillId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related skill entity."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision number used to order updates to the record."
+              },
+              "sourceRevision": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Revision of the external source used for this version."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Content digest used to verify the record."
+              },
+              "entryPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Relative path of the entry file within the source."
+              },
+              "manifest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Structured manifest describing the package."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published",
+                  "retired"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "createdBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal who created the record."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "skillId",
+              "revision",
+              "sourceRevision",
+              "digest",
+              "entryPath",
+              "manifest",
+              "status",
+              "createdBy",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One revision of a skill, draft or published: its source revision and entry path, plus a manifest digest that must match the exact file inventory. A draft cannot become a skill's active version until publish verifies every file was durably written."
+          },
+          "description": "SkillVersion items in this cursor page. Page<SkillVersion>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillVersion>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillVersion>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillVersion>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillVersion.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<IntegrationConnection>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -47313,6 +47709,7 @@ export const clientManifest = {
                   "skills.get",
                   "skills.update",
                   "skills.usedBy",
+                  "skills.setActiveVersion",
                   "skillDrafts.open",
                   "skillDrafts.get",
                   "skillDrafts.update",
@@ -66286,6 +66683,20 @@ export const clientManifest = {
           "maxLength": 65536,
           "description": "Human-readable name displayed for the record."
         },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.description may be null in this transport value."
+        },
         "activeVersionId": {
           "anyOf": [
             {
@@ -66383,6 +66794,7 @@ export const clientManifest = {
         "sourceId",
         "slug",
         "name",
+        "description",
         "activeVersionId",
         "enabled",
         "scope",
@@ -68633,6 +69045,7 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",

@@ -102,6 +102,14 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<SkillUsage>"]>>;
+  listSkillVersions: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<SkillVersion>"]>>;
+  setSkillActiveVersion: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillActiveVersionSet>,
+  ) => Promise<z.output<typeof contractSchemas.Skill>>;
   deleteSkillUseGrant: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
@@ -335,6 +343,22 @@ export function createCatalogActionRegistry(
     policy: queryPolicy,
     handler: handlers.listSkillUsage,
   });
+  // Putting an older published version in use is authoring the skill: the
+  // owner of a personal skill, an Admin for an organization one, never Bakery's.
+  registry.register({
+    name: CatalogImplementedAction.SkillsSetActiveVersion,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/active-version",
+    input: contractSchemas.SkillActiveVersionSet,
+    output: contractSchemas.Skill,
+    successStatus: 200,
+    explicitIdempotency: "key-and-if-match",
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler: handlers.setSkillActiveVersion,
+  });
   // The skill's authoring draft. Its author is the owner of a personal skill or
   // an Admin for an organization one; the handlers decide which from the skill.
   const draftAccess = ActionAccess.OwnerForPersonalAdminForOrganization;
@@ -457,6 +481,15 @@ export function createCatalogActionRegistry(
       },
       handler: handlers.createSkillVersion,
     });
+    registry.register({
+      name: CatalogImplementedAction.SkillVersionsList,
+      method: HttpMethod.Get,
+      path: "/v1/skills/:id/versions",
+      input: contractSchemas.CursorQuery,
+      output: contractSchemas["Page<SkillVersion>"],
+      policy: queryPolicy,
+      handler: handlers.listSkillVersions,
+    });
   }
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(
@@ -533,7 +566,10 @@ export function createSkillSourceUpdateActionRegistry(
 }
 
 export function createSkillVersionActionRegistry(
-  handlers: Pick<CatalogActionHandlers, "createSkillVersion">,
+  handlers: Pick<
+    CatalogActionHandlers,
+    "createSkillVersion" | "listSkillVersions"
+  >,
   options: {
     authorityRunner?: ActionAuthorityRunner;
     commandRunner?: CommandRunner;
@@ -557,9 +593,21 @@ export function createSkillVersionActionRegistry(
     },
     handler: handlers.createSkillVersion,
   });
+  // The list shares its path with publication, so it is served by this same
+  // router: two routers on one path answer each other's method with a 405.
+  registry.register({
+    name: CatalogImplementedAction.SkillVersionsList,
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/versions",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<SkillVersion>"],
+    policy: queryPolicy,
+    handler: handlers.listSkillVersions,
+  });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     CatalogImplementedAction.SkillVersionsCreate,
+    CatalogImplementedAction.SkillVersionsList,
   ]);
   return registry;
 }

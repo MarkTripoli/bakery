@@ -26,6 +26,7 @@ type Skill = {
   sourceId: string;
   slug: string;
   name: string;
+  description: string | null;
   activeVersionId: string | null;
   enabled: boolean;
   scope: "global" | "organization" | "personal";
@@ -125,6 +126,7 @@ Deno.test("authenticated skills.create persists an exact tenant-local identity",
       sourceId: created.sourceId,
       slug: "release-notes",
       name: "Release notes",
+      description: null,
       activeVersionId: null,
       enabled: true,
       scope: "organization",

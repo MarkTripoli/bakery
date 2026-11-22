@@ -2969,6 +2969,32 @@
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/active-version",
+      "action": "skills.setActiveVersion",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillActiveVersionSet",
+      "output": "Skill",
+      "event": "skills.updated",
+      "mcp": "bakery_skills_setActiveVersion",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft",
       "action": "skillDrafts.open",
       "access": "Owner for personal; Admin for organization",
@@ -3280,8 +3306,10 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
-      ]
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Skills",

@@ -3263,13 +3263,23 @@
           "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see."
         },
         {
+          "name": "q",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
           "bounds": {
             "maxBytes": 512
           },
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter."
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search."
         },
         {
           "name": "limit",
@@ -3287,7 +3297,7 @@
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "fields": [
@@ -14871,6 +14881,24 @@
         "Admin (worker:manage); Idempotency-Key required; a request is decided once."
       ],
       "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
+    },
+    "SkillActiveVersionSet": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+        }
+      ],
+      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
     }
   },
   "projections": {
@@ -23738,6 +23766,7 @@
         "sourceId",
         "slug",
         "name",
+        "description",
         "activeVersionId",
         "enabled",
         "scope",
@@ -23761,14 +23790,16 @@
         "scope": "enum(global|organization|personal)",
         "ownerPrincipalId": "uuid|null",
         "copiedFromSkillId": "uuid|null",
-        "copiedFromVersionId": "uuid|null"
+        "copiedFromVersionId": "uuid|null",
+        "description": "string|null"
       },
       "nullableFields": [
         "sourceId",
         "activeVersionId",
         "ownerPrincipalId",
         "copiedFromSkillId",
-        "copiedFromVersionId"
+        "copiedFromVersionId",
+        "description"
       ],
       "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
@@ -23784,7 +23815,8 @@
         "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
         "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
-        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying.",
+        "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
       }
     },
     "SkillVersion": {

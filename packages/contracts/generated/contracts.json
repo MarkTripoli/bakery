@@ -3052,6 +3052,33 @@
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/active-version",
+      "action": "skills.setActiveVersion",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillActiveVersionSet",
+      "output": "Skill",
+      "event": "skills.updated",
+      "mcp": "bakery_skills_setActiveVersion",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft",
       "action": "skillDrafts.open",
       "access": "Owner for personal; Admin for organization",
@@ -3375,10 +3402,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Skills",
@@ -14828,6 +14856,8 @@
     "skillVersions.create",
     "skills.useGrants.list",
     "skills.useGrants.delete",
+    "skills.setActiveVersion",
+    "skillVersions.list",
     "library.search",
     "pluginPackages.list",
     "pluginPackages.create",
@@ -22417,11 +22447,22 @@
               }
             },
             {
+              "name": "q",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            {
               "name": "cursor",
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 512
@@ -22819,6 +22860,70 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/skills/{id}/active-version": {
+        "post": {
+          "operationId": "skills.setActiveVersion",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Skill"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillActiveVersionSet"
+                }
+              }
             }
           }
         }
@@ -23613,6 +23718,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -58120,6 +58237,7 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
+                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
@@ -60116,8 +60234,14 @@
                 "personal"
               ]
             },
+            "q": {
+              "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
             "cursor": {
-              "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
               "type": "string",
               "maxLength": 65536,
               "x-utf8-max-bytes": 512
@@ -60130,7 +60254,7 @@
             }
           },
           "additionalProperties": false,
-          "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+          "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
         },
         "RepositoryCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -83418,6 +83542,30 @@
           "additionalProperties": false,
           "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
         },
+        "SkillActiveVersionSet": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+            }
+          },
+          "required": [
+            "id",
+            "versionId"
+          ],
+          "additionalProperties": false,
+          "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+        },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -100623,6 +100771,20 @@
               "maxLength": 65536,
               "description": "Human-readable name displayed for the record."
             },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "Skill.description may be null in this transport value."
+            },
             "activeVersionId": {
               "anyOf": [
                 {
@@ -100720,6 +100882,7 @@
             "sourceId",
             "slug",
             "name",
+            "description",
             "activeVersionId",
             "enabled",
             "scope",
@@ -109201,6 +109364,7 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
+                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
@@ -109884,6 +110048,7 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
+                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
@@ -110567,6 +110732,7 @@
                 "skills.get",
                 "skills.update",
                 "skills.usedBy",
+                "skills.setActiveVersion",
                 "skillDrafts.open",
                 "skillDrafts.get",
                 "skillDrafts.update",
@@ -152975,6 +153141,20 @@
                     "maxLength": 65536,
                     "description": "Human-readable name displayed for the record."
                   },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Skill.description may be null in this transport value."
+                  },
                   "activeVersionId": {
                     "anyOf": [
                       {
@@ -153072,6 +153252,7 @@
                   "sourceId",
                   "slug",
                   "name",
+                  "description",
                   "activeVersionId",
                   "enabled",
                   "scope",
@@ -156423,6 +156604,7 @@
                       "skills.get",
                       "skills.update",
                       "skills.usedBy",
+                      "skills.setActiveVersion",
                       "skillDrafts.open",
                       "skillDrafts.get",
                       "skillDrafts.update",
@@ -276044,7 +276226,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:5835d700baff5d3a6db269f82bf2d2b6daca1ca25e16f1d6cf287e8a41315345",
+  "compatibilityDigest": "sha256:e967ae85343c94db8fded4aab9c07e929e4f89b5b7a0eee2fb416e0aed6c8d96",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -283448,6 +283630,7 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
@@ -285446,8 +285629,14 @@
             "personal"
           ]
         },
+        "q": {
+          "description": "Text to find in skill names, matched case-insensitively as a substring (wildcard characters are matched literally); omit to list every skill. A cursor is bound to this text, so a cursor from one search is rejected for another. SkillQuery.q must contain at least 1 characters. SkillQuery.q must contain at most 200 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "cursor": {
-          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter and name search. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
@@ -285460,7 +285649,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope and optionally only those whose name contains some text, using opaque keyset pagination bound to the current principal, organization, scope filter and name search; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -308828,6 +309017,30 @@
       "additionalProperties": false,
       "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
     },
+    "SkillActiveVersionSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose version in use changes; supplied via the request's {id} path segment."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The published version of this skill to put in use. It may be older than the current one. Workflows and runs keep the versions they pin; only new uses take this one."
+        }
+      },
+      "required": [
+        "id",
+        "versionId"
+      ],
+      "additionalProperties": false,
+      "description": "Puts one of a skill's published versions in use (the skill's active version). The request needs the skill's current version in If-Match and an Idempotency-Key. Existing workflow and run pins never move."
+    },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -326085,6 +326298,20 @@
           "maxLength": 65536,
           "description": "Human-readable name displayed for the record."
         },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.description may be null in this transport value."
+        },
         "activeVersionId": {
           "anyOf": [
             {
@@ -326182,6 +326409,7 @@
         "sourceId",
         "slug",
         "name",
+        "description",
         "activeVersionId",
         "enabled",
         "scope",
@@ -334705,6 +334933,7 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
@@ -335388,6 +335617,7 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
@@ -336071,6 +336301,7 @@
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skills.setActiveVersion",
             "skillDrafts.open",
             "skillDrafts.get",
             "skillDrafts.update",
@@ -378617,6 +378848,20 @@
                 "maxLength": 65536,
                 "description": "Human-readable name displayed for the record."
               },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "What the skill is for, in the words of whoever authored it; null when nobody has written one."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.description may be null in this transport value."
+              },
               "activeVersionId": {
                 "anyOf": [
                   {
@@ -378714,6 +378959,7 @@
               "sourceId",
               "slug",
               "name",
+              "description",
               "activeVersionId",
               "enabled",
               "scope",
@@ -382077,6 +382323,7 @@
                   "skills.get",
                   "skills.update",
                   "skills.usedBy",
+                  "skills.setActiveVersion",
                   "skillDrafts.open",
                   "skillDrafts.get",
                   "skillDrafts.update",
