@@ -237,6 +237,7 @@ Deno.test("Run projection preserves workflow compatibility and import null owner
     inngest_run_id: null,
     status: "queued" as const,
     budget_limit_usd: "0",
+    environment: "live",
     started_at: null,
     finished_at: null,
     created_at: "2026-01-01T00:00:00.000Z",

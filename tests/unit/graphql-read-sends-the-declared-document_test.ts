@@ -321,3 +321,41 @@ Deno.test("a graphql template without a document cannot be activated at all", ()
     IntegrationActivationError,
   );
 });
+
+Deno.test("the broker hands an offline run's environment to the credential port", async () => {
+  // #427: the credential port refuses an offline run before any read, so the
+  // broker must pass the bound run environment through to it.
+  const seen: unknown[] = [];
+  const sent: Captured[] = [];
+  const broker = createBrokerForTesting({
+    registry,
+    credentials: {
+      resolve: (request) => {
+        seen.push((request as { runEnvironment?: unknown }).runEnvironment);
+        return Promise.reject(
+          new StandardError({
+            code: "STATE_CONFLICT",
+            params: { reason: "environment_offline" },
+          }),
+        );
+      },
+    },
+    fetch: ((url: string | URL | Request) => {
+      sent.push({ url: String(url), body: undefined });
+      return Promise.resolve(Response.json({ data: {} }));
+    }) as typeof fetch,
+    snapshotPort: snapshotPortFor(registry),
+    profiles: {
+      "github-app": {
+        ...HOST_AUTH_PROFILES["github-app"]!,
+        origin: "http://127.0.0.1:1",
+      },
+    },
+  });
+  const bound = await bind(registry);
+  await assertRejects(() =>
+    broker.request({ ...bound, runEnvironment: "offline" }, REF, { first: 5 })
+  );
+  assertEquals(seen, ["offline"]);
+  assertEquals(sent.length, 0, "nothing reaches the provider");
+});
