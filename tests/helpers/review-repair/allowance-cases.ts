@@ -2,6 +2,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
 import { allowMoreRepairTries } from "../../../apps/server/src/modules/delivery/repair-allowance.ts";
+import { apiCall, expectJson } from "../fixed-coding-preset.ts";
 import { finding, fingerprintOf } from "./fixtures.ts";
 import {
   HEADS,
@@ -226,6 +227,127 @@ export function registerAllowanceCases(): void {
         const largest = await allow(world, 6);
         assertEquals(largest.maxRepairCycles, 8);
         assert(largest.id.length > 0);
+      }, { plan: PLAN }),
+  );
+  loopTest(
+    "the allow operation answers with the repair decision it bought, once per stop, and refuses what a run cannot take",
+    () =>
+      withReviewedRun(async (world) => {
+        await runOutOfTries(world);
+        const path = `/v1/runs/${world.runId}/repair-allowances`;
+        const refused = await apiCall(
+          world.fixture,
+          world.fixture,
+          "POST",
+          path,
+          {
+            body: { tries: 0 },
+          },
+        );
+        assert(
+          refused.status >= 400 && refused.status < 500,
+          String(refused.status),
+        );
+        await refused.body?.cancel();
+        assertEquals(await world.runStatus(), "failed");
+
+        const response = await apiCall(
+          world.fixture,
+          world.fixture,
+          "POST",
+          path,
+          {
+            body: { tries: 1 },
+          },
+        );
+        assert(response.ok, await response.clone().text());
+        const decision = await response.json() as {
+          id: string;
+          runId: string;
+          ordinal: number;
+          decision: string;
+          reason: string;
+          limits: { maxRepairCycles: number };
+        };
+        assertEquals(decision.runId, world.runId);
+        assertEquals(decision.ordinal, 3);
+        assertEquals([decision.decision, decision.reason], [
+          "repair",
+          "repair_selected",
+        ]);
+        assertEquals(decision.limits.maxRepairCycles, 3);
+        assertEquals(await world.runStatus(), "queued");
+
+        // Asked again with a new key for the same stop: the same decision.
+        const again = await expectJson<{ id: string }>(
+          await apiCall(world.fixture, world.fixture, "POST", path, {
+            body: { tries: 1 },
+          }),
+          response.status,
+        );
+        assertEquals(again.id, decision.id);
+        assertEquals((await world.audits("runs.reopen")).length, 1);
+
+        // A run that is not stopped for lack of tries is a conflict.
+        const missing = await apiCall(
+          world.fixture,
+          world.fixture,
+          "POST",
+          `/v1/runs/${crypto.randomUUID()}/repair-allowances`,
+          { body: { tries: 1 } },
+        );
+        assertEquals(missing.status, 404);
+        await missing.body?.cancel();
+      }, { plan: PLAN }),
+  );
+  loopTest(
+    "the per-try read says what each try fixed, what is new, and why the loop stopped",
+    () =>
+      withReviewedRun(async (world) => {
+        await runOutOfTries(world);
+        const path = `/v1/runs/${world.runId}/repair-tries`;
+        const page = await expectJson<{
+          items: Array<Record<string, unknown>>;
+          nextCursor: string | null;
+        }>(await apiCall(world.fixture, world.fixture, "GET", path), 200);
+        assertEquals(page.nextCursor, null);
+        assertEquals(
+          page.items.map((t) => [t.number, t.decision, t.reason]),
+          [
+            [1, "repair", "repair_selected"],
+            [2, "stop", "repair_cycles_exhausted"],
+          ],
+        );
+        // Each round reported a blocker of its own: the earlier one was fixed,
+        // a new one appeared, nothing came back.
+        assertEquals(
+          page.items.map((
+            t,
+          ) => [t.fixedFindings, t.cameBackFindings, t.newFindings]),
+          [[1, 0, 1], [1, 0, 1]],
+        );
+        assertEquals(page.items.map((t) => t.blockingFindings), [1, 1]);
+        assert(page.items.every((t) => t.runId === world.runId));
+
+        const first = await expectJson<{
+          items: Array<{ number: number }>;
+          nextCursor: string | null;
+        }>(
+          await apiCall(world.fixture, world.fixture, "GET", `${path}?limit=1`),
+          200,
+        );
+        assertEquals(first.items.map((t) => t.number), [1]);
+        assert(first.nextCursor !== null);
+        const rest = await expectJson<{ items: Array<{ number: number }> }>(
+          await apiCall(
+            world.fixture,
+            world.fixture,
+            "GET",
+            `${path}?limit=1&cursor=${encodeURIComponent(first.nextCursor!)}`,
+          ),
+          200,
+        );
+        assertEquals(rest.items.map((t) => t.number), [2]);
       }, { plan: PLAN }),
   );
 }

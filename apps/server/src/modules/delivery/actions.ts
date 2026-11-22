@@ -24,6 +24,9 @@ import type { PgDatabase } from "../../platform/database.ts";
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
 type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
+type RepairAllowanceCreate = z.output<
+  typeof contractSchemas.RepairAllowanceCreate
+>;
 type MergeEntryCreate = z.output<typeof contractSchemas.MergeEntryCreate>;
 type PullRequestMerge = z.output<typeof contractSchemas.PullRequestMerge>;
 type MergeAttemptQuery = z.output<typeof contractSchemas.MergeAttemptQuery>;
@@ -66,6 +69,14 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: CursorQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<DeliveryDecision>"]>>;
+  runRepairTriesList: (
+    context: ActionContext,
+    input: CursorQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<RepairTry>"]>>;
+  runRepairAllowancesCreate: (
+    context: ActionContext,
+    input: RepairAllowanceCreate,
+  ) => Promise<z.output<typeof contractSchemas.DeliveryDecision>>;
   pullRequestsList: (
     context: ActionContext,
     input: PullRequestQuery,
@@ -172,6 +183,25 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.runDeliveryDecisionsList,
+  });
+  registry.register({
+    name: DeliveryImplementedAction.RunRepairTriesList,
+    method: HttpMethod.Get,
+    path: "/v1/runs/:id/repair-tries",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<RepairTry>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.runRepairTriesList,
+  });
+  registry.register({
+    name: DeliveryImplementedAction.RunRepairAllowancesCreate,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/repair-allowances",
+    input: contractSchemas.RepairAllowanceCreate,
+    output: contractSchemas.DeliveryDecision,
+    policy: { ...commandPolicy, access: ActionAccess.Admin },
+    handler: handlers.runRepairAllowancesCreate,
   });
 
   registry.register({
