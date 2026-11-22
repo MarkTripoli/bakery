@@ -1547,7 +1547,63 @@ for (
         "Edited in code",
       );
       await page.mouse.move(700, 700);
-      await shot(page, "workflow-fix-block", [], { windowOnly: true });
+      await shot(page, "workflow-fix-block");
+    });
+
+    test("the built-in page draws the repair loop as the same block, with its limit", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      // The server's real read: the repair loop's steps name their repeat.
+      const inLoop = { repeatId: "repair", repeatMax: 2 };
+      await page.route(
+        (url) => url.pathname === "/v1/workflow-presets",
+        (route) =>
+          route.fulfill({
+            json: {
+              items: [{
+                id: "fixed-coding-reviewed",
+                revision: 3,
+                digest: "b".repeat(64),
+                nameKey: "workflowPresets.fixedCodingReviewed.name",
+                steps: [
+                  { id: "flow.brief", uses: "task.brief" },
+                  { id: "flow.implement", uses: "harness.implement" },
+                  { id: "flow.check", uses: "quality.check" },
+                  { id: "flow.review", uses: "review.independent" },
+                  {
+                    id: "repair.repair_implement",
+                    uses: "harness.repair",
+                    ...inLoop,
+                  },
+                  {
+                    id: "repair.repair_check",
+                    uses: "quality.check",
+                    ...inLoop,
+                  },
+                  {
+                    id: "repair.repair_review",
+                    uses: "review.independent",
+                    ...inLoop,
+                  },
+                ],
+                defaultBudgetLimitUsd: "8.00",
+                availability: null,
+              }],
+              nextCursor: null,
+            },
+          }),
+      );
+      await page.goto("/library/built-in/fixed-coding-reviewed");
+      const steps = page.getByTestId("workflow-steps");
+      const fix = steps.locator("[data-group=fix]");
+      await expect(fix).toHaveCount(1);
+      await expect(fix).toContainText("Fix until it passes");
+      await expect(fix).toContainText("At most 2 tries");
+      // Every step is still drawn: four before the loop, three inside it.
+      await expect(steps.locator("[data-card]:not([data-card=start])"))
+        .toHaveCount(7);
+      await expect(fix.locator("[data-card]")).toHaveCount(3);
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-built-in-fix-block");
     });
 
     test("in the editor the block says what it does and its limit as text, with no field", async ({ page }) => {
