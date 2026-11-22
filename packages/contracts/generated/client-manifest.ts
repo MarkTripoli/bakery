@@ -84723,6 +84723,12 @@ export const clientManifest = {
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "openQuestionCount": {
+          "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -85332,6 +85338,12 @@ export const clientManifest = {
               },
               "linkedTaskCount": {
                 "description": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it. ExternalTicket.linkedTaskCount must be at least 0.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "openQuestionCount": {
+                "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991

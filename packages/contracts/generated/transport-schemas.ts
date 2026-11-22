@@ -28955,6 +28955,7 @@ const transportSchemas = {
         "activeRequest",
         "linkedTaskIds",
         "linkedTaskCount",
+        "openQuestionCount",
         "createdAt",
         "updatedAt",
         "version"
@@ -28979,7 +28980,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "linkedTaskIds": "uuid[]",
-        "linkedTaskCount": "integer"
+        "linkedTaskCount": "integer",
+        "openQuestionCount": "integer"
       },
       "nullableFields": [
         "number",
@@ -29007,19 +29009,24 @@ const transportSchemas = {
         "updatedAt": "Timestamp recording the last update to this external ticket record.",
         "version": "Monotonic revision used to order or conditionally update this external ticket record.",
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
-        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it."
+        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
+        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
         "activeRequest",
         "linkedTaskIds",
-        "linkedTaskCount"
+        "linkedTaskCount",
+        "openQuestionCount"
       ],
       "fieldBounds": {
         "linkedTaskIds": {
           "maxItems": 25
         },
         "linkedTaskCount": {
+          "min": 0
+        },
+        "openQuestionCount": {
           "min": 0
         }
       }
