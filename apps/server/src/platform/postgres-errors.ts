@@ -33,3 +33,16 @@ export function isPostgresUniqueViolation(error: unknown): boolean {
   }
   return false;
 }
+
+/** Postgres SQLSTATE for a detected deadlock: one transaction was aborted. */
+export const POSTGRES_DEADLOCK_DETECTED = "40P01";
+
+/** True when `error`, or a cause it wraps, is a Postgres deadlock abort. */
+export function isPostgresDeadlock(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 6 && current !== undefined; depth++) {
+    if (postgresErrorCode(current) === POSTGRES_DEADLOCK_DETECTED) return true;
+    current = errorCause(current);
+  }
+  return false;
+}
