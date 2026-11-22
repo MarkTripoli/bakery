@@ -190,6 +190,7 @@ import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
 import { createAgentsHandlers } from "./modules/agents/postgres.ts";
 import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
 import { sessionOperationScopes } from "./modules/execution/session-tools.ts";
+import { createRunRequestActionRegistry } from "./modules/work/run-request-actions.ts";
 import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
@@ -805,6 +806,9 @@ export function createApp(options: {
           artifactActions.registry,
           approvalRegistry,
           runControlRegistry,
+          // Asking people from a step (#414): the same run request registry
+          // the routes mount, so an agent's ask runs the person's handler.
+          createRunRequestActionRegistry(options.pgDatabase),
           // Connection drafts (#448 S9b): the same management registry the
           // routes mount, so a draft runs the same handler and guard.
           createMcpActionRegistry(options.pgDatabase, {

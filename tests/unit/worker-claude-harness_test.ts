@@ -1279,3 +1279,48 @@ ${[INIT, assistant("done"), resultLine()].join("\n")}`,
     );
   },
 });
+
+// #24: rpi.plan and rpi.design on the Claude harness.
+
+Deno.test({
+  name:
+    "Claude advertises rpi.plan and rpi.design, and refuses a step with nothing pinned without starting the CLI",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-claude-rpi-");
+    const published: Uint8Array[] = [];
+    const executor = freeformExecutor(
+      scratch.dir,
+      `${scratch.dir}/never-run`,
+      published,
+    );
+    assert(executor.supportedActions?.includes("rpi.plan"));
+    assert(executor.supportedActions?.includes("rpi.design"));
+    assert(executor.supportedActions?.includes("rpi.research"));
+    const refuse = async (action: string, input: Record<string, unknown>) => {
+      const outcome = await executor.execute(
+        { ...freeformAssignment(), action, input } as unknown as JobAssignment,
+        new AbortController().signal,
+      );
+      assertEquals(outcome.status, "failed");
+      return (outcome as unknown as { fault: { code: string } }).fault.code;
+    };
+    assertEquals(
+      await refuse("rpi.plan", { designArtifact: crypto.randomUUID() }),
+      "RPI_INPUT_MISSING",
+    );
+    assertEquals(
+      await refuse("rpi.research", {
+        taskId: crypto.randomUUID(),
+        repositoryId: crypto.randomUUID(),
+      }),
+      "RPI_INPUT_MISSING",
+    );
+    // Without the design tool the design step is refused before anything else.
+    assertEquals(
+      await refuse("rpi.design", { researchArtifact: crypto.randomUUID() }),
+      "RPI_CAPABILITY_UNAVAILABLE",
+    );
+    assertEquals(published, []);
+  },
+});

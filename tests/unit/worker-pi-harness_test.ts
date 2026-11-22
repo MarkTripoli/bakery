@@ -928,6 +928,7 @@ async function freeformRun(
         ReturnType<typeof pinnedBrief>
       >["readAttemptContext"];
     },
+  extra: { assignment?: Record<string, unknown> } = {},
 ) {
   const scratch = await prepareScratchRepository("bakery-pi-freeform-");
   const argsPath = `${scratch.dir}/pi-args.txt`;
@@ -968,7 +969,8 @@ done
     action: "agent.freeform",
     agentSessionId: crypto.randomUUID(),
     input: { ...FREEFORM_INPUT, ...input },
-  } as JobAssignment;
+    ...extra.assignment,
+  } as unknown as JobAssignment;
   const outcome = await createPiHarnessExecutor({
     publishFor: () => async (request) => {
       published.push(request.bytes);
@@ -1235,5 +1237,81 @@ Deno.test({
     );
     assertEquals(outcome.status, "failed");
     await assertRejects(() => Deno.stat(fake.promptPath));
+  },
+});
+
+// #24: rpi.plan on the Pi harness, as a bounded session over a pinned artifact.
+
+Deno.test({
+  name:
+    "Pi rpi.plan plans from the pinned design and answers with its one artifact",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const brief = await pinnedBrief();
+    const design = crypto.randomUUID();
+    const run = await freeformRun(
+      [turn("1. Do the thing."), settled].join("\n"),
+      {},
+      5_000,
+      brief,
+      { assignment: { action: "rpi.plan", input: { designArtifact: design } } },
+    );
+    assertEquals(run.outcome.status, "completed");
+    if (run.outcome.status !== "completed") throw new Error("unreachable");
+    assertEquals(Object.keys(run.outcome.result as object), ["artifact"]);
+    assertEquals(run.published, ["1. Do the thing."]);
+    assertStringIncludes(run.prompt, design);
+  },
+});
+
+Deno.test({
+  name:
+    "Pi rpi.plan with nothing pinned is refused and starts no process; rpi.design needs the design tool",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const unpinned = await freeformRun(
+      turn("an invented plan"),
+      {},
+      5_000,
+      undefined,
+      {
+        assignment: {
+          action: "rpi.plan",
+          input: { designArtifact: crypto.randomUUID() },
+        },
+      },
+    );
+    assertEquals(unpinned.outcome.status, "failed");
+    assertEquals(
+      (unpinned.outcome as unknown as { fault: { code: string } }).fault.code,
+      "RPI_INPUT_MISSING",
+    );
+    assertEquals(unpinned.args, "", "no process was started");
+    const research = await freeformRun(turn("invented"), {}, 5_000, undefined, {
+      assignment: {
+        action: "rpi.research",
+        input: {
+          taskId: crypto.randomUUID(),
+          repositoryId: crypto.randomUUID(),
+        },
+      },
+    });
+    assertEquals(
+      (research.outcome as unknown as { fault: { code: string } }).fault.code,
+      "RPI_INPUT_MISSING",
+    );
+    assertEquals(research.args, "", "no process was started");
+    const brief = await pinnedBrief();
+    const design = await freeformRun(turn("a design"), {}, 5_000, brief, {
+      assignment: {
+        action: "rpi.design",
+        input: { researchArtifact: crypto.randomUUID() },
+      },
+    });
+    assertEquals(
+      (design.outcome as unknown as { fault: { code: string } }).fault.code,
+      "RPI_CAPABILITY_UNAVAILABLE",
+    );
+    assertEquals(design.published, []);
   },
 });

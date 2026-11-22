@@ -1,13 +1,44 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "4bc760431e6b489d6ed1647b18ea222f0952ee5d"
+    "1905d2af6760f58cb4524134d52bfcee9510ef93"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:3428fc0daed512dc4b5b86a3b937270ba7a3740191e24b1e2b90ff6cc2f49765",
-  "reason": "#19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 4bc760431e6b489d6ed1647b18ea222f0952ee5d: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:cba657d3b5e61ad4d178963a28b853b3413fa520ea24aa07bbf57d0c42fb6e6e",
+  "reason": "#24 rpi.research worker action by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 1905d2af6760f58cb4524134d52bfcee9510ef93: rpi.research joins the worker action table (the server dispatched its job but no worker contract existed, so nothing could claim it), so the worker job input union gains its ResearchInput variant and the worker result union gains the ResearchOutput variant (artifact plus the repository revision it read); the variants after them move one place; no client or worker could claim or send an rpi.research worker job before. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "fb86250aba2f328ad26671377a9ad2008aedf496"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:770002e627c102f3452a904db4196bd79dcc9f44933000d6814e1067193e04ca",
+      "reason": "Displaced by the #24 rpi.research rebind onto main 1905d2af6: main's own approval, kept unchanged. #24 bounded RPI actions by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main fb86250aba2f328ad26671377a9ad2008aedf496: rpi.plan joins the worker action table (it was an unavailable server handler with no worker contract), so the worker job input union gains its PlanInput variant and the variants after it move one place; nothing could claim or send an rpi.plan job before. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d47335a48d070ccf7b8461b375b110984b6c1985",
+        "dc0a1e6289030dfbd544136bc23d0e0bcaff10fd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d39302ddce6dc9fda8e6a4a80f4b854b604e12c2f749a38b7252831a291f58ea",
+      "reason": "Displaced by the #24 rpi.plan rebind onto main fb86250ab: main's own approval, kept unchanged. #406 one start mechanism by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main dc0a1e6289030dfbd544136bc23d0e0bcaff10fd: a workflow version carries its starts, so WorkflowVersion gains a required starts list (empty when it has none) and WorkflowDraftUpdate gains an optional starts list; no client or handler read or wrote starts before. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "4bc760431e6b489d6ed1647b18ea222f0952ee5d"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:3428fc0daed512dc4b5b86a3b937270ba7a3740191e24b1e2b90ff6cc2f49765",
+      "reason": "Displaced by the #406 workflow starts rebind onto main dc0a1e628: main's own approval, kept unchanged. #19 private previews re-bind by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 4bc760431e6b489d6ed1647b18ea222f0952ee5d: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

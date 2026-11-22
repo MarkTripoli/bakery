@@ -6,6 +6,13 @@ import {
 } from "./harness-context.ts";
 import { enforceWorkerFixedPolicy, type WorkerExecutor } from "./executor.ts";
 import {
+  executeRpiFreeform,
+  executeRpiResearch,
+  isRpiFreeformAction,
+  RPI_FREEFORM_ACTIONS,
+  RPI_RESEARCH_ACTION,
+} from "./harness-rpi.ts";
+import {
   FREEFORM_ACTION,
   FREEFORM_MAX_TIMEOUT_MS,
   freeformOutcome,
@@ -135,6 +142,12 @@ export const CLAUDE_EFFORT_LEVELS = Object.freeze(
 );
 
 export type ClaudeHarnessOptions = {
+  /**
+   * Whether this worker has the design tool `rpi.design` declares (the
+   * `paper` capability). Off unless set: a worker without it refuses the step as
+   * capability_unavailable rather than doing design work with no tool.
+   */
+  designToolAvailable?: boolean;
   /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
   readonly readAttemptContext?: ReadAttemptContext;
   /** Configured output redaction secrets; also withheld from published patches. */
@@ -1724,6 +1737,8 @@ async function executeClaudeFreeform(
   signal: AbortSignal,
   output: NativeOutputSink | undefined,
   options: ClaudeHarnessOptions,
+  /** A repository to read, for a step that reads one; otherwise an empty directory. */
+  workspace?: string,
 ): Promise<ExecutionOutcome> {
   await enforceWorkerFixedPolicy(assignment);
   const request = readFreeformRequest(assignment, CLAUDE_FREEFORM_NAMING);
@@ -1754,8 +1769,10 @@ async function executeClaudeFreeform(
 
   const config = await claudeConfigDirectory(options, assignment);
   try {
-    const workDir = join(config.root, "work");
-    await Deno.mkdir(workDir, { recursive: true, mode: 0o700 });
+    const workDir = workspace ?? join(config.root, "work");
+    if (workspace === undefined) {
+      await Deno.mkdir(workDir, { recursive: true, mode: 0o700 });
+    }
     const context = await prepareHarnessContext({
       assignment,
       attemptRoot: config.root,
@@ -2017,6 +2034,8 @@ export function createClaudeHarnessExecutor(
         HARNESS_REPAIR_ACTION,
         FREEFORM_ACTION,
         COORDINATOR_TURN_ACTION,
+        ...RPI_FREEFORM_ACTIONS,
+        RPI_RESEARCH_ACTION,
       ]),
     ],
     capturesNativeOutput: inner?.capturesNativeOutput ?? true,
@@ -2027,7 +2046,9 @@ export function createClaudeHarnessExecutor(
     async credentialRedactionSecrets(assignment) {
       if (
         !isHarnessEditAction(assignment.action) &&
-        assignment.action !== FREEFORM_ACTION
+        assignment.action !== FREEFORM_ACTION &&
+        !isRpiFreeformAction(assignment.action) &&
+        assignment.action !== RPI_RESEARCH_ACTION
       ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
@@ -2062,6 +2083,43 @@ export function createClaudeHarnessExecutor(
       if (assignment.action === FREEFORM_ACTION) {
         // No repository is touched, so the shared worktree latch is not taken.
         return executeClaudeFreeform(assignment, signal, output, options);
+      }
+      if (assignment.action === RPI_RESEARCH_ACTION) {
+        // Research reads the shared repository, so it waits for and holds the
+        // same latch an edit does: no edit runs in the tree while it reads.
+        return harnessBusy.settled().then(() => {
+          if (!harnessBusy.acquire()) {
+            return Promise.resolve(
+              claudeHarnessFault(
+                "CLAUDE_HARNESS_BUSY",
+                "The Claude Code harness is already running one bounded assignment against this repository; retry later.",
+                503,
+                true,
+              ),
+            );
+          }
+          return (async () =>
+            await executeRpiResearch(assignment, {
+              worktree: await options.repositoryFor(assignment),
+              failurePrefix: "CLAUDE_HARNESS",
+              runFreeform: (derived, workspace) =>
+                executeClaudeFreeform(
+                  derived,
+                  signal,
+                  output,
+                  options,
+                  workspace,
+                ),
+            }))().finally(harnessBusy.release);
+        });
+      }
+      if (isRpiFreeformAction(assignment.action)) {
+        // A design or a plan is a bounded freeform session over a pinned artifact.
+        return executeRpiFreeform(
+          assignment,
+          (derived) => executeClaudeFreeform(derived, signal, output, options),
+          { designToolAvailable: options.designToolAvailable },
+        );
       }
       if (!isHarnessEditAction(assignment.action)) {
         if (!inner) {

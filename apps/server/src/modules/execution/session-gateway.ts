@@ -41,6 +41,7 @@ import {
   resolveSessionCredential,
 } from "./session-credential-store.ts";
 import {
+  ACTION_GUARDED_POWERS,
   assertSessionToolAllowed,
   listSessionTools,
   powerForSessionScope,
@@ -271,9 +272,11 @@ export async function callSessionTool(
   }
 
   // Holding a granted power's scope proves the grant was live at claim, not that
-  // it still is: a revoked grant stops the next call, as it does for a decision.
+  // it still is: a revoked grant stops the next call. A power whose operation
+  // checks its own grant live (ACTION_GUARDED_POWERS) is left to it, so the
+  // refusal names its reason instead of a bare denial.
   const power = powerForSessionScope(scope);
-  if (power !== null) {
+  if (power !== null && !ACTION_GUARDED_POWERS.has(power)) {
     const origin = await attemptOrigin(
       input.transaction,
       open.claim.organizationId,
