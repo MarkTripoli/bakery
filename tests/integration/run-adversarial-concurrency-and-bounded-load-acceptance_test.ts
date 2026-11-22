@@ -13,8 +13,12 @@ import {
   closeWorkerScope,
   createWorkerScope,
   openWorkerFixture,
+  registeredWorker,
+  workerFixtureCapabilities,
+  workerRequest,
   type WorkerScope,
 } from "../helpers/worker-execution.ts";
+import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
 import {
   admitFundedModelRun as admit,
   fundedModelPolicy,
@@ -264,3 +268,85 @@ Deno.test("AC1: two admins demoting each other at once get a clean answer, never
       );
     }
   }));
+
+Deno.test("AC2: a flooded organization's queue never delays another organization's claim", async () => {
+  const fixture = await openWorkerFixture();
+  const database = fixture.pgDatabase;
+  let quiet: WorkerScope | undefined;
+  try {
+    quiet = await createWorkerScope(fixture, "fair-quiet-tenant", fixture);
+    // A noisy organization queues a backlog at the highest priority.
+    for (let index = 0; index < 40; index++) {
+      await seedEligibleNonmodelJob(
+        database,
+        fixture.organizationId,
+        fixture.principalId,
+        { priority: 100 },
+      );
+    }
+    const quietJob = await seedEligibleNonmodelJob(
+      database,
+      quiet.organizationId,
+      fixture.principalId,
+      { priority: 1 },
+    );
+    const noisyWorker = await registeredWorker(fixture, {
+      name: "fair-noisy",
+      slots: 4,
+    });
+    const quietWorker = await registeredWorker(fixture, {
+      name: "fair-quiet",
+      slots: 1,
+      scope: quiet,
+    });
+    const claim = (worker: typeof quietWorker) => {
+      const claimKey = crypto.randomUUID();
+      return workerRequest(
+        fixture,
+        worker.credential,
+        "/v1/worker/claims",
+        {
+          claimKey,
+          workerHostId: worker.registration.workerHostId,
+          capabilities: [...workerFixtureCapabilities],
+          supportedActions: ["quality.check"],
+        },
+        { idempotencyKey: claimKey },
+      );
+    };
+    // The noisy worker drains its own backlog while the quiet one claims.
+    const [quietClaim, ...noisyClaims] = await Promise.all([
+      claim(quietWorker),
+      ...Array.from({ length: 4 }, () => claim(noisyWorker)),
+    ]);
+    assertEquals(quietClaim.status, 200);
+    await quietClaim.body?.cancel();
+    await Promise.all(noisyClaims.map((response) => response.body?.cancel()));
+    const attempts = (await database.query<
+      { organization_id: string; job_id: string; worker_host_id: string }
+    >(
+      `select organization_id, job_id, worker_host_id from bakery.job_attempts
+        where worker_host_id = any($1::uuid[])`,
+      [[
+        quietWorker.registration.workerHostId,
+        noisyWorker.registration.workerHostId,
+      ]],
+    )).rows;
+    // The quiet organization's only job went to its own worker at once, and
+    // no worker ever crossed into the other organization's queue.
+    const quietAttempts = attempts.filter((row) =>
+      row.worker_host_id === quietWorker.registration.workerHostId
+    );
+    assertEquals(quietAttempts.map((row) => row.job_id), [quietJob.jobId]);
+    for (const row of attempts) {
+      const expected = row.worker_host_id ===
+          quietWorker.registration.workerHostId
+        ? quiet.organizationId
+        : fixture.organizationId;
+      assertEquals(row.organization_id, expected);
+    }
+  } finally {
+    if (quiet) await closeWorkerScope(fixture, quiet);
+    await closeWorkerFixture(fixture);
+  }
+});
