@@ -7591,7 +7591,7 @@ export const clientManifest = {
       "action": "evaluationBatches.list",
       "access": "Developer",
       "permission": "evaluationRun:read",
-      "input": "CursorQuery",
+      "input": "EvaluationBatchListQuery",
       "output": "Page<EvaluationBatch>",
       "event": "",
       "mcp": "",
@@ -7648,6 +7648,30 @@ export const clientManifest = {
         "RESOURCE_NOT_FOUND",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/run",
+      "action": "evaluationBatches.run",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchRun",
+      "output": "EvaluationBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
         "UNPROCESSABLE"
       ],
       "organizationContext": "required_authenticated_context",
@@ -19310,6 +19334,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",
@@ -32156,7 +32181,7 @@ export const clientManifest = {
           "description": "The immutable dataset the batch measures."
         },
         "candidate": {
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. EvaluationBatchCreate.candidate must contain at most 4000 UTF-8 bytes.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused. EvaluationBatchCreate.candidate must contain at most 4000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -32196,7 +32221,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 4000
         },
         "baseline": {
-          "description": "Optional pin of what the candidate is compared with, in the same shape. EvaluationBatchCreate.baseline must contain at most 4000 UTF-8 bytes.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape. EvaluationBatchCreate.baseline must contain at most 4000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -32246,6 +32271,17 @@ export const clientManifest = {
             "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. Each array item follows this format."
           },
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. EvaluationBatchCreate.scorerIds must contain at least 1 items. EvaluationBatchCreate.scorerIds must contain at most 50 items."
+        },
+        "optionalScorerIds": {
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away. EvaluationBatchCreate.optionalScorerIds must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away. Each array item follows this format."
+          }
         },
         "requireAllPassed": {
           "description": "Gate rule: every required result must pass. Defaults to true.",
@@ -32501,6 +32537,39 @@ export const clientManifest = {
         }
       }
     },
+    "EvaluationBatchListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pinDigest": {
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it. EvaluationBatchListQuery.pinDigest must contain at most 64 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 64
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationBatchListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationBatchListQuery.limit must be at least 1. EvaluationBatchListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
+    },
+    "EvaluationBatchRun": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -32542,6 +32611,10 @@ export const clientManifest = {
             "missing"
           ]
         },
+        "required": {
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both.",
+          "type": "boolean"
+        },
         "cursor": {
           "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationResultQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
@@ -32556,7 +32629,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -47458,6 +47531,7 @@ export const clientManifest = {
                   "evaluationBatches.list",
                   "evaluationBatches.get",
                   "evaluationBatches.cancel",
+                  "evaluationBatches.run",
                   "evaluationBatches.compare",
                   "evaluationBatchResults.list",
                   "evaluationAttempts.list",
@@ -68777,6 +68851,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",
@@ -111937,18 +112012,28 @@ export const clientManifest = {
                   "model"
                 ],
                 "description": "Deterministic check or model rubric."
+              },
+              "required": {
+                "type": "boolean",
+                "description": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
               }
             },
             "required": [
               "scorerId",
               "slug",
               "scorerRevision",
-              "evaluatorType"
+              "evaluatorType",
+              "required"
             ],
             "additionalProperties": false,
-            "description": "The scorer revisions pinned. Each array item follows this format."
+            "description": "The scorer revisions pinned, each with whether the gate requires it. Each array item follows this format."
           },
-          "description": "The scorer revisions pinned."
+          "description": "The scorer revisions pinned, each with whether the gate requires it."
+        },
+        "pinDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it."
         },
         "state": {
           "type": "string",
@@ -112031,6 +112116,304 @@ export const clientManifest = {
           ],
           "additionalProperties": false,
           "description": "Required candidate results per state."
+        },
+        "report": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results in the set."
+            },
+            "attempted": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results with at least one attempt."
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, and the latest attempt measured a pass."
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, and the latest attempt measured a fail."
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+            },
+            "unrun": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Never attempted: neither a pass nor a failure."
+            },
+            "interrupted": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Results with at least one attempt that was interrupted before it measured anything."
+            },
+            "recovered": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Of those, results whose latest attempt measured a pass or a fail."
+            },
+            "passedOfAttempted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "passed divided by attempted; null when nothing was attempted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+            },
+            "failedOfAttempted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "failed divided by attempted; null when nothing was attempted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+            },
+            "recoveredOfInterrupted": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "recovered divided by interrupted; null when nothing was interrupted."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+            }
+          },
+          "required": [
+            "total",
+            "attempted",
+            "passed",
+            "failed",
+            "unknown",
+            "unrun",
+            "interrupted",
+            "recovered",
+            "passedOfAttempted",
+            "failedOfAttempted",
+            "recoveredOfInterrupted"
+          ],
+          "additionalProperties": false,
+          "description": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those."
+        },
+        "optionalReport": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results in the set."
+                },
+                "attempted": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results with at least one attempt."
+                },
+                "passed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, and the latest attempt measured a pass."
+                },
+                "failed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, and the latest attempt measured a fail."
+                },
+                "unknown": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                },
+                "unrun": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Never attempted: neither a pass nor a failure."
+                },
+                "interrupted": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Results with at least one attempt that was interrupted before it measured anything."
+                },
+                "recovered": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Of those, results whose latest attempt measured a pass or a fail."
+                },
+                "passedOfAttempted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "passed divided by attempted; null when nothing was attempted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                },
+                "failedOfAttempted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "failed divided by attempted; null when nothing was attempted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                },
+                "recoveredOfInterrupted": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "recovered divided by interrupted; null when nothing was interrupted."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                }
+              },
+              "required": [
+                "total",
+                "attempted",
+                "passed",
+                "failed",
+                "unknown",
+                "unrun",
+                "interrupted",
+                "recovered",
+                "passedOfAttempted",
+                "failedOfAttempted",
+                "recoveredOfInterrupted"
+              ],
+              "additionalProperties": false,
+              "description": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.optionalReport may be null in this transport value."
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "limitUsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                  "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.limitUsd may be null in this transport value."
+            },
+            "settledUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+            },
+            "estimatedUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+            },
+            "unknownCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "none",
+                "within",
+                "exhausted",
+                "unsettled"
+              ],
+              "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+            },
+            "blocksNewAttempts": {
+              "type": "boolean",
+              "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+            },
+            "oldestUnknownAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "limitUsd",
+            "settledUsd",
+            "estimatedUsd",
+            "unknownCount",
+            "status",
+            "blocksNewAttempts",
+            "oldestUnknownAt"
+          ],
+          "additionalProperties": false,
+          "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
         },
         "gate": {
           "type": "object",
@@ -112179,10 +112562,14 @@ export const clientManifest = {
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
+        "budget",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -112647,18 +113034,28 @@ export const clientManifest = {
                         "model"
                       ],
                       "description": "Deterministic check or model rubric."
+                    },
+                    "required": {
+                      "type": "boolean",
+                      "description": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
                     }
                   },
                   "required": [
                     "scorerId",
                     "slug",
                     "scorerRevision",
-                    "evaluatorType"
+                    "evaluatorType",
+                    "required"
                   ],
                   "additionalProperties": false,
-                  "description": "The scorer revisions pinned. Each array item follows this format."
+                  "description": "The scorer revisions pinned, each with whether the gate requires it. Each array item follows this format."
                 },
-                "description": "The scorer revisions pinned."
+                "description": "The scorer revisions pinned, each with whether the gate requires it."
+              },
+              "pinDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it."
               },
               "state": {
                 "type": "string",
@@ -112741,6 +113138,304 @@ export const clientManifest = {
                 ],
                 "additionalProperties": false,
                 "description": "Required candidate results per state."
+              },
+              "report": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results in the set."
+                  },
+                  "attempted": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results with at least one attempt."
+                  },
+                  "passed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, and the latest attempt measured a pass."
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, and the latest attempt measured a fail."
+                  },
+                  "unknown": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                  },
+                  "unrun": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Never attempted: neither a pass nor a failure."
+                  },
+                  "interrupted": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Results with at least one attempt that was interrupted before it measured anything."
+                  },
+                  "recovered": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Of those, results whose latest attempt measured a pass or a fail."
+                  },
+                  "passedOfAttempted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "passed divided by attempted; null when nothing was attempted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                  },
+                  "failedOfAttempted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "failed divided by attempted; null when nothing was attempted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                  },
+                  "recoveredOfInterrupted": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "recovered divided by interrupted; null when nothing was interrupted."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "total",
+                  "attempted",
+                  "passed",
+                  "failed",
+                  "unknown",
+                  "unrun",
+                  "interrupted",
+                  "recovered",
+                  "passedOfAttempted",
+                  "failedOfAttempted",
+                  "recoveredOfInterrupted"
+                ],
+                "additionalProperties": false,
+                "description": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those."
+              },
+              "optionalReport": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "total": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results in the set."
+                      },
+                      "attempted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results with at least one attempt."
+                      },
+                      "passed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, and the latest attempt measured a pass."
+                      },
+                      "failed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, and the latest attempt measured a fail."
+                      },
+                      "unknown": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Attempted, but the latest attempt measured nothing, so the outcome is not known."
+                      },
+                      "unrun": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Never attempted: neither a pass nor a failure."
+                      },
+                      "interrupted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Results with at least one attempt that was interrupted before it measured anything."
+                      },
+                      "recovered": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Of those, results whose latest attempt measured a pass or a fail."
+                      },
+                      "passedOfAttempted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "passed divided by attempted; null when nothing was attempted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.passedOfAttempted may be null in this transport value."
+                      },
+                      "failedOfAttempted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "failed divided by attempted; null when nothing was attempted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.failedOfAttempted may be null in this transport value."
+                      },
+                      "recoveredOfInterrupted": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "recovered divided by interrupted; null when nothing was interrupted."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationCorpusReport.recoveredOfInterrupted may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "total",
+                      "attempted",
+                      "passed",
+                      "failed",
+                      "unknown",
+                      "unrun",
+                      "interrupted",
+                      "recovered",
+                      "passedOfAttempted",
+                      "failedOfAttempted",
+                      "recoveredOfInterrupted"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.optionalReport may be null in this transport value."
+              },
+              "budget": {
+                "type": "object",
+                "properties": {
+                  "limitUsd": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                        "description": "The most the batch may spend, in USD; null when it was admitted without a limit."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.limitUsd may be null in this transport value."
+                  },
+                  "settledUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
+                  },
+                  "estimatedUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+                  },
+                  "unknownCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "within",
+                      "exhausted",
+                      "unsettled"
+                    ],
+                    "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                  },
+                  "blocksNewAttempts": {
+                    "type": "boolean",
+                    "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+                  },
+                  "oldestUnknownAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "limitUsd",
+                  "settledUsd",
+                  "estimatedUsd",
+                  "unknownCount",
+                  "status",
+                  "blocksNewAttempts",
+                  "oldestUnknownAt"
+                ],
+                "additionalProperties": false,
+                "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
               },
               "gate": {
                 "type": "object",
@@ -112889,10 +113584,14 @@ export const clientManifest = {
               "baseline",
               "baselineDefinition",
               "scorers",
+              "pinDigest",
               "state",
               "requiredCount",
               "measuredCount",
               "counts",
+              "report",
+              "optionalReport",
+              "budget",
               "gate",
               "hiddenCount",
               "canceledAt",
@@ -113250,7 +113949,7 @@ export const clientManifest = {
               },
               "required": {
                 "type": "boolean",
-                "description": "Whether the gate needs it."
+                "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
               },
               "state": {
                 "type": "string",
@@ -113432,9 +114131,10 @@ export const clientManifest = {
                   "unscored",
                   "canceled",
                   "skipped",
-                  "missing"
+                  "missing",
+                  "interrupted"
                 ],
-                "description": "The attempt's outcome state."
+                "description": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered."
               },
               "reason": {
                 "anyOf": [
@@ -113507,6 +114207,49 @@ export const clientManifest = {
                 ],
                 "description": "EvaluationAttempt.traceRef may be null in this transport value."
               },
+              "usage": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "measurement": {
+                        "type": "string",
+                        "enum": [
+                          "reported",
+                          "estimated",
+                          "unknown"
+                        ],
+                        "description": "reported by the provider, estimated by Bakery, or unknown."
+                      },
+                      "costUsd": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                            "description": "Cost in USD; null when unknown. Never zero for an unknown cost."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationAttemptUsage.costUsd may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "measurement",
+                      "costUsd"
+                    ],
+                    "additionalProperties": false,
+                    "description": "What the attempt cost, from the usage ledger; null for a deterministic check, which costs nothing. A model attempt with no ledger row is unknown, never free."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.usage may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -113524,6 +114267,7 @@ export const clientManifest = {
               "startedAt",
               "endedAt",
               "traceRef",
+              "usage",
               "createdAt"
             ],
             "additionalProperties": false,

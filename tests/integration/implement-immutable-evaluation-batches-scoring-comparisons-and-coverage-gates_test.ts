@@ -314,7 +314,7 @@ Deno.test("a batch and its results carry the names a list shows, and a cancel na
         body: {
           datasetId: w.dataset.id,
           candidate: { kind: "agentVersion", id: agentId, version: 2 },
-          baseline: { kind: "workflow", id: workflowId, version: 1 },
+          baseline: { kind: "workflowVersion", id: workflowId, version: 1 },
           scorerIds: [w.schema.id],
         },
       }),
@@ -600,9 +600,45 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
   withWorkerFixture(async (fixture) => {
     const db = fixture.pgDatabase;
     const w = await world(fixture);
-    const batch = await admit(fixture, w, [w.rubric]);
+    // A $0.10 budget for the model scorer: the batch reads its spend from the ledger.
+    const batch = await ok(
+      await call(fixture, "POST", "/v1/evaluation-batches", {
+        body: {
+          datasetId: w.dataset.id,
+          candidate: {
+            kind: "agentVersion",
+            id: crypto.randomUUID(),
+            version: 2,
+          },
+          scorerIds: [w.rubric.id],
+          budgetLimitUsd: "0.10",
+        },
+      }),
+      201,
+    );
     const rows = await results(fixture, batch.id);
     assertEquals(rows.length, 2);
+    assertEquals(batch.budget, {
+      limitUsd: "0.100000",
+      settledUsd: "0.000000",
+      estimatedUsd: "0.000000",
+      unknownCount: 0,
+      status: "within",
+      blocksNewAttempts: false,
+      oldestUnknownAt: null,
+    });
+    const batchBudget = async () =>
+      (await ok(
+        await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+      )).budget;
+    const attemptUsage = async (resultId: unknown) =>
+      ((await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/evaluation-results/" + resultId + "/attempts",
+        ),
+      )).items as Json[]).map((a) => a.usage);
     await seedProviderPricingSnapshot(db);
     const capabilities = [
       ...new Set([
@@ -736,6 +772,19 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     ]);
     const measured = await stored(rows[0].id);
     assertEquals([measured?.state, measured?.score], ["failed", 0.25]);
+    // The attempt is linked to the ledger row, and the batch's budget reads it.
+    assertEquals(await attemptUsage(rows[0].id), [
+      { measurement: "reported", costUsd: "0.030000" },
+    ]);
+    assertEquals(await batchBudget(), {
+      limitUsd: "0.100000",
+      settledUsd: "0.030000",
+      estimatedUsd: "0.000000",
+      unknownCount: 0,
+      status: "within",
+      blocksNewAttempts: false,
+      oldestUnknownAt: null,
+    });
 
     // (b) A timed-out call: unknown usage under the attempt-named call id,
     // no cost. The hold stays reserved (money may be owed, never free) and
@@ -773,4 +822,23 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     const unmeasured = await stored(rows[1].id);
     assertEquals([unmeasured?.state, unmeasured?.score], ["unscored", null]);
     assert(String(unmeasured?.reason).includes("did not answer"));
+    // The timeout's cost is unknown, not zero: settled is unchanged and the
+    // batch can no longer say it stayed within its limit.
+    assertEquals(await attemptUsage(rows[1].id), [
+      { measurement: "unknown", costUsd: null },
+    ]);
+    const unsettled = await batchBudget() as Json;
+    assert(
+      typeof unsettled.oldestUnknownAt === "string",
+      "it says since when the cost has been unknown",
+    );
+    assertEquals({ ...unsettled, oldestUnknownAt: null }, {
+      limitUsd: "0.100000",
+      settledUsd: "0.030000",
+      estimatedUsd: "0.000000",
+      unknownCount: 1,
+      status: "unsettled",
+      blocksNewAttempts: true,
+      oldestUnknownAt: null,
+    });
   }));

@@ -341,7 +341,11 @@ export function pinTitle(
 
 /** The result words and tone for one scorer's line under a test case. */
 export function resultWords(
-  result: Pick<EvaluationBatchResult, "state" | "reason">,
+  // An attempt can also be "interrupted": it ended before it measured anything,
+  // so it reads as not scored, with its reason.
+  result: Pick<EvaluationBatchResult, "reason"> & {
+    readonly state: EvaluationBatchResult["state"] | "interrupted";
+  },
   live: boolean,
 ): Words {
   const reason = result.reason?.trim() ?? "";
@@ -351,6 +355,7 @@ export function resultWords(
     case "failed":
       return { key: "library.evaluations.result.failed" };
     case "error":
+    case "interrupted":
     case "unscored":
       return reason === ""
         ? { key: "library.evaluations.result.notScoredBare" }
