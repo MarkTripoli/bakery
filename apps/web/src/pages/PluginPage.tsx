@@ -613,8 +613,12 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     version.id !== row.versionId &&
                     row.cannotReadVersionIds.includes(version.id) &&
                     row.stateCopy?.versionId !== version.id;
+                  // The chip follows the unreadable list alone, so the version Bakery
+                  // keeps a copy for says the same thing as the notice above it
+                  // and not "Did not start"; its Go back stays (see cannotRead).
                   const failedBadge = (version: PluginVersion) =>
-                    cannotRead(version)
+                    version.id !== row.versionId &&
+                      row.cannotReadVersionIds.includes(version.id)
                       ? (
                         <UI.Badge tone="warning">
                           {translate("settings.plugins.versions.cannotRead")}
@@ -689,9 +693,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                         })
                       }`
                       : cannotRead(version)
-                      ? translate("settings.plugins.versions.cannotRead.hint", {
-                        current: row.versionName,
-                      })
+                      ? translate("settings.plugins.versions.cannotRead.hint")
                       : translate("settings.plugins.update.published", {
                         when: date(version.publishedAt!),
                       });

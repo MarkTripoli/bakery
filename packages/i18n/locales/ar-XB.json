@@ -6159,9 +6159,7 @@
   "library.workflow.editor.skills.slot.stopped.title": "⟪{name} cannot be used here⟫",
   "library.workflow.editor.skills.slot.stopped.titleUnnamed": "⟪A skill cannot be used here⟫",
   "settings.plugins.update.added.label": "⟪New in {version}: it also asks to⟫",
-  "settings.plugins.update.added.caption": "⟪{kept, plural, =0 {} one {It keeps the 1 it already has. } other {It keeps the # it already has. }}If {version} asks for anything else, Bakery does not switch and asks you again.⟫",
   "settings.plugins.update.added.changed": "⟪Version {version} now asks for a different list. Check it and allow again.⟫",
-  "settings.plugins.versions.cannotRead.hint": "⟪Ask the plugin's author for a version that reads data saved by {current}.⟫",
   "settings.plugins.update.added.confirm": "⟪Update and allow {count}⟫",
   "settings.plugins.goBack.allow": "⟪Go back and allow {count}⟫",
   "settings.plugins.update.cannotRead.title": "⟪Bakery did not switch to version {next}⟫",
@@ -6225,5 +6223,7 @@
   "library.evaluation.cost.exhausted.body": "⟪Checks still run, and they cost nothing.⟫",
   "library.evaluation.sampled.help": "⟪A model's opinion on a sample of the test cases.⟫",
   "library.evaluation.sampled.show": "⟪Show the {count, plural, one {# sampled result} other {# sampled results}}⟫",
-  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫"
+  "library.evaluation.sampled.listLabel": "⟪Sampled results⟫",
+  "settings.plugins.update.added.caption": "⟪{kept, plural, =0 {} one {It keeps the 1 permission it already has. } other {It keeps the # permissions it already has. }}If {version} asks for anything else, Bakery does not switch and asks you again.⟫",
+  "settings.plugins.versions.cannotRead.hint": "⟪Ask the plugin's author for a version that can read this data.⟫"
 }

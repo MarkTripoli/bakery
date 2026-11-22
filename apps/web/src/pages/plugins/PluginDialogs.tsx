@@ -209,6 +209,34 @@ export function InstallDialog(
 }
 
 /**
+ * What a version asks for beyond the installed one: a label and one row per
+ * permission. The Update and the restore dialog say it the same way, once.
+ */
+function AddedPermissions(
+  { version, added }: {
+    readonly version: string;
+    readonly added: readonly PluginCapability[];
+  },
+) {
+  const { translate } = useI18n();
+  const { name } = useCapabilityWords();
+  return (
+    <>
+      <UI.Text variant="strong">
+        {translate("settings.plugins.update.added.label", { version })}
+      </UI.Text>
+      <UI.Stack gap="tight" role="list">
+        {added.map((capability) => (
+          <UI.Text key={capability} role="listitem">
+            {name(capability)}
+          </UI.Text>
+        ))}
+      </UI.Stack>
+    </>
+  );
+}
+
+/**
  * Update to a newer version, or go back to an older one. If the other version
  * asks for different permissions, the difference is shown before anything
  * changes; nothing here promises more than the server does (the new version is
@@ -291,21 +319,13 @@ export function VersionChangeDialog(
         )}
         {changes
           ? (
-            <UI.Stack gap="tight">
+            <UI.Stack gap="standard">
               {difference.added.length === 0 ? null : (
                 <UI.Stack gap="tight">
-                  <UI.Text variant="strong">
-                    {translate("settings.plugins.update.added.label", {
-                      version: to.versionName,
-                    })}
-                  </UI.Text>
-                  <UI.Stack gap="tight" role="list">
-                    {difference.added.map((capability) => (
-                      <UI.Text key={capability} role="listitem">
-                        {words.name(capability)}
-                      </UI.Text>
-                    ))}
-                  </UI.Stack>
+                  <AddedPermissions
+                    version={to.versionName}
+                    added={difference.added}
+                  />
                   <UI.Text variant="caption">
                     {translate("settings.plugins.update.added.caption", {
                       kept: capabilitiesOf(to).length - difference.added.length,
@@ -419,7 +439,6 @@ export function RestoreDialog(
   },
 ) {
   const { locale, timeZone, translate } = useI18n();
-  const words = useCapabilityWords();
   const when = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -441,7 +460,7 @@ export function RestoreDialog(
       }
       confirmAction={
         <UI.Button
-          variant="primary"
+          variant="destructive"
           disabled={pending || failure === "noCopy"}
           onClick={() => onConfirm(added.length > 0 ? added : undefined)}
         >
@@ -470,13 +489,9 @@ export function RestoreDialog(
         <UI.Text>
           {translate("settings.plugins.restore.removed", { current })}
         </UI.Text>
-        {added.length === 0 ? null : (
-          <UI.Text variant="caption">
-            {translate("settings.plugins.update.added.label", {
-              version: to.versionName,
-            })} {words.list(added)}
-          </UI.Text>
-        )}
+        {added.length === 0
+          ? null
+          : <AddedPermissions version={to.versionName} added={added} />}
         <UI.Text variant="caption">
           {translate("settings.plugins.restore.caption", { current })}
         </UI.Text>

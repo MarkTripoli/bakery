@@ -6159,9 +6159,7 @@
   "library.workflow.editor.skills.slot.stopped.title": "⟦{name} çàññôŧ ƀë ûšëð ĥëŕë ŧëšŧ çô⟧",
   "library.workflow.editor.skills.slot.stopped.titleUnnamed": "⟦À šķïļļ çàññôŧ ƀë ûšëð ĥëŕë ŧëšŧ çô⟧",
   "settings.plugins.update.added.label": "⟦Ñëŵ ïñ {version}: ïŧ àļšô àšķš ŧô ŧëšŧ çôþÿ⟧",
-  "settings.plugins.update.added.caption": "⟦{kept, plural, =0 {} one {It keeps the 1 it already has. } other {It keeps the # it already has. }}Ïƒ {version} àšķš ƒôŕ àñÿŧĥïñĝ ëļšë, Ɓàķëŕÿ ðôëš ñôŧ šŵïŧçĥ àñð àšķš ÿôû àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "settings.plugins.update.added.changed": "⟦Ṽëŕšïôñ {version} ñôŵ àšķš ƒôŕ à ðïƒƒëŕëñŧ ļïšŧ. Çĥëçķ ïŧ àñð àļļôŵ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "settings.plugins.versions.cannotRead.hint": "⟦Àšķ ŧĥë þļûĝïñ'š àûŧĥôŕ ƒôŕ à ṽëŕšïôñ ŧĥàŧ ŕëàðš ðàŧà šàṽëð ƀÿ {current}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "settings.plugins.update.added.confirm": "⟦Ûþðàŧë àñð àļļôŵ {count} ŧëšŧ ç⟧",
   "settings.plugins.goBack.allow": "⟦Ĝô ƀàçķ àñð àļļôŵ {count} ŧëšŧ ç⟧",
   "settings.plugins.update.cannotRead.title": "⟦Ɓàķëŕÿ ðïð ñôŧ šŵïŧçĥ ŧô ṽëŕšïôñ {next} ŧëšŧ çôþÿ ŧ⟧",
@@ -6225,5 +6223,7 @@
   "library.evaluation.cost.exhausted.body": "⟦Çĥëçķš šŧïļļ ŕûñ, àñð ŧĥëÿ çôšŧ ñôŧĥïñĝ. ŧëšŧ çôþÿ ŧ⟧",
   "library.evaluation.sampled.help": "⟦À ɱôðëļ'š ôþïñïôñ ôñ à šàɱþļë ôƒ ŧĥë ŧëšŧ çàšëš. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.evaluation.sampled.show": "⟦Šĥôŵ ŧĥë {count, plural, one {# sampled result} other {# sampled results}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "library.evaluation.sampled.listLabel": "⟦Šàɱþļëð ŕëšûļŧš ŧëš⟧"
+  "library.evaluation.sampled.listLabel": "⟦Šàɱþļëð ŕëšûļŧš ŧëš⟧",
+  "settings.plugins.update.added.caption": "⟦{kept, plural, =0 {} one {It keeps the 1 permission it already has. } other {It keeps the # permissions it already has. }}Ïƒ {version} àšķš ƒôŕ àñÿŧĥïñĝ ëļšë, Ɓàķëŕÿ ðôëš ñôŧ šŵïŧçĥ àñð àšķš ÿôû àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "settings.plugins.versions.cannotRead.hint": "⟦Àšķ ŧĥë þļûĝïñ'š àûŧĥôŕ ƒôŕ à ṽëŕšïôñ ŧĥàŧ çàñ ŕëàð ŧĥïš ðàŧà. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
 }

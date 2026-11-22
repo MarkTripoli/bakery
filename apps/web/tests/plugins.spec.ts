@@ -143,7 +143,10 @@ type Fixture = {
   /** Status the next write answers with, once. */
   refuseNextWrite: { status: number; code: string; reason?: string } | null;
   /** The next version change is refused the way the server does: answered as the install, failure recorded. */
-  failNextUpdate: boolean;
+  failNextUpdate: boolean | {
+    readonly reason: string;
+    readonly addedCapabilities: readonly string[];
+  };
   /** What the plugin has saved, and the status the read answers with. */
   saved: SavedItem[];
   savedStatus: number;
@@ -316,13 +319,18 @@ async function pluginsFixture(
     );
     if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
     if (body?.versionId && state.failNextUpdate) {
+      const refusal = typeof state.failNextUpdate === "object"
+        ? state.failNextUpdate
+        : { reason: "plugin_sdk_incompatible", addedCapabilities: [] };
       state.failNextUpdate = false;
       target.lastUpdateFailure = {
         versionId: String(body.versionId),
         versionName: "1.1.0",
-        reason: "plugin_sdk_incompatible",
+        reason: refusal.reason,
         at: "2026-11-19T21:00:00.000Z",
-      };
+        restoreState: false,
+        addedCapabilities: [...refusal.addedCapabilities],
+      } as Install["lastUpdateFailure"];
       target.version += 1;
       return route.fulfill(json(target));
     }
@@ -796,6 +804,20 @@ for (
         "Run on a schedule",
       ]);
       await expect(
+        dialog.getByText("It keeps the 2 permissions it already has."),
+      ).toBeVisible();
+      // The caption sits close under its list; the next block is set apart.
+      const [listBox, captionBox, noLongerBox] = [
+        await dialog.getByRole("listitem").boundingBox(),
+        await dialog.getByText("It keeps the 2 permissions it already has.")
+          .boundingBox(),
+        await dialog.getByText("It will no longer: Save its own data.")
+          .boundingBox(),
+      ];
+      expect(
+        noLongerBox!.y - (captionBox!.y + captionBox!.height),
+      ).toBeGreaterThan(captionBox!.y - (listBox!.y + listBox!.height));
+      await expect(
         dialog.getByText(
           "If 1.1.0 asks for anything else, Bakery does not switch and asks you again.",
         ),
@@ -1034,7 +1056,7 @@ for (
       const row = page.locator(`[data-plugin-version="${NOTES_V1}"]`);
       await expect(row).toContainText("Cannot read the saved data");
       await expect(row).toContainText(
-        "Ask the plugin's author for a version that reads data saved by 1.1.0.",
+        "Ask the plugin's author for a version that can read this data.",
       );
       // No button, not a faded one: there is nothing the person can do here.
       await expect(page.getByRole("button", { name: "Go back to 1.0.0" }))
@@ -1081,6 +1103,10 @@ for (
         windowOnly: true,
       });
       await still(page, "plugin-cannot-read-notice");
+      // The row says what the notice says, once: not "Did not start".
+      const keptRow = page.locator(`[data-plugin-version="${NOTES_V2}"]`);
+      await expect(keptRow).toContainText("Cannot read the saved data");
+      await expect(keptRow).not.toContainText("Did not start");
       await notice.getByRole("button", { name: "Go back and restore its data" })
         .click();
       const dialog = page.getByRole("alertdialog");
@@ -1088,6 +1114,17 @@ for (
         "Go back to 1.1.0 and restore its data?",
       );
       await expect(dialog).toContainText(": 3 items.");
+      // The permission it allows is a label and a row, as in the Update dialog,
+      // and not a second caption; going back removes data, so the button says so.
+      await expect(dialog.getByText("New in 1.1.0: it also asks to", {
+        exact: true,
+      })).toBeVisible();
+      await expect(dialog.getByRole("listitem")).toHaveText([
+        "Run on a schedule",
+      ]);
+      await expect(
+        dialog.getByRole("button", { name: "Go back, restore and allow 1" }),
+      ).toHaveAttribute("data-variant", "destructive");
       await expect(dialog).toContainText(
         "Everything it saved after that, on 1.0.0, is removed.",
       );
@@ -1106,6 +1143,30 @@ for (
         (state.writes[0].body as { approveCapabilities?: string[] })
           .approveCapabilities,
       ).toEqual(["jobs.schedule"]);
+    });
+
+    test("a refused approval keeps the dialog open with one warning and raises no page notice", async ({ page }) => {
+      const state = await pluginsFixture(page);
+      await page.goto("/settings/organization/plugins");
+      await page.getByRole("button", { name: "Review update of Notes" })
+        .click();
+      const dialog = page.getByRole("dialog");
+      // The server answers the way it does when the list changed under the person.
+      state.failNextUpdate = {
+        reason: "plugin_capabilities_not_approved",
+        addedCapabilities: ["jobs.schedule", "state.write"],
+      };
+      await dialog.getByRole("button", { name: "Update and allow 1" }).click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("alert")).toHaveCount(1);
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "Version 1.1.0 now asks for a different list. Check it and allow again.",
+      );
+      expect(state.writes).toHaveLength(1);
+      // Closing it leaves no page notice behind.
+      await dialog.getByRole("button", { name: "Not now" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("alert")).toHaveCount(0);
     });
 
     test("a refused approval never raises a page notice", async ({ page }) => {
