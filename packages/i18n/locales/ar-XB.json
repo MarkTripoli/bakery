@@ -6110,5 +6110,8 @@
   "library.workflow.editor.skills.picker.find": "⟪Find a skill⟫",
   "library.workflow.editor.skills.picker.noMatch": "⟪No skill matches \"{text}\".⟫",
   "library.workflow.editor.skills.picker.versionTail": "⟪ · Version {version}⟫",
-  "library.workflow.editor.skills.picker.slugTail": "⟪ · {slug}⟫"
+  "library.workflow.editor.skills.picker.slugTail": "⟪ · {slug}⟫",
+  "library.editor.group.fixUntilPasses": "⟪Fix until it passes⟫",
+  "library.editor.group.fixLimit": "⟪At most {max, plural, one {# try} other {# tries}}⟫",
+  "library.editor.group.fixHelp": "⟪Fixes what the checks and the review found, then checks and reviews again. If the first review is already clean, this block is skipped.⟫"
 }

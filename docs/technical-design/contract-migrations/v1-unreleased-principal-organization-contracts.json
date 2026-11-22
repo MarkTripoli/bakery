@@ -1,13 +1,33 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "b750d78a4c2b196d70369f8d2900057c3109609b"
+    "c0f886bf8ac73fe9333f75534360e8a7a383db72"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:d47ac3c7bd58971f61ef44af1c783aa0660dcbff35045e62bf878ad49517896a",
-  "reason": "#39 proposals read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main b750d78a4c2b196d70369f8d2900057c3109609b: WorkflowDefinitionProposal gains a required, nullable decidedByName (the decider's current display name) so the conversation can say who accepted or rejected a proposal. Main's own #431 approval it displaces is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:b7783aa18b7e646a6a052a3735b601fac76c9523d0b4b3eabc3509250d7a6250",
+  "reason": "#39 proposals read by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main c0f886bf8ac73fe9333f75534360e8a7a383db72: WorkflowDefinitionProposal gains a required, nullable decidedByName (the decider's current display name) so the conversation can say who accepted or rejected a proposal. Main's own #42 approval it displaces is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "6383ab14bf813b5f3e2ded3af9c8eaad892343bc"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:e2186db90c4ab331ef2d618e8a37454155a10040e69f5a1367165582e5edb32f",
+      "reason": "#42 and #74 by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 6383ab14bf813b5f3e2ded3af9c8eaad892343bc: Skill carries its description and SkillSource its name; skills.list takes a name search; skillVersions.list is implemented; skills.setActiveVersion, skillImports.get, skills.takeSourceUpdate and skillDraftFiles.rename are new; SkillVersion carries publishedAt and label; skills.import takes an optional revision (a web-address archive is pinned by its digest), label and scope. My earlier approval on main b750d78a4 is kept first below, then main's own #431 approval it displaced."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b750d78a4c2b196d70369f8d2900057c3109609b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c3794204f1e29bc7ea756ede5cbe7bcd8301df62f8bfdb1292386ace01dfa748",
+      "reason": "#42 and #74 by dev-server on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main b750d78a4c2b196d70369f8d2900057c3109609b: Skill carries its description and SkillSource its name; skills.list takes a name search; skillVersions.list is implemented; skills.setActiveVersion, skillImports.get, skills.takeSourceUpdate and skillDraftFiles.rename are new; SkillVersion carries publishedAt and label; skills.import takes an optional revision (a web-address archive is pinned by its digest), label and scope. Main's own #431 approval it displaces is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
