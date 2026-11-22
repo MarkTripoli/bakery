@@ -1271,6 +1271,17 @@ for (
       await expect(skills).toContainText("Needs attention");
       await expect(skills).not.toContainText("Not here");
       await expect(skills.getByRole("link")).toHaveCount(0);
+      // A help tip does not make its row taller: the name-to-version distance is the same with and without one.
+      const nameToLine = async (name: string) => {
+        const row = skills.getByRole("listitem").filter({ hasText: name });
+        const title = await row.getByText(name, { exact: true }).boundingBox();
+        const line = await row.locator(".ui-text--muted").boundingBox();
+        if (title === null || line === null) throw new Error("no boxes");
+        return line.y - title.y;
+      };
+      const plain = await nameToLine("Code style");
+      expect(Math.abs((await nameToLine("Security review")) - plain))
+        .toBeLessThanOrEqual(2);
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-skills");
     });

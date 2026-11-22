@@ -285,7 +285,7 @@ function SkillRow(
   const personal = row.scope === "personal";
   return (
     <UI.Stack gap="tight" role="listitem">
-      <UI.Inline gap="compact">
+      <UI.Inline data-hung-tip gap="compact">
         <UI.Text variant="strong">{name}</UI.Text>
         {personal ? <UI.Badge tone="neutral">{t("private")}</UI.Badge> : null}
         {personal && !row.mine
