@@ -35,6 +35,11 @@ import {
  * type). The release directory of a local target lives on the server host, so a
  * worker could not reach it.
  *
+ * The plan's own `effectKey` input is validated and kept in the step's record, but
+ * the key the target sees is the step's identity, which is stricter: two deploy
+ * steps (or two iterations of one) that an author gave the same key still get
+ * their own effects.
+ *
  * One effect key runs end to end: the step key `<runId>:<stepKey>:<iteration>`
  * is the scope of the deployment record's request, of the effect key the target
  * journals (`deploy:<scope>`) and of any rollback key. A replayed or resumed
