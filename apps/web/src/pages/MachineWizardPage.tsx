@@ -73,25 +73,26 @@ function installedAsText(row: SystemRow, translate: Translator): string {
     : translate(`machines.wizard.installedAs.${row.installedAs}` as never);
 }
 
-/** A cell of the table: quiet for a system Bakery cannot set up. */
-function cellText(row: SystemRow, text: string) {
-  return row.supported ? text : <UI.Text variant="muted">{text}</UI.Text>;
+/** A system as a person reads it: `Linux arm64`, `macOS arm64 (Apple silicon)`. */
+function systemName(row: SystemRow, translate: Translator): string {
+  return `${translate(`machines.os.${row.os}` as never)} ${
+    processorText(row, translate)
+  }`;
 }
 
-function SupportBadge(
-  { row, translate }: { row: SystemRow; translate: Translator },
-) {
-  return row.supported
-    ? (
-      <UI.Badge tone="success">
-        {translate("machines.wizard.support.supported" as never)}
-      </UI.Badge>
-    )
-    : (
-      <UI.Badge>
-        {translate("machines.wizard.support.notYet" as never)}
-      </UI.Badge>
-    );
+/** The one line naming the systems that cannot be chosen; not drawn when every system can. */
+function UnsupportedSystems({ translate }: { translate: Translator }) {
+  const unsupported = SYSTEM_ROWS.filter((row) => !row.supported);
+  if (unsupported.length === 0) return null;
+  return (
+    <UI.Text variant="muted" id="machine-wizard-unsupported-systems">
+      {translate("machines.wizard.systemFootnote" as never, {
+        systems: unsupported.map((row) => systemName(row, translate)).join(
+          ", ",
+        ),
+      })}
+    </UI.Text>
+  );
 }
 
 /** The systems Bakery lists: one table to choose from, cards on a phone. */
@@ -104,9 +105,9 @@ function SystemChoice(
 ) {
   const phone = useShellViewport() === "phone";
   const chosen = systemRow(answers.os, answers.architecture)?.id ?? null;
-  // Only a supported row can be chosen; the agent follows only if the row has it.
+  // Only supported systems are drawn, so every row can be chosen; the agent follows only if the row has it.
+  const rows = SYSTEM_ROWS.filter((row) => row.supported);
   const choose = (row: SystemRow) => {
-    if (!row.supported) return;
     onChange({
       ...answers,
       os: row.os,
@@ -122,20 +123,17 @@ function SystemChoice(
   if (phone) {
     return (
       <UI.Stack gap="compact" role="radiogroup" aria-label={label}>
-        {SYSTEM_ROWS.map((row) => (
+        {rows.map((row) => (
           <UI.PresetOption
             key={row.id}
             name="machine-wizard-system"
             value={row.id}
             checked={chosen === row.id}
-            disabled={!row.supported}
             onChange={() => choose(row)}
             title={`${osName(row)} · ${processorText(row, translate)}`}
-            description={row.supported
-              ? `${installedAsText(row, translate)} · ${
-                agentsText(row, translate)
-              }`
-              : translate("machines.wizard.support.notYet" as never)}
+            description={`${installedAsText(row, translate)} · ${
+              agentsText(row, translate)
+            }`}
           />
         ))}
       </UI.Stack>
@@ -147,12 +145,11 @@ function SystemChoice(
       captionHidden
       variant="ruled"
       inset="none"
-      rows={[...SYSTEM_ROWS]}
+      rows={rows}
       getRowKey={(row) => row.id}
       getRowAttributes={(row) => ({
         "data-system-id": row.id,
         ...(chosen === row.id ? { "data-selected": "true" } : {}),
-        ...(row.supported ? {} : { "data-muted": "true" }),
       })}
       columns={[
         {
@@ -164,7 +161,6 @@ function SystemChoice(
               name="machine-wizard-system"
               value={row.id}
               checked={chosen === row.id}
-              disabled={!row.supported}
               aria-label={`${osName(row)} ${processorText(row, translate)}`}
               onChange={() => choose(row)}
             >
@@ -174,33 +170,26 @@ function SystemChoice(
         },
         {
           id: "system",
-          width: "12%",
+          width: "14%",
           header: translate("machines.wizard.column.system" as never),
-          cell: (row) => cellText(row, osName(row)),
+          cell: (row) => osName(row),
         },
         {
           id: "processor",
-          width: "20%",
+          width: "22%",
           header: translate("machines.wizard.column.processor" as never),
-          cell: (row) => cellText(row, processorText(row, translate)),
+          cell: (row) => processorText(row, translate),
         },
         {
           id: "installedAs",
-          width: "24%",
+          width: "30%",
           header: translate("machines.wizard.column.installedAs" as never),
-          cell: (row) => cellText(row, installedAsText(row, translate)),
+          cell: (row) => installedAsText(row, translate),
         },
         {
           id: "agents",
-          width: "18%",
           header: translate("machines.wizard.column.agents" as never),
-          cell: (row) => cellText(row, agentsText(row, translate)),
-        },
-        {
-          id: "support",
-          width: "20%",
-          header: translate("machines.wizard.column.support" as never),
-          cell: (row) => <SupportBadge row={row} translate={translate} />,
+          cell: (row) => agentsText(row, translate),
         },
       ]}
     />
@@ -252,9 +241,7 @@ function SystemStep(
           onChange={onChange}
           translate={translate}
         />
-        <UI.Text variant="muted">
-          {translate("machines.wizard.systemFootnote" as never)}
-        </UI.Text>
+        <UnsupportedSystems translate={translate} />
       </UI.Stack>
       <UI.Field
         label={translate("machines.wizard.slots" as never)}

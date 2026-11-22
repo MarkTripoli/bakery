@@ -136,8 +136,9 @@ test.describe("machines touch targets on a coarse phone", () => {
     // A retired machine has one action, in its banner.
     await expect(detail.getByRole("button", { name: "Set up again" }))
       .toBeVisible();
-    await expect(detail.getByRole("button", { name: "Try again" }).first())
-      .toBeVisible();
+    // A retired machine draws no Checks, so there is no blockers retry either.
+    await expect(detail.getByRole("button", { name: "Try again" }))
+      .toHaveCount(0);
 
     expect(undersized(await measureTargets(page))).toEqual([]);
   });
