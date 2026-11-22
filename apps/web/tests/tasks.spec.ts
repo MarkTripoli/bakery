@@ -479,8 +479,9 @@ test("on a phone an applied search shows the icon and the term on one row, with 
     for (const term of terms) {
       await (await searchField(page)).fill(term);
       await dismissFilters(page);
-      // The button's name is "Search: <term>"; what is drawn is the search icon
-      // and the term, which shrinks (ellipsis) only when it is itself too long.
+      // The button's name is "Search filter" and it holds "Search: <term>"; what
+      // is drawn is the search icon and the term, which shrinks (ellipsis) only
+      // when it is itself too long.
       const trigger = searchButton("Search filter");
       await expect(trigger).toBeVisible();
       // The button says which term it holds, to a screen reader as well as to the eye.
@@ -2687,6 +2688,17 @@ for (const locale of ["en", "en-XA", "ar-XB"]) {
       .toBeVisible();
     const pane = page.locator('[data-ui-component="artifactPane"]');
     await expectAsideFacts(pane, briefDigest(1, "application/json"));
+    // At 320 px the Fingerprint name, its info icon and the value never overlap,
+    // whatever the locale's name is.
+    const fingerprint = pane.getByTestId("artifact-fingerprint-row");
+    const icon = (await fingerprint.locator(".ui-help-tip .ui-icon").first()
+      .boundingBox())!;
+    const value = (await fingerprint.locator('[data-ui-component="dataText"]')
+      .first().boundingBox())!;
+    expect(
+      icon.x < value.x + value.width && value.x < icon.x + icon.width &&
+        icon.y < value.y + value.height && value.y < icon.y + icon.height,
+    ).toBe(false);
     await expect(pane.locator("pre")).toHaveAttribute("dir", "ltr");
     await expect(pane.locator("pre")).toHaveCSS("direction", "ltr");
     expect(
@@ -2696,5 +2708,37 @@ for (const locale of ["en", "en-XA", "ar-XB"]) {
       ),
     ).toBe(true);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+}
+
+// The artifact Details, open, as a still: desktop and phone, light and dark, in a
+// left-to-right and a right-to-left locale. Written only when stills are asked for.
+for (
+  const [locale, narrow] of [["en", null], ["ar-XB", null], [
+    "ar-XB",
+    320,
+  ]] as const
+) {
+  test(`still: the artifact details open, ${locale}${narrow ? ` at ${narrow}` : ""}`, async ({ page }) => {
+    if (narrow) await page.setViewportSize({ width: narrow, height: 800 });
+    await page.addInitScript((value) => {
+      Object.defineProperty(navigator, "languages", {
+        configurable: true,
+        value: [value],
+      });
+    }, locale);
+    await mockUserPreferences(page, {
+      effectiveLocale: locale,
+      direction: locale === "ar-XB" ? "rtl" : "ltr",
+    });
+    await mockArtifact(page, { mediaType: "application/json" });
+    await page.goto(`/tasks/${id}`);
+    const pane = page.locator('[data-ui-component="artifactPane"]');
+    await expectAsideFacts(pane, briefDigest(1, "application/json"));
+    await still(
+      page,
+      `artifact-details-${locale}${narrow ? `-${narrow}` : ""}`,
+      pane,
+    );
   });
 }
