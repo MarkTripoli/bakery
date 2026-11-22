@@ -259,3 +259,67 @@ export async function freeformOutcome(options: {
     } as unknown as import("../../../packages/contracts/src/contracts.ts").JsonValue,
   };
 }
+
+/**
+ * Reads JSON Lines from a child's stdout as chunks arrive. A line that is not a
+ * JSON object is counted and skipped: a stream with noise on it is still read,
+ * and the caller decides whether the count means the stream cannot be trusted.
+ */
+export function createJsonlReader(
+  onRecord: (record: Record<string, unknown>) => void,
+): { feed(chunk: Uint8Array): void; finish(): void; readonly skipped: number } {
+  const decoder = new TextDecoder();
+  let pending = "";
+  let skipped = 0;
+  const line = (text: string) => {
+    const trimmed = text.trim();
+    if (trimmed === "") return;
+    try {
+      const value = JSON.parse(trimmed);
+      if (
+        value !== null && typeof value === "object" && !Array.isArray(value)
+      ) {
+        onRecord(value as Record<string, unknown>);
+        return;
+      }
+    } catch {
+      // Counted below.
+    }
+    skipped++;
+  };
+  return {
+    feed(chunk) {
+      pending += decoder.decode(chunk, { stream: true });
+      let newline = pending.indexOf("\n");
+      while (newline >= 0) {
+        line(pending.slice(0, newline));
+        pending = pending.slice(newline + 1);
+        newline = pending.indexOf("\n");
+      }
+      // A line that never ends is not kept without bound.
+      if (pending.length > 1_048_576) {
+        pending = "";
+        skipped++;
+      }
+    },
+    finish() {
+      line(pending + decoder.decode());
+      pending = "";
+    },
+    get skipped() {
+      return skipped;
+    },
+  };
+}
+
+/**
+ * Dollars per million tokens used when a CLI reports tokens and not money. It is
+ * deliberately above any current model's price, so an estimate built on it stops
+ * a session early rather than late.
+ */
+export const FREEFORM_CONSERVATIVE_USD_PER_MILLION_TOKENS = 75;
+
+/** A conservative cost, in dollars, for a token count. */
+export function conservativeCostUsd(tokens: number): number {
+  return (tokens / 1_000_000) * FREEFORM_CONSERVATIVE_USD_PER_MILLION_TOKENS;
+}
