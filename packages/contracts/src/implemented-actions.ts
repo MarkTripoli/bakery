@@ -194,6 +194,7 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationAccessList: "conversationAccess.list",
     ConversationAccessRevoke: "conversationAccess.revoke",
     ConversationAccessSharers: "conversationAccess.sharers",
+    WorkflowDefinitionProposalsList: "workflowDefinitionProposals.list",
   } as const satisfies Record<string, CatalogActionName>,
 );
 

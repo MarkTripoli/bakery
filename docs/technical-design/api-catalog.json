@@ -8538,6 +8538,28 @@
     },
     {
       "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/workflow-definition-proposals",
+      "action": "workflowDefinitionProposals.list",
+      "access": "Developer",
+      "permission": "conversation:read",
+      "input": "CursorQuery",
+      "output": "Page<WorkflowDefinitionProposal>",
+      "event": "",
+      "mcp": "bakery_workflowDefinitionProposals_list",
+      "idempotency": "read",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
       "method": "POST",
       "path": "/v1/conversations/{id}/access/{principalId}/revoke",
       "action": "conversationAccess.revoke",
