@@ -395,6 +395,8 @@ export const DeliveryImplementedAction = Object.freeze(
     RunReviewsAccept: "runReviews.accept",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
+    RunRepairAllowancesCreate: "runRepairAllowances.create",
+    RunRepairTriesList: "runRepairTries.list",
     PullRequestsList: "pullRequests.list",
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",

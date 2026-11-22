@@ -986,9 +986,9 @@ Deno.test("a scheduled red run records itself as a tracking issue", async () => 
     job.get("if"),
     "${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}",
   );
-  // It runs after the aggregate and cannot gate it: a signal bug must never
-  // turn a green nightly red.
-  assertEquals(job.toJSON().needs, ["aggregate"]);
+  // It runs after the aggregate and the nightly load job (not in aggregate)
+  // and cannot gate them: a signal bug must never turn a green nightly red.
+  assertEquals(job.toJSON().needs, ["aggregate", "load"]);
   const permissions = job.toJSON().permissions;
   assertEquals(permissions.issues, "write");
   assertEquals(permissions.contents, "read");

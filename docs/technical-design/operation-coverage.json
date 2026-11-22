@@ -822,6 +822,10 @@
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/provider/0004_two_factor_assurance.sql"
       },
+      "repair_allowances": {
+        "module": "delivery",
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0330_repair_allowances.sql"
+      },
       "repository_onboardings": {
         "module": "projects",
         "migration": "apps/server/src/modules/projects/migrations/bakery/0048_issue46_trusted_inspection.sql"

@@ -7722,6 +7722,53 @@
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/runs/{id}/repair-allowances",
+      "action": "runRepairAllowances.create",
+      "access": "Admin",
+      "permission": "review:accept",
+      "organizationContext": "required_authenticated_context",
+      "input": "RepairAllowanceCreate",
+      "output": "DeliveryDecision",
+      "event": "",
+      "mcp": "bakery_runRepairAllowances_create",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/runs/{id}/repair-tries",
+      "action": "runRepairTries.list",
+      "access": "Developer",
+      "permission": "review:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "CursorQuery",
+      "output": "Page<RepairTry>",
+      "event": "",
+      "mcp": "bakery_runRepairTries_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/runs/{id}/delivery-decisions",
       "action": "runDeliveryDecisions.list",

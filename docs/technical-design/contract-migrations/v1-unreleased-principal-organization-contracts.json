@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "9d3cc811ffa70b2ec8263a5d206b1a6339737edc"
+    "03757c2b709d6f1cef448c11678e7ec520ae98de"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:b8cb3600d0baadf38dedc62a2f370eecea808356d7ff4aaf53eff229faa1fe0e",
-  "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 9d3cc811ffa70b2ec8263a5d206b1a6339737edc: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it.",
+  "targetCompatibilityDigest": "sha256:c76c357c013c89599a608f0293ca6edef5f2c57e80dc9506dd87176ea7504a45",
+  "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 03757c2b709d6f1cef448c11678e7ec520ae98de: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "9d3cc811ffa70b2ec8263a5d206b1a6339737edc"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b8cb3600d0baadf38dedc62a2f370eecea808356d7ff4aaf53eff229faa1fe0e",
+      "reason": "#74 skill reads by dev-agx on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 9d3cc811ffa70b2ec8263a5d206b1a6339737edc: a skill page must show what is in a published version, so skillVersions.get and skillFiles.get are registered for a person to read (they were served only to a pinned worker), and SkillUseGrant gains revision, the ordinal of the granted version in its skill's history, so a reader names the exact version a workflow uses without listing the history to find it."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

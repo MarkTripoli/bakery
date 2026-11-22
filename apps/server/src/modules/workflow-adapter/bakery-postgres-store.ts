@@ -44,6 +44,7 @@ import {
   type BudgetPolicy,
   reserveWorkflowAction,
 } from "../work/budget.ts";
+import { pinStepContextInputs } from "./step-context-inputs.ts";
 import {
   type AdmissionRecord,
   assertLogicalKey,
@@ -909,7 +910,12 @@ async function finishPlanRunIn(
  * anything. The engine names no template and no module behind either: the host
  * injects the reader where it builds the engine.
  */
-export type PlanHostFacts = Readonly<{ delivery?: JsonValue; halt?: string }>;
+export type PlanHostFacts = Readonly<{
+  delivery?: JsonValue;
+  halt?: string;
+  /** Tries allowed beyond a repeat's `max`, by its step key; see `RunState.repeatExtra`. */
+  repeatExtra?: Readonly<Record<string, number>>;
+}>;
 
 /** Reads {@link PlanHostFacts} for one run, inside the engine's transaction. */
 export type PlanHostReader = (
@@ -930,6 +936,7 @@ async function askPlan(
   transaction: PgTransactionClient,
   run: Pick<RunEndRow, "organizationId" | "runId" | "runSnapshot">,
   delivery?: JsonValue,
+  repeatExtra?: Readonly<Record<string, number>>,
 ) {
   const runtime = await planRuntimeFromSnapshot(run.runSnapshot);
   if (runtime === null) throw new PlanStateError("plan_snapshot_invalid");
@@ -946,6 +953,7 @@ async function askPlan(
     inputs: planInputsFromSnapshot(run.runSnapshot),
     task: planTaskFromSnapshot(run.runSnapshot),
     ...(delivery === undefined ? {} : { delivery }),
+    ...(repeatExtra === undefined ? {} : { repeatExtra }),
     rows: rows.rows,
   });
 }
@@ -993,7 +1001,12 @@ async function findNextPlanKeys(
   }
   let answer;
   try {
-    answer = await askPlan(transaction, context, host.delivery);
+    answer = await askPlan(
+      transaction,
+      context,
+      host.delivery,
+      host.repeatExtra,
+    );
   } catch (error) {
     if (
       error instanceof PlanStateError ||
@@ -2352,6 +2365,23 @@ export function createBakeryPostgresWorkflowRepository(options: {
             ? value.identityRef
             : null,
         });
+        // Each declared input slot is pinned before anything is reserved: a
+        // slot that cannot be pinned fails the step here, and the job carries
+        // the pins the worker will verify (never a re-fetch of the artifact).
+        const stepInputs = await pinStepContextInputs(transaction, {
+          organizationId: row.organizationId,
+          runId: row.runId,
+          slots: planDispatch?.inputs ?? [],
+        });
+        if (!stepInputs.ok) {
+          await projectFailure(
+            transaction,
+            row,
+            `${stepInputs.code}:${stepInputs.message}`,
+            owner,
+          );
+          return { key, terminal: true };
+        }
         const requirements = repositoryExecutionRequirements(
           profile,
           action,
@@ -2407,10 +2437,10 @@ export function createBakeryPostgresWorkflowRepository(options: {
              repository_profile_revision, repository_profile_digest,
              observation_id, observation_digest, base_sha, requirements,
              agent_version_id, agent_config, skill_refs, billing,
-             installation_reservation_id
+             installation_reservation_id, context_inputs
            ) values ($1, $2, $3, $4::jsonb, 'queued', now(), 0, $5,
                      $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb,
-                     $15, $16::jsonb, $17::jsonb, $18::jsonb, $19)
+                     $15, $16::jsonb, $17::jsonb, $18::jsonb, $19, $20::jsonb)
            on conflict (run_step_id, action) do nothing
            returning id`,
           [
@@ -2435,6 +2465,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
             canonicalJson(agent?.skillRefs ?? []),
             JSON.stringify(agent?.config.billing ?? null),
             budgetReservation?.installationReservationId ?? null,
+            JSON.stringify(stepInputs.inputs),
           ],
         );
         const newJobId = createdJob.rows[0]?.id;
