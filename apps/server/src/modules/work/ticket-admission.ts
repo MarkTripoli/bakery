@@ -15,7 +15,11 @@ import {
   type TicketSourcePolicy,
   type TicketStoredReport,
 } from "@bakery/contracts/ticket-admission";
-import { FIXED_CODING_PRESET } from "@bakery/contracts/workflow-presets";
+import {
+  FIXED_CODING_PRESET,
+  workflowPresetById,
+  type WorkflowPresetDefinition,
+} from "@bakery/contracts/workflow-presets";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type {
   PgDatabase,
@@ -180,6 +184,12 @@ export type AdmissionCall = {
   requirementsDigest?: string | null;
   /** Receipt route that triggered a webhook admission, kept as a pointer. */
   inboundEventRouteId?: string | null;
+  /**
+   * The built-in workflow a person chose for this one Start work (#61);
+   * null or omitted runs the source policy's preset. Only a new admission
+   * reads it: a request that exists keeps the workflow it was pinned with.
+   */
+  preset?: TicketPresetPin["id"] | null;
   /** Request and trace ids of the calling request; fresh ones are made when absent. */
   trace?: { requestId: string; traceId: string };
 };
@@ -209,22 +219,49 @@ export type AdmissionResult = {
  * repository and every routed target are judged by this one call path, with
  * the preset's default budget limit and the server budget policy.
  */
-function repositoryAvailability(frame: Frame, repositoryId: string) {
+function repositoryAvailability(
+  frame: Frame,
+  repositoryId: string,
+  preset: WorkflowPresetDefinition,
+) {
   return presetAvailability(
     frame.transaction,
     frame.source.organizationId,
     repositoryId,
-    FIXED_CODING_PRESET,
-    FIXED_CODING_PRESET.defaultBudgetLimitUsd,
+    preset,
+    preset.defaultBudgetLimitUsd,
     frame.deps.budget,
   );
 }
 
-const PRESET_PIN: TicketPresetPin = Object.freeze({
-  id: FIXED_CODING_PRESET.id as TicketPresetPin["id"],
-  revision: FIXED_CODING_PRESET.revision,
-  digest: FIXED_CODING_PRESET.digest,
-});
+/** The code-owned definition of a built-in workflow id the policy or a pin names. */
+function presetDefinition(id: string): WorkflowPresetDefinition {
+  const preset = workflowPresetById(id);
+  if (preset === undefined) throw new Error("TICKET_PRESET_UNKNOWN");
+  return preset;
+}
+
+/**
+ * The workflow a frame judges and runs (#61): an existing request's pin, else
+ * the one a person chose for this Start work, else the source policy's.
+ */
+function framePreset(
+  frame: Frame,
+  request: TicketRequest | null,
+): WorkflowPresetDefinition {
+  return presetDefinition(
+    request?.pinnedPreset.id ?? frame.call.preset ?? frame.source.policy.preset,
+  );
+}
+
+/** The identity a report and a new request pin for a workflow. */
+function presetPin(preset: WorkflowPresetDefinition): TicketPresetPin {
+  return {
+    id: preset.id as TicketPresetPin["id"],
+    revision: preset.revision,
+    digest: preset.digest,
+  };
+}
 
 /**
  * The source's application, or a stated refusal.
@@ -250,10 +287,10 @@ function requireApplication(
 }
 
 /**
- * Id of the one preset ticket admission runs, from the pin above, for the
- * modules that name it (routing rule defaults) without naming it again.
+ * Id of the default built-in workflow, for the modules that name it (routing
+ * rule defaults) without naming it again.
  */
-export const TICKET_PRESET_ID: string = PRESET_PIN.id;
+export const TICKET_PRESET_ID: string = FIXED_CODING_PRESET.id;
 
 function stateConflict(reason: string): StandardError {
   return new StandardError({ code: "STATE_CONFLICT", params: { reason } });
@@ -366,7 +403,10 @@ async function sourceAuthority(
  * check reads agent definitions `for share`, which `runs.create` takes after
  * the application as well.
  */
-async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
+async function sourceFacts(
+  frame: Frame,
+  preset: WorkflowPresetDefinition,
+): Promise<ReadinessSourceFacts> {
   const { source } = frame;
   const base = {
     enabled: source.enabled,
@@ -386,6 +426,7 @@ async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
   const availability = await repositoryAvailability(
     frame,
     source.repositoryId,
+    preset,
   );
   return {
     ...base,
@@ -440,6 +481,7 @@ async function resolveFrameRoute(
     const availability = await repositoryAvailability(
       frame,
       target.repositoryId,
+      framePreset(frame, null),
     );
     if (availability.reasons.includes("no_active_profile")) {
       unready.profile.push(`role:${target.role}`);
@@ -464,11 +506,12 @@ async function evaluate(
   context: EvaluationContext,
 ): Promise<TicketReadinessReport> {
   const { prefetch, source } = frame;
+  const preset = framePreset(frame, context.activeRequest);
   const input: ReadinessInput = {
-    source: await sourceFacts(frame),
+    source: await sourceFacts(frame, preset),
     policy: source.policy,
     policyRevision: source.policyRevision,
-    preset: PRESET_PIN,
+    preset: presetPin(preset),
     issue: prefetch.issue,
     links: prefetch.links,
     statuses: prefetch.statuses,
@@ -1376,7 +1419,8 @@ async function startRun(
   childTaskId?: string,
 ): Promise<string> {
   const input = contractSchemas.RunCreate.safeParse({
-    presetId: "fixed-coding",
+    // The request's pinned workflow, for every run it starts (#61).
+    presetId: request.pinnedPreset.id,
     executionMode: "repository",
     ...(task.repositoryProfileId === null
       ? {}

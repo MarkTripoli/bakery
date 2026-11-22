@@ -37,6 +37,8 @@ function childrenOf(node: WorkflowNode): readonly WorkflowNode[] {
       ];
     case "parallel":
       return node.lanes.flatMap((lane) => lane.steps);
+    case "forEach":
+      return node.steps;
     default:
       return [];
   }

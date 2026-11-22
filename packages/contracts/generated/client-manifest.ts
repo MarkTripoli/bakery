@@ -3441,6 +3441,57 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-versions/{id}",
+      "action": "skillVersions.get",
+      "access": "Developer or Worker (pinned version + current lease)",
+      "permission": "skillVersion:readPinned",
+      "input": "SkillVersionPath",
+      "output": "SkillVersion",
+      "event": "",
+      "mcp": "bakery_skillVersions_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skill-versions/{id}/files/{path}",
+      "action": "skillFiles.get",
+      "access": "Developer or Worker (pinned version + current lease)",
+      "permission": "skillFile:read",
+      "input": "SkillFilePath",
+      "output": "BinarySkillFile",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "POST",
       "path": "/v1/skills/{id}/versions",
       "action": "skillVersions.create",
@@ -11423,6 +11474,32 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-requests/{id}/cancellations",
+      "action": "ticketRequests.cancel",
+      "access": "Developer+admission authority",
+      "permission": "ticketRequest:write",
+      "input": "TicketRequestCancel",
+      "output": "TicketRequestView",
+      "event": "ticket.request.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
       ],
@@ -19967,6 +20044,7 @@ export const clientManifest = {
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -21700,6 +21778,47 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Adds a new encrypted version to an existing secret and makes it the active version; prior versions remain retained as history but stop being the one resolved for use."
+    },
+    "SkillFilePath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Skill version whose file is being read; supplied via the request's {id} path segment."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Relative path of the file within this skill version's manifest to read, such as SKILL.md or a script under scripts/; must match an exact entry in the version's file manifest rather than an arbitrary filesystem path. SkillFilePath.path must contain at most 500 characters."
+        },
+        "attemptId": {
+          "description": "Worker attempt ID carried in the X-Bakery-Attempt-Id header when a worker rather than a human is fetching this file; required with leaseToken and fence to prove the attempt holds a live lease with this exact skill version pinned in its job.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "leaseToken": {
+          "description": "Bearer lease token carried in the X-Bakery-Lease-Token header, proving the requesting worker attempt currently holds its job's lease; required for a worker read and never logged.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "fence": {
+          "description": "Current fence value carried in the X-Bakery-Fence header for the requesting worker's attempt; a stale or mismatched fence rejects the read as belonging to a superseded attempt.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Path and worker-lease parameters for reading one exact file from a skill version's manifest; a human caller needs catalog/repository read authority, while a worker caller must additionally prove its live lease, attempt and fence for the exact skill version pinned to its job."
     },
     "SkillCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -24616,6 +24735,40 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "A person decides one waiting definition proposal under its If-Match version. An agent is refused with AUTH_FORBIDDEN; a decided proposal is STATE_CONFLICT; a draft changed since the proposal is PRECONDITION_FAILED and the proposal stays waiting."
     },
+    "SkillVersionPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Skill version to read the manifest and metadata for; supplied via the request's {id} path segment."
+        },
+        "attemptId": {
+          "description": "Worker attempt ID carried in the X-Bakery-Attempt-Id header when a worker rather than a human is reading this version; required with leaseToken and fence to prove the attempt holds a live lease with this exact version pinned in its job.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "leaseToken": {
+          "description": "Bearer lease token carried in the X-Bakery-Lease-Token header, proving the requesting worker attempt currently holds its job's lease; required for a worker read and never logged.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "fence": {
+          "description": "Current fence value carried in the X-Bakery-Fence header for the requesting worker's attempt; a stale or mismatched fence rejects the read as belonging to a superseded attempt.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Path and worker-lease parameters for reading one skill version's manifest and metadata; a human caller needs catalog/repository read authority, while a worker caller must additionally prove its live lease, attempt and fence for the exact version pinned to its job."
+    },
     "CommentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26185,6 +26338,13 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26257,6 +26417,14 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 200,
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria. TicketRequestCreate.requirementsDigest must contain at most 200 characters."
+        },
+        "preset": {
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
         }
       },
       "required": [
@@ -27884,7 +28052,7 @@ export const clientManifest = {
         "arguments"
       ],
       "additionalProperties": false,
-      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph.",
+      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -28033,7 +28201,7 @@ export const clientManifest = {
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -49151,6 +49319,7 @@ export const clientManifest = {
                   "ticketTaskLinks.create",
                   "ticketTaskLinks.list",
                   "ticketRequests.list",
+                  "ticketRequests.cancel",
                   "ticketRequests.get",
                   "ticketSources.labels",
                   "ticketTaskLinks.resyncNote",
@@ -71873,6 +72042,7 @@ export const clientManifest = {
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -75836,7 +76006,7 @@ export const clientManifest = {
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -75999,7 +76169,7 @@ export const clientManifest = {
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -76358,7 +76528,7 @@ export const clientManifest = {
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -77237,6 +77407,13 @@ export const clientManifest = {
       "format": "base64",
       "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
       "description": "MCP-normalized base64 representation of artifact response bytes up to 1 MiB; REST responses use BinaryArtifactBytes for the raw body."
+    },
+    "BinarySkillFile": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "string",
+      "format": "base64",
+      "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+      "description": "An authenticated raw-byte HTTP response, not a JSON envelope, for one file from a published, immutable skill version, verified against that version's manifest digest for this exact path; access is rechecked on every read, including conditional requests. Returned by GET /v1/skill-versions/{id}/files/{path} to a Developer or a worker holding the pinned version and a current lease."
     },
     "WebhookReceipt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -85229,6 +85406,12 @@ export const clientManifest = {
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "openQuestionCount": {
+          "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -85838,6 +86021,12 @@ export const clientManifest = {
               },
               "linkedTaskCount": {
                 "description": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it. ExternalTicket.linkedTaskCount must be at least 0.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "openQuestionCount": {
+                "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
@@ -87328,9 +87517,10 @@ export const clientManifest = {
                 "run_canceled",
                 "task_completed",
                 "task_failed",
-                "task_canceled"
+                "task_canceled",
+                "request_canceled"
               ],
-              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
             },
             {
               "type": "null",
@@ -87402,6 +87592,49 @@ export const clientManifest = {
             }
           ],
           "description": "TicketRequestView.workflowRunId may be null in this transport value."
+        },
+        "stoppedByPrincipalId": {
+          "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "stoppedByName": {
+          "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "presetId": {
+          "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
+        },
+        "presetRevision": {
+          "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "createdAt": {
           "type": "string",
@@ -87649,9 +87882,10 @@ export const clientManifest = {
                       "run_canceled",
                       "task_completed",
                       "task_failed",
-                      "task_canceled"
+                      "task_canceled",
+                      "request_canceled"
                     ],
-                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                   },
                   {
                     "type": "null",
@@ -87723,6 +87957,49 @@ export const clientManifest = {
                   }
                 ],
                 "description": "TicketRequestView.workflowRunId may be null in this transport value."
+              },
+              "stoppedByPrincipalId": {
+                "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "stoppedByName": {
+                "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "presetId": {
+                "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+                "type": "string",
+                "enum": [
+                  "fixed-coding",
+                  "fixed-coding-reviewed"
+                ]
+              },
+              "presetRevision": {
+                "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
               },
               "createdAt": {
                 "type": "string",
@@ -91537,6 +91814,12 @@ export const clientManifest = {
               "minimum": 0,
               "maximum": 9007199254740991,
               "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+            },
+            "labeledBeforeWindow": {
+              "description": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it. TicketPreviewCounts.labeledBeforeWindow must be at least 0.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": [
@@ -111262,6 +111545,12 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
               },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -111301,6 +111590,7 @@ export const clientManifest = {
               "id",
               "skillId",
               "skillVersionId",
+              "revision",
               "workflowId",
               "workflowName",
               "stepPath",

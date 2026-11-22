@@ -3403,8 +3403,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "LEASE_EXPIRED",
-        "LEASE_FENCED"
-      ]
+        "LEASE_FENCED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Skills",
@@ -3426,8 +3429,11 @@
         "LEASE_FENCED",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "SKILL_CONTENT_INTEGRITY_FAILED"
-      ]
+        "SKILL_CONTENT_INTEGRITY_FAILED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Skills",
@@ -12200,6 +12206,31 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-requests/{id}/cancellations",
+      "action": "ticketRequests.cancel",
+      "access": "Developer+admission authority",
+      "permission": "ticketRequest:write",
+      "input": "TicketRequestCancel",
+      "output": "TicketRequestView",
+      "event": "ticket.request.updated",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
       ],

@@ -68,7 +68,8 @@ function sum(nodes: readonly WorkflowNode[], depth: number): WorstCase {
  * timeout x attempts + backoff x (attempts - 1), cost = (limits.maxCostUsd
  * ?? 0) x attempts. A wait is one step and one attempt lasting its duration
  * or event timeout. Sequences and lanes sum; a branch takes the per-metric
- * maximum of its arms; a repeat is seed + max x body; a parallel group sums
+ * maximum of its arms; a repeat is seed + max x body; a forEach is max x
+ * body (its list is refused at run time past max); a parallel group sums
  * every lane (a conservative upper bound for time).
  */
 export function nodeWorstCase(node: WorkflowNode, depth = 1): WorstCase {
@@ -109,6 +110,8 @@ export function nodeWorstCase(node: WorkflowNode, depth = 1): WorstCase {
         : zero();
       return add(seed, scale(sum(node.steps, depth + 1), node.max));
     }
+    case "forEach":
+      return scale(sum(node.steps, depth + 1), node.max);
     case "parallel": {
       let total = zero();
       for (const lane of node.lanes) {
@@ -162,6 +165,9 @@ function checkRepeatPolicy(
         checkRepeatPolicy(node.steps, depth + 1, ceiling, locations, collector);
         break;
       }
+      case "forEach":
+        checkRepeatPolicy(node.steps, depth + 1, ceiling, locations, collector);
+        break;
       case "parallel":
         for (const lane of node.lanes) {
           checkRepeatPolicy(
