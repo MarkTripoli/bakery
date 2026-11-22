@@ -19,6 +19,7 @@ import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import {
   type PanelTarget,
   type SkillChoice,
+  type SlotReplaces,
   StepPanel,
   type StepSkillRow,
   type StepSkills,
@@ -37,15 +38,15 @@ import {
 import {
   problemSentence,
   problemsOf,
+  SKILL_PROBLEM_CODES,
   stepProblemLine,
 } from "./editor-validation.ts";
-import { ACTION_TITLES } from "./workflow-state.ts";
+import { stepName } from "./workflow-state.ts";
 import {
   type GroupLabel,
   groupsOfTree,
   stepsOfTree,
   treeOf,
-  type TreeStep,
 } from "./workflow-tree.ts";
 
 /**
@@ -180,7 +181,11 @@ export function WorkflowEditorPage(
   // Personal skill versions the owner confirmed this session; the draft save names them.
   const confirmed = useRef<Set<string>>(new Set());
   const [attaching, setAttaching] = useState<
-    { readonly stepId: string; readonly choice: SkillChoice } | null
+    {
+      readonly stepId: string;
+      readonly choice: SkillChoice;
+      readonly replaces?: SlotReplaces;
+    } | null
   >(null);
   const [removingOther, setRemovingOther] = useState<
     {
@@ -227,6 +232,11 @@ export function WorkflowEditorPage(
   // The version the last save returned: a second edit made while the draft is
   // still being read again must send this one, not the one it last read.
   const savedVersion = useRef<{ id: string; version: number } | null>(null);
+  // The slots the last write sent, so only those are cleared when it lands.
+  const sentSlots = useRef<string[]>([]);
+  // Slots the person settled (by choosing a skill or removing the placeholder) and the
+  // draft has not saved yet: the save tells the server, and the row is gone at once.
+  const [resolving, setResolving] = useState<ReadonlySet<string>>(new Set());
 
   // A different version being edited starts the editor again.
   useEffect(() => {
@@ -262,6 +272,13 @@ export function WorkflowEditorPage(
             record(draft.normalizedSpec),
             steps,
           ) as never,
+          // Slots the person settled, so the server drops their placeholders with this save.
+          ...(() => {
+            sentSlots.current = [...resolving];
+            return sentSlots.current.length === 0
+              ? {}
+              : { resolveSkillSlots: sentSlots.current };
+          })(),
           // The owner's confirmation for each private skill still attached, so the save is not refused.
           ...(() => {
             const attached = new Set(steps.flatMap((step) => step.skills));
@@ -283,6 +300,12 @@ export function WorkflowEditorPage(
     onSuccess: (_saved, written) => {
       // What was written is what is saved: an edit made meanwhile is still to save.
       lastSaved.current = JSON.stringify(written);
+      // The slots this save settled are done; one settled meanwhile is still to save.
+      setResolving((previous) =>
+        new Set(
+          [...previous].filter((path) => !sentSlots.current.includes(path)),
+        )
+      );
       setSaveState({ kind: "saved" });
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
     },
@@ -380,10 +403,17 @@ export function WorkflowEditorPage(
   // that points at no step is the workflow's own, and the chip still counts it.
   const [checker, setChecker] = useState<{
     readonly byStep: ReadonlyMap<string, string>;
+    /** Steps whose only problems are skills needing a choice: the row says it, not a problem line. */
+    readonly skillOnly: ReadonlySet<string>;
     /** Problems that name a step the page does not draw, so no card can hold them. */
     readonly unmapped: readonly string[];
     readonly workflow: readonly string[];
-  }>({ byStep: new Map(), unmapped: [], workflow: [] });
+  }>({
+    byStep: new Map(),
+    skillOnly: new Set(),
+    unmapped: [],
+    workflow: [],
+  });
   const check = useMutation({
     mutationKey: ["workflows.validate"],
     mutationFn: async (held: readonly EditorStep[]) => {
@@ -405,6 +435,7 @@ export function WorkflowEditorPage(
         ...(report.warnings ?? []),
       ]);
       const byStep = new Map<string, string>();
+      const skillOnly = new Set<string>();
       const unmapped: string[] = [];
       for (const [index, found] of sorted.byStep) {
         const sentence = stepProblemLine(found) ?? "";
@@ -416,9 +447,13 @@ export function WorkflowEditorPage(
           continue;
         }
         byStep.set(step.id, sentence);
+        if (found.every((problem) => SKILL_PROBLEM_CODES.has(problem.code))) {
+          skillOnly.add(step.id);
+        }
       }
       setChecker({
         byStep,
+        skillOnly,
         unmapped,
         // The workflow's own problems are sentences too, never the server's
         // message (ruling 6900485736 section 3).
@@ -431,7 +466,12 @@ export function WorkflowEditorPage(
 
   useEffect(() => {
     if (steps.length === 0) {
-      setChecker({ byStep: new Map(), unmapped: [], workflow: [] });
+      setChecker({
+        byStep: new Map(),
+        skillOnly: new Set(),
+        unmapped: [],
+        workflow: [],
+      });
       return;
     }
     const timer = setTimeout(() => check.mutate(steps), SAVE_AFTER_MS);
@@ -439,7 +479,7 @@ export function WorkflowEditorPage(
   }, [steps]);
 
   const changed = lastSaved.current !== null &&
-    JSON.stringify(steps) !== lastSaved.current;
+    (JSON.stringify(steps) !== lastSaved.current || resolving.size > 0);
 
   // A change saves itself once the person stops typing; a failed save waits for
   // "Try again" rather than looping.
@@ -449,7 +489,15 @@ export function WorkflowEditorPage(
     if (!changed || save.isPending) return;
     const timer = setTimeout(() => save.mutate(steps), SAVE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [changed, steps, canManage, draft, saveState.kind, save.isPending]);
+  }, [
+    changed,
+    steps,
+    canManage,
+    draft,
+    saveState.kind,
+    save.isPending,
+    resolving,
+  ]);
 
   // Leaving while the latest change is not saved asks first.
   useEffect(() => {
@@ -549,14 +597,25 @@ export function WorkflowEditorPage(
       `library.workflow.editor.skills.${key}` as never,
       values as never,
     );
-  const attachNow = (stepId: string, choice: SkillChoice) => {
+  const resolve = (stepPath: string) =>
+    setResolving((previous) => new Set(previous).add(stepPath));
+  const attachNow = (
+    stepId: string,
+    choice: SkillChoice,
+    replaces?: SlotReplaces,
+  ) => {
     const step = editor.steps.find((held) => held.id === stepId);
     if (step === undefined || step.skills.includes(choice.value)) return;
     if (choice.group === "private") confirmed.current.add(choice.value);
+    // A choice takes the place of the skill the slot named, when it named one.
+    const kept = replaces?.versionId == null
+      ? step.skills
+      : step.skills.filter((id) => id !== replaces.versionId);
+    if (replaces !== undefined) resolve(replaces.stepPath);
     dispatch({
       kind: "skills",
       id: stepId,
-      skills: [...step.skills, choice.value],
+      skills: [...kept, choice.value],
     });
     // An organization skill attaches at once; a private one says what it now allows.
     if (choice.group === "private") {
@@ -609,7 +668,9 @@ export function WorkflowEditorPage(
       return {
         kind: "codeOnly",
         name: stepName(step, translate),
-        problem: checker.byStep.get(step.id),
+        problem: checker.skillOnly.has(step.id)
+          ? undefined
+          : checker.byStep.get(step.id),
       };
     }
     const live = steps.find((held) => held.id === selectedId);
@@ -634,6 +695,22 @@ export function WorkflowEditorPage(
         editable
           ? (row) => () => {
             // Someone else's private skill asks first: only its owner can attach it again.
+            if (row.status !== "available") {
+              // A slot: a missing skill is gone at once (the save drops the
+              // placeholder); the others remove like any skill, with Undo.
+              if (row.versionId === null) {
+                resolve(row.stepPath);
+                setSkillToast({
+                  text: say("slot.removed", {
+                    step: stepName(step, translate),
+                  }),
+                });
+              } else {
+                removeNow(step.id, row.versionId, row.name, row.published);
+              }
+              return;
+            }
+            if (row.versionId === null) return;
             if (row.theirs) {
               setRemovingOther({
                 stepId: step.id,
@@ -647,6 +724,7 @@ export function WorkflowEditorPage(
             }
           }
           : null,
+        resolving,
       ),
       attach: editable && live?.agentVersionId != null
         ? {
@@ -671,7 +749,7 @@ export function WorkflowEditorPage(
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),
           onRetry: () => void catalog.refetch(),
-          onChoose: (value: string) => {
+          onChoose: (value: string, replaces?: SlotReplaces) => {
             const picked = (catalog.data ?? []).find((skill) =>
               skill.activeVersionId === value
             );
@@ -685,8 +763,8 @@ export function WorkflowEditorPage(
             };
             // A private skill asks first: the owner confirms what is shared.
             if (choice.group === "private") {
-              setAttaching({ stepId: step.id, choice });
-            } else attachNow(step.id, choice);
+              setAttaching({ stepId: step.id, choice, replaces });
+            } else attachNow(step.id, choice, replaces);
           },
         }
         : null,
@@ -722,6 +800,8 @@ export function WorkflowEditorPage(
     skillsRead.fetchStatus,
     catalog.data,
     catalog.status,
+    resolving,
+    checker.skillOnly,
   ]);
 
   const breadcrumbs = (
@@ -1012,7 +1092,11 @@ export function WorkflowEditorPage(
             <UI.Button
               variant="primary"
               onClick={() => {
-                attachNow(attaching.stepId, attaching.choice);
+                attachNow(
+                  attaching.stepId,
+                  attaching.choice,
+                  attaching.replaces,
+                );
                 setAttaching(null);
               }}
             >
@@ -1225,13 +1309,18 @@ function skillsOf(
   catalog: readonly SkillResponse[],
   removable:
     | ((row: {
-      readonly versionId: string;
+      /** Null for a slot that names no skill at all. */
+      readonly versionId: string | null;
+      readonly stepPath: string;
+      readonly status: StepSkillRow["status"];
       readonly name: string;
       readonly owner: string;
       readonly theirs: boolean;
       readonly published: boolean;
     }) => () => void)
     | null,
+  /** Steps whose open slots the person has settled and the draft has not saved yet. */
+  resolving: ReadonlySet<string>,
 ): StepSkills {
   if (!hasAgent || stepPath === undefined) return { kind: "hidden" };
   // No saved draft to read skills for (the read is switched off): nothing to show.
@@ -1244,7 +1333,9 @@ function skillsOf(
   // A skill the person removed is gone at once, a slot stays until it is dealt with.
   const rows: StepSkillRow[] = here
     .filter((item) =>
-      item.skillVersionId === null || held.includes(item.skillVersionId)
+      item.skillVersionId === null
+        ? !resolving.has(item.stepPath)
+        : held.includes(item.skillVersionId)
     )
     .map((item, index) => ({
       key: `${item.stepPath}#${index}`,
@@ -1254,18 +1345,19 @@ function skillsOf(
       owner: item.ownerDisplayName,
       mine: item.mine,
       status: item.status,
-      ...(removable === null || item.skillVersionId === null ||
-          item.status !== "available"
-        ? {}
-        : {
-          onRemove: removable({
-            versionId: item.skillVersionId,
-            name: item.skillName ?? "",
-            owner: item.ownerDisplayName ?? "",
-            theirs: item.scope === "personal" && !item.mine,
-            published: item.publishedVersionUsesIt,
-          }),
+      stepPath: item.stepPath,
+      versionId: item.skillVersionId,
+      ...(removable === null ? {} : {
+        onRemove: removable({
+          versionId: item.skillVersionId,
+          stepPath: item.stepPath,
+          status: item.status,
+          name: item.skillName ?? "",
+          owner: item.ownerDisplayName ?? "",
+          theirs: item.scope === "personal" && !item.mine,
+          published: item.publishedVersionUsesIt,
         }),
+      }),
     }));
   // A skill just attached is not in the saved draft yet: it shows from the catalog.
   const shown = new Set(here.map((item) => item.skillVersionId));
@@ -1284,6 +1376,8 @@ function skillsOf(
       ...(removable === null ? {} : {
         onRemove: removable({
           versionId: id,
+          stepPath,
+          status: "available",
           name: skill.name,
           owner: "",
           theirs: false,
@@ -1292,20 +1386,9 @@ function skillsOf(
       }),
     });
   }
+  // The rows that need a choice come first, then the skills that work.
+  rows.sort((a, b) =>
+    Number(a.status === "available") - Number(b.status === "available")
+  );
   return { kind: "ready", rows };
-}
-
-/** The name a card carries, for a problem row that names it. */
-function stepName(
-  step: TreeStep,
-  translate: (key: never, values?: Record<string, string>) => string,
-): string {
-  if (step.problem === "unknown") {
-    return translate("library.editor.card.unknown" as never);
-  }
-  if (step.problem === "unreadable") {
-    return translate("library.editor.card.unreadable" as never);
-  }
-  const key = ACTION_TITLES[step.uses];
-  return key === undefined ? step.uses : translate(key as never);
 }

@@ -20,6 +20,13 @@ export type StepProblems = {
   readonly workflow: readonly ValidationProblem[];
 };
 
+/** The codes for a skill that needs a choice: the Skills panel row carries them, not the panel's problem line. */
+export const SKILL_PROBLEM_CODES: ReadonlySet<string> = new Set([
+  "step_skill_slot_open",
+  "step_skill_stopped",
+  "step_skill_unavailable",
+]);
+
 /** The step index a pointer names, or null when it names no single step. */
 export function stepIndexOf(path: string): number | null {
   // `/steps/2/uses`, `/steps/2`, and nothing else: a bare `/steps` is the list.
@@ -75,6 +82,10 @@ const SENTENCES: Readonly<Record<string, string>> = {
     "Bakery cannot read this workflow. Open View as code to see what it holds.",
   workflow_kind_unsupported:
     "Bakery cannot read this workflow. Open View as code to see what it holds.",
+  // A step whose skill needs a choice: the row in the Skills panel says which.
+  step_skill_slot_open: "A skill on this step needs a choice.",
+  step_skill_stopped: "A skill on this step needs a choice.",
+  step_skill_unavailable: "A skill on this step needs a choice.",
   // A step's problems.
   action_unknown:
     "Bakery does not know this kind of step. Delete it and add a step from the list.",
