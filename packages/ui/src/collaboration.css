@@ -2698,6 +2698,15 @@ button.ui-activity-line__row:hover {
   flex-direction: column;
   gap: var(--space-2);
 }
+/* A mentioned person's badge wraps instead of escaping a narrow column
+   (reflow at 200% zoom), as in the access card and a step; so does the one
+   on a mention picker row. */
+.ui-message-composer__mentions .ui-badge,
+.ui-mention-picker__option > .ui-badge {
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
 .ui-mention-picker {
   container-type: inline-size;
   background: var(--color-surface);
@@ -2825,7 +2834,9 @@ button.ui-activity-line__row:hover {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.ui-access-offer[data-state="busy"] {
+/* While a request is in flight the buttons dim; the words stay at full
+   contrast, so the muted detail never drops below the 4.5:1 minimum. */
+.ui-access-offer[data-state="busy"] .ui-access-offer__actions {
   opacity: 0.8;
 }
 

@@ -25,19 +25,37 @@ export type Power =
   | "run_control"
   | "run_start"
   | "steer"
-  | "steer_reviewer";
+  | "steer_reviewer"
+  | "ask";
+
+/** What a grant names besides its power: who an ask grant may ask, and when it ends. */
+export type GrantOptions = {
+  roleKey?: string;
+  groupId?: string;
+  expiresAt?: Date;
+};
 
 /** Grants one power to a workflow, as a person, straight into the table. */
 export async function grantPower(
   fixture: AgentFixture,
   workflowId: string,
   power: Power,
+  options: GrantOptions = {},
 ): Promise<string> {
   const row = await fixture.pgDatabase.query<{ id: string }>(
     `insert into bakery.agent_power_grants
-       (organization_id, power, workflow_id, granted_by)
-     values ($1, $2, $3, $4) returning id`,
-    [fixture.organizationId, power, workflowId, fixture.principalId],
+       (organization_id, power, workflow_id, granted_by, role_key, group_id,
+        expires_at)
+     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+    [
+      fixture.organizationId,
+      power,
+      workflowId,
+      fixture.principalId,
+      options.roleKey ?? null,
+      options.groupId ?? null,
+      options.expiresAt ?? null,
+    ],
   );
   return row.rows[0].id;
 }
@@ -58,7 +76,7 @@ export const seedOtherRun = (fixture: AgentFixture) =>
  */
 export async function agentSession(
   fixture: AgentFixture,
-  options: { granted: Power | null },
+  options: { granted: Power | null; grant?: GrantOptions },
 ) {
   const worker = await registeredWorker(fixture, { slots: 1 });
   // The session's workflow must compile: an agent spawns by admitting a run of
@@ -71,7 +89,7 @@ export async function agentSession(
   );
   const grantId = options.granted === null
     ? null
-    : await grantPower(fixture, own.workflowId, options.granted);
+    : await grantPower(fixture, own.workflowId, options.granted, options.grant);
   const assignment = await claimAssignment(fixture, worker) as unknown as {
     attemptId: string;
     sessionCredential: string;
