@@ -12817,6 +12817,54 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Plugins",
+      "method": "POST",
+      "path": "/v1/plugin-authoring-runs",
+      "action": "pluginAuthoringRuns.create",
+      "access": "Developer",
+      "permission": "pluginInstall:manage",
+      "input": "PluginAuthoringRunCreate",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-authoring-runs/{id}",
+      "action": "pluginAuthoringRuns.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "IdPath",
+      "output": "PluginAuthoringRun",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
       "group": "Artifacts",
       "method": "PATCH",
       "path": "/v1/artifacts/{id}",
