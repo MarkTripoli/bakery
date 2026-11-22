@@ -1,5 +1,9 @@
 import { basename, join, relative, resolve } from "node:path";
 import { withStepNotes } from "./step-notes-prompt.ts";
+import {
+  prepareHarnessContext,
+  type ReadAttemptContext,
+} from "./harness-context.ts";
 import { enforceWorkerFixedPolicy, type WorkerExecutor } from "./executor.ts";
 import type { ExecutionOutcome } from "./executor.ts";
 import type { NativeOutputSink } from "./native-output.ts";
@@ -121,6 +125,8 @@ export const CLAUDE_EFFORT_LEVELS = Object.freeze(
 );
 
 export type ClaudeHarnessOptions = {
+  /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
+  readonly readAttemptContext?: ReadAttemptContext;
   /** Configured output redaction secrets; also withheld from published patches. */
   readonly redactionSecrets?: readonly string[];
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
@@ -1358,6 +1364,23 @@ async function executeClaudeHarness(
   );
   const config = await claudeConfigDirectory(options, assignment);
   try {
+    const context = await prepareHarnessContext({
+      assignment,
+      attemptRoot: config.root,
+      goal: repair !== undefined
+        ? "Repair the blocking findings named in the prompt."
+        : basePrompt,
+      workDir: worktree,
+      readAttemptContext: options.readAttemptContext,
+    });
+    if (!context.ok) {
+      return claudeHarnessFault(
+        `CLAUDE_HARNESS_${context.code}`,
+        context.detail,
+        context.status,
+        context.retryable,
+      );
+    }
     try {
       await prepareClaudeAuth(options.authSourceDir, config.path);
     } catch (error) {
@@ -1466,11 +1489,16 @@ async function executeClaudeHarness(
       ...(options.model === undefined ? [] : ["--model", options.model]),
       ...(options.effort === undefined ? [] : ["--effort", options.effort]),
       ...(resumeSession ? ["--resume", resumeSession] : []),
+      // The pinned inputs sit in the attempt root, outside the working tree, so
+      // the file tools may read them there and nowhere else new.
+      ...(context.contextDir === undefined
+        ? []
+        : ["--add-dir", context.contextDir]),
     ];
     const run = await runBoundedHarness({
       executable: claudeExecutable,
       cwd: worktree,
-      prompt,
+      prompt: `${prompt}${context.promptSection}`,
       timeLimitMs: options.timeLimitMs ?? CLAUDE_HARNESS_DEFAULT_TIME_LIMIT_MS,
       signal,
       output,

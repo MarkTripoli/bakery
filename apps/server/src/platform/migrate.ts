@@ -210,13 +210,47 @@ export async function readServerAddress(
   return server[0]?.address;
 }
 
-export async function resetTestDatabase(
+/** The tables Better Auth creates in `public`; a test reset drops or empties exactly these. */
+export const PROVIDER_TABLES: readonly string[] = [
+  "session",
+  "account",
+  "verification",
+  "member",
+  "invitation",
+  "organization",
+  "twoFactor",
+  "rateLimit",
+  "passkey",
+  "ssoProvider",
+  "jwks",
+  "oauthClientAssertion",
+  "oauthAccessToken",
+  "oauthRefreshToken",
+  "oauthConsent",
+  "oauthClientResource",
+  "oauthResource",
+  "oauthClient",
+  "scimGroupMember",
+  "scimGroup",
+  "scimProjectionGrant",
+  "scimUser",
+  "scimSubject",
+  "scimIdentityTombstone",
+  "scimConnectionBinding",
+  "user",
+  "better_auth_schema_migrations",
+];
+
+export type TestDatabaseResetOptions = {
+  targetUrl: string;
+  confirmation?: string;
+  allowRemote?: boolean;
+};
+
+/** The confirmation and loopback checks every destructive test-database reset makes. */
+export async function assertDestructiveResetAllowed(
   db: Database,
-  options: {
-    targetUrl: string;
-    confirmation?: string;
-    allowRemote?: boolean;
-  },
+  options: TestDatabaseResetOptions,
 ): Promise<void> {
   if (options.confirmation !== "RESET_BAKERY_TEST_DATABASE") {
     throw new Error("DESTRUCTIVE_RESET_REQUIRES_CONFIRMATION");
@@ -230,37 +264,21 @@ export async function resetTestDatabase(
     !isLoopbackServerAddress(await readServerAddress(db)) &&
     !options.allowRemote
   ) throw new Error("DESTRUCTIVE_RESET_REQUIRES_LOOPBACK");
+}
+
+export async function resetTestDatabase(
+  db: Database,
+  options: TestDatabaseResetOptions,
+): Promise<void> {
+  await assertDestructiveResetAllowed(db, options);
   await db.begin(async (transaction) => {
     await transaction`select pg_advisory_xact_lock(hashtextextended(${MIGRATION_LOCK_NAME}::text, 0))`;
-    await transaction`drop table if exists
-      public.session,
-      public.account,
-      public.verification,
-      public.member,
-      public.invitation,
-      public.organization,
-      public."twoFactor",
-      public."rateLimit",
-      public.passkey,
-      public."ssoProvider",
-      public.jwks,
-      public."oauthClientAssertion",
-      public."oauthAccessToken",
-      public."oauthRefreshToken",
-      public."oauthConsent",
-      public."oauthClientResource",
-      public."oauthResource",
-      public."oauthClient",
-      public."scimGroupMember",
-      public."scimGroup",
-      public."scimProjectionGrant",
-      public."scimUser",
-      public."scimSubject",
-      public."scimIdentityTombstone",
-      public."scimConnectionBinding",
-      public."user",
-      public.better_auth_schema_migrations
-      cascade`;
+    await transaction.unsafe(
+      `drop table if exists ${
+        PROVIDER_TABLES.map((name) => `public."${name}"`).join(", ")
+      } cascade`,
+    );
+    await transaction`drop schema if exists bakery_baseline cascade`;
     await transaction`drop schema if exists bakery cascade`;
   });
 }

@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { withStepNotes } from "./step-notes-prompt.ts";
+import {
+  prepareHarnessContext,
+  type ReadAttemptContext,
+} from "./harness-context.ts";
 import { enforceWorkerFixedPolicy, type WorkerExecutor } from "./executor.ts";
 import type { ExecutionOutcome } from "./executor.ts";
 import type { NativeOutputSink } from "./native-output.ts";
@@ -80,6 +84,8 @@ export const CODEX_HARNESS_CAPABILITIES: readonly string[] = Object.freeze([]);
 export const CODEX_HARNESS_DEFAULT_TIME_LIMIT_MS = 120_000;
 
 export type CodexHarnessOptions = {
+  /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
+  readonly readAttemptContext?: ReadAttemptContext;
   /** Configured output redaction secrets; also withheld from published patches. */
   readonly redactionSecrets?: readonly string[];
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
@@ -290,6 +296,23 @@ async function executeCodexHarness(
   const codexExecutable = options.codexExecutable ?? "codex";
   const dirs = await codexAttemptDirectory(options, assignment);
   try {
+    const context = await prepareHarnessContext({
+      assignment,
+      attemptRoot: dirs.root,
+      goal: repair !== undefined
+        ? "Repair the blocking findings named in the prompt."
+        : basePrompt,
+      workDir: worktree,
+      readAttemptContext: options.readAttemptContext,
+    });
+    if (!context.ok) {
+      return codexHarnessFault(
+        `CODEX_HARNESS_${context.code}`,
+        context.detail,
+        context.status,
+        context.retryable,
+      );
+    }
     try {
       await prepareCodexAuth(options.authSourceDir, dirs.codexHome);
     } catch (error) {
@@ -359,7 +382,7 @@ async function executeCodexHarness(
     const run = await runBoundedHarness({
       executable: codexExecutable,
       cwd: worktree,
-      prompt,
+      prompt: `${prompt}${context.promptSection}`,
       timeLimitMs: options.timeLimitMs ?? CODEX_HARNESS_DEFAULT_TIME_LIMIT_MS,
       signal,
       output,
