@@ -194,8 +194,8 @@ export async function issueCredentialForAttempt(
       // An inputs-only step (O53) reads only its pinned inputs and writes only its
       // declared outputs: a person's file grant never reopens storage for it.
       ...(files ? grantedScopesForStep(files, granted) : granted),
-      // The step's files section, defaults applied (O44, O45), pinned into
-      // the credential so each storage call is judged against the section
+      // The step's files section, pinned into the credential (a step with
+      // none mints reads only, never the write tools: #448). Pinned so each storage call is judged against the section
       // the session was claimed under.
       ...(files ? stepFileScopes(files) : []),
     ];

@@ -50,6 +50,7 @@ import { readScopesForSession } from "../../apps/server/src/modules/execution/se
 import {
   INPUTS_ONLY_STEP_FILES,
   stepFilesFromSnapshot,
+  UNDECLARED_STEP_FILES,
 } from "../../apps/server/src/modules/execution/step-files.ts";
 
 const ORG = "0195f000-0000-7000-8000-0000000000a1";
@@ -354,10 +355,10 @@ Deno.test("compiler: each malformed files section is a named diagnostic", async 
 
 // ------------------------------------------------- the claim and the scopes
 
-Deno.test("claim: a run before plans takes the defaults; a plan step its own section", async () => {
+Deno.test("claim: a step with no section gets the undeclared reads; a plan step its own section", async () => {
   assertEquals(
     stepFilesFromSnapshot({ schemaVersion: 1 }, "aa"),
-    DEFAULT_STEP_FILES,
+    UNDECLARED_STEP_FILES,
   );
   const result = await compile([
     step({ files: { read: ["inputs"], write: ["outputs"] } }),
@@ -369,7 +370,7 @@ Deno.test("claim: a run before plans takes the defaults; a plan step its own sec
     read: ["inputs"],
     write: ["outputs"],
   });
-  assertEquals(stepFilesFromSnapshot(snapshot, "bb"), DEFAULT_STEP_FILES);
+  assertEquals(stepFilesFromSnapshot(snapshot, "bb"), UNDECLARED_STEP_FILES);
   // A step the plan does not name gets the inputs-only section, never the defaults.
   assertEquals(stepFilesFromSnapshot(snapshot, "zz"), INPUTS_ONLY_STEP_FILES);
   assertEquals(
@@ -383,6 +384,47 @@ Deno.test("claim: a run before plans takes the defaults; a plan step its own sec
     ),
     INPUTS_ONLY_STEP_FILES,
   );
+});
+
+Deno.test("claim: no declared section and no grant mints no write tool and no connections read (#448)", async () => {
+  const plain = await compile([step({})]);
+  assert(plain.ok);
+  for (
+    const files of [
+      stepFilesFromSnapshot({ schemaVersion: 1 }, "aa"),
+      stepFilesFromSnapshot(
+        { runtime: { pin: {}, document: plain.document } },
+        "aa",
+      ),
+    ]
+  ) {
+    const scopes = [
+      ...grantedScopesForStep(files, []),
+      ...stepFileScopes(files),
+    ];
+    assert(!scopes.includes(FILES_WRITE_SCOPE), JSON.stringify(scopes));
+    assert(!scopes.some((scope) => scope.startsWith("files.write:")));
+    assert(!scopes.includes("files.read:connections"));
+    assert(scopes.includes("files.read:project"));
+  }
+  // A person's write grant still adds the write tool to an undeclared step.
+  assert(
+    grantedScopesForStep(UNDECLARED_STEP_FILES, [FILES_WRITE_SCOPE])
+      .includes(FILES_WRITE_SCOPE),
+  );
+  // A definition that declares a tree write area is an explicit grant.
+  const declared = await compile([
+    step({ files: { read: ["project"], write: ["run_folder"] } }),
+  ]);
+  assert(declared.ok);
+  const declaredScopes = stepFileScopes(
+    stepFilesFromSnapshot(
+      { runtime: { pin: {}, document: declared.document } },
+      "aa",
+    ),
+  );
+  assert(declaredScopes.includes(FILES_WRITE_SCOPE));
+  assert(declaredScopes.includes("files.write:run_folder"));
 });
 
 Deno.test("scopes: the defaults mint the read and write tools and one scope per tree area", () => {
