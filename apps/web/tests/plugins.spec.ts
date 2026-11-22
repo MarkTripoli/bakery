@@ -12,6 +12,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 // A shared machine can be slow to answer; give each assertion and test room.
 const expect = baseExpect.configure({ timeout: 15_000 });
@@ -810,6 +811,7 @@ for (
       await shot(page, `plugins-update-${viewport.name}`, [], {
         windowOnly: true,
       });
+      await still(page, "plugin-update-approve");
       await dialog.getByRole("button", { name: "Update and allow 1" }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
       expect(state.writes).toHaveLength(1);
@@ -1040,6 +1042,7 @@ for (
       await shot(page, `plugin-cannot-read-${viewport.name}`, [], {
         windowOnly: true,
       });
+      await still(page, "plugin-cannot-read-row");
     });
 
     test("a version that could not read the saved data is said once, and restoring its data asks first", async ({ page }) => {
@@ -1077,6 +1080,7 @@ for (
       await shot(page, `plugin-cannot-read-notice-${viewport.name}`, [], {
         windowOnly: true,
       });
+      await still(page, "plugin-cannot-read-notice");
       await notice.getByRole("button", { name: "Go back and restore its data" })
         .click();
       const dialog = page.getByRole("alertdialog");
@@ -1090,6 +1094,7 @@ for (
       await shot(page, `plugin-restore-${viewport.name}`, [], {
         windowOnly: true,
       });
+      await still(page, "plugin-restore");
       // The version it goes back to asks for a permission the installed one lacks: the button says so.
       await dialog.getByRole("button", { name: "Go back, restore and allow 1" })
         .click();
