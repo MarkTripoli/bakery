@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { sessionEnvironment } from "./session-credential-file.ts";
 import { withStepNotes } from "./step-notes-prompt.ts";
 import {
   executeRpiFreeform,
@@ -101,6 +102,14 @@ export const CODEX_HARNESS_CAPABILITIES: readonly string[] = Object.freeze([]);
 export const CODEX_HARNESS_DEFAULT_TIME_LIMIT_MS = 120_000;
 
 export type CodexHarnessOptions = {
+  /**
+   * Where this worker reaches Bakery (#404).
+   *
+   * The `bakery` command inside a session needs an address, and a session's
+   * child environment carries no secret to find one with: the worker passes this
+   * and the credential *file's* path, nothing more.
+   */
+  readonly gatewayUrl?: string;
   /**
    * Whether this worker has the design tool `rpi.design` declares (the
    * `paper` capability). Off unless set: a worker without it refuses the step as
@@ -370,7 +379,13 @@ async function executeCodexHarness(
         "The Codex harness could not complete the bounded task",
       );
     }
-    const childEnvironment = codexChildEnvironment(dirs, assignment);
+    const childEnvironment = {
+      ...codexChildEnvironment(dirs, assignment),
+      // The session's credential is a path and the gateway's address, never
+      // the credential itself: the worker writes the value to an owner-only
+      // file and the `bakery` command inside the session reads that.
+      ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+    };
     const versionProbe = await probeHarnessVersion(
       codexExecutable,
       worktree,
@@ -619,7 +634,13 @@ async function executeCodexFreeform(
         "The Codex harness could not complete the bounded task",
       );
     }
-    const childEnvironment = codexChildEnvironment(dirs, assignment);
+    const childEnvironment = {
+      ...codexChildEnvironment(dirs, assignment),
+      // The session's credential is a path and the gateway's address, never
+      // the credential itself: the worker writes the value to an owner-only
+      // file and the `bakery` command inside the session reads that.
+      ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+    };
     const codexExecutable = options.codexExecutable ?? "codex";
     const versionProbe = await probeHarnessVersion(
       codexExecutable,

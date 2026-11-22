@@ -19,6 +19,7 @@ import { createPiHarnessExecutor } from "./pi-harness.ts";
 import { designToolAvailableFrom } from "./harness-rpi.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
 import { createCodexHarnessExecutor } from "./codex-harness.ts";
+import { withSessionCredentialFile } from "./session-credential-file.ts";
 import { createReviewerExecutor } from "./reviewer.ts";
 import {
   createNativeExecutor,
@@ -284,6 +285,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         coordinatorTimeLimitMs: config.claudeCoordinatorTimeLimitMs,
         coordinatorEffort: config.claudeCoordinatorEffort,
         stateDir: config.stateDir,
+        gatewayUrl: config.serverUrl,
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
         readAttemptContext,
@@ -300,6 +302,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         model: codingHarness.model,
         effort: codingHarness.effort,
         stateDir: config.stateDir,
+        gatewayUrl: config.serverUrl,
         piAgentSourceDir: piAgentSourceDir!,
         redactionSecrets: config.outputRedactionSecrets,
         capabilities: config.adapterCapabilities,
@@ -315,6 +318,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         timeLimitMs: codingHarness.timeLimitMs,
         codexExecutable: codingHarness.executable,
         stateDir: config.stateDir,
+        gatewayUrl: config.serverUrl,
         authSourceDir: config.codexAuthSourceDir ?? join(home!, ".codex"),
         redactionSecrets: config.outputRedactionSecrets,
         readAttemptContext,
@@ -342,7 +346,15 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         credentialPaths,
       })
       : harnessExecutor;
-    await workerExecutor.initialize?.();
+    // One wrapper around every adapter (#404): the session's operation
+    // credential is written to an owner-only file for exactly as long as the
+    // attempt runs, and the child environment is given its path, never the
+    // value. Doing it here rather than per adapter is what keeps "does this
+    // harness clean up" from being a per-harness question.
+    const sessionAwareExecutor = withSessionCredentialFile(workerExecutor, {
+      stateDir: config.stateDir,
+    });
+    await sessionAwareExecutor.initialize?.();
     const skillMaterializer = new SkillMaterializer(
       new SkillCache(config.stateDir),
       client,
@@ -367,7 +379,9 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       config,
       client,
       registrationStore,
-      executor: workerExecutor,
+      // The wrapper, not the adapter chain: every attempt that holds a session
+      // credential gets its file and loses it here.
+      executor: sessionAwareExecutor,
       preparedSecretInvoker: createPreparedSecretInvoker(client),
       skillMaterializer,
       spool,
