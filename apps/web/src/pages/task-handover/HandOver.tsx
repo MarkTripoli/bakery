@@ -55,6 +55,7 @@ export function HandOver(
   const { translate: t } = useI18n();
   const [openStep, setOpenStep] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [tries, setTries] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const alive = useRef(true);
@@ -123,6 +124,17 @@ export function HandOver(
   };
 
   const view = manifest.data ? viewManifest(manifest.data.manifest) : null;
+  const readState: ReadState = manifest.data !== undefined
+    ? manifest.data.status !== "pending"
+      ? "gone"
+      : view === null
+      ? "failed"
+      : "ok"
+    : manifest.isError
+    ? notFound(manifest.error) ? "gone" : "failed"
+    : manifest.fetchStatus === "paused"
+    ? "offline"
+    : "ok";
   const way: CarryOn | null = manifest.data && view
     ? carryOn(manifest.data, view)
     : null;
@@ -208,10 +220,15 @@ export function HandOver(
                 <Card
                   key={step.id}
                   stepName={stepTitle(t, step.stepKey)}
-                  loading={manifest.isPending}
-                  gone={manifest.isError ||
-                    (manifest.data !== undefined &&
-                      (manifest.data.status !== "pending" || view === null))}
+                  loading={manifest.isPending &&
+                    manifest.fetchStatus !== "paused"}
+                  readState={readState}
+                  tries={tries}
+                  retrying={manifest.isFetching}
+                  onRetry={() => {
+                    setTries((count) => count + 1);
+                    void manifest.refetch();
+                  }}
                   savedAt={step.handoffManifest?.status === "pending"
                     ? manifest.data?.createdAt ?? null
                     : null}
@@ -242,11 +259,21 @@ export function HandOver(
   );
 }
 
+type ReadState = "ok" | "gone" | "failed" | "offline";
+
+function notFound(error: unknown): boolean {
+  const failure = error as { kind?: string; problem?: { status: number } };
+  return failure?.kind === "problem" && failure.problem?.status === 404;
+}
+
 function Card(
   {
     stepName,
     loading,
-    gone,
+    readState,
+    tries,
+    retrying,
+    onRetry,
     savedAt,
     machine,
     view,
@@ -259,7 +286,10 @@ function Card(
   }: {
     readonly stepName: string;
     readonly loading: boolean;
-    readonly gone: boolean;
+    readonly readState: ReadState;
+    readonly tries: number;
+    readonly retrying: boolean;
+    readonly onRetry: () => void;
     readonly savedAt: string | null;
     readonly machine: string | null;
     readonly view: ManifestView | null;
@@ -277,7 +307,7 @@ function Card(
     const heading = document.getElementById("handover-heading");
     heading?.setAttribute("tabindex", "-1");
     heading?.focus();
-  }, [loading, gone]);
+  }, [loading, readState]);
   const when = savedAt === null ? "" : formatDate(new Date(savedAt), locale, {
     timeZone,
     dateStyle: "medium",
@@ -294,16 +324,66 @@ function Card(
       </UI.Stack>
     );
   }
-  if (gone || view === null || way === null) {
+  if (readState !== "ok" || view === null || way === null) {
+    const failed = readState === "failed" || readState === "offline" ||
+      view === null || way === null;
     return (
-      <UI.Stack gap="compact" data-testid="handover-card">
-        <UI.Text role="status" data-testid="handover-gone">
-          {t("tasks.run.handover.gone")}
-        </UI.Text>
-        <UI.Inline gap="compact">
-          <UI.Button variant="secondary" onClick={onKeep}>
+      <UI.Stack gap="standard" data-testid="handover-card">
+        <UI.Heading level="subsection" rank={3} id="handover-heading">
+          {t("tasks.run.handover.title", { step: stepName })}
+        </UI.Heading>
+        {readState === "gone" || !failed
+          ? (
+            <UI.Text role="status" data-testid="handover-gone">
+              {t("tasks.run.handover.gone")}
+            </UI.Text>
+          )
+          : (
+            <UI.InlineNotice
+              key={tries}
+              tone="warning"
+              role="status"
+              data-testid="handover-read-failed"
+            >
+              {t(
+                (readState === "offline"
+                  ? "tasks.run.handover.readOffline"
+                  : "tasks.run.handover.readFailed") as never,
+              )}
+            </UI.InlineNotice>
+          )}
+        <UI.Inline variant={phone ? "actions" : "end"} gap="compact">
+          {phone && readState === "failed"
+            ? (
+              <UI.Button
+                data-testid="handover-retry"
+                variant="primary"
+                loading={retrying}
+                onClick={onRetry}
+              >
+                {t("core.actions.retry")}
+              </UI.Button>
+            )
+            : null}
+          <UI.Button
+            data-testid="handover-keep"
+            variant="secondary"
+            onClick={onKeep}
+          >
             {t("tasks.run.handover.keep")}
           </UI.Button>
+          {!phone && readState === "failed"
+            ? (
+              <UI.Button
+                data-testid="handover-retry"
+                variant="primary"
+                loading={retrying}
+                onClick={onRetry}
+              >
+                {t("core.actions.retry")}
+              </UI.Button>
+            )
+            : null}
         </UI.Inline>
       </UI.Stack>
     );

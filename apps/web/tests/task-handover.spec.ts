@@ -686,18 +686,73 @@ test.describe("hand over a running step to a new session", () => {
     await still(page, "saving-blocked");
   });
 
-  test("a saved point that cannot be read says there is none yet", async ({ page }) => {
+  test("a saved point that is not found says there is none yet", async ({ page }) => {
     const w = world();
     await open(page, w);
     await page.route(
       `**/v1/handoff-manifests/${manifestId}`,
-      (r) =>
-        r.fulfill({ status: 404, json: problem(404, "RESOURCE_NOT_FOUND") }),
+      (r) => problemReply(r, 404, "RESOURCE_NOT_FOUND"),
     );
     await button(page).click();
     await expect(page.getByTestId("handover-gone")).toHaveText(
       "This step has no saved point to hand over from yet.",
     );
+    await expect(page.getByTestId("handover-retry")).toHaveCount(0);
+    await expect(page.locator("#handover-heading")).toBeFocused();
+  });
+
+  test("a failed read says so, keeps the entry button, and Try again draws the card", async ({ page }) => {
+    const w = world();
+    await open(page, w);
+    let calls = 0;
+    await page.route(`**/v1/handoff-manifests/${manifestId}`, (r) => {
+      calls += 1;
+      return calls === 1
+        ? problemReply(r, 500, "INTERNAL_ERROR")
+        : r.fallback();
+    });
+    await button(page).click();
+    const notice = page.getByTestId("handover-read-failed");
+    await expect(notice).toHaveText(
+      "Bakery could not read the saved point. The session is still working on this step.",
+    );
+    await expect(page.getByTestId("handover-gone")).toHaveCount(0);
+    await expect(button(page)).toBeVisible();
+    await expect(page.getByTestId("handover-keep")).toBeEnabled();
+    await still(page, "read-failed");
+    await page.getByTestId("handover-retry").click();
+    await expect(page.getByTestId("handover-way")).toBeVisible();
+    await expect(page.locator("#handover-heading")).toBeFocused();
+  });
+
+  test("a dropped connection says so after the automatic retry", async ({ page }) => {
+    const w = world();
+    await open(page, w);
+    let calls = 0;
+    await page.route(`**/v1/handoff-manifests/${manifestId}`, (r) => {
+      calls += 1;
+      return r.abort();
+    });
+    await button(page).click();
+    await expect(page.getByTestId("handover-read-failed")).toBeVisible();
+    expect(calls).toBeGreaterThanOrEqual(2);
+    await expect(page.getByTestId("handover-retry")).toBeVisible();
+  });
+
+  test("offline, the card says so, offers no Try again, and draws when back online", async ({ page, context }) => {
+    const w = world();
+    await open(page, w);
+    await expect(button(page)).toBeVisible();
+    await context.setOffline(true);
+    await button(page).click();
+    await expect(page.getByTestId("handover-read-failed")).toHaveText(
+      "You are offline, so the saved point cannot be read. It is read again by itself when you are back online.",
+    );
+    await expect(page.getByTestId("handover-retry")).toHaveCount(0);
+    await expect(card(page).getByRole("progressbar")).toHaveCount(0);
+    await still(page, "read-offline");
+    await context.setOffline(false);
+    await expect(page.getByTestId("handover-way")).toBeVisible();
   });
 
   test.describe("refusals", () => {
