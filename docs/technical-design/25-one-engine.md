@@ -619,20 +619,20 @@ version plus seat id.
 
 #### What landed (#436)
 
-**The workflow `tools` section.** A workflow names MCP connections and the
-exact tools it may use from each. A seat listed on an entry gets all of the
-entry's tools; a step's `tools` list names an entry (all its tools) or one
-tool of it as `entry.tool`. The compiler refuses a malformed section
+**The workflow `tools` section.** A workflow names MCP connections and the exact
+tools it may use from each. A seat listed on an entry gets all of the entry's
+tools; a step's `tools` list names an entry (all its tools) or one tool of it as
+`entry.tool`. The compiler refuses a malformed section
 (`workflow_tools_invalid`) and a reference to a missing entry or a tool the
-entry does not allow (`action_tools_invalid`). The section is digest-bearing;
-a workflow without one keeps its digest.
+entry does not allow (`action_tools_invalid`). The section is digest-bearing; a
+workflow without one keeps its digest.
 
 ```yaml
 tools:
   design:
-    connectionId: 4f6c...      # an MCP connection
+    connectionId: 4f6c... # an MCP connection
     allow: [create_artboard, write_html]
-    seats: [designer]          # every step running as designer gets both
+    seats: [designer] # every step running as designer gets both
 steps:
   - id: mock
     uses: rpi.design
@@ -643,14 +643,13 @@ steps:
 ```
 
 **Pinning.** Publishing a version pins each entry to its connection's latest
-snapshot and writes one `capability_bindings` row per seat (`seat_key`) and
-per step (`step_key`), with the exact tool names. Publication is refused when
-an entry names a connection that is off, personal without its owner's grant,
-or has no snapshot, or allows a tool the server does not offer
-(`tools_tool_unknown`) or an Admin has not enabled (`tools_tool_not_enabled`).
-A tool.call step takes no `tools` list; it pins its one tool as before. A
-version's bindings are never changed or removed: a changed pin is a new
-version.
+snapshot and writes one `capability_bindings` row per seat (`seat_key`) and per
+step (`step_key`), with the exact tool names. Publication is refused when an
+entry names a connection that is off, personal without its owner's grant, or has
+no snapshot, or allows a tool the server does not offer (`tools_tool_unknown`)
+or an Admin has not enabled (`tools_tool_not_enabled`). A tool.call step takes
+no `tools` list; it pins its one tool as before. A version's bindings are never
+changed or removed: a changed pin is a new version.
 
 **Agent bindings.** An Admin grants an agent version exact tools on an
 organization connection with `capabilityBindings.create`
@@ -660,41 +659,42 @@ append-only row (`capability_binding_revocations`); the binding row stays, so
 bindings remain select-and-insert only. Wildcards are refused.
 
 **Effective tools.** A session's effective tools are the tools bound by exact
-name to its step, its seat or its agent version, where the connection is
-enabled (and, if personal, usable for this run), the tool is enabled, and the
-binding's pinned snapshot is still the connection's latest. A reviewer-role
-session (the step's role is `reviewer` or its action needs the reviewer
-capability) gets only tools an Admin classified as reads. A bound tool the
-session cannot call is reported with its reason, for example
-`update_available` after drift; nothing re-pins on its own.
+name to its step, its seat or its agent version, where the connection is enabled
+(and, if personal, usable for this run), the tool is enabled, and the binding's
+pinned snapshot is still the connection's latest. A reviewer-role session (the
+step's role is `reviewer` or its action needs the reviewer capability) gets only
+tools an Admin classified as reads. A bound tool the session cannot call is
+reported with its reason, for example `update_available` after drift; nothing
+re-pins on its own.
 
 **The gateway.** The worker opens a loopback MCP endpoint for each Claude
-freeform session (`apps/worker/src/tool-gateway.ts`), with a random bearer
-that lives as long as the session. It lists what
+freeform session (`apps/worker/src/tool-gateway.ts`), with a random bearer that
+lives as long as the session. It lists what
 `POST /v1/worker/attempts/{id}/effective-tools` returns and sends each call to
 `worker.invokeTool` (`POST /v1/worker/attempts/{id}/tool-invocations`); both
-routes prove the lease, fence and worker session first and read the scope
-from the attempt's own rows. The server's broker sends the call through the
-same pinned-tool door as a `tool.call` step, so the remote credential never
-enters the session. Each call is recorded in `tool_gateway_calls` before it is
-sent: a replayed Idempotency-Key answers what happened, and a write whose
-outcome is unknown stays `sent` and is refused (`tool_call_outcome_unknown`)
-rather than sent twice. An Admin who has checked the outside system settles
-such a call with `toolGatewayCalls.settle`
-(`POST /v1/tool-gateway-calls/{id}/settlement`, `completed` or `failed`):
-only a `sent` call, only once, scoped to the organization and audited.
+routes prove the lease, fence and worker session first and read the scope from
+the attempt's own rows. The server's broker sends the call through the same
+pinned-tool door as a `tool.call` step, so the remote credential never enters
+the session. Each call is recorded in `tool_gateway_calls` before it is sent: a
+replayed Idempotency-Key answers what happened, and a write whose outcome is
+unknown stays `sent` and is refused (`tool_call_outcome_unknown`) rather than
+sent twice. An Admin who has checked the outside system settles such a call with
+`toolGatewayCalls.settle` (`POST /v1/tool-gateway-calls/{id}/settlement`,
+`completed` or `failed`): only a `sent` call, only once, scoped to the
+organization and audited.
 
-**Paper as a binding.** `rpi.design` still requires `paper`, and a host meets
-it with `paper` or with `tool-gateway`, which a worker running the Claude
-harness advertises (`HOST_CAPABILITY_SUBSTITUTES`). On the Claude harness the
-design step has its design tool exactly when its session's gateway lists a
-bound tool, so a Paper connection bound to the step, its seat or its agent is
-the design tool. A Pi or Codex host without `paper` never claims the step.
+**Paper as a binding.** `rpi.design` still requires `paper`, and a host meets it
+with `paper` or with `tool-gateway`, which a worker running the Claude harness
+advertises (`HOST_CAPABILITY_SUBSTITUTES`). On the Claude harness the design
+step has its design tool exactly when its session's gateway lists a bound tool,
+so a Paper connection bound to the step, its seat or its agent is the design
+tool. A Pi or Codex host without `paper` never claims the step.
 
 Not yet served: native integration actions through the gateway (the route
-refuses `integrationConnectionId` with `tool_invocation_integration_unsupported`),
-local stdio servers (slice H), the Pi and Codex harnesses (they still use the
-worker's `paper` capability), a feed item per gateway call and per-call cost.
+refuses `integrationConnectionId` with
+`tool_invocation_integration_unsupported`), local stdio servers (slice H), the
+Pi and Codex harnesses (they still use the worker's `paper` capability), a feed
+item per gateway call and per-call cost.
 
 ### 15.6 Example: a video-production factory
 
@@ -868,27 +868,27 @@ somewhere to attach.
 | Integrations   | A `storage` family: list, stat, read by range, write, change events. Connections mount under `/connections`, read through. Using an outside file ingests it into a version; one-way sync is a workflow; writing out is a keyed effect; no two-way sync in the first version (O38)                                                                                       |
 
 **Outside storage as shipped (F9, #452).** A storage connection is an
-integration connection whose provider serves the storage family. An Admin
-mounts it as a record-area folder under `/connections/<connection>`; listing,
-stat and range reads go through the provider's port and copy nothing. Using a
-file ingests it into an artifact version keyed by mount, remote path and remote
-revision, so using it again returns the same version. One-way sync is a
-workflow over that ingest, driven by the provider's change feed, and a remote
-deletion leaves ingested versions alone. Writing out is a keyed external
-effect, written with `If-Match` on the remote revision. Access is the
-connection's permission (read, invoke, manage), the tree's read rule on the
-mount folder, and a live connection.
+integration connection whose provider serves the storage family. An Admin mounts
+it as a record-area folder under `/connections/<connection>`; listing, stat and
+range reads go through the provider's port and copy nothing. Using a file
+ingests it into an artifact version keyed by mount, remote path and remote
+revision, so using it again returns the same version. One-way sync is a workflow
+over that ingest, driven by the provider's change feed, and a remote deletion
+leaves ingested versions alone. Writing out is a keyed external effect, written
+with `If-Match` on the remote revision. Access is the connection's permission
+(read, invoke, manage), the tree's read rule on the mount folder, and a live
+connection.
 
 The first provider is **local disk**. The operator sets one root
-(`BAKERY_STORAGE_LOCAL_ROOT`, read through `RuntimeConfig`, server only), and
-a connection with provider `local-disk` reads and writes only
+(`BAKERY_STORAGE_LOCAL_ROOT`, read through `RuntimeConfig`, server only), and a
+connection with provider `local-disk` reads and writes only
 `<root>/<organization>/<connection>`. A remote path is absolute with no empty,
 `.` or `..` segment, and is resolved with `realpath`. An answer outside the
 connection folder reads as missing. Listing and the change feed skip symbolic
 links, and a link in place of the organization or connection folder is never
 followed. A read checks that the file it opened is the one it resolved. With no
-root set, a `local-disk` connection answers `STORAGE_PROVIDER_UNAVAILABLE`,
-like any provider that is not deployed.
+root set, a `local-disk` connection answers `STORAGE_PROVIDER_UNAVAILABLE`, like
+any provider that is not deployed.
 
 ### 17.5 Lifecycle
 
@@ -948,21 +948,21 @@ them:
 - **Never beyond the principal.** Widening adds scope, not authority.
 
 **Binding connections (O44, #452).** A step binds storage connections in its
-`files` section: `files: { read: [connections, ...], connections: [<id>] }`,
-at most 16 ids. The workflow SDK takes the same section as an action step's
-`files` option. The compiler lower-cases and sorts the ids and refuses a
-repeat, a value that is not an id, or a binding whose `read` does not name
-`connections`. A sealed step cannot bind. When a run is admitted, each bound
-connection must be mounted in the run's organization, readable by the person
-starting the run, and live. Otherwise the start is refused with
-`storage_connection_not_bindable`, or `connection_unavailable` for a disabled
-or archived connection. At claim the session gets `files.read:connections` and
-one `files.read:connection:<id>` scope per bound connection. It also gets the
-mount's list, stat and read tools. The read guard opens `/connections` itself,
-showing only the bound mounts, and everything under a bound mount. Any other
-connection is refused with `agent_file_connection_not_bound` unless a person
-granted the workflow that folder. A step that binds nothing never sees
-`/connections`, even when its `read` names the area.
+`files` section: `files: { read: [connections, ...], connections: [<id>] }`, at
+most 16 ids. The workflow SDK takes the same section as an action step's `files`
+option. The compiler lower-cases and sorts the ids and refuses a repeat, a value
+that is not an id, or a binding whose `read` does not name `connections`. A
+sealed step cannot bind. When a run is admitted, each bound connection must be
+mounted in the run's organization, readable by the person starting the run, and
+live. Otherwise the start is refused with `storage_connection_not_bindable`, or
+`connection_unavailable` for a disabled or archived connection. At claim the
+session gets `files.read:connections` and one `files.read:connection:<id>` scope
+per bound connection. It also gets the mount's list, stat and read tools. The
+read guard opens `/connections` itself, showing only the bound mounts, and
+everything under a bound mount. Any other connection is refused with
+`agent_file_connection_not_bound` unless a person granted the workflow that
+folder. A step that binds nothing never sees `/connections`, even when its
+`read` names the area.
 
 **Reads (O46).** Each file an agent opens joins the step's **read set** (entry,
 version, digest, feed position). A read returns the version current when the
