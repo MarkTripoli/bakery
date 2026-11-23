@@ -14,7 +14,7 @@
  * `m1-proof-failure.json` and exits non-zero. Nothing here spends model money
  * itself: the funded steps are the spec's.
  *
- * The orchestrator takes `/run/user/1000/bakery-verification.lock` itself for
+ * The orchestrator takes `bakery-verification.lock` (see `verificationLockPath`) itself for
  * its whole run. Never wrap it in another `flock`.
  *
  * ## Cross-phase contracts
@@ -91,7 +91,31 @@ import {
 
 export const M1_SPEND_CAP_LIMIT_USD = 40;
 export const M1_MIN_MEM_AVAILABLE_KB = 3 * 1024 * 1024;
-export const M1_VERIFICATION_LOCK = "/run/user/1000/bakery-verification.lock";
+const M1_VERIFICATION_LOCK_NAME = "bakery-verification.lock";
+
+/**
+ * Where the orchestrator takes this host's verification lock: the explicit
+ * `BAKERY_VERIFICATION_LOCK`, else the user's runtime directory
+ * (`XDG_RUNTIME_DIR`, then `/run/user/<uid>` when it exists), else the system
+ * temporary directory. It used to be `/run/user/1000/...`, which does not exist
+ * for any other user, so the orchestrator could not start for them.
+ */
+export function verificationLockPath(
+  environment: Readonly<Record<string, string | undefined>>,
+  uid: number | null,
+  directoryExists: (path: string) => boolean,
+): string {
+  const explicit = environment.BAKERY_VERIFICATION_LOCK?.trim();
+  if (explicit) return explicit;
+  const runtime = environment.XDG_RUNTIME_DIR?.trim().replace(/\/+$/, "");
+  if (runtime) return `${runtime}/${M1_VERIFICATION_LOCK_NAME}`;
+  if (uid !== null) {
+    const user = `/run/user/${uid}`;
+    if (directoryExists(user)) return `${user}/${M1_VERIFICATION_LOCK_NAME}`;
+  }
+  const temporary = environment.TMPDIR?.trim().replace(/\/+$/, "") || "/tmp";
+  return `${temporary}/${M1_VERIFICATION_LOCK_NAME}`;
+}
 export const M1_LOCK_TIMEOUT_MS = 3_600_000;
 /**
  * Wall-clock limit of the journey Playwright step. It must be at least the sum
@@ -740,7 +764,13 @@ function defaultServices(): M1Services {
       new Promise((done) => setTimeout(done, milliseconds)),
     acquireLock: acquireFileLock,
     waitForHttp: waitForHttpOk,
-    lockPath: M1_VERIFICATION_LOCK,
+    lockPath: verificationLockPath(environment, Deno.uid(), (path) => {
+      try {
+        return Deno.statSync(path).isDirectory;
+      } catch {
+        return false;
+      }
+    }),
     maxScanBytes: M1_MAX_SCAN_BYTES,
     stateRoot: join(home, ".local", "state", "bakery-proof"),
   };
