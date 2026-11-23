@@ -1,5 +1,8 @@
 import { assert } from "@std/assert";
-import { WORKFLOW_PRESETS } from "../../packages/contracts/src/workflow-presets.ts";
+import {
+  FIXED_CODING_PRESET,
+  FIXED_CODING_REVIEWED_PRESET,
+} from "../../packages/contracts/src/workflow-presets.ts";
 import { automationVersionInputs } from "../helpers/automation-fixtures.ts";
 
 // #499 changed the fixed-coding preset's `brief` input from a plain string to
@@ -11,6 +14,18 @@ import { automationVersionInputs } from "../helpers/automation-fixtures.ts";
 // fails here, by name, instead of silently over there.
 
 const SAMPLE_REPOSITORY_ID = "00000000-0000-4000-8000-000000000000";
+
+/**
+ * The presets the shared fixtures pin: the fixture publishes a copy of
+ * fixed-coding, and the reviewed preset takes the same inputs. The Deliver
+ * templates declare their own (a `gates` switch, no `instructions`) and are
+ * never published through these fixtures; their inputs are pinned by
+ * start-a-deliver-template-run_test.
+ */
+const PINNED_PRESETS = Object.freeze([
+  FIXED_CODING_PRESET,
+  FIXED_CODING_REVIEWED_PRESET,
+]);
 
 /** Every shared fixture that supplies inputs to a preset version. */
 const SHARED_FIXTURES: readonly Readonly<{
@@ -24,7 +39,7 @@ const SHARED_FIXTURES: readonly Readonly<{
 ]);
 
 Deno.test("every shared fixture supplies exactly the preset inputs the preset declares", () => {
-  for (const preset of WORKFLOW_PRESETS) {
+  for (const preset of PINNED_PRESETS) {
     // Only the document grammar declares inputs; the fixed grammar takes none.
     if (preset.spec.kind !== "workflow") continue;
     const declared = Object.keys(preset.spec.inputs);
@@ -48,7 +63,7 @@ Deno.test("every shared fixture supplies exactly the preset inputs the preset de
 });
 
 Deno.test("every shared fixture input matches the type its preset declares", () => {
-  for (const preset of WORKFLOW_PRESETS) {
+  for (const preset of PINNED_PRESETS) {
     if (preset.spec.kind !== "workflow") continue;
     for (const { fixture, inputs } of SHARED_FIXTURES) {
       for (const [name, declaration] of Object.entries(preset.spec.inputs)) {
