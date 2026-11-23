@@ -13,7 +13,12 @@ import {
   registeredActionMetadata,
 } from "../registry.ts";
 import { WORKFLOW_ACTION_REGISTRY_VERSION } from "../../workflow-action-registry.ts";
-import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
+import {
+  WORKFLOW_MCP_TOOL_NAME,
+  WORKFLOW_STEP_TOOL_REFERENCE,
+  WORKFLOW_STRUCTURED_INPUT_TYPES,
+  WORKFLOW_TOOL_ENTRY_NAME,
+} from "../schema.ts";
 import {
   DEFAULT_STEP_FILES,
   isBoundConnectionId,
@@ -83,6 +88,7 @@ const ROOT_KEYS: ReadonlySet<string> = new Set([
   "limits",
   "agents",
   "cancel",
+  "tools",
   "steps",
 ]);
 const NODE_BASE_KEYS = ["id", "needs", "if", "agentVersionId"] as const;
@@ -92,6 +98,7 @@ const ACTION_KEYS: ReadonlySet<string> = new Set([
   "with",
   "skills",
   "role",
+  "tools",
   "inputs",
   "outputs",
   "files",
@@ -207,6 +214,8 @@ const MAX_SET_ITEMS = 32;
 type Context = {
   readonly collector: DiagnosticCollector;
   readonly locations: NodeLocations;
+  /** Each step's tools references, checked against the tools section at the end. */
+  readonly toolReferences?: Array<{ path: Path; references: string[] }>;
 };
 
 function report(
@@ -952,6 +961,30 @@ function shapeAction(
     }
   }
 
+  // The MCP tools the step's session may call, by reference into the workflow
+  // tools section; whether each reference resolves is checked once the section
+  // is read.
+  let tools: string[] | undefined;
+  if (Object.hasOwn(raw, "tools")) {
+    tools = readStringSet(
+      context,
+      raw["tools"],
+      [...path, "tools"],
+      32,
+      "action_tools_invalid",
+      "action_tools_invalid",
+      (item) => WORKFLOW_STEP_TOOL_REFERENCE.test(item),
+    );
+    if (tools === undefined) failed = true;
+    else {
+      tools = [...tools].sort();
+      context.toolReferences?.push({
+        path: [...path, "tools"],
+        references: tools,
+      });
+    }
+  }
+
   const inputSlots = readInputSlots(
     context,
     raw["inputs"],
@@ -1022,6 +1055,7 @@ function shapeAction(
   if (agentVersionId) node.agentVersionId = agentVersionId;
   if (skills) node.skills = skills;
   if (role) node.role = role;
+  if (tools && tools.length > 0) node.tools = tools;
   if (inputSlots) node.inputs = inputSlots;
   if (outputSlots) node.outputs = outputSlots;
   if (sealedFiles) node.files = sealedFiles;
@@ -1940,6 +1974,102 @@ function shapeAgents(
 }
 
 /**
+ * Reads the workflow tools section (25-one-engine.md 15.5): named MCP
+ * connections, each with the exact tools the workflow may use and the seats that
+ * get all of them. Absent is no section. Lists are sorted and must not repeat,
+ * because the section is digest-bearing.
+ */
+function shapeTools(
+  context: Context,
+  raw: unknown,
+): NonNullable<WorkflowSemanticDocument["tools"]> | null {
+  const path: Path = ["tools"];
+  if (!isPlainObject(raw) || Object.keys(raw).length > 32) {
+    report(context, path, "workflow_tools_invalid");
+    return null;
+  }
+  const tools: NonNullable<WorkflowSemanticDocument["tools"]> = Object.create(
+    null,
+  );
+  let failed = false;
+  for (const name of Object.keys(raw)) {
+    const entry = raw[name];
+    if (
+      !WORKFLOW_TOOL_ENTRY_NAME.test(name) || !isPlainObject(entry) ||
+      Object.keys(entry).some((key) =>
+        key !== "connectionId" && key !== "allow" && key !== "seats"
+      ) ||
+      typeof entry["connectionId"] !== "string" ||
+      !UUID_TEXT.test(entry["connectionId"])
+    ) {
+      report(context, path, "workflow_tools_invalid");
+      failed = true;
+      continue;
+    }
+    const entryPath: Path = [...path, name];
+    const allow = readStringSet(
+      context,
+      entry["allow"],
+      [...entryPath, "allow"],
+      64,
+      "workflow_tools_invalid",
+      "workflow_tools_invalid",
+      (item) => WORKFLOW_MCP_TOOL_NAME.test(item),
+    );
+    if (allow === undefined || allow.length === 0) {
+      if (allow !== undefined) {
+        report(context, [...entryPath, "allow"], "workflow_tools_invalid");
+      }
+      failed = true;
+      continue;
+    }
+    let seats: string[] | undefined;
+    if (Object.hasOwn(entry, "seats")) {
+      seats = readStringSet(
+        context,
+        entry["seats"],
+        [...entryPath, "seats"],
+        32,
+        "workflow_tools_invalid",
+        "workflow_tools_invalid",
+        (item) => STEP_ROLE.test(item),
+      );
+      if (seats === undefined) {
+        failed = true;
+        continue;
+      }
+    }
+    tools[name] = {
+      connectionId: entry["connectionId"].toLowerCase(),
+      allow: [...allow].sort(),
+      ...(seats && seats.length > 0 ? { seats: [...seats].sort() } : {}),
+    };
+  }
+  return failed ? null : tools;
+}
+
+/** Every step's tools reference must name an entry, and a tool that entry allows. */
+function checkToolReferences(
+  context: Context,
+  tools: WorkflowSemanticDocument["tools"],
+): void {
+  for (const { path, references } of context.toolReferences ?? []) {
+    for (const reference of references) {
+      const dot = reference.indexOf(".");
+      const name = dot < 0 ? reference : reference.slice(0, dot);
+      const entry = tools?.[name];
+      const tool = dot < 0 ? null : reference.slice(dot + 1);
+      if (
+        entry === undefined || (tool !== null && !entry.allow.includes(tool))
+      ) {
+        report(context, path, "action_tools_invalid");
+        break;
+      }
+    }
+  }
+}
+
+/**
  * Walks an inert snapshot of an authored definition and builds the normalized
  * semantic document. Presentation keys are stripped only at the workflow
  * root, node objects and lane objects; everywhere else a key such as `name`
@@ -1951,7 +2081,7 @@ export function shapeWorkflow(
   collector: DiagnosticCollector,
 ): ShapeResult {
   const locations: NodeLocations = new WeakMap();
-  const context: Context = { collector, locations };
+  const context: Context = { collector, locations, toolReferences: [] };
   const before = collector.size;
   if (!isPlainObject(root)) {
     report(context, [], "field_invalid");
@@ -1972,9 +2102,13 @@ export function shapeWorkflow(
       cancel = "stop-started-actions";
     } else report(context, ["cancel"], "field_invalid");
   }
+  const tools = Object.hasOwn(root, "tools")
+    ? shapeTools(context, root["tools"])
+    : undefined;
   const steps = Object.hasOwn(root, "steps")
     ? shapeNodeList(context, root["steps"], ["steps"], false)
     : (report(context, ["steps"], "field_missing"), undefined);
+  if (tools !== null) checkToolReferences(context, tools);
   if (collector.size > before || !inputs || !limits || !agents || !steps) {
     return { document: undefined, locations };
   }
@@ -1989,5 +2123,6 @@ export function shapeWorkflow(
     steps,
   };
   if (cancel) document.cancel = cancel;
+  if (tools && Object.keys(tools).length > 0) document.tools = tools;
   return { document, locations };
 }

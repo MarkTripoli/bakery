@@ -52,6 +52,12 @@ import {
 import { events } from "./events.ts";
 import { workerPreviewRoute } from "./previews.ts";
 import { workerHandoffManifestRoute } from "./handoff-manifests.ts";
+import {
+  createToolInvocationRoute,
+  EFFECTIVE_TOOLS_PATH,
+  effectiveToolsRoute,
+  TOOL_INVOCATIONS_PATH,
+} from "./tool-invocations.ts";
 import { inputReadRoute } from "./input-read.ts";
 import { heartbeat } from "./heartbeat.ts";
 import { enrollWorker, registerWorker } from "./registration.ts";
@@ -471,6 +477,23 @@ export function createExecutionRoutes(
       (context) => workerHandoffManifestRoute(context, options),
     ),
   );
+  // The tool gateway's MCP door (#436): mounted only when the server has an
+  // MCP broker to send through, so it never advertises calls it cannot make.
+  const toolGateway = options.toolGateway;
+  if (toolGateway) {
+    const invokeTool = createToolInvocationRoute(toolGateway);
+    app.post(
+      EFFECTIVE_TOOLS_PATH,
+      workerRouteHandler(
+        options,
+        (context) => effectiveToolsRoute(context, options),
+      ),
+    );
+    app.post(
+      TOOL_INVOCATIONS_PATH,
+      workerRouteHandler(options, (context) => invokeTool(context, options)),
+    );
+  }
   app.post(
     "/v1/worker/attempts/:id/lease-renewals",
     workerRouteHandler(options, (context) => renewLease(context, options)),
