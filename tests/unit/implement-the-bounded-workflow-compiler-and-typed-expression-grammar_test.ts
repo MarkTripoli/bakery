@@ -4131,12 +4131,21 @@ Deno.test("step skills, roles and slots each report their own code", async () =>
       { ...noop("aa"), sealed: true, files: { read: ["inputs", "shared"] } },
       "action_sealed_conflicts_files",
     ],
+    // #436: a step's tools must reference the workflow tools section.
+    [{ ...noop("aa"), tools: ["docs"] }, "action_tools_invalid"],
   ];
   for (const [step, code] of cases) {
     const result = await compileWorkflowDocument(workflow([step]));
     assert(!result.ok, code);
     assertEquals(result.diagnostics[0]?.code, code);
   }
+  // #436: the tools section itself is a map of named connections.
+  const badSection = await compileWorkflowDocument({
+    ...workflow([noop("aa")]),
+    tools: { docs: { connectionId: "not-a-uuid", allow: ["search"] } },
+  });
+  assert(!badSection.ok);
+  assertEquals(badSection.diagnostics[0]?.code, "workflow_tools_invalid");
 });
 
 Deno.test("a block that repairs must review its own result, and nothing merges before a review", async () => {

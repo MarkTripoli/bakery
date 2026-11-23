@@ -529,6 +529,8 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCreate: "workflows.create",
     WorkflowsUpdate: "workflows.update",
     WorkflowsCopy: "workflows.copy",
+    PackagesExport: "packages.export",
+    PackagesImport: "packages.import",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
     WorkflowVersionsSkills: "workflowVersions.skills",
@@ -610,6 +612,34 @@ export const McpConnectionImplementedAction = Object.freeze(
 );
 export const mcpConnectionImplementedActions = Object.freeze(
   Object.values(McpConnectionImplementedAction),
+);
+
+/**
+ * Capability bindings (#436): an Admin grants an agent version exact MCP tools;
+ * a workflow version's own bindings are written at publish.
+ */
+export const CapabilityBindingImplementedAction = Object.freeze(
+  {
+    CapabilityBindingsList: "capabilityBindings.list",
+    CapabilityBindingsCreate: "capabilityBindings.create",
+    CapabilityBindingsDelete: "capabilityBindings.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const capabilityBindingImplementedActions = Object.freeze(
+  Object.values(CapabilityBindingImplementedAction),
+);
+
+/**
+ * Tool gateway calls (#436): an Admin settles a write whose outcome the
+ * gateway could not learn, so it is never sent again and never left unknown.
+ */
+export const ToolGatewayCallImplementedAction = Object.freeze(
+  {
+    ToolGatewayCallsSettle: "toolGatewayCalls.settle",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const toolGatewayCallImplementedActions = Object.freeze(
+  Object.values(ToolGatewayCallImplementedAction),
 );
 
 /** Registered workflow action discovery served by the handwritten Hono routes. */
@@ -1031,6 +1061,8 @@ export const implementedActions = Object.freeze(
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
+    ...capabilityBindingImplementedActions,
+    ...toolGatewayCallImplementedActions,
     ...batchImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
