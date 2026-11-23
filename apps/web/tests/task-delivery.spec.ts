@@ -9,6 +9,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
+import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
 
 registerPageHealth(test);
 
@@ -21,32 +22,6 @@ const OLD = "4be19c2".padEnd(40, "a");
 const NEW = "91d0aa3".padEnd(40, "b");
 const BASE = "a7254e7".padEnd(40, "c");
 const sha = (digit: string) => digit.repeat(64);
-
-/** The card must be seen whole: inside the window and inside every ancestor that clips sideways. A long id never runs off the screen or into a rail's edge. */
-async function expectInsideWindow(page: Page, card: Locator) {
-  const view = page.viewportSize();
-  expect(view).not.toBeNull();
-  const edges = await card.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    let left = 0;
-    let right = document.documentElement.clientWidth;
-    for (let node = element.parentElement; node; node = node.parentElement) {
-      if (getComputedStyle(node).overflowX === "visible") continue;
-      const clip = node.getBoundingClientRect();
-      left = Math.max(left, clip.left);
-      right = Math.min(right, clip.right);
-    }
-    return { box: [box.left, box.right, box.top], left, right };
-  });
-  const [boxLeft, boxRight, boxTop] = edges.box;
-  expect(boxLeft, "card starts inside what clips it").toBeGreaterThanOrEqual(
-    edges.left - 0.5,
-  );
-  expect(boxRight, "card ends inside what clips it").toBeLessThanOrEqual(
-    edges.right + 0.5,
-  );
-  expect(boxTop, "card top is inside the window").toBeGreaterThanOrEqual(0);
-}
 
 const run = {
   id: runId,
@@ -688,7 +663,7 @@ test("a clean run says nothing is waiting, offers no buttons and lists nothing t
   await head.locator(".ui-reference__plain").focus();
   await expect(head.getByRole("group", { name: "Commit" })).toContainText(NEW);
   const refCard = head.getByRole("group", { name: "Commit" });
-  await expectInsideWindow(page, refCard);
+  await expectReferenceCardUsable(refCard);
   if ((page.viewportSize()?.width ?? 1440) <= 743) {
     // On a phone the card is the sheet: it rests on the bottom of the window.
     const box = await refCard.boundingBox();

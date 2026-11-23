@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   MOCK_PRINCIPAL_ID,
@@ -6,36 +6,11 @@ import {
 } from "./helpers/mock-session.ts";
 import { still } from "./helpers/stills.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
+import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
 
 // #19: the Preview card in a task's run pane. Everything the browser asks for
 // is stubbed; the preview routes are the real shapes of previews.list,
 // previews.access, previews.stop and previews.availability.
-
-/** The card must be seen whole: inside the window and inside every ancestor that clips sideways. A long id never runs off the screen or into a rail's edge. */
-async function expectInsideWindow(page: Page, card: Locator) {
-  const view = page.viewportSize();
-  expect(view).not.toBeNull();
-  const edges = await card.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    let left = 0;
-    let right = document.documentElement.clientWidth;
-    for (let node = element.parentElement; node; node = node.parentElement) {
-      if (getComputedStyle(node).overflowX === "visible") continue;
-      const clip = node.getBoundingClientRect();
-      left = Math.max(left, clip.left);
-      right = Math.min(right, clip.right);
-    }
-    return { box: [box.left, box.right, box.top], left, right };
-  });
-  const [boxLeft, boxRight, boxTop] = edges.box;
-  expect(boxLeft, "card starts inside what clips it").toBeGreaterThanOrEqual(
-    edges.left - 0.5,
-  );
-  expect(boxRight, "card ends inside what clips it").toBeLessThanOrEqual(
-    edges.right + 0.5,
-  );
-  expect(boxTop, "card top is inside the window").toBeGreaterThanOrEqual(0);
-}
 
 const taskId = "00000000-0000-4000-8000-000000000012";
 const runId = "00000000-0000-4000-8000-000000000020";
@@ -779,7 +754,7 @@ test("a preview behind the change says so once, and still opens when the person 
   await expect(newer.getByRole("group", { name: "Commit" })).toContainText(
     NEWER,
   );
-  await expectInsideWindow(page, newer.getByRole("group", { name: "Commit" }));
+  await expectReferenceCardUsable(newer.getByRole("group", { name: "Commit" }));
   // The card opens past the preview card, so the shot is the whole page.
   await still(page, "run-preview-reference-card");
   await expect(card(page).getByRole("button", { name: "Stop preview" }))

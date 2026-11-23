@@ -51,24 +51,42 @@ const HOVER_OPEN_MS = 300;
 const EDGE_GAP = 8;
 
 /**
- * The left and right edges the card can be seen between: the window, narrowed
- * by every ancestor that clips sideways (a rail that scrolls or hides its
- * overflow). A card past such an edge is cut off even inside the window.
+ * The edges the card can be seen between: the window, narrowed by every
+ * ancestor that clips (a rail that scrolls, a pane that hides its overflow). A
+ * card past such an edge is cut off even inside the window, so it is
+ * measured against them rather than against the window alone.
  */
-function clipBounds(card: HTMLElement): readonly [number, number] {
+function clipBounds(card: HTMLElement): {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+} {
+  const root = globalThis.document.documentElement;
   let left = 0;
-  let right = globalThis.document.documentElement.clientWidth;
+  let right = root.clientWidth;
+  let top = 0;
+  let bottom = root.clientHeight;
   for (
     let node = card.parentElement;
     node !== null;
     node = node.parentElement
   ) {
-    if (globalThis.getComputedStyle(node).overflowX === "visible") continue;
+    const style = globalThis.getComputedStyle(node);
+    const sideways = style.overflowX !== "visible";
+    const upright = style.overflowY !== "visible";
+    if (!sideways && !upright) continue;
     const box = node.getBoundingClientRect();
-    left = Math.max(left, box.left);
-    right = Math.min(right, box.right);
+    if (sideways) {
+      left = Math.max(left, box.left);
+      right = Math.min(right, box.right);
+    }
+    if (upright) {
+      top = Math.max(top, box.top);
+      bottom = Math.min(bottom, box.bottom);
+    }
   }
-  return [left, right];
+  return { bottom, left, right, top };
 }
 /** How long "Copied" stays. */
 const COPIED_MS = 2500;
@@ -113,9 +131,9 @@ export function Reference(
   }, []);
 
   // The card opens under the reference and reads from its start. Where that
-  // would run past the edge of what clips it (the window, or a rail that
-  // scrolls), it is measured once it is in place and shifted back inside, and
-  // narrowed when the room is smaller than the card. Written on the element,
+  // would run past the edge of what clips it (the window, a rail or pane that
+  // scrolls), it is measured once it is in place and shifted back inside,
+  // narrowed when the room is smaller than the card, or opened upward. Written on the element,
   // not in state: a measurement must not render again. The phone sheet is
   // fixed to the window and sizes itself.
   useLayoutEffect(() => {
@@ -125,8 +143,10 @@ export function Reference(
       if (card === null) return;
       card.style.insetInlineStart = "";
       card.style.maxInlineSize = "";
+      card.style.insetBlockStart = "";
+      card.style.insetBlockEnd = "";
       if (globalThis.getComputedStyle(card).position === "fixed") return;
-      const [left, right] = clipBounds(card);
+      const { bottom, left, right, top } = clipBounds(card);
       const room = right - left - 2 * EDGE_GAP;
       let box = card.getBoundingClientRect();
       if (box.width > room) {
@@ -138,9 +158,22 @@ export function Reference(
       if (box.left + shift < left + EDGE_GAP) {
         shift = left + EDGE_GAP - box.left;
       }
-      if (shift === 0) return;
-      const rtl = globalThis.getComputedStyle(card).direction === "rtl";
-      card.style.insetInlineStart = `${rtl ? -shift : shift}px`;
+      if (shift !== 0) {
+        const rtl = globalThis.getComputedStyle(card).direction === "rtl";
+        card.style.insetInlineStart = `${rtl ? -shift : shift}px`;
+      }
+      // Under the reference by default. Near the bottom of what clips it the
+      // card opens above instead; where neither side has room (a short pane)
+      // it stays below and the pane is scrolled to bring it into view.
+      if (box.bottom > bottom - EDGE_GAP) {
+        card.style.insetBlockStart = "auto";
+        card.style.insetBlockEnd = "calc(100% + var(--space-2))";
+        if (card.getBoundingClientRect().top < top + EDGE_GAP) {
+          card.style.insetBlockStart = "";
+          card.style.insetBlockEnd = "";
+          card.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      }
     };
     place();
     globalThis.addEventListener("resize", place);
