@@ -6456,15 +6456,15 @@
   "installation.updates.notice.dismissFailed": "⟪This could not be dismissed. Try again.⟫",
   "installation.updates.held.error": "⟪The actions held outside Bakery could not be loaded.⟫",
   "tasks.preset.deliverOneshot.title": "⟪Deliver: small change⟫",
-  "tasks.preset.deliverOneshot.description": "⟪Plan the change as one phase, build and review it, check it, then open a pull request.⟫",
   "tasks.preset.deliverLean.title": "⟪Deliver: outlined change⟫",
-  "tasks.preset.deliverLean.description": "⟪Research and outline the change, build each phase with a fresh review, check it, then open a pull request.⟫",
   "tasks.preset.deliverFull.title": "⟪Deliver: designed change⟫",
-  "tasks.preset.deliverFull.description": "⟪Research, design and plan the change, build each phase with a fresh review, check it, then open a pull request.⟫",
   "tasks.preset.deliverPrd.title": "⟪Deliver: from requirements⟫",
-  "tasks.preset.deliverPrd.description": "⟪Write requirements and a technical design, plan, build each phase with a fresh review, check it, then open a pull request.⟫",
-  "tasks.preset.deliverOneshot.line": "⟪Workflow: plan one phase, build, review, check, open a pull request.⟫",
-  "tasks.preset.deliverLean.line": "⟪Workflow: research, outline, build each phase with review, check, open a pull request.⟫",
-  "tasks.preset.deliverFull.line": "⟪Workflow: research, design, plan, build each phase with review, check, open a pull request.⟫",
-  "tasks.preset.deliverPrd.line": "⟪Workflow: requirements, technical design, plan, build each phase with review, check, open a pull request.⟫"
+  "tasks.preset.deliverOneshot.description": "⟪Plan the change as one phase, build it, then check and review it, fixing it a limited number of times.⟫",
+  "tasks.preset.deliverLean.description": "⟪Research and outline the change, build it, then check and review it, fixing it a limited number of times.⟫",
+  "tasks.preset.deliverFull.description": "⟪Research, design and plan the change, build it, then check and review it, fixing it a limited number of times.⟫",
+  "tasks.preset.deliverPrd.description": "⟪Write requirements and a technical design, plan and build the change, then check and review it, fixing it a limited number of times.⟫",
+  "tasks.preset.deliverOneshot.line": "⟪Workflow: plan one phase, build, check, review, verify.⟫",
+  "tasks.preset.deliverLean.line": "⟪Workflow: research, outline, build, check, review, verify.⟫",
+  "tasks.preset.deliverFull.line": "⟪Workflow: research, design, plan, build, check, review, verify.⟫",
+  "tasks.preset.deliverPrd.line": "⟪Workflow: requirements, technical design, plan, build, check, review, verify.⟫"
 }
