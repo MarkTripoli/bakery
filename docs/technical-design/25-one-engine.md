@@ -921,8 +921,13 @@ range reads go through the provider's port and copy nothing. Using a file
 ingests it into an artifact version keyed by mount, remote path and remote
 revision, so using it again returns the same version. One-way sync is a workflow
 over that ingest, driven by the provider's change feed, and a remote deletion
-leaves ingested versions alone. Writing out is a keyed external effect, written
-with `If-Match` on the remote revision. Access is the connection's permission
+leaves ingested versions alone. A run walks at most 500 files and the next run
+resumes where it stopped; the feed position moves only when a walk finishes. A
+sync can be paused and resumed, and a failed run records why (`lastFailure`)
+without holding up the other syncs. Writing out is a keyed external effect,
+written with `If-Match` on the remote revision. An export whose source bytes
+are gone fails, and one the provider keeps refusing is tried at most five times.
+Access is the connection's permission
 (read, invoke, manage), the tree's read rule on the mount folder, and a live
 connection.
 
