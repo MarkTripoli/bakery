@@ -92,6 +92,17 @@
   }
 }
 
+/* A notice that opts in to its action below: on a phone it wraps, and the
+   action takes its own full-width row under the text. */
+@media (max-width: 743px) {
+  .ui-inline-notice[data-action-layout="below"] {
+    flex-wrap: wrap;
+  }
+  .ui-inline-notice[data-action-layout="below"] > .ui-inline-notice__action {
+    flex: 1 1 100%;
+  }
+}
+
 .ui-inline-notice__icon,
 .ui-alert-banner__icon {
   flex: none;
@@ -238,6 +249,10 @@
   justify-items: start;
   max-inline-size: var(--layout-content);
   padding: var(--space-6);
+}
+
+.ui-empty-state[data-span="column"] {
+  max-inline-size: none;
 }
 
 .ui-empty-state--page,
@@ -618,6 +633,10 @@
   max-inline-size: none;
   padding: var(--space-0);
   text-align: center;
+}
+.ui-empty-state--centered[data-align="start"] {
+  justify-items: start;
+  text-align: start;
 }
 .ui-empty-state--centered .ui-empty-state__icon {
   color: var(--color-fg-muted);
