@@ -25,7 +25,7 @@ import {
 import { decideLaneReuse } from "./coordination-reuse.ts";
 import {
   findParallelNode,
-  mapParallelNodeToPlanSpec,
+  lowerParallelNode,
   WorkflowMappingError,
 } from "./coordination-workflow.ts";
 import {
@@ -430,7 +430,7 @@ export async function createCoordinationPlanFromWorkflowCommand(
   }
   let spec: CoordinationPlanSpec;
   try {
-    spec = mapParallelNodeToPlanSpec(
+    spec = lowerParallelNode(
       findParallelNode(compiled.document, input.nodeId),
     );
   } catch (error) {
