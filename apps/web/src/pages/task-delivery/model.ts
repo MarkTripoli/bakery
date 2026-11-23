@@ -408,6 +408,8 @@ export type DeliveryInput = Readonly<{
    * there, so no merge is offered.
    */
   mergeUnavailable: boolean;
+  deployments?: readonly DeliveryDeployment[];
+  mayDeploy?: boolean;
   paused: boolean;
 }>;
 
@@ -434,6 +436,41 @@ export type FindingRow = Readonly<{
   path: string;
   line: number | null;
   body: string;
+}>;
+
+export type DeploymentStatus =
+  | "queued"
+  | "deploying"
+  | "verifying"
+  | "healthy"
+  | "degraded"
+  | "failed"
+  | "unknown"
+  | "rolling_back"
+  | "rolled_back";
+
+export type DeliveryDeployment = Readonly<{
+  id: string;
+  environment: string;
+  commitSha: string;
+  status: DeploymentStatus;
+  previousCommitSha: string | null;
+  rollbackFailed: boolean;
+  createdAt: string;
+}>;
+
+export type ReleaseEnvironment = "staging" | "production" | "preview";
+
+export type GoBack = "offer" | "viewer" | "none";
+
+export type ReleaseView = Readonly<{
+  id: string;
+  environment: ReleaseEnvironment;
+  status: DeploymentStatus;
+  commitSha: string;
+  previousCommitSha: string | null;
+  rollbackFailed: boolean;
+  goBack: GoBack;
 }>;
 
 export type NowCard =
@@ -467,6 +504,15 @@ export type NowCard =
   | Readonly<{ kind: "mergeRefused"; head: string; mayMerge: boolean }>
   | Readonly<
     { kind: "mergeMoved"; approved: string; current: string; tried: boolean }
+  >
+  | Readonly<
+    {
+      kind: "release";
+      status: DeploymentStatus;
+      environment: ReleaseEnvironment;
+      rollbackFailed: boolean;
+      goBack: GoBack;
+    }
   >
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
@@ -565,6 +611,7 @@ export type DeliveryModel = Readonly<{
   /** What the person may do about merging, else null. */
   merge: MergeView | null;
   now: NowCard;
+  release: ReleaseView | null;
   /** Every whole commit id the section may name, so a sentence that shows a short one can draw it as a reference. */
   commits: readonly string[];
 }>;
@@ -1026,6 +1073,12 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     unavailable: input.mergeUnavailable,
   });
   const after = afterApproval(input.pullRequests, input.runId);
+  const release = releaseView(
+    input.deployments ?? [],
+    chosenPullRequest?.status === "merged" &&
+      chosenPullRequest.mergedSha !== null,
+    input.mayDeploy ?? false,
+  );
   const commits = [
     ...new Set(
       [
@@ -1039,6 +1092,8 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
         merge?.approvedSha,
         merge?.attemptedSha,
         after.pullRequest?.mergedSha,
+        release?.commitSha,
+        release?.previousCommitSha,
       ].filter((sha): sha is string => typeof sha === "string" && sha !== ""),
     ),
   ];
@@ -1056,21 +1111,61 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     approval,
     afterApproval: mergeBadge(after, merge),
     merge,
-    now: mergeNow(
-      nowCard({
-        input,
-        latestDecision,
-        repairs,
-        maxRepairs,
-        checks,
-        review,
-        open,
-        approval,
-        outOfDate,
-      }),
-      merge,
-      input.paused,
-    ),
+    now: release === null
+      ? mergeNow(
+        nowCard({
+          input,
+          latestDecision,
+          repairs,
+          maxRepairs,
+          checks,
+          review,
+          open,
+          approval,
+          outOfDate,
+        }),
+        merge,
+        input.paused,
+      )
+      : {
+        kind: "release",
+        status: release.status,
+        environment: release.environment,
+        rollbackFailed: release.rollbackFailed,
+        goBack: release.goBack,
+      },
+    release,
+  };
+}
+
+const ENVIRONMENTS: readonly ReleaseEnvironment[] = [
+  "staging",
+  "production",
+  "preview",
+];
+
+export function releaseView(
+  deployments: readonly DeliveryDeployment[],
+  merged: boolean,
+  mayDeploy: boolean,
+): ReleaseView | null {
+  if (!merged) return null;
+  const newest = [...deployments].sort(byCreatedAt).at(-1);
+  if (newest === undefined) return null;
+  const environment = ENVIRONMENTS.find((name) => name === newest.environment);
+  if (environment === undefined) return null;
+  const canRollBack = newest.status === "healthy" ||
+    newest.status === "degraded";
+  return {
+    id: newest.id,
+    environment,
+    status: newest.status,
+    commitSha: newest.commitSha,
+    previousCommitSha: newest.previousCommitSha,
+    rollbackFailed: newest.rollbackFailed,
+    goBack: canRollBack && newest.previousCommitSha !== null
+      ? mayDeploy ? "offer" : "viewer"
+      : "none",
   };
 }
 

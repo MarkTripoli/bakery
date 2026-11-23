@@ -42,6 +42,8 @@ import {
   ruleSetOf,
 } from "./issues/routing-model.ts";
 import { RoutingRules } from "./issues/RoutingRules.tsx";
+import { BuiltInWorkflowChoice } from "./BuiltInWorkflowChoice.tsx";
+import { presetCopy } from "./task-composer-labels.ts";
 
 /** The pages that share one repository's draft. */
 const SETTINGS_PATH = "/issues/settings";
@@ -265,6 +267,8 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
         issues.map((issue) => ({
           latestReadiness: { verdict: issue.verdict, evaluatedAt },
         })),
+        // Omitted by a server that predates the count: none is claimed.
+        result.data.counts.labeledBeforeWindow ?? 0,
       );
     },
     onSuccess: (counts) => {
@@ -744,9 +748,28 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 <UI.Heading level="section">
                   {translate("issues.settings.workflow.title")}
                 </UI.Heading>
-                <UI.Text variant="muted">
-                  {translate("issues.settings.workflow.standard")}
-                </UI.Text>
+                {isAdmin
+                  ? (
+                    <>
+                      <UI.Text variant="muted">
+                        {translate("issues.settings.workflow.help")}
+                      </UI.Text>
+                      <BuiltInWorkflowChoice
+                        disabled={save.isPending}
+                        label={translate("issues.settings.workflow.title")}
+                        name="issue-settings-workflow"
+                        onChange={(preset) => edit({ preset })}
+                        value={shown.preset}
+                      />
+                    </>
+                  )
+                  : (
+                    <UI.Text variant="muted">
+                      {translate("issues.settings.workflow.runs", {
+                        workflow: presetCopy(translate, shown.preset).title,
+                      })}
+                    </UI.Text>
+                  )}
               </UI.Stack>
 
               <UI.Stack gap="standard" data-testid="issue-settings-preview">
@@ -823,6 +846,21 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                               .toLocaleString(),
                           })}
                       </UI.Text>
+                      {previewCounts.labeledBeforeWindow > 0
+                        ? (
+                          <UI.Text data-testid="issue-settings-before-window">
+                            {translate(
+                              (previewCounts.labeledBeforeWindow === 1
+                                ? "issues.settings.preview.beforeWindow.one"
+                                : "issues.settings.preview.beforeWindow.many") as never,
+                              {
+                                count: previewCounts.labeledBeforeWindow,
+                                label: shown.start,
+                              },
+                            )}
+                          </UI.Text>
+                        )
+                        : null}
                       <UI.Text variant="muted">
                         {translate("issues.settings.preview.nothingStarts")}
                       </UI.Text>

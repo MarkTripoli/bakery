@@ -40,6 +40,8 @@ export type DeploymentLedger = Readonly<{
       to: DeploymentStatus;
       expectedVersion: number;
       healthEvidenceId?: string;
+      /** A rollback ended in failure by a path the ledger cannot see from the status. */
+      rollbackFailed?: boolean;
     }>,
   ): Promise<DeploymentRead>;
   /** Moves a release that served or failed to serve into rolling_back. */
@@ -104,6 +106,15 @@ export function createDeploymentDriver(
       to,
       expectedVersion: record.version,
       ...(healthEvidenceId === undefined ? {} : { healthEvidenceId }),
+    });
+
+  /** A rollback that settles to failed, whichever path it took, is a failed going-back. */
+  const rollbackFailed = (record: DeploymentRead) =>
+    ledger.advance(record.id, {
+      from: record.status,
+      to: "failed",
+      expectedVersion: record.version,
+      rollbackFailed: true,
     });
 
   const done = (
@@ -302,7 +313,9 @@ export function createDeploymentDriver(
           return done(await move(record, "rolling_back"), effectKey);
         default:
           // Nothing proves the previous release serves: the rollback failed.
-          return done(await move(record, "failed"));
+          // The record is `unknown` here, so the ledger cannot tell it was a
+          // rollback; the effect key does.
+          return done(await rollbackFailed(record));
       }
     }
     switch (observed.status) {

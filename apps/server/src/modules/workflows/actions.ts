@@ -41,6 +41,14 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.WorkflowCopy>,
   ) => Promise<z.output<typeof contractSchemas.Workflow>>;
+  exportPackage: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.PackageExport>,
+  ) => Promise<z.output<typeof contractSchemas.BakeryPackage>>;
+  importPackage: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.PackageImport>,
+  ) => Promise<z.output<typeof contractSchemas.PackageImportResult>>;
   listVersions: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
@@ -174,6 +182,27 @@ export function createWorkflowsActionRegistry(
     // The copy is a new resource, like `workflows.create`.
     successStatus: 201,
     handler: handlers.copyWorkflow,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.PackagesExport,
+    method: HttpMethod.Post,
+    path: "/v1/library-packages/export",
+    input: contractSchemas.PackageExport,
+    output: contractSchemas.BakeryPackage,
+    policy: commandPolicy,
+    // An export writes nothing: it answers with the package it built.
+    successStatus: 200,
+    handler: handlers.exportPackage,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.PackagesImport,
+    method: HttpMethod.Post,
+    path: "/v1/library-packages/import",
+    input: contractSchemas.PackageImport,
+    output: contractSchemas.PackageImportResult,
+    policy: commandPolicy,
+    successStatus: 201,
+    handler: handlers.importPackage,
   });
   registry.register({
     name: WorkflowImplementedAction.WorkflowVersionsList,

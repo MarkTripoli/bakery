@@ -11,6 +11,7 @@ import { readPlanHost } from "../delivery/plan-host.ts";
 import { createBakeryBudgetRecovery } from "../work/budget-recovery.ts";
 import { createMergeQueueWorkflow } from "../delivery/merge-queue.ts";
 import { createDependencyReleaseWorkflow } from "../work/dependency-release-workflow.ts";
+import { createLaneDispatchWorkflow } from "../work/coordination-dispatch-workflow.ts";
 import {
   createSkillImportRecovery,
   createSkillImportWorkflow,
@@ -296,6 +297,10 @@ export function createDefaultInngestFunctions(options: {
       database: options.database,
     }),
     createDependencyReleaseWorkflow({
+      client: options.client,
+      database: options.database,
+    }),
+    createLaneDispatchWorkflow({
       client: options.client,
       database: options.database,
     }),

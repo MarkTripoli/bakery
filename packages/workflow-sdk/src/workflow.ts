@@ -72,6 +72,16 @@ export type ForEachHandle = {
   outcome(): Ref<ForEachOutcome>;
 };
 
+/**
+ * A call already added to a workflow: its id, and a reference to each output the
+ * called workflow declares. Nothing else of the called workflow can be read.
+ */
+export type CallHandle = {
+  readonly id: string;
+  /** A reference to an output the called workflow declares, by name. */
+  output(name: string): Ref<unknown>;
+};
+
 /** The current item of a forEach, read inside its body as `$each.<as>`. */
 export type LoopItem<T> = {
   /** A reference to the whole item. */
@@ -124,6 +134,18 @@ export type StepsBuilder = {
     options?: ActionStepOptions,
   ): StepHandle<Record<string, unknown>>;
   /**
+   * Calls a published version of another workflow. Its steps run here, under
+   * this id, with `bindings` as the values of its inputs; this workflow reads
+   * only what the called workflow declares as outputs. The version is named by
+   * id, so what runs cannot change after this is written.
+   */
+  call(
+    id: string,
+    workflowVersionId: string,
+    bindings: Readonly<Record<string, unknown>>,
+    options?: { readonly needs?: readonly { readonly id: string }[] },
+  ): CallHandle;
+  /**
    * Adds a bounded, sequential forEach: `body` declares the steps that run
    * once per item of `items`, in order. It runs once, here, to build the
    * document; it is not called per item at run time.
@@ -151,12 +173,25 @@ export type WorkflowDefinitionStep =
     readonly with?: Readonly<Record<string, unknown>>;
     readonly files?: StepFiles;
     readonly forEach?: never;
+    readonly call?: never;
   }
   | {
     readonly id: string;
     readonly uses?: never;
     readonly needs?: readonly string[];
     readonly with?: never;
+    readonly forEach?: never;
+    readonly call: {
+      readonly workflow: string;
+      readonly with?: Readonly<Record<string, unknown>>;
+    };
+  }
+  | {
+    readonly id: string;
+    readonly uses?: never;
+    readonly needs?: readonly string[];
+    readonly with?: never;
+    readonly call?: never;
     readonly forEach: {
       readonly items: unknown;
       readonly max: number;
@@ -173,12 +208,19 @@ export type WorkflowDefinition = {
   readonly inputs: Readonly<
     Record<string, { type: string; required: boolean }>
   >;
+  /** What a workflow that calls this one may read; absent when none are declared. */
+  readonly outputs?: Readonly<Record<string, string>>;
   readonly steps: readonly WorkflowDefinitionStep[];
 };
 
 export type WorkflowBuilder<I extends WorkflowInputs> = StepsBuilder & {
   /** A reference to a declared input of the run. */
   input<K extends keyof I & string>(name: K): Ref<InputValue<I[K]>>;
+  /**
+   * Declares what a workflow that calls this one may read: each name maps to a
+   * step output of this workflow. Call it once, after the steps it points at.
+   */
+  outputs(declared: Readonly<Record<string, Ref<unknown>>>): void;
   /** The document, as inert plain JSON. */
   toJSON(): WorkflowDefinition;
 };
@@ -190,6 +232,9 @@ export type WorkflowBuilder<I extends WorkflowInputs> = StepsBuilder & {
  */
 const STEP_REFERENCE = /^\$step\.([A-Za-z][A-Za-z0-9_-]*)(?=\.|$)/;
 const LOOP_ITEM_NAME = /^[a-z][A-Za-z0-9]{0,63}$/;
+const VERSION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const OUTPUT_NAME = /^[a-z][A-Za-z0-9]{0,63}$/;
 
 /**
  * Walks one step's bindings. It collects the step each reference reads, in
@@ -247,6 +292,7 @@ type BuiltStep =
     | {
       forEach: { items: unknown; max: number; as: string; steps: BuiltStep[] };
     }
+    | { call: { workflow: string; with?: Record<string, unknown> } }
   );
 
 /** One list of steps being built: the workflow's own, or an open loop's body. */
@@ -272,6 +318,7 @@ export function defineWorkflow<const I extends WorkflowInputs>(
   };
   const open: Container[] = [root];
   const handles = new WeakSet<object>();
+  let declaredOutputs: Record<string, string> | undefined;
 
   const reference = <T>(text: string) => text as unknown as Ref<T>;
 
@@ -445,7 +492,44 @@ export function defineWorkflow<const I extends WorkflowInputs>(
       handles.add(handle);
       return handle;
     };
-    return { action, forEach } as unknown as StepsBuilder;
+    const call = (
+      id: string,
+      workflowVersionId: string,
+      bindings: Readonly<Record<string, unknown>> = {},
+      callOptions: { readonly needs?: readonly { readonly id: string }[] } = {},
+    ): CallHandle => {
+      current();
+      checkStepId(container, id);
+      if (!VERSION_ID.test(workflowVersionId)) {
+        throw new Error(
+          `call "${id}" names "${workflowVersionId}", which is not a workflow version id`,
+        );
+      }
+      const wanted = new Set<string>();
+      dependencies(container, id, bindings, wanted);
+      addNeeds(id, callOptions.needs, wanted);
+      const needs = ordered(container, wanted);
+      const step: BuiltStep = {
+        id,
+        call: {
+          workflow: workflowVersionId.toLowerCase(),
+          ...(Object.keys(bindings).length > 0
+            ? { with: { ...bindings } }
+            : {}),
+        },
+      };
+      if (needs.length > 0) step.needs = needs;
+      container.steps.push(step);
+      const qualified = [...container.prefix, id].join(".");
+      const handle = Object.freeze({
+        id,
+        output: (name: string) =>
+          reference<unknown>(`$step.${qualified}.${name}`),
+      });
+      handles.add(handle);
+      return handle;
+    };
+    return { action, forEach, call } as unknown as StepsBuilder;
   };
 
   return {
@@ -455,6 +539,24 @@ export function defineWorkflow<const I extends WorkflowInputs>(
         throw new Error(`workflow input "${name}" is not declared`);
       }
       return reference<never>(`$input.${name}`);
+    },
+    outputs: (declared: Readonly<Record<string, unknown>>) => {
+      if (declaredOutputs !== undefined) {
+        throw new Error("workflow outputs are declared once");
+      }
+      const mapped: Record<string, string> = {};
+      for (const [name, ref] of Object.entries(declared)) {
+        if (!OUTPUT_NAME.test(name)) {
+          throw new Error(`workflow output "${name}" is not an output name`);
+        }
+        if (typeof ref !== "string" || !ref.startsWith("$step.")) {
+          throw new Error(
+            `workflow output "${name}" must be a reference to a step output`,
+          );
+        }
+        mapped[name] = ref;
+      }
+      declaredOutputs = mapped;
     },
     toJSON: () =>
       deepFreeze(
@@ -470,6 +572,9 @@ export function defineWorkflow<const I extends WorkflowInputs>(
               [key, spec],
             ) => [key, { type: spec.type, required: spec.required }]),
           ),
+          ...(declaredOutputs && Object.keys(declaredOutputs).length > 0
+            ? { outputs: declaredOutputs }
+            : {}),
           steps: root.steps,
         })) as WorkflowDefinition,
       ),

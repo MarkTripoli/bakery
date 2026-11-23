@@ -47,6 +47,7 @@ export const AuthImplementedAction = Object.freeze(
     DesktopSignInsStart: "desktopSignIns.start",
     DesktopSignInsExchange: "desktopSignIns.exchange",
     DesktopHandoffsCreate: "desktopHandoffs.create",
+    DesktopUpdatesGet: "desktopUpdates.get",
     AuditEventsList: "auditEvents.list",
     AuditEventsExport: "auditEvents.export",
     AuditEventsStream: "auditEvents.stream",
@@ -529,6 +530,8 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCreate: "workflows.create",
     WorkflowsUpdate: "workflows.update",
     WorkflowsCopy: "workflows.copy",
+    PackagesExport: "packages.export",
+    PackagesImport: "packages.import",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
     WorkflowVersionsSkills: "workflowVersions.skills",
@@ -1128,6 +1131,9 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     // A deterministic call of one pinned tool on a connection, run by the server
     // for the person who started the run (docs/technical-design/25-one-engine.md 15.4).
     ToolCall: "tool.call",
+    // The parent run's step that owns a plan of child work items and completes
+    // from the plan's terminal projection (docs/technical-design/25-one-engine.md 5).
+    CoordinationSplit: "coordination.split",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
@@ -1146,6 +1152,7 @@ export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
     WorkflowRuntimeImplementedAction.DeliveryDeploy,
     WorkflowRuntimeImplementedAction.DeliveryHealth,
     WorkflowRuntimeImplementedAction.ToolCall,
+    WorkflowRuntimeImplementedAction.CoordinationSplit,
   ] as const,
 );
 

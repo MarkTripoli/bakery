@@ -5,6 +5,8 @@ import {
   type WorkflowCompilerDiagnosticCode,
 } from "../diagnostics.ts";
 import { rememberAuthoredOrder } from "./authored-order.ts";
+import type { WorkflowCallNode } from "../call.ts";
+import { parseReferenceText } from "../reference.ts";
 import { HUMAN_APPROVAL_EVENT as HUMAN_APPROVAL_COMPILER_EVENT } from "../../human-approval.ts";
 import { parseDuration, WORKFLOW_COMPILER_LIMITS } from "../limits.ts";
 import {
@@ -88,6 +90,7 @@ const ROOT_KEYS: ReadonlySet<string> = new Set([
   "limits",
   "agents",
   "cancel",
+  "outputs",
   "tools",
   "steps",
 ]);
@@ -118,6 +121,7 @@ const KIND_KEYS = [
   "wait",
   "parallel",
   "forEach",
+  "call",
 ] as const;
 const ACTION_LIMIT_KEYS: ReadonlySet<string> = new Set([
   "maxDuration",
@@ -180,6 +184,11 @@ const FOR_EACH_BODY_KEYS: ReadonlySet<string> = new Set([
   "steps",
 ]);
 const FOR_EACH_AS = /^[a-z][A-Za-z0-9]{0,63}$/;
+const CALL_NODE_KEYS: ReadonlySet<string> = new Set([
+  ...NODE_BASE_KEYS,
+  "call",
+]);
+const CALL_BODY_KEYS: ReadonlySet<string> = new Set(["workflow", "with"]);
 const WORKFLOW_LIMIT_KEYS: ReadonlySet<string> = new Set([
   "wallClock",
   "maxCostUsd",
@@ -1424,6 +1433,105 @@ function shapeForEach(
   return node;
 }
 
+/**
+ * A call to a published workflow version (#418). It is shaped to a call node
+ * here and replaced by the child's steps right after, before any other pass
+ * sees the document, so nothing downstream knows a call existed.
+ */
+function shapeCall(
+  context: Context,
+  raw: Raw,
+  path: Path,
+  id: string,
+  needs: string[],
+  condition: WorkflowExpressionNode | undefined,
+): WorkflowNode | undefined {
+  checkKeys(context, raw, path, CALL_NODE_KEYS, NODE_PRESENTATION);
+  const body = raw["call"];
+  const bodyPath = [...path, "call"];
+  if (!isPlainObject(body)) {
+    report(context, bodyPath, "call_shape_invalid");
+    return undefined;
+  }
+  checkKeys(context, body, bodyPath, CALL_BODY_KEYS);
+  let failed = false;
+  const version = body["workflow"];
+  if (typeof version !== "string" || !UUID_TEXT.test(version)) {
+    report(context, [...bodyPath, "workflow"], "call_shape_invalid");
+    failed = true;
+  }
+  const bindings: Record<string, WorkflowValueNode> = Object.create(null);
+  if (Object.hasOwn(body, "with")) {
+    const given = body["with"];
+    if (!isPlainObject(given)) {
+      report(context, [...bodyPath, "with"], "call_shape_invalid");
+      failed = true;
+    } else {
+      for (const name of Object.keys(given)) {
+        if (!INPUT_NAME.test(name)) {
+          report(context, [...bodyPath, "with"], "call_input_unknown");
+          failed = true;
+          continue;
+        }
+        const value = compileWorkflowValue(
+          given[name],
+          [...bodyPath, "with", name],
+          context.collector,
+        );
+        if (value) bindings[name] = value;
+        else failed = true;
+      }
+    }
+  }
+  if (failed) return undefined;
+  const node: WorkflowCallNode = {
+    kind: "call",
+    id,
+    needs,
+    workflow: (version as string).toLowerCase(),
+    with: bindings,
+  };
+  if (condition) node.if = condition;
+  // The call node is replaced before the document is validated, so it never
+  // reaches the compiled schema; the cast keeps the union closed everywhere else.
+  return node as unknown as WorkflowNode;
+}
+
+/**
+ * A workflow's declared outputs: a name mapped to a `$step` reference. They are
+ * what a caller can read from this workflow; the reference itself is checked
+ * with the rest of the flow.
+ */
+function shapeOutputs(
+  context: Context,
+  raw: unknown,
+): WorkflowSemanticDocument["outputs"] | undefined {
+  const path: Path = ["outputs"];
+  if (!isPlainObject(raw)) {
+    report(context, path, "workflow_outputs_invalid");
+    return undefined;
+  }
+  const outputs: NonNullable<WorkflowSemanticDocument["outputs"]> = Object
+    .create(null);
+  let failed = false;
+  for (const name of Object.keys(raw)) {
+    const text = raw[name];
+    const parsed = typeof text === "string"
+      ? parseReferenceText(text)
+      : undefined;
+    if (
+      !OUTPUT_NAME.test(name) || !parsed || !parsed.ok ||
+      parsed.root !== "step"
+    ) {
+      report(context, path, "workflow_outputs_invalid");
+      failed = true;
+      continue;
+    }
+    outputs[name] = { kind: "ref", root: "step", path: parsed.path };
+  }
+  return failed ? undefined : outputs;
+}
+
 function shapeWait(
   context: Context,
   raw: Raw,
@@ -1765,6 +1873,7 @@ function shapeNode(
     wait: shapeWait,
     parallel: shapeParallel,
     forEach: shapeForEach,
+    call: shapeCall,
   } as const;
   const node = shapers[kind](
     context,
@@ -2102,6 +2211,9 @@ export function shapeWorkflow(
       cancel = "stop-started-actions";
     } else report(context, ["cancel"], "field_invalid");
   }
+  const outputs = Object.hasOwn(root, "outputs")
+    ? shapeOutputs(context, root["outputs"])
+    : undefined;
   const tools = Object.hasOwn(root, "tools")
     ? shapeTools(context, root["tools"])
     : undefined;
@@ -2110,6 +2222,9 @@ export function shapeWorkflow(
     : (report(context, ["steps"], "field_missing"), undefined);
   if (tools !== null) checkToolReferences(context, tools);
   if (collector.size > before || !inputs || !limits || !agents || !steps) {
+    return { document: undefined, locations };
+  }
+  if (Object.hasOwn(root, "outputs") && !outputs) {
     return { document: undefined, locations };
   }
   const document: WorkflowSemanticDocument = {
@@ -2123,6 +2238,7 @@ export function shapeWorkflow(
     steps,
   };
   if (cancel) document.cancel = cancel;
+  if (outputs && Object.keys(outputs).length > 0) document.outputs = outputs;
   if (tools && Object.keys(tools).length > 0) document.tools = tools;
   return { document, locations };
 }

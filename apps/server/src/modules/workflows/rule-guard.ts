@@ -1,3 +1,4 @@
+import { loadCalledWorkflows } from "./called-workflows.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { REPOSITORY_FIXED_POLICY_ACTION_EFFECTS } from "@bakery/contracts/repository-profile-config";
 import {
@@ -159,6 +160,11 @@ export async function assertWorkflowSatisfiesRepositoryRules(
     if (cause instanceof WorkflowNotExecutableError) {
       const { result } = await compileWorkflowDocumentDetailed(definition, {
         catalog: defaultWorkflowCompilerCatalog(),
+        workflows: await loadCalledWorkflows(
+          transaction,
+          organizationId,
+          definition,
+        ),
       });
       if (!result.ok) {
         throw new StandardError({

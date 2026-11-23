@@ -404,3 +404,63 @@ Deno.test("types: a forEach item is typed by the list it walks", () => {
     w.forEach("numbers", count, { max: 2, as: "n" }, () => {})
   );
 });
+
+// #418: a call is data too. It names a published version by id, binds the
+// child's inputs, and the caller reads only what the child declares.
+const CALLED = "11111111-1111-4111-8111-111111111111";
+
+Deno.test("a call builds the document the compiler inlines, and its outputs are declared", async () => {
+  const child = defineWorkflow({
+    name: "sdk-child",
+    inputs: { topic: stringInput() },
+  });
+  const write = child.action("write", "workflow.noop", {
+    text: child.input("topic"),
+  });
+  child.outputs({ summary: write.output("summary") });
+
+  const w = defineWorkflow({
+    name: "sdk-caller",
+    inputs: { subject: stringInput() },
+  });
+  const research = w.call("research", CALLED, { topic: w.input("subject") });
+  w.action("after", "workflow.noop", { text: research.output("summary") });
+
+  assertEquals(w.toJSON().steps as unknown, [
+    {
+      id: "research",
+      call: { workflow: CALLED, with: { topic: "$input.subject" } },
+    },
+    {
+      id: "after",
+      needs: ["research"],
+      uses: "workflow.noop",
+      with: { text: "$step.research.summary" },
+    },
+  ]);
+  assertEquals(child.toJSON().outputs as unknown, {
+    summary: "$step.write.summary",
+  });
+
+  const result = await compileWorkflowDocument(w.toJSON() as unknown, {
+    workflows: new Map([[CALLED, child.toJSON() as unknown]]),
+  });
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  assertEquals(result.document.steps[0]?.kind, "sequence");
+});
+
+Deno.test("a call is refused at build time when its version is not an id or its outputs are not references", () => {
+  const w = defineWorkflow({ name: "calls", inputs: {} });
+  assertThrows(
+    () => w.call("research", "not-a-version", {}),
+    Error,
+    "not a workflow version id",
+  );
+  assertThrows(
+    () => w.outputs({ summary: "text" as never }),
+    Error,
+    "must be a reference",
+  );
+  w.outputs({});
+  assertThrows(() => w.outputs({}), Error, "declared once");
+});

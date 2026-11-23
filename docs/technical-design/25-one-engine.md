@@ -221,6 +221,18 @@ a child-run binding follows when workflow seats and split need it. An author
 cannot tell the two apart. A parent pins a published child version, so recursion
 is impossible by construction; nesting is limited to two levels.
 
+As built (#418), the inline binding is a compiler pass. A `call` node names a
+published version (`call: {workflow: <version id>, with: {<input>: <value>}}`)
+and a workflow declares what a caller may read in a root `outputs` map. The
+compiler replaces the call with the child's steps under the call's id, binds the
+child's inputs to the values the call passes, and rewrites a caller's read of
+`$step.<call>.<output>` to the step output the child declared. The child keeps
+its own agents, and its approvals and waits come along and count in the caller's
+worst case. A caller reads only declared outputs, never an inner step, and the
+branching "named outcome" waits for the child-run binding. The versions a call
+may name are loaded from the caller's own organization; any other id is simply
+unavailable. A called workflow cannot use `tool.call` yet.
+
 ## 6. Extensions are data only for now (O6, O7)
 
 | Tier              | Contents                                                                                   | Where it runs                                | Status                                                |
