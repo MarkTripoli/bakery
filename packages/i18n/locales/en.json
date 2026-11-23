@@ -977,7 +977,7 @@
   "tasks.controls.cancelDialog.confirm": "Cancel run",
   "tasks.controls.cancelDialog.keep": "Keep running",
   "tasks.run.heading": "Current run",
-  "tasks.run.details": "Details",
+  "tasks.run.details": "Run details",
   "tasks.run.id": "Run ID",
   "tasks.run.startedFrom": "Started from commit {sha}",
   "tasks.run.rules.heading": "Rules this run used",

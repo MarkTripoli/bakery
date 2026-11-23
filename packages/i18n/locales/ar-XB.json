@@ -3324,7 +3324,6 @@
   "tasks.live.noArtifacts": "⟪No artifacts to show.⟫",
   "tasks.live.retry": "⟪Try again⟫",
   "tasks.controls.accepted": "⟪Request admitted. This does not confirm what the machine did. Refreshed run state is authoritative.⟫",
-  "tasks.run.details": "⟪Details⟫",
   "tasks.run.id": "⟪Run ID⟫",
   "tasks.run.idCopyFailed": "⟪Could not copy the run ID. Select it and copy it yourself.⟫",
   "tasks.run.blockedWaiting": "⟪This run is waiting for another task to finish.⟫",
@@ -6579,5 +6578,6 @@
   "tasks.delivery.release.dialog.unknown": "⟪Bakery cannot tell whether the release finished, so it cannot go back yet.⟫",
   "tasks.delivery.release.dialog.forbidden": "⟪You do not have permission to deploy this repository. Ask an administrator.⟫",
   "tasks.delivery.release.dialog.error": "⟪Bakery could not go back to the last release. Try again.⟫",
-  "tasks.delivery.release.dialog.noAnswer": "⟪Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request.⟫"
+  "tasks.delivery.release.dialog.noAnswer": "⟪Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request.⟫",
+  "tasks.run.details": "⟪Run details⟫"
 }
