@@ -38,7 +38,7 @@ export type PluginAttempt = Readonly<{
    * runs the install's current version. Which versions the install's package may
    * offer is checked where the bundle is read, not here.
    */
-  versionId: string | null;
+  versionId: string;
   jobId: string;
   leaseExpiresAt: number;
 }>;
@@ -94,11 +94,17 @@ export async function authorizePluginAttempt(
       if (typeof installId !== "string" || !UUID.test(installId)) {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      const versionId = input?.versionId ?? null;
-      if (
-        versionId !== null &&
-        (typeof versionId !== "string" || !UUID.test(versionId))
-      ) throw new StandardError({ code: "STATE_CONFLICT" });
+      // The version the job was admitted against is part of what the worker is
+      // authorized to fetch, not a hint. A job without one is refused here
+      // rather than served the install's current version, which is what an
+      // upgrade would make it.
+      const versionId = input?.versionId;
+      if (typeof versionId !== "string" || !UUID.test(versionId)) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "plugin_job_version_unpinned" },
+        });
+      }
       return {
         attemptId,
         fence,

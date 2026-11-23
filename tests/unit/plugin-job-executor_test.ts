@@ -18,13 +18,19 @@ import type { JobAssignment } from "../../apps/worker/src/types.ts";
  */
 
 const INSTALL = crypto.randomUUID();
+/** The version every job is admitted against; a job without one is refused. */
+const VERSION = crypto.randomUUID();
 const assignment = (over: Record<string, unknown> = {}) =>
   ({
     jobId: crypto.randomUUID(),
     attemptId: crypto.randomUUID(),
     fence: "1",
     action: "plugin.job",
-    input: { installId: INSTALL, entry: "jobs/nightly.js" },
+    input: {
+      installId: INSTALL,
+      entry: "jobs/nightly.js",
+      versionId: VERSION,
+    },
     ...over,
   }) as unknown as JobAssignment;
 
@@ -370,6 +376,7 @@ Deno.test("context the server attaches beside the input is ignored; a missing fi
         input: {
           installId: INSTALL,
           entry: "jobs/nightly.js",
+          versionId: VERSION,
           repositoryProfile: { id: crypto.randomUUID() },
           somethingElse: true,
         },

@@ -61,7 +61,11 @@ async function setup(
     {
       action: "plugin.job",
       capabilities: ["plugin.job.contained"],
-      input: { installId, entry: "jobs/nightly.js" },
+      input: {
+        installId,
+        entry: "jobs/nightly.js",
+        versionId: published.versionId,
+      },
     },
   );
   const assignment = await claimAssignment(fixture, worker, {

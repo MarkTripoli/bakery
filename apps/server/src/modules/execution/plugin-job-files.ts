@@ -69,9 +69,9 @@ export async function pluginJobFilesRoute(
        from bakery.plugin_installs i
        left join bakery.plugin_versions v
          on v.organization_id = i.organization_id
-        and v.id = coalesce($4::uuid, i.plugin_version_id)
+        and v.id = $4::uuid
         and v.plugin_package_id = i.plugin_package_id
-        and ($4::uuid is null or v.published_at is not null)
+        and v.published_at is not null
       where i.organization_id = $1 and i.id = $2`,
     [attempt.organizationId, attempt.installId, JOBS_GRANT, attempt.versionId],
   );
@@ -83,11 +83,7 @@ export async function pluginJobFilesRoute(
   if (!row.granted) throw refusal("plugin_job_not_granted");
   if (attempt.entry === null) throw refusal("plugin_job_entry_missing");
   if (row.bundle_object_ref === null || row.bundle_digest === null) {
-    throw refusal(
-      attempt.versionId === null
-        ? "plugin_bundle_missing"
-        : "plugin_job_version_not_in_package",
-    );
+    throw refusal("plugin_job_version_not_in_package");
   }
   const bundleDigest = row.bundle_digest;
   // The stored ref is recomputed rather than trusted, as at publication.
