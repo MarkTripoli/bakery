@@ -159,6 +159,17 @@ input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
   display: grid;
   gap: var(--space-1);
 }
+.ui-combobox-field {
+  display: grid;
+  gap: var(--space-1);
+}
+/* A short field holds a short value: from the desktop width on. A phone gives every field the column. */
+@media (min-width: 744px) {
+  .ui-field--short,
+  .ui-combobox--short {
+    max-inline-size: var(--layout-field-short);
+  }
+}
 .ui-field--inline {
   align-items: center;
   column-gap: var(--space-6);
