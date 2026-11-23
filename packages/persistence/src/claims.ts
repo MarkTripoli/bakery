@@ -8,6 +8,7 @@ import {
   hasHeldCoordinatorTurnReservation,
 } from "./coordinator-jobs.ts";
 import { COORDINATOR_TURN_ACTION } from "@bakery/contracts/coordinator-turn";
+import { hostSatisfiedCapabilities } from "@bakery/contracts/workflow-action-registry";
 import {
   connectivityState,
   type DispatchGate,
@@ -514,7 +515,9 @@ export function createClaimsRepository(
        for update skip locked`,
         [
           organizationId,
-          JSON.stringify(authenticatedCapabilities),
+          // The SQL subset test sees the same capabilities the recheck below
+          // does: a substitute (tool-gateway) meets what it stands for (paper).
+          JSON.stringify(hostSatisfiedCapabilities(authenticatedCapabilities)),
           supportedActions,
           identity.host.os,
         ],

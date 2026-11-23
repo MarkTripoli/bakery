@@ -297,6 +297,11 @@ export function createApp(options: {
   alertRules?: AlertRuleDependencies;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
+  /**
+   * What sends a remote MCP tool call (tool.call steps and the worker tool
+   * gateway). Replaceable so a test answers without a network; HTTPS otherwise.
+   */
+  mcpToolTransport?: ReturnType<typeof httpsMcpTransport>;
   skillSourceAdapter?: SkillSourceAdapter;
   skillSourceLocatorNormalizer?: typeof normalizeSkillSourceLocator;
   skillImportProcessHooks?: SkillImportProcessHooks;
@@ -827,7 +832,7 @@ export function createApp(options: {
             transport: createRemoteMcpToolTransport({
               database: options.pgDatabase,
               secretsKey: options.config.secretsKey,
-              transport: httpsMcpTransport(),
+              transport: options.mcpToolTransport ?? httpsMcpTransport(),
             }),
           },
         }),
@@ -838,6 +843,17 @@ export function createApp(options: {
           })]
           : []),
       ]),
+      // The tool gateway's MCP tools (#436): a session's calls go through the
+      // same pinned-tool door and broker as a tool.call step, so the credential
+      // stays on the server.
+      toolGateway: {
+        pinnedState: createPostgresMcpPinnedStatePort(options.database),
+        transport: createRemoteMcpToolTransport({
+          database: options.pgDatabase,
+          secretsKey: options.config.secretsKey,
+          transport: options.mcpToolTransport ?? httpsMcpTransport(),
+        }),
+      },
       // The tool gateway's operations: whatever these registries already
       // implement, narrowed to the operation map a session is defined by.
       // Composed rather than re-registered so a session calls the same handler

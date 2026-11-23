@@ -11,21 +11,6 @@
       "owner": "#437",
       "reason": "Workers publish artifacts; direct create arrives with blob-backed artifacts."
     },
-    "capabilityBindings.create": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "Capability bindings arrive with the worker tool gateway."
-    },
-    "capabilityBindings.delete": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "Capability bindings arrive with the worker tool gateway."
-    },
-    "capabilityBindings.list": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "Capability bindings arrive with the worker tool gateway."
-    },
     "channelLinks.create": {
       "state": "unbuilt",
       "owner": "#27",
@@ -260,9 +245,15 @@
       }
     },
     "worker.invokeTool": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "The tool gateway invocation route is not mounted; session-call serves workers today."
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/tool-invocations.ts",
+        "literal": "/v1/worker/attempts/:id/tool-invocations"
+      },
+      "test": {
+        "file": "tests/integration/tool-gateway-invokes-effective-tools_test.ts",
+        "contains": "tool-invocations"
+      }
     },
     "worker.output.close": {
       "state": "served-outside-registry",
@@ -587,6 +578,10 @@
       "budget_release_evidence": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0065_exact_budget_accounting_release_evidence.sql"
+      },
+      "capability_binding_revocations": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
       },
       "coordination_lanes": {
         "module": "work",
@@ -1031,6 +1026,10 @@
       "telemetry_destinations": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0271_telemetry_destinations.sql"
+      },
+      "tool_gateway_calls": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
       },
       "twoFactor": {
         "module": "auth",

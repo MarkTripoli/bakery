@@ -4094,8 +4094,11 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -4114,8 +4117,10 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
-      ]
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -4137,8 +4142,35 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/tool-gateway-calls/{id}/settlement",
+      "action": "toolGatewayCalls.settle",
+      "access": "Admin",
+      "permission": "capabilityBinding:manage",
+      "input": "ToolGatewayCallSettle",
+      "output": "ToolGatewayCall",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Access",

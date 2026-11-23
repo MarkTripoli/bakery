@@ -30,7 +30,9 @@ import {
 } from "./version-skills.ts";
 import {
   checkToolCallPins,
+  checkToolSectionPins,
   writeToolCallBindings,
+  writeToolSectionBindings,
 } from "./version-tool-bindings.ts";
 import {
   insertSkillSlots,
@@ -1301,11 +1303,21 @@ export async function publishWorkflowVersion(
       definition: draft.definition,
     })
     : { issues: [], pins: [] };
+  // The workflow tools section: its steps and seats are pinned the same way.
+  const sectionPins = report.valid
+    ? await checkToolSectionPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId,
+      definition: draft.definition,
+    })
+    : { issues: [], pins: [] };
   const issues = [
     ...report.errors,
     ...bindingErrors,
     ...skillErrors,
     ...toolPins.issues,
+    ...sectionPins.issues,
     ...sourceErrors,
   ];
   if (!report.valid || issues.length > 0 || report.normalizedDigest === null) {
@@ -1352,6 +1364,11 @@ export async function publishWorkflowVersion(
     organizationId,
     workflowVersionId: draft.id,
     pins: toolPins.pins,
+  });
+  await writeToolSectionBindings(transaction, {
+    organizationId,
+    workflowVersionId: draft.id,
+    pins: sectionPins.pins,
   });
   await transaction.query(
     `delete from bakery.workflow_drafts
@@ -1631,10 +1648,19 @@ export async function validateWorkflow(
       definition,
     })).issues
     : [];
+  const sectionErrors = report.valid
+    ? (await checkToolSectionPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId: null,
+      definition,
+    })).issues
+    : [];
   const bindingErrors = [
     ...bindingResult.errors,
     ...skillErrors,
     ...toolErrors,
+    ...sectionErrors,
   ];
   const failed = !report.valid || bindingErrors.length > 0;
   const { graph, requiresRepository, registryVersion, registryDigest } = report;
