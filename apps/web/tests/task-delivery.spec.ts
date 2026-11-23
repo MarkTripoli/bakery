@@ -1888,6 +1888,7 @@ test("an approved candidate at the reviewed head offers Merge, asks first, and q
     "Bakery merges commit 91d0aa3 exactly, as a squash merge.",
   );
   await expect(dialog).toContainText("A merge cannot be undone from Bakery.");
+  await expect(button(dialog, "Cancel")).toBeFocused();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
   expect(seen.merges).toHaveLength(0);

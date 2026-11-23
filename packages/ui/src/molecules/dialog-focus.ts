@@ -4,7 +4,7 @@ import { useEffect } from "react";
 export function useNativeDialogOpen(
   dialogRef: RefObject<HTMLDialogElement | null>,
   isOpen: boolean,
-  initialFocusSelector?: string,
+  initialFocusSelectors: readonly string[] = [],
 ) {
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -27,14 +27,18 @@ export function useNativeDialogOpen(
         return;
       }
       dialog.showModal();
-      if (initialFocusSelector) {
-        dialog.querySelector<HTMLElement>(initialFocusSelector)?.focus();
+      for (const selector of initialFocusSelectors) {
+        const target = dialog.querySelector<HTMLElement>(selector);
+        if (target) {
+          target.focus();
+          break;
+        }
       }
     };
 
     syncOpenState();
     return () => observer?.disconnect();
-  }, [dialogRef, initialFocusSelector, isOpen]);
+  }, [dialogRef, initialFocusSelectors, isOpen]);
 }
 
 function isSequentiallyFocusable(element: HTMLElement) {

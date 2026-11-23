@@ -1488,6 +1488,17 @@ test.describe("names, testing a name, and details for support", () => {
     return dialog;
   };
 
+  test("Test a name opens on its Name field, not on a button", async ({ page }) => {
+    await open(page, { names: NAMES });
+    await page.getByRole("button", { name: /^More/ }).first().click();
+    await page.getByRole("button", { name: "Test a name", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog", {
+      name: "Which repository does a name point to?",
+    });
+    await expect(dialog.getByLabel(/^Name\*?$/)).toBeFocused();
+  });
+
   test("Test a name says which repository agents would get", async ({ page }) => {
     const { seen } = await open(page, { names: NAMES });
     const dialog = await test_(page, "api");
