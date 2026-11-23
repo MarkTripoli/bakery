@@ -6,7 +6,10 @@ import {
   test,
 } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import {
+  MOCK_ORGANIZATION_ID,
+  mockAuthenticatedSession,
+} from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
@@ -343,7 +346,33 @@ type Scenario = {
   mergeAttempts?: ReturnType<typeof mergeAttemptRow>[];
   /** The chosen pull request's queued merges, newest first. */
   mergeEntries?: ReturnType<typeof mergeEntryRow>[];
+  /** The run's releases, as `deployments.list` returns them (newest first). */
+  deployments?: ReturnType<typeof deploymentRow>[];
+  /** The person's role, as the effective-access read answers it. */
+  role?: "admin" | "developer" | "viewer";
 };
+/** A release as `deployments.list` returns it. */
+const deploymentRow = (
+  status: string,
+  over: Record<string, unknown> = {},
+) => ({
+  id: uuid(950),
+  repositoryId: uuid(13),
+  runId,
+  environment: "staging",
+  commitSha: NEW,
+  artifactDigest: `sha256:${"d".repeat(64)}`,
+  previousDeploymentId: uuid(949),
+  previousCommitSha: sha("4").slice(0, 40),
+  status,
+  externalEffectId: null,
+  healthEvidenceId: null,
+  rollbackFailed: false,
+  createdAt: at(7),
+  updatedAt: at(7),
+  version: 3,
+  ...over,
+});
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
 
 const problemBody = (status: number, code: string, reason?: string) => ({
@@ -533,6 +562,23 @@ async function mockDelivery(page: Page, scenario: Scenario) {
   await page.route(
     "**/v1/merge-attempts?*",
     (route) => route.fulfill({ json: page_(scenario.mergeAttempts ?? []) }),
+  );
+  // The run's releases and the person's role: read per request, so a test that
+  // goes back changes what the next read returns.
+  await page.route(
+    "**/v1/deployments?*",
+    (route) => route.fulfill({ json: page_(scenario.deployments ?? []) }),
+  );
+  await page.route(
+    "**/v1/organizations/*/effective-access",
+    (route) =>
+      route.fulfill({
+        json: {
+          organizationId: MOCK_ORGANIZATION_ID,
+          role: scenario.role ?? "admin",
+          capabilities: [],
+        },
+      }),
   );
   // The queued merges: none unless the scenario serves some. Read per request,
   // like the attempts, so a test that queues one changes the next read.
@@ -3035,3 +3081,215 @@ for (
     }
   }
 }
+
+// #63: the release in the headline, the Release group in Details, and Go back.
+
+const merged = () => [
+  pullRequestRow(482, { status: "merged", mergedSha: sha("9") }),
+];
+const releaseSection = (page: Page) =>
+  page.getByTestId("delivery-release-details");
+const goBackButton = (page: Page) =>
+  page.getByRole("button", { name: "Go back to the last release" });
+
+async function openRelease(
+  page: Page,
+  scenario: Pick<Scenario, "deployments" | "role">,
+) {
+  await openApproved(page, { ...CLEAN, pullRequests: merged(), ...scenario });
+}
+
+/** Serves `deployments.rollback`; the reply decides what the dialog meets. */
+async function mockGoBack(
+  page: Page,
+  reply: { status: number; reason?: string; code?: string },
+) {
+  const posted: { body: unknown; key: string | undefined; url: string }[] = [];
+  await page.route("**/v1/deployments/*/rollbacks", (route) => {
+    const request = route.request();
+    posted.push({
+      body: request.postDataJSON(),
+      key: request.headers()["idempotency-key"],
+      url: request.url(),
+    });
+    if (reply.status < 300) {
+      return route.fulfill({
+        json: deploymentRow("rolling_back", { version: 4 }),
+      });
+    }
+    return route.fulfill({
+      status: reply.status,
+      contentType: "application/problem+json",
+      json: problemBody(
+        reply.status,
+        reply.code ?? "STATE_CONFLICT",
+        reply.reason,
+      ),
+    });
+  });
+  return posted;
+}
+
+test("a healthy release says so, and Details names it and the one kept before it", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("healthy")] });
+  await expect(nowCard(page)).toContainText("Released to staging");
+  await expect(nowCard(page)).toContainText("The release is healthy.");
+  // On a healthy release the button is in Details, not in the headline.
+  await expect(button(nowCard(page), "Go back to the last release"))
+    .toHaveCount(0);
+  await openLink(page.getByTestId("delivery-section"), "delivery-details");
+  await expect(releaseSection(page)).toContainText("This release");
+  await expect(releaseSection(page)).toContainText(
+    `${NEW.slice(0, 7)} to staging`,
+  );
+  await expect(releaseSection(page)).toContainText("Release before it");
+  await expect(releaseSection(page)).toContainText(
+    "kept, so staging can go back to it",
+  );
+  await expect(goBackButton(page)).toBeVisible();
+});
+
+test("the first release has no release before it and no Go back", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("healthy", {
+      previousDeploymentId: null,
+      previousCommitSha: null,
+    })],
+  });
+  await openLink(page.getByTestId("delivery-section"), "delivery-details");
+  await expect(releaseSection(page)).not.toContainText("Release before it");
+  await expect(goBackButton(page)).toHaveCount(0);
+});
+
+test("a release to the preview environment is never called Preview", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("healthy", { environment: "preview" })],
+  });
+  await expect(nowCard(page)).toContainText(
+    "Released to the preview environment",
+  );
+});
+
+test("a degraded release offers Go back in the headline; a reason is required and the request keeps it", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("degraded")] });
+  await expect(nowCard(page)).toContainText(
+    "Released to staging, but not fully healthy",
+  );
+  await expect(nowCard(page)).toContainText(
+    "You can go back to the release before it.",
+  );
+  const posted = await mockGoBack(page, { status: 200 });
+  await button(nowCard(page), "Go back to the last release").click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toContainText("Go back to the last release?");
+  await expect(dialog).toContainText("This change stays merged");
+  const confirm = dialog.getByRole("button", { name: "Go back", exact: true });
+  // Required: nothing is sent without a reason.
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel(/Why are you going back/).fill("p95 latency doubled");
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0].body).toEqual({ reason: "p95 latency doubled" });
+  expect(posted[0].key).toBeTruthy();
+  expect(posted[0].url).toContain(`/v1/deployments/${uuid(950)}/rollbacks`);
+});
+
+test("going back shows as going back once the read says so", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("degraded")] });
+  await mockGoBack(page, { status: 200 });
+  // After the request the server's read says it is going back; a later route wins.
+  await page.route(
+    "**/v1/deployments?*",
+    (route) =>
+      route.fulfill({
+        json: page_([deploymentRow("rolling_back", { version: 4 })]),
+      }),
+  );
+  await button(nowCard(page), "Go back to the last release").click();
+  await page.getByLabel(/Why are you going back/).fill("It is slow.");
+  await page.getByRole("button", { name: "Go back", exact: true }).click();
+  await expect(nowCard(page)).toContainText("Going back to the last release");
+  await expect(nowCard(page)).toContainText(
+    "Staging is returning to the release before this one.",
+  );
+});
+
+for (
+  const refusal of [
+    {
+      name: "a newer release replaced it",
+      reply: { status: 409, reason: "not_current_release" },
+      words: "A newer release has replaced this one. Reload to see it.",
+    },
+    {
+      name: "the outcome is unknown",
+      reply: { status: 409, reason: "outcome_unknown" },
+      words:
+        "Bakery cannot tell whether the release finished, so it cannot go back yet.",
+    },
+    {
+      name: "the person may not deploy",
+      reply: { status: 403, code: "AUTH_FORBIDDEN" },
+      words:
+        "You do not have permission to deploy this repository. Ask an administrator.",
+    },
+  ] as const
+) {
+  test(`a refusal because ${refusal.name} is one notice in the dialog and keeps the reason`, async ({ page }) => {
+    await openRelease(page, { deployments: [deploymentRow("degraded")] });
+    await mockGoBack(page, refusal.reply);
+    await button(nowCard(page), "Go back to the last release").click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByLabel(/Why are you going back/).fill("It is slow.");
+    await dialog.getByRole("button", { name: "Go back", exact: true }).click();
+    await expect(dialog.getByTestId("delivery-go-back-notice")).toHaveText(
+      refusal.words,
+    );
+    await expect(dialog.getByLabel(/Why are you going back/)).toHaveValue(
+      "It is slow.",
+    );
+  });
+}
+
+test("a viewer gets no Go back button and is told who can", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("degraded")],
+    role: "viewer",
+  });
+  await expect(nowCard(page)).toContainText(
+    "Someone who may deploy can go back to the release before it.",
+  );
+  await expect(goBackButton(page)).toHaveCount(0);
+});
+
+test("a failed release says the release did not finish, and a failed going-back adds one sentence", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("failed")] });
+  await expect(nowCard(page)).toContainText("The release to staging failed");
+  await expect(nowCard(page)).toContainText(
+    "The release did not finish. Send a message to say what to do next.",
+  );
+  await expect(nowCard(page)).not.toContainText("could not put");
+  await page.unroute("**/v1/deployments?*");
+  await page.route(
+    "**/v1/deployments?*",
+    (route) =>
+      route.fulfill({
+        json: page_([deploymentRow("failed", { rollbackFailed: true })]),
+      }),
+  );
+  await page.reload();
+  await expect(nowCard(page)).toContainText(
+    "The release did not finish. Bakery could not put staging back on the release before it, so check staging now. Send a message to say what to do next.",
+  );
+});
+
+test("before the merge, or with no release, the headline is the one it was", async ({ page }) => {
+  await openApproved(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    deployments: [deploymentRow("healthy")],
+  });
+  await expect(nowCard(page)).not.toContainText("Released to");
+  await expect(releaseSection(page)).toHaveCount(0);
+});
