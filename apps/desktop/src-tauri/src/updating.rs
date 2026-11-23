@@ -193,7 +193,9 @@ impl Shell {
             return;
         }
         let notice = words::notice(say);
-        let close_only = notice.buttons.is_empty() && notice.goes_after.is_none();
+        let ends_by_itself = matches!(say, Say::DownloadingAsked { .. });
+        let close_only =
+            notice.buttons.is_empty() && notice.goes_after.is_none() && !ends_by_itself;
         let toast = Toast {
             id: UPDATE_TOAST,
             tone: tone(notice.tone),

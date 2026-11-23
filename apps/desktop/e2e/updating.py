@@ -56,7 +56,13 @@ class Stub(http.server.BaseHTTPRequestHandler):
             time.sleep(MODE["handoff_delay"])
             self.send(303, b"", headers=[("location", "/")])
         elif url.path == "/":
-            self.send(200, b"<!doctype html><title>Lab</title><h1>Lab page</h1>", "text/html")
+            page = (b'<!doctype html><meta charset="utf-8"><title>Lab</title><link rel="stylesheet" href="/web.css">'
+                    b'<body style="background:var(--color-canvas,Canvas);color:var(--color-fg,CanvasText);margin:0;padding:24px">'
+                    b'<h1>Bakery</h1><p>A page of the server.</p>'
+                    b'<script>document.documentElement.dataset.theme=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"</script></body>')
+            self.send(200, page, "text/html")
+        elif url.path == "/web.css":
+            self.send(200, open("/web.css", "rb").read() if os.path.exists("/web.css") else b"", "text/css")
         elif url.path == "/v1/desktop/update":
             feed = MODE["feed"]
             if feed == "204":
@@ -95,7 +101,7 @@ class Stub(http.server.BaseHTTPRequestHandler):
                         return
                     self.wfile.write(piece)
                     self.wfile.flush()
-                    time.sleep(1.5)
+                    time.sleep(3.0 if mode == "slow" else 1.5)
         else:
             self.send(404)
 
