@@ -2,6 +2,7 @@ import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import { type PgDatabase, withPgTransaction } from "../../platform/database.ts";
 import { internalContext, liveActor } from "../workflows/automations/start.ts";
+import { SplitFactSchema } from "./coordination-plan.ts";
 import type {
   EngineStepRequest,
   EngineStepResult,
@@ -71,7 +72,18 @@ export function createSplitStepRunner(
         "The step input does not match the split contract.",
       );
     }
-    const input = parsed.data;
+    // The split is a fact of the bakery.split kind: the plan spec itself.
+    const fact = SplitFactSchema.safeParse(parsed.data.split);
+    if (!fact.success) {
+      return failed(
+        "SPLIT_INPUT_INVALID",
+        "The split is not a bakery.split fact.",
+      );
+    }
+    const input = {
+      split: fact.data,
+      budgetLimitUsd: parsed.data.budgetLimitUsd,
+    };
     const trace = { requestId: crypto.randomUUID(), traceId: request.traceId };
     try {
       const plan = await withPgTransaction(deps.database, async (tx) => {
@@ -118,12 +130,7 @@ export function createSplitStepRunner(
             }),
             {
               parentTaskId: request.taskId,
-              spec: {
-                lanes: input.lanes,
-                maxConcurrency: input.maxConcurrency,
-                join: "all-required",
-                failurePolicy: "stop-dependent",
-              },
+              spec: input.split,
               budgetLimitUsd: input.budgetLimitUsd,
               origin: {
                 kind: "saved_workflow",
