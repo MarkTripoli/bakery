@@ -698,10 +698,17 @@ test("a clean run says nothing is waiting, offers no buttons and lists nothing t
     const composer = page.getByPlaceholder("Message this task…");
     await composer.click();
     await expect(composer).toBeFocused();
-    // A tap outside the reference also closes the sheet.
+    // A tap outside the reference also closes the sheet. Focus stays on the id
+    // (on iOS a tap on plain text does not blur it), so only the outside-tap
+    // handler can close the sheet here.
     await head.locator(".ui-reference__plain").click();
     await expect(refCard).toBeVisible();
-    await section.getByRole("heading", { name: "Delivery", level: 2 }).click();
+    await expect(head.locator(".ui-reference__plain")).toBeFocused();
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      )
+    );
     await expect(refCard).toHaveCount(0);
   }
   await expect(details.getByTestId("delivery-checks-rows")).toContainText(
