@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { TOOL_GATEWAY_CAPABILITY } from "@bakery/contracts/workflow-action-registry";
 import { GIT_EXECUTABLE } from "./git-executable.ts";
+import { parseStdioAllowlist } from "./stdio-mcp.ts";
 import { DF_EXECUTABLE } from "./machine-checks.ts";
 import { assertAbsolutePath } from "./storage.ts";
 import { WORKER_SPOOL_MIN_BYTES, WORKER_SPOOL_MIN_RECORDS } from "./types.ts";
@@ -96,6 +97,12 @@ export type WorkerConfig = {
   spoolMaxRecords: number;
   spoolMaxBytes: number;
   outputRedactionSecrets?: string[];
+  /**
+   * Artifact digests of local stdio MCP servers the operator trusts to run
+   * outside the T1 sandbox (`BAKERY_WORKER_MCP_STDIO_ALLOWLIST`, #441). Every
+   * other local server runs sandboxed.
+   */
+  mcpStdioAllowlist?: string[];
   shutdownReceiptLaunchId?: string;
   /** Test-only directory the scripted harness uses for its start and release files. */
   scriptedHarnessDir?: string;
@@ -463,6 +470,7 @@ export const WORKER_RUNTIME_ENVIRONMENT_NAMES = [
   "BAKERY_WORKER_SPOOL_RECORDS",
   "BAKERY_WORKER_SPOOL_BYTES",
   "BAKERY_WORKER_OUTPUT_REDACTION_SECRETS",
+  "BAKERY_WORKER_MCP_STDIO_ALLOWLIST",
   "BAKERY_WORKER_LAUNCH_ID",
   "BAKERY_WORKER_SCRIPTED_HARNESS_DIR",
   "BAKERY_CLAUDE_AUTH_SOURCE_DIR",
@@ -905,6 +913,9 @@ export function readWorkerConfig(
     spoolMaxBytes,
     outputRedactionSecrets: parseOutputRedactionSecrets(
       env.BAKERY_WORKER_OUTPUT_REDACTION_SECRETS,
+    ),
+    mcpStdioAllowlist: parseStdioAllowlist(
+      env.BAKERY_WORKER_MCP_STDIO_ALLOWLIST,
     ),
     ...(shutdownReceiptLaunchId ? { shutdownReceiptLaunchId } : {}),
     ...(scriptedHarnessDir ? { scriptedHarnessDir } : {}),
