@@ -8,6 +8,7 @@ import {
   uuid,
   type VersionRow,
 } from "./helpers/library-fixture.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
 import { still, windowStill } from "./helpers/stills.ts";
@@ -1170,7 +1171,7 @@ test.describe("the workflow canvas on a wide window", () => {
 
   test("a canvas that cannot be fetched falls back to the outline, says so, and Try again brings the diagram", async ({ page }) => {
     // The page loads twice, the second time from a cold dev server.
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await libraryFixture(
       page,
       flatDraft([{ id: "brief", uses: "task.brief" }]),
