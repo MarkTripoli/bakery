@@ -52,6 +52,9 @@ import type {
   InstallationRestore,
   InstallationSettings,
   InstallationStatus,
+  InstallationUncertainActions,
+  InstallationUpdateEventPage,
+  InstallationUpdateStatus,
   IntegrationAppRegistration,
   IntegrationClientCredentials,
   IntegrationConnection,
@@ -1489,7 +1492,7 @@ export function artifactVersionsQueryOptions(
       if (!scope.organizationId) {
         throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
       }
-      return unwrap(
+      const page = unwrap(
         await client.listArtifactVersions({
           ...input,
           organizationId: scope.organizationId,
@@ -1497,6 +1500,15 @@ export function artifactVersionsQueryOptions(
           signal,
         }),
       );
+      // The list also carries staged and refused versions (O29). No screen is
+      // designed for them yet and their bytes are never served, so the app
+      // keeps showing the versions a reader can open: current ones.
+      return {
+        ...page,
+        items: page.items.filter((version) =>
+          (version.publicationStatus ?? "current") === "current"
+        ),
+      };
     },
     retry: retryNetworkOnce,
   });
@@ -2083,6 +2095,67 @@ export function installationSettingsQueryOptions(
     queryKey: protectedQueryKey(scope, "installationSettings.get", {}),
     queryFn: async ({ signal }) =>
       unwrap(await client.installationSettings.get(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * Which release this server runs, the one kept to go back to, and the last
+ * update that did not go through (#59). Installation administrators only: for
+ * anyone else it is refused, and the Updates item is not in the list.
+ */
+export function installationUpdateStatusQueryOptions(
+  client: Pick<BakeryApiClient, "installationUpdates">,
+  scope: ApiScope,
+) {
+  return queryOptions<InstallationUpdateStatus, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "installationUpdates.status", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationUpdates.status(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The update history, newest first, 25 rows a page (#59). */
+export function installationUpdatesQueryOptions(
+  client: Pick<BakeryApiClient, "installationUpdates">,
+  scope: ApiScope,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    InstallationUpdateEventPage,
+    ApiFailure,
+    {
+      pages: InstallationUpdateEventPage[];
+      pageParams: (string | null)[];
+    },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "installationUpdates.list", { limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.installationUpdates.list({
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          limit,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The outside actions held as uncertain, by kind (#59, #64). */
+export function installationUncertainActionsQueryOptions(
+  client: Pick<BakeryApiClient, "installationUncertainActions">,
+  scope: ApiScope,
+) {
+  return queryOptions<InstallationUncertainActions, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "installationUncertainActions.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationUncertainActions.get(signal)),
     retry: retryNetworkOnce,
   });
 }

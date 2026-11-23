@@ -295,7 +295,7 @@ Deno.test("a tick's answer is readable through the probe route for all three sub
       // The inline storage version: keyed (entry_id, revision), which is the arm
       // that used to stop at a null blob_id.
       const inlineAnswer = await read(
-        `/v1/storage/files/${inlineFile.id}/probe`,
+        `/v1/storage/files/${inlineFile.id}/probe?organizationId=${fixture.organizationId}`,
       );
       assertEquals(
         inlineAnswer.status,
@@ -307,7 +307,9 @@ Deno.test("a tick's answer is readable through the probe route for all three sub
       assertEquals(inlineAnswer.height, 2);
 
       // The blob-backed version: keyed on the blob, the arm that always worked.
-      const blobAnswer = await read(`/v1/storage/files/${blobFile.id}/probe`);
+      const blobAnswer = await read(
+        `/v1/storage/files/${blobFile.id}/probe?organizationId=${fixture.organizationId}`,
+      );
       assertEquals(blobAnswer.status, "described", JSON.stringify(blobAnswer));
       assertEquals(blobAnswer.kind, "image", JSON.stringify(blobAnswer));
       assertEquals(blobAnswer.width, 2, JSON.stringify(blobAnswer));

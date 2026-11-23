@@ -12,6 +12,9 @@ const BaseContract: StoryObj = {
     <Stack>
       <DataText variant="identifier">run_01HV8E7K4P</DataText>
       <DataText variant="timestamp">2026-09-12T12:00:00Z</DataText>
+      <p>
+        Bakery went back to <DataText fit trailing=".">4f2a9c1e</DataText>
+      </p>
       <DataText
         data-semantic-interaction="wrapped"
         variant="metric"
