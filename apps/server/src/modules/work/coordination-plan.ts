@@ -45,6 +45,23 @@ export const CoordinationInputSpecSchema = z.object({
   "Typed handoff from an upstream lane's declared output into this lane.",
 );
 
+export const CoordinationLaneRunSpecSchema = z.object({
+  workflowId: z.string().uuid().describe(
+    "Identifier of the workflow definition whose active published version the lane's child runs; the engine starts the run when the lane is ready.",
+  ),
+  inputs: z.record(
+    z.string().min(1).max(64).describe("Name of one input of the workflow."),
+    z.unknown().describe("Value of that input, any JSON value."),
+  ).refine(
+    (value) => new TextEncoder().encode(JSON.stringify(value)).length <= 16_384,
+    { message: "lane run inputs must be at most 16 KiB" },
+  ).optional().describe(
+    "Inputs the child's run is started with, an object of at most 16 KiB; omitted means no inputs.",
+  ),
+}).strict().describe(
+  "What a lane runs: a published workflow and the inputs it starts with. A lane that names it is started by the engine once its prerequisites are done and the plan has room; a lane that does not leaves its child task for someone to start.",
+);
+
 export const CoordinationLaneSpecSchema = z.object({
   key: keySchema.describe("Unique key of this lane within the plan."),
   repositoryAlias: keySchema.describe(
@@ -54,7 +71,10 @@ export const CoordinationLaneSpecSchema = z.object({
     "Human-readable title copied onto the lane's child task.",
   ),
   instructions: z.string().max(20000).describe(
-    "Instructions for the agent working this lane, copied onto the child task description.",
+    "Instructions for the agent working this lane, copied onto the child task description; they stay the child's brief when the lane also names what it runs.",
+  ),
+  run: CoordinationLaneRunSpecSchema.optional().describe(
+    "What the lane runs, when the engine should start it; absent keeps the child task a draft for someone to start.",
   ),
   prerequisites: z.array(keySchema).max(MAX_COORDINATION_LANES).describe(
     "Keys of lanes that must complete, with their declared outputs committed, before this lane may start.",
@@ -74,7 +94,7 @@ export const CoordinationPlanSpecSchema = z.object({
     .describe("Named lanes of the plan; lane keys are unique."),
   maxConcurrency: z.number().int().min(1).max(MAX_COORDINATION_CONCURRENCY)
     .describe(
-      "Requested most lanes running at once. Recorded with the plan for coordinators and readers; lane admission does not enforce it yet and is bounded by prerequisites, worker capacity and the shared plan budget.",
+      "Most lanes running at once. The engine enforces it for the lanes that name what they run: it starts a ready lane only while fewer than this many of the plan's lane children have a live run. A lane started by hand is bounded by prerequisites, worker capacity and the shared plan budget.",
     ),
   join: z.literal("all-required").describe(
     "Join policy: the parent completes only after every required lane completes.",
@@ -195,7 +215,8 @@ export type CoordinationIssue = Readonly<{
     | "repository_out_of_scope"
     | "shared_writable_checkout"
     | "input_not_declared_upstream"
-    | "output_duplicate";
+    | "output_duplicate"
+    | "lane_workflow_unknown";
 }>;
 
 export type ResolvedLane = Readonly<{

@@ -170,6 +170,17 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
     arguments: jsonValue(),
   }, ["connectionId", "tool", "arguments"]),
   ToolCallOutput: jsonValue(),
+  SplitInput: obj({
+    lanes: jsonValue(),
+    maxConcurrency: int({ minimum: 1, maximum: 16 }),
+    budgetLimitUsd: nonEmpty(),
+  }, ["lanes", "maxConcurrency"]),
+  SplitOutput: obj({
+    planId: uuid(),
+    status: nonEmpty(),
+    lanes: int({ minimum: 1 }),
+    completedLanes: int({ minimum: 0 }),
+  }),
   CandidateEvidence: candidateEvidence(),
   PrepareInput: obj({
     repositoryId: uuid(),

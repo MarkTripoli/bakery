@@ -7367,6 +7367,45 @@ const transportSchemas = {
       ],
       "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
     },
+    "SplitInput": {
+      "fields": [
+        {
+          "name": "lanes",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 262144
+          },
+          "description": "The plan's lanes, as the coordination plan spec defines them: each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs (a published workflow and its inputs) so the engine starts it. Validated as a plan before anything is created."
+        },
+        {
+          "name": "maxConcurrency",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 16
+          },
+          "description": "Most lanes running at once; the engine starts a ready lane only while fewer than this many of the plan's lane children have a live run."
+        },
+        {
+          "name": "budgetLimitUsd",
+          "type": "decimal",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 200
+          },
+          "description": "Shared ceiling in USD across every child run of the plan; omit for no plan-scoped ceiling."
+        }
+      ],
+      "rules": [
+        "A step with no agent. The organization, the parent task and the acting person come from the run, never from this payload.",
+        "The step creates the plan once, keyed by the run and the step, so a step looked at again finds its own plan instead of creating a second one.",
+        "The step completes only when the plan's projection is completed. A plan that fails, is partially delivered or is canceled fails the step with a fixed code; a plan still running leaves it waiting."
+      ],
+      "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -9221,7 +9260,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -25794,7 +25833,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -25839,7 +25878,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -39023,6 +39062,14 @@ const transportSchemas = {
       },
       "inngestTrigger": "bakery/task.dependency_release_requested.v1",
       "description": "Requests release of the runs blocked on a prerequisite task that ended. Consumers re-read the task and its blocked dependants under their own run locks; a repeat changes nothing."
+    },
+    "coordination.lanes_dispatch_requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "planId": "uuid"
+      },
+      "inngestTrigger": "bakery/coordination.lanes_dispatch_requested.v1",
+      "description": "Requests that the engine start the ready lanes of a coordination plan that name what they run, up to the plan's concurrency. Consumers re-read the plan and its lanes under their own locks; a repeat starts nothing that is already started."
     },
     "tasks.created": {
       "schemaVersion": 1,
