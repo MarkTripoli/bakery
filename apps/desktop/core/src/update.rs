@@ -1,40 +1,33 @@
-//! What a person is told about updating the app (#77 slice 8, design-ux's comment 7090132077): the state of
-//! the app's updating, the words of the **Bakery** menu for each state, every notice, when the app looks for
-//! an update, and how a time is read ("today at 9:14 AM"). No network and no window here: the shell does the
-//! checking and drawing, and asks this module what to say.
-
-/// The days a check is repeated: counted from the last check of any kind.
 pub const CHECK_EVERY_SECONDS: i64 = 24 * 60 * 60;
 
-/// Where updating stands. `Unavailable` is a build with no release key: it can check nothing, so nothing is drawn.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum State {
     Unavailable,
     Never,
     Looking,
-    /// Nothing newer. `checked` is when the app last looked, in seconds since 1970.
     UpToDate {
         checked: i64,
     },
-    /// `percent` is left out when the size is not known.
     Downloading {
         version: String,
         percent: Option<u8>,
     },
-    /// A verified update waits. `package` is true where it cannot install itself (a `.deb`): it is saved in
-    /// `folder` to be opened.
     Ready {
         version: String,
         package: bool,
         folder: Option<String>,
     },
-    /// The last check did not end well. `tried` is when.
     Failed {
+        tried: i64,
+    },
+    NoFeed {
+        checked: i64,
+    },
+    NotVerified {
         tried: i64,
     },
 }
 
-/// What a menu entry does when it is pressed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     CheckForUpdates,
@@ -42,12 +35,10 @@ pub enum Action {
     ShowUpdateInFolder,
 }
 
-/// The two update lines of the Bakery menu under "Version {version}": a label, and an action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MenuLines {
     pub version: String,
     pub status: Option<String>,
-    /// The action's words, what it does, and whether it can be pressed.
     pub action: Option<(String, Option<Action>)>,
 }
 
@@ -56,7 +47,6 @@ pub const CHECKING: &str = "Checking for updates…";
 pub const RESTART_TO_UPDATE: &str = "Restart to update";
 pub const SHOW_IN_FOLDER_MENU: &str = "Show the update in its folder";
 
-/// The menu's update lines for a state. `now` and `offset_minutes` (the time zone) read the times.
 pub fn menu_lines(state: &State, version: &str, now: i64, offset_minutes: i32) -> MenuLines {
     let (status, action): (Option<String>, Option<(String, Option<Action>)>) = match state {
         State::Unavailable => (None, None),
@@ -83,10 +73,17 @@ pub fn menu_lines(state: &State, version: &str, now: i64, offset_minutes: i32) -
                 (RESTART_TO_UPDATE.into(), Some(Action::RestartToUpdate))
             }),
         ),
-        State::Failed { tried } => (
+        State::Failed { tried } | State::NotVerified { tried } => (
             Some(format!(
                 "Could not check. Tried {}.",
                 time_phrase(*tried, now, offset_minutes)
+            )),
+            Some((CHECK_FOR_UPDATES.into(), Some(Action::CheckForUpdates))),
+        ),
+        State::NoFeed { checked } => (
+            Some(format!(
+                "This server does not offer app updates. Checked {}.",
+                time_phrase(*checked, now, offset_minutes)
             )),
             Some((CHECK_FOR_UPDATES.into(), Some(Action::CheckForUpdates))),
         ),
@@ -105,7 +102,6 @@ fn downloading(version: &str, percent: Option<u8>) -> String {
     }
 }
 
-/// A button on a notice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Button {
     RestartToUpdate,
@@ -132,39 +128,47 @@ pub enum Tone {
     Error,
 }
 
-/// One update notice, as the web's own Toast shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notice {
     pub tone: Tone,
     pub first: String,
     pub second: Option<String>,
     pub buttons: Vec<Button>,
-    /// Seconds after which it goes; `None` stays until closed or answered.
     pub goes_after: Option<u64>,
 }
 
-/// Every notice about updating (the design's table, section 2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Say {
-    /// A verified update is ready and can install itself.
-    Ready { version: String },
-    /// A verified update is saved in a folder, to be opened.
-    ReadyPackage { version: String, folder: String },
-    /// An update failed its check and was not installed.
-    NotVerified { have: String },
-    /// Asked from the menu: nothing newer.
-    UpToDateAsked { have: String },
-    /// Asked from the menu: the download is going.
+    Ready {
+        version: String,
+    },
+    ReadyPackage {
+        version: String,
+        folder: String,
+    },
+    NotVerified {
+        have: String,
+    },
+    UpToDateAsked {
+        have: String,
+    },
     DownloadingAsked {
         version: String,
         percent: Option<u8>,
     },
-    /// Asked from the menu: the download stopped.
-    DownloadStopped { have: String },
-    /// Asked from the menu: the server did not answer.
-    CheckFailedAsked { server: String, have: String },
-    /// The first start after an update.
-    Updated { version: String },
+    DownloadStopped {
+        have: String,
+    },
+    CheckFailedAsked {
+        server: String,
+        have: String,
+    },
+    NoFeedAsked {
+        have: String,
+    },
+    Updated {
+        version: String,
+    },
 }
 
 pub fn notice(say: &Say) -> Notice {
@@ -222,6 +226,15 @@ pub fn notice(say: &Say) -> Notice {
             buttons: vec![Button::TryAgain],
             goes_after: None,
         },
+        Say::NoFeedAsked { have } => Notice {
+            tone: Tone::Information,
+            first: "This server does not offer app updates.".into(),
+            second: Some(format!(
+                "Your version is {have}. To get updates, ask whoever runs your Bakery server."
+            )),
+            buttons: vec![],
+            goes_after: None,
+        },
         Say::Updated { version } => Notice {
             tone: Tone::Success,
             first: format!("Bakery was updated to version {version}."),
@@ -232,8 +245,49 @@ pub fn notice(say: &Say) -> Notice {
     }
 }
 
-/// Whether the app looks for an update now. The first look is once the first page shows; after that, 24 hours
-/// from the last check of any kind (a check from the menu counts).
+pub fn panel_line(state: &State) -> Option<String> {
+    match state {
+        State::Ready {
+            version,
+            package: false,
+            ..
+        } => Some(format!(
+            "Bakery {version} is ready. Restarting takes a few seconds."
+        )),
+        State::Ready {
+            version,
+            package: true,
+            folder,
+        } => Some(format!(
+            "Bakery {version} is ready. It is saved in {}. Open it to install, then start Bakery again.",
+            folder.as_deref().unwrap_or("its folder")
+        )),
+        State::Downloading { version, percent } => Some(downloading(version, *percent)),
+        State::NotVerified { .. } => {
+            Some("An update could not be verified and was not installed.".into())
+        }
+        State::NoFeed { .. } => Some(
+            "This server does not offer app updates. Ask whoever runs it how to get the new version."
+                .into(),
+        ),
+        _ => None,
+    }
+}
+
+pub fn app_older_action(state: &State) -> Option<Action> {
+    match state {
+        State::Ready { package: false, .. } => Some(Action::RestartToUpdate),
+        State::Ready { package: true, .. } => Some(Action::ShowUpdateInFolder),
+        State::Never
+        | State::UpToDate { .. }
+        | State::Failed { .. }
+        | State::NotVerified { .. } => Some(Action::CheckForUpdates),
+        State::Unavailable | State::Looking | State::Downloading { .. } | State::NoFeed { .. } => {
+            None
+        }
+    }
+}
+
 pub fn check_due(now: i64, last_check: Option<i64>, first_page_shown: bool) -> bool {
     if !first_page_shown {
         return false;
@@ -244,7 +298,6 @@ pub fn check_due(now: i64, last_check: Option<i64>, first_page_shown: bool) -> b
     }
 }
 
-/// An update is only ever a newer one: a server that offers the same or an older version counts as up to date.
 pub fn is_newer(offered: &str, have: &str) -> bool {
     match (parse_version(offered), parse_version(have)) {
         (Some(offered), Some(have)) => offered > have,
@@ -261,8 +314,6 @@ fn parse_version(text: &str) -> Option<(u64, u64, u64)> {
     parts.next().is_none().then_some((major, minor, patch))
 }
 
-/// "today at 9:14 AM", "yesterday at 9:14 AM", then the date ("Nov 21, 2026"). `offset_minutes` is the local
-/// time zone's distance from UTC.
 pub fn time_phrase(then: i64, now: i64, offset_minutes: i32) -> String {
     let shift = i64::from(offset_minutes) * 60;
     let (then_local, now_local) = (then + shift, now + shift);
@@ -289,7 +340,6 @@ pub fn time_phrase(then: i64, now: i64, offset_minutes: i32) -> String {
     }
 }
 
-/// Days since 1970-01-01 to a calendar date (Howard Hinnant's algorithm).
 fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
@@ -303,7 +353,6 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
     (if month <= 2 { year + 1 } else { year }, month, day)
 }
 
-/// Words on screen never name the machinery (design-ux, builder item 5).
 pub const BANNED_WORDS: [&str; 6] = [
     "endpoint",
     "signature",
@@ -317,7 +366,6 @@ pub const BANNED_WORDS: [&str; 6] = [
 mod tests {
     use super::*;
 
-    // 2026-11-24 09:14:00 UTC
     const NOW: i64 = 1_795_511_640;
 
     #[test]
@@ -325,9 +373,7 @@ mod tests {
         assert_eq!(time_phrase(NOW, NOW, 0), "today at 9:14 AM");
         assert_eq!(time_phrase(NOW - 86_400, NOW, 0), "yesterday at 9:14 AM");
         assert_eq!(time_phrase(NOW - 2 * 86_400, NOW, 0), "Nov 22, 2026");
-        // In UTC-5 the same instant is 4:14 AM.
         assert_eq!(time_phrase(NOW, NOW, -300), "today at 4:14 AM");
-        // Noon and midnight read as 12.
         assert_eq!(
             time_phrase(NOW + 2 * 3600 + 46 * 60, NOW + 2 * 3600 + 46 * 60, 0),
             "today at 12:00 PM"
@@ -336,7 +382,6 @@ mod tests {
             time_phrase(NOW - 9 * 3600 - 14 * 60, NOW, 0),
             "today at 12:00 AM"
         );
-        // The day is the local one: just after local midnight is "today", the evening before "yesterday".
         assert_eq!(
             time_phrase(NOW - 4 * 3600 - 20 * 60, NOW, -300),
             "yesterday at 11:54 PM"
@@ -564,11 +609,87 @@ mod tests {
     }
 
     #[test]
+    fn a_server_with_no_feed_is_said_in_its_own_words() {
+        let none = lines(State::NoFeed { checked: NOW - 600 });
+        assert_eq!(
+            none.status.as_deref(),
+            Some("This server does not offer app updates. Checked today at 9:04 AM.")
+        );
+        assert_eq!(
+            none.action,
+            Some(("Check for updates".into(), Some(Action::CheckForUpdates)))
+        );
+        let asked = notice(&Say::NoFeedAsked {
+            have: "1.3.0".into(),
+        });
+        assert_eq!(asked.tone, Tone::Information);
+        assert_eq!(asked.first, "This server does not offer app updates.");
+        assert_eq!(
+            asked.second.as_deref(),
+            Some("Your version is 1.3.0. To get updates, ask whoever runs your Bakery server.")
+        );
+        assert!(asked.buttons.is_empty() && asked.goes_after.is_none());
+        let state = State::NoFeed { checked: NOW };
+        assert_eq!(
+            panel_line(&state).as_deref(),
+            Some("This server does not offer app updates. Ask whoever runs it how to get the new version.")
+        );
+        assert_eq!(app_older_action(&state), None);
+    }
+
+    #[test]
+    fn a_panel_carries_the_update_in_one_line_and_the_older_app_panel_offers_its_first_button() {
+        let ready = State::Ready {
+            version: "1.4.0".into(),
+            package: false,
+            folder: None,
+        };
+        assert_eq!(
+            panel_line(&ready).as_deref(),
+            Some("Bakery 1.4.0 is ready. Restarting takes a few seconds.")
+        );
+        assert_eq!(app_older_action(&ready), Some(Action::RestartToUpdate));
+        let package = State::Ready {
+            version: "1.4.0".into(),
+            package: true,
+            folder: Some("Downloads".into()),
+        };
+        assert_eq!(panel_line(&package).as_deref(), Some("Bakery 1.4.0 is ready. It is saved in Downloads. Open it to install, then start Bakery again."));
+        assert_eq!(app_older_action(&package), Some(Action::ShowUpdateInFolder));
+        let going = State::Downloading {
+            version: "1.4.0".into(),
+            percent: Some(40),
+        };
+        assert_eq!(
+            panel_line(&going).as_deref(),
+            Some("Downloading Bakery 1.4.0… 40%")
+        );
+        assert_eq!(app_older_action(&going), None);
+        let unverified = State::NotVerified { tried: NOW };
+        assert_eq!(
+            panel_line(&unverified).as_deref(),
+            Some("An update could not be verified and was not installed.")
+        );
+        for state in [
+            State::Never,
+            State::UpToDate { checked: NOW },
+            State::Failed { tried: NOW },
+        ] {
+            assert_eq!(panel_line(&state), None);
+            assert_eq!(app_older_action(&state), Some(Action::CheckForUpdates));
+        }
+        assert_eq!(app_older_action(&State::Unavailable), None);
+        assert_eq!(app_older_action(&State::Looking), None);
+        assert_eq!(
+            lines(unverified).status.as_deref(),
+            Some("Could not check. Tried today at 9:14 AM.")
+        );
+    }
+
+    #[test]
     fn the_app_looks_once_the_first_page_shows_and_every_day_after_the_last_look() {
-        // Not before the first page: the launch check waits.
         assert!(!check_due(NOW, None, false));
         assert!(check_due(NOW, None, true));
-        // Counted from the last check of any kind.
         assert!(!check_due(NOW, Some(NOW - CHECK_EVERY_SECONDS + 1), true));
         assert!(check_due(NOW, Some(NOW - CHECK_EVERY_SECONDS), true));
     }
@@ -578,13 +699,10 @@ mod tests {
         assert!(is_newer("1.4.0", "1.3.0"));
         assert!(is_newer("2.0.0", "1.9.9"));
         assert!(is_newer("1.3.1", "1.3.0"));
-        // The same or an older one counts as up to date: the app never moves back.
         assert!(!is_newer("1.3.0", "1.3.0"));
         assert!(!is_newer("1.2.9", "1.3.0"));
-        // What cannot be read is not offered.
         assert!(!is_newer("soon", "1.3.0"));
         assert!(!is_newer("1.4", "1.3.0"));
-        // A leading v and a pre-release tail are tolerated.
         assert!(is_newer("v1.4.0", "1.3.0"));
     }
 }

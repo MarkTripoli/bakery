@@ -13,7 +13,6 @@ pub struct Model {
     pub connected: String,
     /// Sign out is live only while someone is signed in.
     pub sign_out_enabled: bool,
-    /// "Version {version}", and the update lines under it for the state of updating (slice 8).
     pub update: crate::update::MenuLines,
 }
 

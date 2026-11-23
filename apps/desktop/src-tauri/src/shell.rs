@@ -92,7 +92,6 @@ pub struct Shell {
     toasts: Mutex<std::collections::HashMap<u64, ToastTarget>>,
     downloads: Mutex<std::collections::HashMap<u64, DownloadState>>,
     next_toast: std::sync::atomic::AtomicU64,
-    /// Updating the app (#77 slice 8).
     updating: Mutex<updating::Updating>,
 }
 
@@ -725,8 +724,11 @@ impl Shell {
     }
 
     pub fn current_view(&self) -> View {
+        let update = self.updating_state();
         let st = self.state.lock().unwrap();
-        view(&st.session, &st.facts)
+        let mut facts = st.facts.clone();
+        facts.update = update;
+        view(&st.session, &facts)
     }
 
     /// Install the Bakery menu and keep it in step from now on.
@@ -739,7 +741,6 @@ impl Shell {
     }
 
     fn menu_model(&self) -> bakery_desktop_core::menu::Model {
-        // The update lines first: no lock of the session is held while the state of updating is read.
         let update = self.update_menu_lines();
         let st = self.state.lock().unwrap();
         bakery_desktop_core::menu::model(
@@ -846,6 +847,7 @@ impl Shell {
             }
         }
         self.sync_window().await;
+        self.arrived_on_older_app_panel();
     }
 
     /// Keeps the window on the right page: the server's pages while someone is signed in, the app's

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# The app's update client, from the host (#77 slice 8): builds the app with a throwaway test key
-# built in, and walks it through the update scenarios against a stub server.
-#
-#   updating.sh <output dir>
-#
-# Only the test keys made here are used. The release key is held by the owner and never appears.
 set -uo pipefail
 OUT="$(realpath -m "${1:?output directory}")"
 HERE="$(cd "$(dirname "$0")" && pwd)"

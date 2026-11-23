@@ -32,6 +32,7 @@ pub struct ViewFacts {
     pub computer: Option<String>,
     /// The dialog a link brought up, until the person closes it.
     pub link_dialog: Option<LinkDialog>,
+    pub update: Option<crate::update::State>,
 }
 
 pub fn view(session: &Session, facts: &ViewFacts) -> View {
@@ -44,6 +45,7 @@ pub fn view(session: &Session, facts: &ViewFacts) -> View {
         identity: facts.identity.as_ref(),
         last_tried: facts.last_tried.as_deref(),
         computer: facts.computer.as_deref(),
+        update: facts.update.as_ref(),
     };
     View {
         window: session.window().clone(),

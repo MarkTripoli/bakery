@@ -39,8 +39,6 @@ pub async fn check_and_verify(app: &AppHandle, endpoint: &str) -> Value {
     }
 }
 
-/// The address the app asks its connected server for an update: the plugin fills in the target, the processor
-/// and this app's version.
 pub fn feed_address(server: &str) -> String {
     format!(
         "{}/v1/desktop/update?target={{{{target}}}}&arch={{{{arch}}}}&current_version={{{{current_version}}}}",
@@ -48,7 +46,6 @@ pub fn feed_address(server: &str) -> String {
     )
 }
 
-/// This build has no release key built in (the committed key is a placeholder), so it can check nothing.
 pub fn has_release_key(app: &AppHandle) -> bool {
     app.config()
         .plugins
@@ -59,27 +56,24 @@ pub fn has_release_key(app: &AppHandle) -> bool {
         .is_some_and(|key| !key.is_empty() && !key.starts_with("UNSET"))
 }
 
-/// What asking the server came to.
 pub enum Looked {
-    /// Nothing newer: the server said so, or offered the same or an older version.
     Current,
-    /// A newer update, not downloaded yet.
     Offered(Box<Update>),
-    /// The server has no update feed at all (it answered "not found").
     NoFeed,
-    /// The server did not answer, or answered with something that cannot be used.
     Failed,
 }
 
-/// Asks the connected server for an update with the app's sign-in. Only a newer version is ever offered.
-pub async fn look(app: &AppHandle, server: &str, bearer: &str) -> Looked {
+pub async fn look(app: &AppHandle, server: &str, bearer: Option<&str>) -> Looked {
     let Ok(url) = feed_address(server).parse() else {
         return Looked::Failed;
     };
     let builder = app
         .updater_builder()
         .endpoints(vec![url])
-        .and_then(|builder| builder.header("Authorization", format!("Bearer {bearer}")))
+        .and_then(|builder| match bearer {
+            Some(bearer) => builder.header("Authorization", format!("Bearer {bearer}")),
+            None => Ok(builder),
+        })
         .map(|builder| {
             builder
                 .timeout(std::time::Duration::from_secs(30))
@@ -93,8 +87,6 @@ pub async fn look(app: &AppHandle, server: &str, bearer: &str) -> Looked {
     };
     match updater.check().await {
         Ok(Some(mut update)) => {
-            // The file is fetched from the address the server named, which may be another host: the app's
-            // own sign-in is for the server, so it is never sent there.
             update.headers.clear();
             if update.download_url.scheme() != "https" && !cfg!(debug_assertions) {
                 return Looked::Failed;
@@ -102,9 +94,8 @@ pub async fn look(app: &AppHandle, server: &str, bearer: &str) -> Looked {
             Looked::Offered(Box::new(update))
         }
         Ok(None) => Looked::Current,
-        // The plugin reports a missing feed and a broken server the same way: ask once more to tell them apart.
         Err(tauri_plugin_updater::Error::ReleaseNotFound) => {
-            if no_feed(server, bearer).await {
+            if server_answers_not_found(server, bearer).await {
                 Looked::NoFeed
             } else {
                 Looked::Failed
@@ -114,7 +105,7 @@ pub async fn look(app: &AppHandle, server: &str, bearer: &str) -> Looked {
     }
 }
 
-async fn no_feed(server: &str, bearer: &str) -> bool {
+async fn server_answers_not_found(server: &str, bearer: Option<&str>) -> bool {
     let target = match std::env::consts::OS {
         "macos" => "darwin",
         other => other,
@@ -124,9 +115,12 @@ async fn no_feed(server: &str, bearer: &str) -> bool {
         server.trim_end_matches('/'),
         std::env::consts::ARCH
     );
-    match reqwest::Client::new()
-        .get(url)
-        .bearer_auth(bearer)
+    let request = reqwest::Client::new().get(url);
+    let request = match bearer {
+        Some(bearer) => request.bearer_auth(bearer),
+        None => request,
+    };
+    match request
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
@@ -136,17 +130,12 @@ async fn no_feed(server: &str, bearer: &str) -> bool {
     }
 }
 
-/// What downloading an offered update came to.
 pub enum Got {
-    /// The bytes, whose signature checked against the key built into the app.
     Verified(Vec<u8>),
-    /// The file did not pass its check, or came with no valid signature: nothing is kept.
     NotVerified,
-    /// The download stopped.
     Stopped,
 }
 
-/// Downloads the update, reporting the percent as it goes (`None` where the size is not known).
 pub async fn fetch(update: &Update, mut progress: impl FnMut(Option<u8>)) -> Got {
     let mut received: u64 = 0;
     let result = update

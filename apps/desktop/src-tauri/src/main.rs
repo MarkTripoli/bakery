@@ -50,6 +50,9 @@ async fn press_button(
         }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
         Press::Shell(ButtonId::Close) => shell.close_link_dialog(),
+        Press::Shell(ButtonId::RestartToUpdate) => shell.inner().restart_to_update().await,
+        Press::Shell(ButtonId::CheckForUpdates) => shell.inner().check_now(true).await,
+        Press::Shell(ButtonId::ShowUpdateInFolder) => shell.inner().show_update_in_folder(),
         Press::Shell(ButtonId::TryPageAgain) => shell.inner().try_page_again().await,
         Press::Shell(ButtonId::OpenLinkInBrowser) => {
             if let Some(target) = shell.link_dialog_target() {

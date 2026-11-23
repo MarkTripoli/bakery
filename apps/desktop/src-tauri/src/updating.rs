@@ -1,36 +1,23 @@
-//! Updating the app (#77 slice 8, design-ux's comment 7090132077). The app asks its connected server for a newer
-//! version at launch (once the first page shows), every 24 hours after its last look, and when asked from the
-//! menu. A verified update waits until the person restarts; it is never installed unasked, never from a failed
-//! check, and never older than the version running. What is said, and when, comes from
-//! `bakery_desktop_core::update`; this module does the asking, the downloading and the installing.
-
 use super::*;
 use bakery_desktop_core::update::{self as words, Action, Say, State as UpdateState};
 
-/// Every update notice is this one notice in the page: a newer one replaces an older one.
 pub(super) const UPDATE_TOAST: u64 = u64::MAX - 7;
 
-/// A verified update, kept in memory until the person restarts (a download does not survive a restart of the
-/// app: it is fetched again, without a notice).
 pub(super) struct ReadyUpdate {
     update: Box<tauri_plugin_updater::Update>,
     bytes: Vec<u8>,
-    /// Where it was saved, for a build that cannot install itself.
     saved: Option<PathBuf>,
 }
 
 pub(super) struct Updating {
     pub state: UpdateState,
-    /// When the app last looked, of any kind, in seconds since 1970.
     pub last_check: Option<i64>,
     pub ready: Option<ReadyUpdate>,
     pub busy: bool,
-    /// True once a first page has shown: the launch check waits for it.
     pub first_page: bool,
-    /// How many pages have finished loading, so a restart can tell the web's own question was answered.
     pub page_loads: u64,
-    /// The version this start is the first of after an update, until its notice is shown.
     pub updated_to: Option<String>,
+    pub on_older_app_panel: bool,
 }
 
 impl Default for Updating {
@@ -43,11 +30,11 @@ impl Default for Updating {
             first_page: false,
             page_loads: 0,
             updated_to: None,
+            on_older_app_panel: false,
         }
     }
 }
 
-/// What a restart writes for the next start: the version it went to, and the page that was open.
 const AFTER_UPDATE_FILE: &str = "after-update.json";
 
 fn now_seconds() -> i64 {
@@ -59,8 +46,6 @@ fn offset_minutes() -> i32 {
     chrono::Local::now().offset().fix().local_minus_utc() / 60
 }
 
-/// A build that is not a self-installing one (an AppImage, or any other system) saves the file for the person
-/// to open: a `.deb` needs a password prompt the app does not drive.
 fn installs_itself() -> bool {
     !cfg!(target_os = "linux") || std::env::var("APPIMAGE").is_ok()
 }
@@ -83,19 +68,22 @@ fn button_action(button: words::Button) -> &'static str {
 }
 
 impl Shell {
-    /// The app's own version, as the server is told it.
+    pub(super) fn updating_state(&self) -> Option<UpdateState> {
+        match self.updating.lock().unwrap().state.clone() {
+            UpdateState::Unavailable => None,
+            state => Some(state),
+        }
+    }
+
     pub(super) fn app_version(&self) -> String {
         self.app.package_info().version.to_string()
     }
 
-    /// The menu's version and update lines for the state of updating now.
     pub(super) fn update_menu_lines(&self) -> words::MenuLines {
         let state = self.updating.lock().unwrap().state.clone();
         words::menu_lines(&state, &self.app_version(), now_seconds(), offset_minutes())
     }
 
-    /// Called once the window exists: finds out whether this build can check at all, reads what the last restart
-    /// left, and starts the clock that looks for updates.
     pub fn start_updating(self: &Arc<Self>) {
         if self.previewing {
             return;
@@ -112,7 +100,6 @@ impl Shell {
                 if let Ok(left) = serde_json::from_str::<serde_json::Value>(&text) {
                     updating.updated_to = left.get("to").and_then(|v| v.as_str()).map(String::from);
                     if let Some(path) = left.get("path").and_then(|v| v.as_str()) {
-                        // The page that was open comes back once the window can show the server's pages.
                         *self.pending_open.lock().unwrap() = Some(path.to_string());
                     }
                 }
@@ -133,8 +120,33 @@ impl Shell {
         });
     }
 
-    /// A page finished loading in the window: the first one starts the clock, and the first server page after an
-    /// update says so.
+    pub fn arrived_on_older_app_panel(self: &Arc<Self>) {
+        let on_panel = matches!(
+            self.state.lock().unwrap().session.window(),
+            bakery_desktop_core::session::Window::Incompatible {
+                mismatch: bakery_desktop_core::session::Mismatch::AppOlder,
+                ..
+            }
+        );
+        let start = {
+            let mut updating = self.updating.lock().unwrap();
+            let arrived = on_panel && !updating.on_older_app_panel;
+            updating.on_older_app_panel = on_panel;
+            arrived
+                && !updating.busy
+                && !matches!(
+                    updating.state,
+                    UpdateState::Unavailable
+                        | UpdateState::Ready { .. }
+                        | UpdateState::Downloading { .. }
+                )
+        };
+        if start {
+            let shell = Arc::clone(self);
+            tauri::async_runtime::spawn(async move { shell.check_now(false).await });
+        }
+    }
+
     pub fn page_finished(self: &Arc<Self>) {
         let say_updated = {
             let mut updating = self.updating.lock().unwrap();
@@ -157,12 +169,15 @@ impl Shell {
             !updating.busy
                 && matches!(
                     updating.state,
-                    UpdateState::Never | UpdateState::UpToDate { .. } | UpdateState::Failed { .. }
+                    UpdateState::Never
+                        | UpdateState::UpToDate { .. }
+                        | UpdateState::NoFeed { .. }
+                        | UpdateState::Failed { .. }
+                        | UpdateState::NotVerified { .. }
                 )
                 && words::check_due(now_seconds(), updating.last_check, updating.first_page)
         };
-        let signed_in = self.state.lock().unwrap().credential.is_some();
-        if due && signed_in {
+        if due {
             self.check_now(false).await;
         }
     }
@@ -172,8 +187,11 @@ impl Shell {
         self.push();
     }
 
-    /// Shows an update notice in the page the window shows: one at a time, a newer replacing an older.
     fn say_update(self: &Arc<Self>, say: &Say) {
+        if !self.window_page.lock().unwrap().on_server {
+            self.push();
+            return;
+        }
         let notice = words::notice(say);
         let close_only = notice.buttons.is_empty() && notice.goes_after.is_none();
         let toast = Toast {
@@ -201,7 +219,6 @@ impl Shell {
         }
     }
 
-    /// Looks for an update now. `asked` is true when the person asked from the menu: every result is then said.
     pub async fn check_now(self: &Arc<Self>, asked: bool) {
         {
             let mut updating = self.updating.lock().unwrap();
@@ -209,7 +226,6 @@ impl Shell {
                 return;
             }
             if let UpdateState::Ready { .. } = updating.state {
-                // Already waiting: asking again says so again.
                 drop(updating);
                 if asked {
                     self.say_ready();
@@ -222,13 +238,10 @@ impl Shell {
         self.push();
         let have = self.app_version();
         let credential = self.state.lock().unwrap().credential.clone();
-        let looked = match credential {
-            Some(credential) => crate::update::look(&self.app, &self.server, &credential).await,
-            None => crate::update::Looked::Failed,
-        };
+        let looked = crate::update::look(&self.app, &self.server, credential.as_deref()).await;
         let now = now_seconds();
         match looked {
-            crate::update::Looked::Current | crate::update::Looked::NoFeed => {
+            crate::update::Looked::Current => {
                 {
                     let mut updating = self.updating.lock().unwrap();
                     updating.last_check = Some(now);
@@ -236,6 +249,16 @@ impl Shell {
                 }
                 if asked {
                     self.say_update(&Say::UpToDateAsked { have });
+                }
+            }
+            crate::update::Looked::NoFeed => {
+                {
+                    let mut updating = self.updating.lock().unwrap();
+                    updating.last_check = Some(now);
+                    updating.state = UpdateState::NoFeed { checked: now };
+                }
+                if asked {
+                    self.say_update(&Say::NoFeedAsked { have });
                 }
             }
             crate::update::Looked::Failed => {
@@ -261,7 +284,6 @@ impl Shell {
         self.report("update_state", json!({ "state": self.update_state_name() }));
     }
 
-    /// The state's name for a run to check, never its words.
     fn update_state_name(&self) -> &'static str {
         match self.updating.lock().unwrap().state {
             UpdateState::Unavailable => "unavailable",
@@ -271,6 +293,8 @@ impl Shell {
             UpdateState::Downloading { .. } => "downloading",
             UpdateState::Ready { .. } => "ready",
             UpdateState::Failed { .. } => "failed",
+            UpdateState::NoFeed { .. } => "no_feed",
+            UpdateState::NotVerified { .. } => "not_verified",
         }
     }
 
@@ -328,7 +352,7 @@ impl Shell {
                 self.say_ready();
             }
             crate::update::Got::NotVerified => {
-                self.set_update_state(UpdateState::Failed {
+                self.set_update_state(UpdateState::NotVerified {
                     tried: now_seconds(),
                 });
                 self.say_update(&Say::NotVerified { have });
@@ -370,7 +394,6 @@ impl Shell {
         Some(path)
     }
 
-    /// The notice for a verified update, in the form its state offers.
     fn say_ready(self: &Arc<Self>) {
         let state = self.updating.lock().unwrap().state.clone();
         if let UpdateState::Ready {
@@ -390,7 +413,6 @@ impl Shell {
         }
     }
 
-    /// The entry of the menu that checks, restarts or shows the update, whichever the state offers.
     pub fn update_action(self: &Arc<Self>) {
         let state = self.updating.lock().unwrap().state.clone();
         let shell = Arc::clone(self);
@@ -409,7 +431,7 @@ impl Shell {
         }
     }
 
-    fn show_update_in_folder(&self) {
+    pub fn show_update_in_folder(&self) {
         let saved = self
             .updating
             .lock()
@@ -422,7 +444,6 @@ impl Shell {
         }
     }
 
-    /// A button of the update notice.
     pub fn update_toast_action(self: &Arc<Self>, action: &str) {
         let shell = Arc::clone(self);
         match action {
@@ -439,9 +460,6 @@ impl Shell {
         self.report("toast_action", json!({ "action": action }));
     }
 
-    /// Installs the waiting update and starts the app again on the page that was open. The web's own question
-    /// ("leave without saving?") is asked first: the window is sent to the page it is already on, and the
-    /// install goes ahead only once that page has loaded again, which it does not when the person stays.
     pub async fn restart_to_update(self: &Arc<Self>) {
         let (update, bytes, version) = {
             let updating = self.updating.lock().unwrap();
@@ -476,7 +494,6 @@ impl Shell {
                         }
                     }
                     if stayed {
-                        // The person chose to stay on the page: the update waits.
                         self.report("update_restart_declined", json!({}));
                         return;
                     }

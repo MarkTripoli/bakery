@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""The app's update client against a stub server (#77 slice 8), with throwaway test keys only.
-
-Runs inside the build image (see updating.sh): a stub server that speaks the feed shape agreed with the server
-(GET /v1/desktop/update, gated by the app's bearer, 204 for none, 200 with version, url and signature) and
-records every request it gets, signed test payloads, and the app built with the test key. Each scenario starts
-the app, signed in, and checks what it did from the app's own report and from what the stub saw.
-"""
 import http.server
 import json
 import os
@@ -24,17 +17,14 @@ ARCH = subprocess.check_output(["uname", "-m"], text=True).strip()  # x86_64 or 
 
 results = []
 LOG = []  # (monotonic seconds, method, path, query, authorization)
-MODE = {"feed": "204", "handoff_delay": 0.0}
-
+MODE = {"feed": "204", "handoff_delay": 0.0, "compat": 1}
 
 def check(name, ok, detail=""):
     results.append(bool(ok))
     print(("PASS " if ok else "FAIL ") + name + (f"  [{detail}]" if detail and not ok else ""), flush=True)
 
-
 def signature(which):
     return open(os.path.join(PAY, f"update.{which}.sig")).read().strip()
-
 
 class Stub(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
@@ -58,7 +48,7 @@ class Stub(http.server.BaseHTTPRequestHandler):
         url = urllib.parse.urlsplit(self.path)
         LOG.append((time.monotonic(), "GET", url.path, url.query, self.headers.get("Authorization")))
         if url.path == "/health":
-            self.send(200, json.dumps({"service": "bakery-server", "compatibility": 1}).encode())
+            self.send(200, json.dumps({"service": "bakery-server", "compatibility": MODE["compat"]}).encode())
         elif url.path == "/v1/me":
             self.send(200, json.dumps({"displayName": "Lab", "email": "lab@example.test"}).encode())
         elif url.path == "/api/desktop/handoff":
@@ -98,7 +88,6 @@ class Stub(http.server.BaseHTTPRequestHandler):
         else:
             self.send(404)
 
-
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Stub)
 ORIGIN = f"http://127.0.0.1:{server.server_address[1]}"
 threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -106,7 +95,6 @@ subprocess.run(["secret-tool", "store", "--label=lab", "service", "bakery-deskto
                input=b"bkd_lab", capture_output=True)
 
 app = None
-
 
 def reports(path):
     out = []
@@ -117,7 +105,6 @@ def reports(path):
         pass
     return out
 
-
 def wait_until(condition, timeout=40):
     end = time.time() + timeout
     while time.time() < end:
@@ -126,9 +113,7 @@ def wait_until(condition, timeout=40):
         time.sleep(0.3)
     return False
 
-
 def start(name, feed, tick=400, extra=None, handoff_delay=0.0):
-    """Starts the app, signed in, on a fresh configuration, with the stub answering `feed`."""
     global app
     stop()
     MODE["feed"], MODE["handoff_delay"] = feed, handoff_delay
@@ -143,7 +128,6 @@ def start(name, feed, tick=400, extra=None, handoff_delay=0.0):
     app = subprocess.Popen([BIN], env=env, stdout=open(os.path.join(path, "app.log"), "a"), stderr=subprocess.STDOUT)
     return path
 
-
 def stop():
     global app
     if app and app.poll() is None:
@@ -156,28 +140,21 @@ def stop():
     time.sleep(1)
     app = None
 
-
 def states(path):
     return [e["data"].get("state") for e in reports(path) if e["event"] == "update_state"]
-
 
 def toasts(path):
     return [e["data"].get("text") for e in reports(path) if e["event"] == "toast"]
 
-
 def feed_hits():
     return [entry for entry in LOG if entry[2] == "/v1/desktop/update"]
-
 
 def downloads_hits():
     return [entry for entry in LOG if entry[2].startswith("/pay/")]
 
-
 def press_menu(path):
     open(os.path.join(path, "cmd", "menu-update_action"), "w").close()
 
-
-# 1. Nothing newer: the server says so (204), and the app asks as the agreed shape says.
 p = start("a-current", "204")
 check("[current] the app asks its server and is told it is up to date", wait_until(lambda: "up_to_date" in states(p)))
 hits = feed_hits()
@@ -189,20 +166,18 @@ check("[current] it says its system, processor and version", query.get("target")
 check("[current] it sends its sign-in to the server", bool(hits) and hits[0][4] == "Bearer bkd_lab", str(hits[:1]))
 check("[current] nothing is said on screen: a check the app starts itself is silent", toasts(p) == [], str(toasts(p)))
 
-# 2. An older or the same version is never offered back to the person: it counts as up to date.
 for feed in ("older", "same"):
     p = start(f"b-{feed}", feed)
     check(f"[{feed}] a {feed} version counts as up to date and nothing is downloaded",
           wait_until(lambda: "up_to_date" in states(p)) and not downloads_hits(), str(states(p)))
 
-# 3. A server with no update feed (404) is not an error; a server that fails (500) is, and says nothing unasked.
 p = start("c-nofeed", "nofeed")
-check("[no feed] a server with no update feed counts as up to date", wait_until(lambda: "up_to_date" in states(p)), str(states(p)))
+check("[no feed] a server with no update feed ends in its own state, not 'up to date'", wait_until(lambda: "no_feed" in states(p)), str(states(p)))
+check("[no feed] and says nothing unasked", toasts(p) == [], str(toasts(p)))
 p = start("c-error", "error")
 check("[error] a server that fails ends in 'failed'", wait_until(lambda: "failed" in states(p)), str(states(p)))
 check("[error] and says nothing: a check the app starts itself is silent", toasts(p) == [], str(toasts(p)))
 
-# 4. A newer, correctly signed update is downloaded, verified and kept until the person restarts it.
 p = start("d-ready", "newer")
 check("[ready] a newer verified update is ready", wait_until(lambda: "ready" in states(p)), str(states(p)))
 check("[ready] it says so, once, in the designs words",
@@ -213,16 +188,14 @@ check("[ready] the sign-in went only to the server's own feed", all(e[4] == "Bea
 saved = os.path.join(HOME, "Downloads", "Bakery updates")
 check("[ready] a build that cannot install itself saves the file to open", os.path.isdir(saved) and os.listdir(saved), saved)
 
-# 5. An update that does not pass its check is refused, said so, and nothing is kept.
 for feed, label in (("tampered", "changed after it was signed"), ("wrongkey", "signed by another key")):
     subprocess.run(["rm", "-rf", saved])
     p = start(f"e-{feed}", feed)
-    check(f"[{feed}] an update {label} is not installed", wait_until(lambda: "failed" in states(p)), str(states(p)))
+    check(f"[{feed}] an update {label} is not installed", wait_until(lambda: "not_verified" in states(p)), str(states(p)))
     check(f"[{feed}] and the person is told, in the designs words",
           wait_until(lambda: "An update could not be verified and was not installed." in toasts(p)), str(toasts(p)))
     check(f"[{feed}] nothing was kept", not os.path.isdir(saved) or not os.listdir(saved), str(os.listdir(saved)) if os.path.isdir(saved) else "")
 
-# 6. Counted from the last check of any kind: after the launch check, no second look follows by itself.
 subprocess.run(["rm", "-rf", saved])
 p = start("f-asked", "204", tick=500)
 check("[24 hours] the launch check ends up to date", wait_until(lambda: "up_to_date" in states(p)), str(states(p)))
@@ -230,20 +203,52 @@ looked = len(feed_hits())
 time.sleep(4)
 check("[24 hours] and no second look follows within the day", len(feed_hits()) == looked, f"{looked} then {len(feed_hits())}")
 
-# 7. Asked from the menu: every result is said (and counts as a look).
 press_menu(p)
 check("[asked] nothing newer says 'Bakery is up to date.'", wait_until(lambda: "Bakery is up to date." in toasts(p)), str(toasts(p)))
 MODE["feed"] = "error"
 press_menu(p)
 check("[asked] a server that fails says it could not check",
       wait_until(lambda: "Bakery could not check for updates." in toasts(p)), str(toasts(p)))
+MODE["feed"] = "nofeed"
+press_menu(p)
+check("[asked] a server with no update feed says so, in the designs words",
+      wait_until(lambda: "This server does not offer app updates." in toasts(p)), str(toasts(p)))
 MODE["feed"] = "newer"
 press_menu(p)
 check("[asked] a newer one is downloaded and said to be ready",
       wait_until(lambda: any(t and t.startswith("Bakery 9.9.9 is ready.") for t in toasts(p))), str(toasts(p)))
 
-# 8. Restart to update: the file is replaced, the page that was open is remembered, and the app ends. (The stand-in
-# AppImage cannot run again, so the way back is checked from a start with what the restart leaves.)
+subprocess.run(["secret-tool", "clear", "service", "bakery-desktop", "username", ORIGIN], capture_output=True)
+subprocess.run(["rm", "-rf", saved])
+p = start("i-signed-out", "newer")
+check("[signed out] the app still looks, and a newer verified update is ready", wait_until(lambda: "ready" in states(p)), str(states(p)))
+hits = feed_hits()
+check("[signed out] it sent no sign-in, because it has none", bool(hits) and all(e[4] is None for e in hits), str(hits[:2]))
+check("[signed out] no notice is drawn over the sign-in panel: it carries the line, the menu the action", toasts(p) == [], str(toasts(p)))
+stop()
+subprocess.run(["secret-tool", "store", "--label=lab", "service", "bakery-desktop", "username", ORIGIN], input=b"bkd_lab", capture_output=True)
+
+p = start("j-older-app", "204", tick=600000)
+check("[older app] the app opens on the server's page", wait_until(lambda: any(e["event"] == "server_page_opened" for e in reports(p))))
+time.sleep(1)
+MODE["compat"] = 99
+MODE["feed"] = "newer"
+before = len(feed_hits())
+open(os.path.join(p, "cmd", "menu-use_different_server"), "w").close()
+
+def window_kinds():
+    return [e["data"]["window"].get("kind") for e in reports(p) if e["event"] == "view"]
+
+check("[older app] Use a different server opens the chooser", wait_until(lambda: "choose" in window_kinds()), str(window_kinds()[-3:]))
+port = ORIGIN.rsplit(":", 1)[1]
+with open(os.path.join(p, "cmd", "choose-another"), "w") as f:
+    f.write(f"http://localhost:{port}")
+check("[older app] a server with a newer level brings up the older-app panel",
+      wait_until(lambda: "incompatible" in window_kinds()), str(window_kinds()[-4:]))
+check("[older app] arriving starts a check at once, though the clock would not for a day",
+      wait_until(lambda: "ready" in states(p)) and len(feed_hits()) > before, f"{states(p)}, hits {before} then {len(feed_hits())}")
+MODE["compat"] = 1
+
 fake = os.path.join(HOME, "Bakery.AppImage")
 old = b"\x7fELF old AppImage"
 open(fake, "wb").write(old)
@@ -259,7 +264,6 @@ check("[restart] it leaves the version and the page that was open for the next s
       wait_until(lambda: os.path.exists(left)) and json.load(open(left)).get("to") == "9.9.9", open(left).read() if os.path.exists(left) else "")
 check("[restart] and the app ends to start again", wait_until(lambda: app.poll() is not None, timeout=30))
 
-# 9. The next start: it says it was updated, and the page that was open comes back.
 p = start("h-after", "204", tick=600000)
 os.makedirs(os.path.join(OUT, "h-after", "config"), exist_ok=True)
 stop()

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Runs inside the build image (see updating.sh). The app's update client against a stub server (#77 slice 8),
-# with throwaway test keys only: the app is built with a test key, the payloads are signed with it (and with
-# another key), and updating.py walks the scenarios.
 set -uo pipefail
 cd /app
 export HOME=/tmp/updhome; mkdir -p "$HOME/Downloads" "$HOME/.config"
@@ -15,12 +12,10 @@ for k in a b; do
   cargo tauri signer generate --ci -w "$KEYS/$k.key" -f >/dev/null 2>&1 || { echo "FAIL could not make test key $k"; exit 2; }
 done
 PUB_A="$(cat "$KEYS/a.key.pub")"
-# The test build is 1.3.0, so an older version can be offered to it.
 export APP_VERSION=1.3.0
 TAURI_CONFIG="{\"version\":\"$APP_VERSION\",\"plugins\":{\"updater\":{\"pubkey\":\"$PUB_A\"}}}" cargo build -p bakery-desktop 2>&1 | tail -1
 cp "$CARGO_TARGET_DIR/debug/bakery-desktop" /tmp/keyed-bakery-desktop
 
-# One payload shaped like an AppImage, signed by A and by B, and a copy changed after it was signed.
 printf '\x7fELF new AppImage ' > "$SERVE/pay/update.bin"; head -c 4096 /dev/urandom >> "$SERVE/pay/update.bin"
 cp "$SERVE/pay/update.bin" "$SERVE/pay/update-tampered.bin"; printf 'x' >> "$SERVE/pay/update-tampered.bin"
 cargo tauri signer sign -f "$KEYS/a.key" -p "" "$SERVE/pay/update.bin" >/dev/null 2>&1; mv "$SERVE/pay/update.bin.sig" "$SERVE/pay/update.a.sig"

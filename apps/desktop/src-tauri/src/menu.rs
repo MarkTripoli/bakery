@@ -1,13 +1,10 @@
 //! The **Bakery** menu as the window system draws it: the words and which entries are live come
-//! from `bakery_desktop_core::menu`. The version and the update lines under the server (slice 8) come and go
-//! with the state of updating: an entry that is not drawn is taken out of the menu, not hidden.
 
 use bakery_desktop_core::menu::{self, Model};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuBuilder, MenuItem, MenuItemBuilder, Submenu, SubmenuBuilder};
 use tauri::Wry;
 
-/// The id of the menu entry that checks for, installs or shows an update, whichever the state offers.
 pub const UPDATE_ACTION: &str = "update_action";
 
 /// The entries that change while the app runs.
@@ -18,7 +15,6 @@ pub struct BakeryMenu {
     status: MenuItem<Wry>,
     action: MenuItem<Wry>,
     sign_out: MenuItem<Wry>,
-    /// Whether the status and the action are in the menu now.
     drawn: Mutex<(bool, bool)>,
 }
 
@@ -76,7 +72,6 @@ impl BakeryMenu {
         if drawn.1 {
             let _ = self.submenu.remove(&self.action);
         }
-        // Under the version (entries 0 and 1): the status, then the action, each only when the state has one.
         let mut position = 2;
         *drawn = (false, false);
         if let Some(text) = &model.update.status {
