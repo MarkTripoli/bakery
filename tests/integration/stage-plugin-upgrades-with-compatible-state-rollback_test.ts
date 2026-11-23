@@ -435,6 +435,78 @@ Deno.test("AC3: a state write racing a move lands whole, and the snapshot holds 
     assertEquals(snapshot.rows.length, snapshot.rowCount);
   }));
 
+Deno.test("AC3: a restore racing a state write leaves one whole outcome, never a mix", () =>
+  withPluginFixture(async (fixture, store) => {
+    const first = await installFirst(fixture, store);
+    await writeState(fixture, first.installId, {
+      key: "theme",
+      value: { theme: "dark" },
+      schemaVersion: 1,
+      expectedCasVersion: 0,
+    });
+    const second = await publishVersion(
+      fixture,
+      store,
+      manifestOf({ stateSchemaVersion: 2, stateCompatibleFrom: 1 }),
+      first.packageId,
+    );
+    await moveInstall(fixture, first.installId, {
+      versionId: second.versionId,
+    });
+
+    // The restore and the write are two requests with no ordering between them.
+    // Whichever lands second must see the other whole: a write either lands
+    // before the restore and is discarded with the rest of what the second
+    // version saved, or after it and lives beside the restored rows with a
+    // number above theirs. A mix - the restored value overwritten, a row half
+    // applied, or a row the restore deleted coming back with its old number -
+    // is the failure this pins.
+    const [restored, written] = await Promise.all([
+      patchInstall(fixture, first.installId, {
+        versionId: first.versionId,
+        restoreState: true,
+      }),
+      putState(fixture, first.installId, {
+        key: "layout",
+        value: { columns: 3 },
+        schemaVersion: 1,
+        expectedCasVersion: 0,
+      }),
+    ]);
+    assertEquals(restored.status, 200, await restored.clone().text());
+    const writeStatus = written.status;
+    await written.body?.cancel();
+    assert(
+      writeStatus === 200 || writeStatus === 409,
+      `a racing write answers 200 or 409, not ${writeStatus}`,
+    );
+    assertEquals((await restored.json()).pluginVersionId, first.versionId);
+
+    const live = await stateRows(fixture, first.installId);
+    const theme = live.find((row) => row.key === "theme");
+    // The restored value is the one the first version left, never the one the
+    // second version wrote after it.
+    assertEquals(theme?.value, { theme: "dark" });
+    assertEquals(theme?.schema_version, 1);
+    const layout = live.find((row) => row.key === "layout");
+    if (layout !== undefined) {
+      // It landed after the restore, so it carries a number the restore did not
+      // hand out and cannot overwrite the restored row.
+      assert(
+        layout.cas_version > theme!.cas_version,
+        "a write that survived the restore is numbered after it",
+      );
+      assert(writeStatus === 200, "a write that is in the state answered 200");
+    }
+    // Whatever the order, the install holds no row the restore dropped and no
+    // duplicate: the restore is one whole state, not a merge.
+    assertEquals(new Set(live.map((row) => row.key)).size, live.length);
+    const snapshot = await snapshotOf(fixture, first.installId);
+    assert(snapshot !== null);
+    assertEquals(snapshot.rows.length, snapshot.rowCount);
+    assertEquals(snapshot.fromVersionId, second.versionId);
+  }));
+
 Deno.test("an uninstall keeps the install, its state and its snapshot, and removes the authority", () =>
   withPluginFixture(async (fixture, store) => {
     const first = await installFirst(fixture, store);
