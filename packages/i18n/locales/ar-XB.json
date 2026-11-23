@@ -2668,7 +2668,6 @@
   "issues.card.checkFailed": "⟪Bakery could not check this issue just now. Try again.⟫",
   "issues.card.passed": "⟪{count, plural, one {# other check passed} other {# other checks passed}}⟫",
   "issues.card.title": "⟪Can Bakery start this?⟫",
-  "issues.card.workflow": "⟪Uses the standard coding workflow in {repository}.⟫",
   "issues.check.acceptance_present": "⟪It has acceptance criteria⟫",
   "issues.check.authority_live": "⟪The GitHub connection is on⟫",
   "issues.check.dependencies_satisfied": "⟪What it depends on is done⟫",
@@ -4394,7 +4393,6 @@
   "issues.work.banner.onHold": "⟪Paused: on hold.⟫",
   "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫",
   "issues.settings.draft.detail": "⟪Applies to issues started from now on. Work already started keeps the settings and routing it started with.⟫",
-  "issues.settings.workflow.standard": "⟪Every repository runs the standard coding workflow.⟫",
   "issues.settings.routing.removeShort": "⟪Remove rule⟫",
   "settings.roles.thing.runRequest": "⟪requests⟫",
   "settings.sso.provider.delete.body": "⟪People at {domain} will no longer be able to sign in through this provider.⟫",
@@ -6358,5 +6356,7 @@
   "issues.status.needsAnswer": "⟪Needs an answer⟫",
   "issues.settings.preview.beforeWindow.one": "⟪{count} issue already had the “{label}” label before automatic starts were turned on. It waits for someone to press Start work.⟫",
   "issues.settings.preview.beforeWindow.many": "⟪{count} issues already had the “{label}” label before automatic starts were turned on. They wait for someone to press Start work.⟫",
-  "issues.start.body": "⟪Bakery creates a task in {repository}. You can follow it in Work.⟫"
+  "issues.start.body": "⟪Bakery creates a task in {repository}. You can follow it in Work.⟫",
+  "issues.card.workflow": "⟪Uses {workflow} in {repository}.⟫",
+  "issues.settings.workflow.runs": "⟪This repository runs {workflow}.⟫"
 }

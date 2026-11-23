@@ -21,6 +21,7 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ISSUES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { presetOfPolicy } from "./issue-sources.ts";
+import { presetCopy } from "./task-composer-labels.ts";
 import { reasonSentence } from "./IssuesList.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { IssueWork } from "./IssueWork.tsx";
@@ -474,6 +475,10 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                 })
                 : translate("issues.card.workflow" as never, {
                   repository: snapshot.repository,
+                  workflow: presetCopy(
+                    translate,
+                    presetOfPolicy(source?.policy),
+                  ).title,
                 })}
             </UI.Text>
           </UI.Stack>

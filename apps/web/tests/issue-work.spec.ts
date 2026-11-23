@@ -669,7 +669,20 @@ for (
     };
 
     test("work a person started with no run yet is stopped by the request, with its version", async ({ page }) => {
-      const seen = await open(page, { ...NO_RUN, stoppedBy: "Ana Reyes" });
+      const seen = await open(page, { ...NO_RUN, stoppedBy: "Ana Reyes" }, {
+        // The issue's own check names the one it depends on, so the sentence has its number.
+        open: [{
+          ...ISSUE,
+          verdict: "waiting",
+          checks: [{
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+            evidence: ["blocker:acme/web#150"],
+          }],
+          request: { disposition: "waiting" },
+        }],
+      });
       await expect(section(page).getByText("Waiting", { exact: true }))
         .toBeVisible();
       await expect(section(page).getByText(/remove the label on GitHub/))
@@ -691,8 +704,6 @@ for (
         work.getByText(/stopped by Ana Reyes · started by you/),
       ).toBeVisible();
       await expect(stopButton(page)).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "Start work" }))
-        .toHaveCount(1);
     });
 
     test("a person who may only read cannot stop work that has no run", async ({ page }) => {

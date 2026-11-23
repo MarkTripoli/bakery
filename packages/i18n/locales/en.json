@@ -114,7 +114,6 @@
   "issues.settings.taking.off": "Bakery ignores issues in this repository. Work already running continues.",
   "issues.settings.taking.on": "Bakery takes issues from this repository.",
   "issues.settings.title": "Issue settings",
-  "issues.settings.workflow.standard": "Every repository runs the standard coding workflow.",
   "issues.settings.workflow.title": "Workflow",
   "issues.settings.routing.title": "Where the work goes",
   "issues.settings.routing.home": "Work happens in {repository}.",
@@ -4167,7 +4166,7 @@
   "issues.card.passed": "{count, plural, one {# other check passed} other {# other checks passed}}",
   "issues.card.startWhenReadyNote": "Only what this issue depends on is in the way.",
   "issues.card.title": "Can Bakery start this?",
-  "issues.card.workflow": "Uses the standard coding workflow in {repository}.",
+  "issues.card.workflow": "Uses {workflow} in {repository}.",
   "issues.check.acceptance_present": "It has acceptance criteria",
   "issues.check.authority_live": "The GitHub connection is on",
   "issues.check.dependencies_satisfied": "What it depends on is done",
@@ -6358,5 +6357,6 @@
   "issues.start.workflowHelp": "The one set for {repository} is chosen first. Choosing the other applies to this issue only.",
   "issues.status.needsAnswer": "Needs an answer",
   "issues.settings.preview.beforeWindow.one": "{count} issue already had the “{label}” label before automatic starts were turned on. It waits for someone to press Start work.",
-  "issues.settings.preview.beforeWindow.many": "{count} issues already had the “{label}” label before automatic starts were turned on. They wait for someone to press Start work."
+  "issues.settings.preview.beforeWindow.many": "{count} issues already had the “{label}” label before automatic starts were turned on. They wait for someone to press Start work.",
+  "issues.settings.workflow.runs": "This repository runs {workflow}."
 }

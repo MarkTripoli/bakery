@@ -2671,7 +2671,6 @@
   "issues.card.checkFailed": "⟦Ɓàķëŕÿ çôûļð ñôŧ çĥëçķ ŧĥïš ïššûë ĵûšŧ ñôŵ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "issues.card.passed": "⟦{count, plural, one {# other check passed} other {# other checks passed}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "issues.card.title": "⟦Çàñ Ɓàķëŕÿ šŧàŕŧ ŧĥïš? ŧëšŧŧ⟧",
-  "issues.card.workflow": "⟦Ûšëš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ ïñ {repository}. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.check.acceptance_present": "⟦Ïŧ ĥàš àççëþŧàñçë çŕïŧëŕïà ŧëšŧ çô⟧",
   "issues.check.authority_live": "⟦Ŧĥë ĜïŧĤûƀ çôññëçŧïôñ ïš ôñ ŧëšŧ çô⟧",
   "issues.check.dependencies_satisfied": "⟦Ŵĥàŧ ïŧ ðëþëñðš ôñ ïš ðôñë ŧëšŧ çô⟧",
@@ -4394,7 +4393,6 @@
   "issues.work.banner.onHold": "⟦Þàûšëð: ôñ ĥôļð. ŧëš⟧",
   "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "issues.settings.draft.detail": "⟦Àþþļïëš ŧô ïššûëš šŧàŕŧëð ƒŕôɱ ñôŵ ôñ. Ŵôŕķ àļŕëàðÿ šŧàŕŧëð ķëëþš ŧĥë šëŧŧïñĝš àñð ŕôûŧïñĝ ïŧ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "issues.settings.workflow.standard": "⟦Ëṽëŕÿ ŕëþôšïŧôŕÿ ŕûñš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.settings.routing.removeShort": "⟦Ŕëɱôṽë ŕûļë ŧ⟧",
   "settings.roles.thing.runRequest": "⟦ŕëǫûëšŧš…⟧",
   "settings.sso.provider.delete.body": "⟦Þëôþļë àŧ {domain} ŵïļļ ñô ļôñĝëŕ ƀë àƀļë ŧô šïĝñ ïñ ŧĥŕôûĝĥ ŧĥïš þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -6358,5 +6356,7 @@
   "issues.status.needsAnswer": "⟦Ñëëðš àñ àñšŵëŕ ŧëš⟧",
   "issues.settings.preview.beforeWindow.one": "⟦{count} ïššûë àļŕëàðÿ ĥàð ŧĥë “{label}” ļàƀëļ ƀëƒôŕë àûŧôɱàŧïç šŧàŕŧš ŵëŕë ŧûŕñëð ôñ. Ïŧ ŵàïŧš ƒôŕ šôɱëôñë ŧô þŕëšš Šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "issues.settings.preview.beforeWindow.many": "⟦{count} ïššûëš àļŕëàðÿ ĥàð ŧĥë “{label}” ļàƀëļ ƀëƒôŕë àûŧôɱàŧïç šŧàŕŧš ŵëŕë ŧûŕñëð ôñ. Ŧĥëÿ ŵàïŧ ƒôŕ šôɱëôñë ŧô þŕëšš Šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "issues.start.body": "⟦Ɓàķëŕÿ çŕëàŧëš à ŧàšķ ïñ {repository}. Ÿôû çàñ ƒôļļôŵ ïŧ ïñ Ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "issues.start.body": "⟦Ɓàķëŕÿ çŕëàŧëš à ŧàšķ ïñ {repository}. Ÿôû çàñ ƒôļļôŵ ïŧ ïñ Ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "issues.card.workflow": "⟦Ûšëš {workflow} ïñ {repository}. ŧëšŧ çôþÿ⟧",
+  "issues.settings.workflow.runs": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ŕûñš {workflow}. ŧëšŧ çôþÿ⟧"
 }

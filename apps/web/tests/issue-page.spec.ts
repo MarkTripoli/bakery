@@ -145,7 +145,7 @@ for (
       await expect(side.getByText("3 other checks passed")).toBeVisible();
       await expect(side.getByText(/^Checked \d+ minutes ago$/)).toBeVisible();
       await expect(side.getByText(
-        "Uses the standard coding workflow in acme/web.",
+        "Uses Fixed coding in acme/web.",
       )).toBeVisible();
       await expect(side.getByRole("button", { name: "Start work" }))
         .toBeVisible();
@@ -333,7 +333,7 @@ for (
       await card(page).first().getByRole("button", { name: "Start work" })
         .click();
       const dialog = page.getByRole("alertdialog");
-      const workflows = dialog.getByRole("group", { name: "Workflow" });
+      const workflows = dialog.getByRole("radiogroup", { name: "Workflow" });
       await expect(workflows.getByRole("radio")).toHaveCount(2);
       // The repository's own is chosen, since nothing else was asked for.
       await expect(workflows.getByRole("radio", { name: "Fixed coding" }))

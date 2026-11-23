@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -57,6 +57,7 @@ export function StartWorkDialog(
   const number = issueNumber(row);
   const { repository } = issueSnapshot(row);
   const [preset, setPreset] = useState<TicketPresetId>(sourcePreset);
+  const workflowLabelId = useId();
   const start = useMutation({
     mutationKey: ["ticketRequests.create"],
     mutationFn: async () => {
@@ -122,11 +123,15 @@ export function StartWorkDialog(
             { repository },
           )}
         </UI.Text>
-        <fieldset
+        <UI.Stack
+          gap="compact"
+          role="radiogroup"
+          aria-labelledby={workflowLabelId}
           data-testid="start-work-workflow"
-          disabled={start.isPending}
         >
-          <legend>{translate("issues.start.workflow" as never)}</legend>
+          <UI.Text variant="strong" id={workflowLabelId}>
+            {translate("issues.start.workflow" as never)}
+          </UI.Text>
           {TICKET_PRESETS.map((id) => {
             const copy = presetCopy(translate, id);
             return (
@@ -134,6 +139,7 @@ export function StartWorkDialog(
                 key={id}
                 checked={preset === id}
                 description={copy.description}
+                disabled={start.isPending}
                 name="start-work-workflow"
                 onChange={() => setPreset(id)}
                 title={copy.title}
@@ -144,7 +150,7 @@ export function StartWorkDialog(
           <UI.Text variant="caption">
             {translate("issues.start.workflowHelp" as never, { repository })}
           </UI.Text>
-        </fieldset>
+        </UI.Stack>
       </UI.Stack>
     </UI.AlertDialog>
   );

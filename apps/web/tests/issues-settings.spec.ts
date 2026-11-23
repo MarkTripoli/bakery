@@ -575,7 +575,7 @@ for (
       await settingsFixture(page);
       await openSettings(page);
       await expect(page.getByText(
-        "Every repository runs the standard coding workflow.",
+        "This repository runs Fixed coding.",
       )).toBeVisible();
       await expect(
         page.getByTestId("issue-settings-workflow").getByRole("combobox"),
