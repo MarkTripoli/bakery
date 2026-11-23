@@ -43,6 +43,14 @@ export type TreeStep = {
    * "Add a step" list does not offer, or a setting the panel cannot show.
    */
   readonly codeOnly?: boolean;
+  /** The step's own name, when its definition gives one; the card shows it over the action's title. */
+  readonly name?: string;
+  /** The step's own line, shown under its name in place of the action's line. */
+  readonly description?: string;
+  /** The role the step runs as, which picks a reviewer's glyph. */
+  readonly role?: string;
+  /** The last step of the workflow when it ends the run: drawn as the End marker, not a card. */
+  readonly end?: true;
 };
 
 /** A group the editor draws but does not let anyone change in slice 1. */
@@ -93,6 +101,78 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 
 const text = (value: unknown): string => typeof value === "string" ? value : "";
+
+/**
+ * A node as the drawing reads it. A workflow document names a branch, a repeat,
+ * a parallel, a wait or a group of steps by the key it is written under, with
+ * no `kind`; here each gets the kind the drawing switches on. A node that
+ * already has a kind, or runs an action, is returned as it is.
+ */
+function withKind(node: Record<string, unknown>): Record<string, unknown> {
+  if (text(node.kind) !== "" || typeof node.uses === "string") return node;
+  if (node.branch !== undefined) {
+    const branch = record(node.branch);
+    return {
+      ...node,
+      kind: "branch",
+      when: branch.when,
+      then: branch.then,
+      else: branch.else,
+    };
+  }
+  if (node.repeat !== undefined) {
+    const repeat = record(node.repeat);
+    return {
+      ...node,
+      kind: "repeat",
+      max: repeat.max,
+      seed: repeat.seed,
+      steps: repeat.steps,
+    };
+  }
+  if (node.parallel !== undefined) {
+    return { ...node, kind: "parallel", lanes: record(node.parallel).lanes };
+  }
+  if (node.wait !== undefined) return { ...node, kind: "wait" };
+  if (Array.isArray(node.steps)) return { ...node, kind: "sequence" };
+  return node;
+}
+
+/** What a node says about itself on a card: its own name, line and role, when it has them. */
+function presentation(
+  node: Record<string, unknown>,
+): Pick<TreeStep, "name" | "description" | "role"> {
+  const name = text(node.name);
+  const description = text(node.description);
+  const role = text(node.role);
+  return {
+    ...(name === "" ? {} : { name }),
+    ...(description === "" ? {} : { description }),
+    ...(role === "" ? {} : { role }),
+  };
+}
+
+/** The condition of a sign-off that is only asked when a run starts with gates: plan. */
+const PLAN_GATE = '$input.gates == "plan"';
+
+/**
+ * The one approval inside a branch that is exactly "ask a person when the run
+ * has gates: plan, otherwise nothing", or undefined for any other branch. It is
+ * drawn as that approval's card, whose line says when it is skipped, because a
+ * "Yes" and an empty "Otherwise" do not say yes to what (design-ux, #429).
+ */
+function planGateApproval(
+  node: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (typeof node.when !== "string" || node.when.trim() !== PLAN_GATE) {
+    return undefined;
+  }
+  const then = Array.isArray(node.then) ? node.then : [];
+  const other = Array.isArray(node.else) ? node.else : [];
+  if (then.length !== 1 || other.length !== 0) return undefined;
+  const only = record(then[0]);
+  return only.uses === "human.approval" ? only : undefined;
+}
 
 /** Every action the shared registry knows, by the name a step runs it under. */
 const KNOWN_ACTIONS: ReadonlySet<string> = new Set(Object.keys(ACTION_TITLES));
@@ -168,7 +248,14 @@ export function treeOf(definition: unknown): Tree {
     });
   }
   const counter = { next: 0 };
-  const drawn = spec.steps.flatMap((node) => drawNode(node, counter));
+  const flat = spec.steps.flatMap((node) => drawNode(node, counter));
+  // A workflow that ends the run on its last step is drawn as the End marker the
+  // page already draws, not as a card of its own, and is not counted as a step.
+  const last = flat[flat.length - 1];
+  const drawn = last !== undefined && last.kind === "step" &&
+      last.uses === "workflow.stop" && last.problem === undefined
+    ? [...flat.slice(0, -1), { ...last, end: true as const }]
+    : flat;
   return Object.freeze({
     nodes: drawn,
     stepCount: drawn.reduce((all, node) => all + countSteps(node), 0),
@@ -210,7 +297,7 @@ function drawNode(
       code: JSON.stringify(raw).slice(0, 120),
     }];
   }
-  const node = record(raw);
+  const node = withKind(record(raw));
   const kind = text(node.kind);
   if (kind === "action" || kind === "") {
     const id = text(node.id);
@@ -234,12 +321,24 @@ function drawNode(
       uses,
       agentVersionId: agentVersionId === "" ? null : agentVersionId,
       codeOnly: isCodeOnly(node, uses),
+      ...presentation(node),
     }];
   }
   if (kind === "sequence") {
     return drawNodes(Array.isArray(node.steps) ? node.steps : [], counter);
   }
   if (kind === "branch") {
+    const approval = planGateApproval(node);
+    if (approval !== undefined) {
+      const id = text(node.id);
+      return [{
+        kind: "step",
+        id: id === "" ? anonymousId(counter, "approval") : id,
+        uses: "human.approval",
+        agentVersionId: null,
+        ...presentation(approval),
+      }];
+    }
     // Both arms are always drawn, even the one with no steps in it: a person
     // who cannot see an empty arm cannot tell it apart from a missing one.
     return [{
@@ -316,7 +415,7 @@ function drawNode(
 /** How many steps a node holds, counting the ones inside a group. */
 export function countSteps(node: TreeNode): number {
   return node.kind === "step"
-    ? 1
+    ? (node.end === true ? 0 : 1)
     : node.children.reduce((all, child) => all + countSteps(child), 0);
 }
 

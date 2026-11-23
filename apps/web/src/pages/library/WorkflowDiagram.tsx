@@ -10,10 +10,12 @@ import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 
 import {
-  ACTION_ICONS,
   ACTION_LINES,
   ACTION_TITLES,
   PICKER_STEPS,
+  stepGlyph,
+  stepLine,
+  stepName,
 } from "./workflow-state.ts";
 import type { GroupLabel, Tree, TreeNode, TreeStep } from "./workflow-tree.ts";
 
@@ -260,7 +262,7 @@ export function WorkflowDiagram(
     if (node.problem === "unreadable") {
       return translate("library.editor.card.unreadable" as never);
     }
-    return title(node.uses);
+    return stepName(node, translate);
   };
 
   const card = (node: TreeStep): ReactNode => {
@@ -273,7 +275,7 @@ export function WorkflowDiagram(
     // fixes 2 and 3).
     const drawing = node.problem !== undefined || problemLine !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
-    const glyph = drawing ? "info" : ACTION_ICONS[node.uses];
+    const glyph = drawing ? "info" : stepGlyph(node);
     // On a read-only page a known step shows its usual line, not "Edited in
     // code": nothing can be edited there, so the label would only add noise
     // (#67 UX ruling 6932934119 fix 14).
@@ -281,7 +283,7 @@ export function WorkflowDiagram(
       ? undefined
       : codeOnly && editedInCode !== undefined
       ? editedInCode
-      : line(node.uses);
+      : stepLine(node, translate);
     const extra = drawing ? undefined : detail?.(node.uses, id);
     return (
       <div data-card={id}>
@@ -411,7 +413,11 @@ export function WorkflowDiagram(
     </section>
   );
 
-  const nodes = (held: readonly TreeNode[]): ReactNode => {
+  const nodes = (all: readonly TreeNode[]): ReactNode => {
+    // The step that ends the run is the End marker the page draws, not a card.
+    const held = all.filter((node) =>
+      node.kind !== "step" || node.end !== true
+    );
     const out: ReactNode[] = [];
     for (let index = 0; index < held.length; index += 1) {
       const node = held[index];

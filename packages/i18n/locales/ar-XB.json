@@ -6459,12 +6459,16 @@
   "tasks.preset.deliverLean.title": "⟪Deliver: outlined change⟫",
   "tasks.preset.deliverFull.title": "⟪Deliver: designed change⟫",
   "tasks.preset.deliverPrd.title": "⟪Deliver: from requirements⟫",
-  "tasks.preset.deliverOneshot.description": "⟪Plan the change as one phase, build it, then check and review it, fixing it a limited number of times.⟫",
-  "tasks.preset.deliverLean.description": "⟪Research and outline the change, build it, then check and review it, fixing it a limited number of times.⟫",
-  "tasks.preset.deliverFull.description": "⟪Research, design and plan the change, build it, then check and review it, fixing it a limited number of times.⟫",
-  "tasks.preset.deliverPrd.description": "⟪Write requirements and a technical design, plan and build the change, then check and review it, fixing it a limited number of times.⟫",
   "tasks.preset.deliverOneshot.line": "⟪Workflow: plan one phase, build, check, review, verify.⟫",
   "tasks.preset.deliverLean.line": "⟪Workflow: research, outline, build, check, review, verify.⟫",
   "tasks.preset.deliverFull.line": "⟪Workflow: research, design, plan, build, check, review, verify.⟫",
-  "tasks.preset.deliverPrd.line": "⟪Workflow: requirements, technical design, plan, build, check, review, verify.⟫"
+  "tasks.preset.deliverPrd.line": "⟪Workflow: requirements, technical design, plan, build, check, review, verify.⟫",
+  "tasks.preset.deliverOneshot.description": "⟪Plan the change as one phase, then build, check and review it, fixing it a limited number of times, and verify the result.⟫",
+  "tasks.preset.deliverLean.description": "⟪Research and outline the change, then build, check and review it, fixing it a limited number of times, and verify the result.⟫",
+  "tasks.preset.deliverFull.description": "⟪Research, design and plan the change, then build, check and review it, fixing it a limited number of times, and verify the result.⟫",
+  "tasks.preset.deliverPrd.description": "⟪Write requirements, a technical design and a plan, then build, check and review the change, fixing it a limited number of times, and verify the result.⟫",
+  "library.workflow.action.humanApproval": "⟪Wait for approval⟫",
+  "library.workflow.action.workflowStop": "⟪End the run⟫",
+  "library.workflow.actionLine.humanApproval": "⟪Waits for a person to approve on the task page.⟫",
+  "library.workflow.actionLine.workflowStop": "⟪The run ends here.⟫"
 }

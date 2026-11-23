@@ -469,18 +469,134 @@ function tail(planStep: string, afterSignoff: string): Json[] {
   ];
 }
 
-const DESCRIPTIONS: Readonly<Record<DeliverTemplateId, string>> = Object.freeze(
-  {
-    "deliver-oneshot":
-      "Plan the change as one phase, build and review it, check it and verify it.",
-    "deliver-lean":
-      "Research and outline the change, build it with an independent review, check it and verify it.",
-    "deliver-full":
-      "Research, design and plan the change, build it with an independent review, check it and verify it.",
-    "deliver-prd":
-      "Write requirements and a technical design, plan, build with an independent review, check and verify.",
+/** The same text as each template's `tasks.preset.*.description`: a copy shows the definition's own. */
+export const DELIVER_TEMPLATE_DESCRIPTIONS: Readonly<
+  Record<DeliverTemplateId, string>
+> = Object.freeze({
+  "deliver-oneshot":
+    "Plan the change as one phase, then build, check and review it, fixing it a limited number of times, and verify the result.",
+  "deliver-lean":
+    "Research and outline the change, then build, check and review it, fixing it a limited number of times, and verify the result.",
+  "deliver-full":
+    "Research, design and plan the change, then build, check and review it, fixing it a limited number of times, and verify the result.",
+  "deliver-prd":
+    "Write requirements, a technical design and a plan, then build, check and review the change, fixing it a limited number of times, and verify the result.",
+});
+
+/** What a writer step is called and says on a card (design-ux, #429 addendum 2). */
+const STEP_WORDS: Readonly<Record<string, readonly [string, string]>> = Object
+  .freeze({
+    questions: [
+      "List the research questions",
+      "Writes the questions the research must answer about the code, without suggesting a change.",
+    ],
+    research: [
+      "Research the code",
+      "Answers the research questions from the code and writes what it found, with file references.",
+    ],
+    design: [
+      "Compare the design options",
+      "Sets out the ways to make the change, recommends one, and lists the questions still open.",
+    ],
+    outline: [
+      "Outline the change",
+      "Lists the files and parts the change touches, in the order to build them.",
+    ],
+    outline_review: [
+      "Review the outline",
+      "Reads the outline against the task and lists what is missing, wrong or risky.",
+    ],
+    plan: [
+      "Write the plan",
+      "Splits the change into phases, each with the checks that prove it is done.",
+    ],
+    plan_review: [
+      "Review the plan",
+      "Reads the plan against the task and lists what is missing, wrong or risky.",
+    ],
+    prd: [
+      "Write the requirements",
+      "Writes the problem, how success is measured, what the change must do and what is out of scope.",
+    ],
+    tdd: [
+      "Write the technical design",
+      "Writes how the change will be built, from the approved requirements.",
+    ],
+    verification: [
+      "Verify the build",
+      "Runs the checks the plan promises against the built change and records what passed and failed.",
+    ],
+  });
+
+/** Words that differ for one template: its research and its one-phase plan. */
+const VARIANT_WORDS: Readonly<
+  Record<string, Readonly<Record<string, readonly [string, string]>>>
+> = Object.freeze({
+  "deliver-prd": {
+    research: [
+      "Research the code",
+      "Reads the code the requirements will touch and writes what it found, with file references.",
+    ],
   },
-);
+  "deliver-oneshot": {
+    plan: [
+      "Write the plan",
+      "Turns the task's acceptance criteria into a plan with one phase.",
+    ],
+  },
+});
+
+/** What each sign-off asks a person to approve. */
+const SIGNOFF_SUBJECT: Readonly<Record<string, string>> = Object.freeze({
+  plan_signoff: "the plan",
+  design_signoff: "the design",
+  prd_signoff: "the requirements",
+  tdd_signoff: "the technical design",
+});
+
+/**
+ * Gives every writer and every sign-off its name and line. A copy carries the
+ * authored definition, so the built-in page and the copy say the same thing.
+ */
+function present(
+  template: DeliverTemplateId,
+  steps: readonly Json[],
+  signoff?: string,
+): Json[] {
+  return steps.map((step) => {
+    const id = step.id as string;
+    if (step.uses === "agent.freeform") {
+      const words = VARIANT_WORDS[template]?.[id] ?? STEP_WORDS[id];
+      return words === undefined
+        ? step
+        : Object.freeze({ ...step, name: words[0], description: words[1] });
+    }
+    if (step.branch !== undefined) {
+      const branch = step.branch as Json;
+      const subject = id === "plan_signoff" && template === "deliver-lean"
+        ? "the outline"
+        : SIGNOFF_SUBJECT[id];
+      return Object.freeze({
+        ...step,
+        branch: Object.freeze({
+          ...branch,
+          then: Object.freeze(
+            present(template, branch.then as Json[], subject),
+          ),
+        }),
+      });
+    }
+    if (step.uses === "human.approval" && signoff !== undefined) {
+      return Object.freeze({
+        ...step,
+        name: `Approve ${signoff}`,
+        description:
+          `Waits for a person to approve ${signoff} on the task page. Skipped if the run was started without waiting for approval.`,
+      });
+    }
+    return step;
+  });
+}
 
 /** The definition of one template in the published grammar. */
 export function deliverTemplateDefinition(
@@ -492,7 +608,7 @@ export function deliverTemplateDefinition(
     apiVersion: "bakery.dev/v1" as const,
     kind: "workflow" as const,
     name: id,
-    description: DESCRIPTIONS[id],
+    description: DELIVER_TEMPLATE_DESCRIPTIONS[id],
     inputs: Object.freeze({
       repositoryId: Object.freeze({ type: "uuid", required: true }),
       brief: Object.freeze({ type: "TaskBrief", required: true }),
@@ -511,8 +627,8 @@ export function deliverTemplateDefinition(
           repositoryId: "$input.repositoryId",
         }),
       }),
-      ...steps,
-      ...tail(plan, last),
+      ...present(id, steps),
+      ...present(id, tail(plan, last)),
     ]),
   }) as unknown as WorkflowPresetDocument;
 }

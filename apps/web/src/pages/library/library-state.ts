@@ -3,6 +3,7 @@ import type {
   WorkflowDefinitionResponse,
   WorkflowPresetResponse,
 } from "../../api/client.ts";
+import { treeOf } from "./workflow-tree.ts";
 
 /** The lists the Library offers. */
 export type LibraryTab =
@@ -48,5 +49,6 @@ export function byName<
 
 /** The built-in presets in the order the server gives them, with how many steps each runs. */
 export function presetSteps(preset: WorkflowPresetResponse): number {
-  return preset.steps.length;
+  // The count is what the built-in page draws, so the row and the page agree.
+  return treeOf(preset.definition).stepCount;
 }
