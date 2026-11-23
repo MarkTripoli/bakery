@@ -1,22 +1,32 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "2864ff3cf9bd4cdf9a2c3f2d802339415d682013"
+    "03305bcbe2fbaabfd28f6220e4fc291506b1c0f3"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:7933f0d170aa49815d5660e6932304227819cdb500463e44fb04885b0d971c17",
-  "reason": "#63 release page by dev-agx1 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 2864ff3cf9bd4cdf9a2c3f2d802339415d682013: RepositoryQuery loses its environment field, which only deployments.list used and which now has its own DeploymentQuery (repositoryId, runId, environment); the one remaining user, evaluationCases.list, never read it. Deployment gains optional previousCommitSha and rollbackFailed, and deployments.list gains an optional runId. No client sent environment to evaluationCases.list, and no page called deployments.list before this change. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
+  "reason": "#63 release page by dev-agx1 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 03305bcbe2fbaabfd28f6220e4fc291506b1c0f3: RepositoryQuery loses its environment field, which only deployments.list used and which now has its own DeploymentQuery (repositoryId, runId, environment); the one remaining user, evaluationCases.list, never read it. Deployment gains optional previousCommitSha and rollbackFailed, and deployments.list gains an optional runId. No client sent environment to evaluationCases.list, and no page called deployments.list before this change. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2864ff3cf9bd4cdf9a2c3f2d802339415d682013"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:29f2c36d33afdecc79f3465c7a3cb9e355afab0dd86fa13acfc86dcf154d80de",
+      "reason": "Displaced by the #63 rebind onto main 03305bcbe2fbaabfd28f6220e4fc291506b1c0f3: main's own approval, kept unchanged. #422 PR B (the bakery.split fact) by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 2864ff3cf9bd4cdf9a2c3f2d802339415d682013: SplitInput replaces its lanes and maxConcurrency fields with one split field, the plan spec as a bakery.split fact; the coordination.split step exists only in #940 and is unreleased, so no caller sends the old shape."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
         "0a4d1eb165ac9949938bc0267797f13459891e1b"
       ],
-      "status": "displaced",
+      "status": "approved",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:ccdb73044818cceadc5b2cedb97217d7abce69ddff1583f50487aa5bae49b6f1",
-      "reason": "Displaced by the #63 rebind onto main 2864ff3cf9bd4cdf9a2c3f2d802339415d682013: main's own approval, kept unchanged. #436 tool gateway and capability bindings by dev-server on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 0a4d1eb165ac9949938bc0267797f13459891e1b: CapabilityBinding gains seatKey (a seat is a workflow version plus the role a step runs as, 25-one-engine.md 15.5) and CapabilityBindingCreate and BindingQuery gain it as an optional field; BrokerToolInvocation (worker.invokeTool, never served before this change) makes integrationConnectionId optional beside a new mcpConnectionId and gains the worker session pair; capabilityBindings.create, list and delete declare their required organization context; capabilityBindings.create, list and delete also declare SCOPE_REQUIRED and MALFORMED_REQUEST like every required-context action; the paper workflow action capability is removed, because rpi.design reaches its design tool through a capability binding (a Paper connection bound to the step, seat or agent) and no longer needs a worker that advertises paper. No client called worker.invokeTool or the capability binding routes before, since none was mounted. Main's own approval is preserved unchanged first below."
+      "reason": "#436 tool gateway and capability bindings by dev-server on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 0a4d1eb165ac9949938bc0267797f13459891e1b: CapabilityBinding gains seatKey (a seat is a workflow version plus the role a step runs as, 25-one-engine.md 15.5) and CapabilityBindingCreate and BindingQuery gain it as an optional field; BrokerToolInvocation (worker.invokeTool, never served before this change) makes integrationConnectionId optional beside a new mcpConnectionId and gains the worker session pair; capabilityBindings.create, list and delete declare their required organization context; capabilityBindings.create, list and delete also declare SCOPE_REQUIRED and MALFORMED_REQUEST like every required-context action; the paper workflow action capability is removed, because rpi.design reaches its design tool through a capability binding (a Paper connection bound to the step, seat or agent) and no longer needs a worker that advertises paper. No client called worker.invokeTool or the capability binding routes before, since none was mounted. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
