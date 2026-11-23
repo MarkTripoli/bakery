@@ -113,6 +113,7 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "call_input_missing",
     "call_input_unusable",
     "call_depth_exceeded",
+    "call_action_unsupported",
     "call_output_unknown",
     "workflow_outputs_invalid",
     "wait_shape_invalid",
@@ -260,6 +261,8 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
     "A value the call passes cannot stand where the called workflow reads that input.",
   call_depth_exceeded:
     "Calls nest at most two levels: a workflow, its child and that child's own child.",
+  call_action_unsupported:
+    "A called workflow cannot use `tool.call` yet: a tool pin belongs to the version that holds the step.",
   call_output_unknown:
     "Only an output the called workflow declares can be read from a call; its inner steps and its outcome are not readable.",
   workflow_outputs_invalid:

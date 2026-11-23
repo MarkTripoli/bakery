@@ -1,3 +1,4 @@
+import { loadCalledWorkflows } from "../workflows/called-workflows.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { compileWorkflowDocumentDetailed } from "@bakery/contracts/workflow-compiler";
 import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
@@ -410,7 +411,14 @@ export async function createCoordinationPlanFromWorkflowCommand(
   // admission reads it. Compile once here; published rows are not rewritten.
   const { result: compiled } = await compileWorkflowDocumentDetailed(
     version.normalized_spec,
-    { catalog: defaultWorkflowCompilerCatalog() },
+    {
+      catalog: defaultWorkflowCompilerCatalog(),
+      workflows: await loadCalledWorkflows(
+        transaction,
+        facts.organizationId,
+        version.normalized_spec,
+      ),
+    },
   );
   if (!compiled.ok) {
     throw workflowMappingInvalid(

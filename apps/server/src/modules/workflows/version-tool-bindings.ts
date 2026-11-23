@@ -46,13 +46,19 @@ function at(value: unknown, segments: readonly (string | number)[]): unknown {
 /** Every tool.call step that names a literal connection id, in authored order. */
 export async function toolCallPins(
   definition: unknown,
+  calls?: ReadonlyMap<string, unknown>,
 ): Promise<readonly ToolCallPin[]> {
   const { actionSites } = await compileWorkflowDocumentDetailed(definition, {
     catalog: defaultWorkflowCompilerCatalog(),
+    workflows: calls,
   });
   const pins: ToolCallPin[] = [];
   for (const site of actionSites) {
     if (site.action !== "tool.call") continue;
+    // A step the compiler brought in from a called workflow is located at its
+    // call, not at a step of this definition, and has no pin here.
+    const authored = at(definition, site.path) as Json | undefined;
+    if (authored?.uses !== "tool.call") continue;
     const withInput = at(definition, [...site.path, "with"]) as
       | Json
       | undefined;
@@ -110,9 +116,11 @@ export async function checkToolCallPins(
     principalId: string;
     workflowId: string | null;
     definition: unknown;
+    /** The published versions the definition may call; see called-workflows.ts. */
+    calls?: ReadonlyMap<string, unknown>;
   }>,
 ): Promise<ToolBindingCheck> {
-  const found = await toolCallPins(facts.definition);
+  const found = await toolCallPins(facts.definition, facts.calls);
   const issues: WorkflowValidationIssue[] = [];
   const pins: ResolvedToolPin[] = [];
   const refuse = (pin: ToolCallPin, code: string, tail = "with/tool") =>

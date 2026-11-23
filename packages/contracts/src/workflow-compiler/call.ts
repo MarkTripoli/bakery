@@ -591,6 +591,31 @@ export function inlineWorkflowCalls(
       }
     }
     if (!bound) return undefined;
+    // A tool pin is taken at publish against the version that holds the step,
+    // so a step inlined from another version would run without one.
+    const usesTool = (nodes: readonly WorkflowNode[]): boolean =>
+      nodes.some((node) => {
+        switch (node.kind) {
+          case "action":
+            return node.action === "tool.call";
+          case "wait":
+            return false;
+          case "sequence":
+          case "forEach":
+            return usesTool(node.steps);
+          case "branch":
+            return usesTool(node.then) || usesTool(node.else);
+          case "repeat":
+            return usesTool(node.steps) ||
+              (node.seed.form === "sequence" && usesTool(node.seed.steps));
+          case "parallel":
+            return node.lanes.some((lane) => usesTool(lane.steps));
+        }
+      });
+    if (usesTool(child.steps)) {
+      collector.add(here(), "call_action_unsupported");
+      return undefined;
+    }
 
     // A value the call passes is read in the scope the call was written in, so
     // an output of an earlier call is already what that call exposes.

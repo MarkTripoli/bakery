@@ -4543,6 +4543,7 @@ Deno.test("every closed diagnostic code is exercised by this suite", () => {
       "call_input_missing",
       "call_input_unusable",
       "call_depth_exceeded",
+      "call_action_unsupported",
       "call_output_unknown",
       "workflow_outputs_invalid",
     ] as const
