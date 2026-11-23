@@ -5,6 +5,7 @@ import {
 } from "../../../packages/contracts/src/repository-inspection.ts";
 import { z } from "zod";
 import { GatewayToolSchema } from "./tool-gateway.ts";
+import { McpStdioLaunchSpecSchema } from "@bakery/contracts/mcp-capabilities";
 import {
   WORKER_SKILL_READ_HEADERS,
   WORKER_SKILL_RESPONSE_HEADERS,
@@ -168,6 +169,42 @@ const BrokerToolResultSchema = z.object({
   isError: z.boolean().describe("Whether the tool reported a failure."),
   fault: z.unknown().describe("A redacted broker connection failure, or null."),
 }).describe("Result of one brokered tool call.");
+
+/** What the local-mcp-connections route answers (#441). */
+const LocalMcpConnectionsResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      connectionId: z.uuid().describe(
+        "A local MCP connection placed on this host.",
+      ),
+      launchSpec: McpStdioLaunchSpecSchema.describe(
+        "The pinned launch of its server.",
+      ),
+      currentDigest: z.string().nullable().describe(
+        "Digest of the snapshot it is pinned to now, or null before discovery.",
+      ),
+    }).describe("One local MCP connection this host runs."),
+  ).max(50).describe("One page of local MCP connections placed on this host."),
+  nextCursor: z.uuid().nullable().describe(
+    "The cursor for the next page, or null on the last.",
+  ),
+}).describe("Local MCP connections placed on this worker host.");
+
+const LocalMcpSnapshotResponseSchema = z.object({
+  connectionId: z.uuid().describe("The connection the report was for."),
+  snapshotId: z.uuid().describe("The snapshot the server pinned."),
+  digest: z.string().describe("That snapshot's digest."),
+}).describe("The snapshot a local discovery report pinned.");
+
+const LocalToolCallOpenResponseSchema = z.object({
+  callId: z.uuid().describe("The recorded call."),
+  status: z.enum(["open", "completed", "failed"]).describe(
+    "open: send it now; completed or failed: a replay, already settled.",
+  ),
+  result: BrokerToolResultSchema.nullable().describe(
+    "A replay's recorded result; null while open.",
+  ),
+}).describe("The server's answer to opening one local tool call.");
 
 type RequestOptions = {
   body?: unknown;
@@ -1548,6 +1585,130 @@ export class WorkerApiClient {
         }
         : { ok: false as const, denial: wire.value.denial ?? "unknown" },
     };
+  }
+
+  /**
+   * The enabled local (stdio) MCP connections placed on this host (#441),
+   * keyset-paged by connection id: what this worker launches and discovers.
+   */
+  async localMcpConnections(
+    after: string | null,
+    signal?: AbortSignal,
+  ): Promise<
+    WorkerResponse<z.infer<typeof LocalMcpConnectionsResponseSchema>>
+  > {
+    const response = await this.request<unknown>(
+      "POST",
+      "/v1/worker/local-mcp-connections",
+      {
+        body: after === null ? {} : { after },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      LocalMcpConnectionsResponseSchema,
+      response,
+      "WORKER_RESPONSE_LOCAL_MCP_CONNECTIONS_INVALID",
+    );
+  }
+
+  /** Reports what a local server's tools/list answered; the server pins it. */
+  async reportLocalMcpSnapshot(
+    connectionId: string,
+    report: Readonly<{ protocolVersion: string; tools: readonly unknown[] }>,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof LocalMcpSnapshotResponseSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/local-mcp-connections/${
+        encodeURIComponent(connectionId)
+      }/snapshots`,
+      {
+        body: { protocolVersion: report.protocolVersion, tools: report.tools },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      LocalMcpSnapshotResponseSchema,
+      response,
+      "WORKER_RESPONSE_LOCAL_MCP_SNAPSHOT_INVALID",
+    );
+  }
+
+  /**
+   * Asks the server to check and record one local tool call before the worker
+   * sends it (#441). A replayed key answers what happened instead.
+   */
+  async openLocalToolCall(
+    attemptId: string,
+    input: Readonly<{
+      mcpConnectionId: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+      idempotencyKey: string;
+    }>,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof LocalToolCallOpenResponseSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/local-tool-calls`,
+      {
+        body: {
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+          mcpConnectionId: input.mcpConnectionId,
+          toolName: input.toolName,
+          arguments: input.arguments,
+        },
+        idempotencyKey: input.idempotencyKey,
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      LocalToolCallOpenResponseSchema,
+      response,
+      "WORKER_RESPONSE_LOCAL_TOOL_CALL_INVALID",
+    );
+  }
+
+  /** Records how a local tool call ended; only a call still sent settles. */
+  async settleLocalToolCall(
+    attemptId: string,
+    callId: string,
+    outcome: Readonly<
+      | { status: "completed"; content: unknown[]; isError: boolean }
+      | { status: "failed"; failureCode: string }
+    >,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/local-tool-calls/${
+        encodeURIComponent(callId)
+      }/outcome`,
+      {
+        body: {
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+          ...outcome,
+        },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
   }
 
   async invokePreparedSecretTool(

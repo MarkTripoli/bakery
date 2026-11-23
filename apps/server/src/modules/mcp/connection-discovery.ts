@@ -228,61 +228,108 @@ export function createMcpDiscoverer(dependencies: McpDiscoveryDependencies) {
     }
 
     // Write under the connection's lock, so two discoveries cannot both pin.
-    const locked = await loadVisible(transaction, actor, id, { lock: true });
-    const latest = (await transaction.query<SnapshotRow>(
-      `select ${SNAPSHOT_COLUMNS} from bakery.mcp_capability_snapshots
-        where organization_id = $1 and connection_id = $2
-        order by observed_at desc, id desc limit 1`,
-      [organizationId, id],
-    )).rows[0];
-    const unchanged = latest !== undefined && latest.digest === found.digest;
-    let snapshot: SnapshotRow;
-    if (unchanged) {
-      snapshot = latest;
-    } else {
-      snapshot = (await transaction.query<SnapshotRow>(
-        `insert into bakery.mcp_capability_snapshots
-           (organization_id, connection_id, observed_at, protocol_version,
-            manifest, digest)
-         values ($1, $2, now(), $3, $4::jsonb, $5)
-         returning ${SNAPSHOT_COLUMNS}`,
-        [
-          organizationId,
-          id,
-          found.protocolVersion,
-          JSON.stringify(found.manifest),
-          found.digest,
-        ],
-      )).rows[0]!;
-    }
-    if (locked.current_snapshot_id !== snapshot.id) {
-      await transaction.query(
-        `update bakery.mcp_connections
-            set current_snapshot_id = $3, updated_at = now(), version = version + 1
-          where organization_id = $1 and id = $2`,
-        [organizationId, id, snapshot.id],
-      );
-    }
-    const changes = manifestChanges(latest?.manifest ?? null, found.manifest);
-    await appendAudit(transaction, {
+    await loadVisible(transaction, actor, id, { lock: true });
+    const snapshot = await pinDiscoveredSnapshot(transaction, {
       organizationId,
       principalId,
-      operation: "mcpConnections.discover",
-      resourceType: "mcp_connection",
-      resourceId: id,
+      connectionId: id,
+      found,
       requestId: context.requestId,
       traceId: context.traceId,
-      details: {
-        digest: found.digest,
-        previousDigest: latest?.digest ?? null,
-        unchanged,
-        toolCount: found.manifest.tools.length,
-        // Names only, bounded: what changed, never a schema or a description.
-        added: changes.added.slice(0, 50),
-        removed: changes.removed.slice(0, 50),
-        changed: changes.changed.slice(0, 50),
-      },
+      reportedBy: "server",
     });
     return toSnapshot(snapshot);
   };
+}
+
+/**
+ * Pins what a discovery found, under the connection row's lock the caller
+ * already holds: an unchanged digest keeps the latest snapshot, a changed one
+ * writes a new immutable snapshot and moves the connection's current pointer.
+ * Nothing is enabled and no binding's pin moves. Shared by the server's own
+ * discovery of a remote server and a worker's report for a local one (#441).
+ */
+export async function pinDiscoveredSnapshot(
+  transaction: PgTransactionClient,
+  input: Readonly<{
+    organizationId: string;
+    principalId: string;
+    connectionId: string;
+    found: Readonly<{
+      protocolVersion: string;
+      manifest: { tools: DiscoveredTool[] };
+      digest: string;
+    }>;
+    requestId: string;
+    traceId: string;
+    reportedBy: "server" | "worker";
+  }>,
+): Promise<SnapshotRow> {
+  const { organizationId, principalId, found } = input;
+  const id = input.connectionId;
+  const current =
+    (await transaction.query<{ current_snapshot_id: string | null }>(
+      `select current_snapshot_id from bakery.mcp_connections
+      where organization_id = $1 and id = $2 for update`,
+      [organizationId, id],
+    )).rows[0];
+  if (current === undefined) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  const latest = (await transaction.query<SnapshotRow>(
+    `select ${SNAPSHOT_COLUMNS} from bakery.mcp_capability_snapshots
+      where organization_id = $1 and connection_id = $2
+      order by observed_at desc, id desc limit 1`,
+    [organizationId, id],
+  )).rows[0];
+  const unchanged = latest !== undefined && latest.digest === found.digest;
+  let snapshot: SnapshotRow;
+  if (unchanged) {
+    snapshot = latest;
+  } else {
+    snapshot = (await transaction.query<SnapshotRow>(
+      `insert into bakery.mcp_capability_snapshots
+         (organization_id, connection_id, observed_at, protocol_version,
+          manifest, digest)
+       values ($1, $2, now(), $3, $4::jsonb, $5)
+       returning ${SNAPSHOT_COLUMNS}`,
+      [
+        organizationId,
+        id,
+        found.protocolVersion,
+        JSON.stringify(found.manifest),
+        found.digest,
+      ],
+    )).rows[0]!;
+  }
+  if (current.current_snapshot_id !== snapshot.id) {
+    await transaction.query(
+      `update bakery.mcp_connections
+          set current_snapshot_id = $3, updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2`,
+      [organizationId, id, snapshot.id],
+    );
+  }
+  const changes = manifestChanges(latest?.manifest ?? null, found.manifest);
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "mcpConnections.discover",
+    resourceType: "mcp_connection",
+    resourceId: id,
+    requestId: input.requestId,
+    traceId: input.traceId,
+    details: {
+      digest: found.digest,
+      previousDigest: latest?.digest ?? null,
+      unchanged,
+      reportedBy: input.reportedBy,
+      toolCount: found.manifest.tools.length,
+      // Names only, bounded: what changed, never a schema or a description.
+      added: changes.added.slice(0, 50),
+      removed: changes.removed.slice(0, 50),
+      changed: changes.changed.slice(0, 50),
+    },
+  });
+  return snapshot;
 }

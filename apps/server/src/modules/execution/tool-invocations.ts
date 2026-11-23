@@ -121,6 +121,7 @@ function wireTool(tool: EffectiveMcpTool) {
     description: tool.description,
     inputSchema: tool.inputSchema,
     readOnly: tool.readOnly,
+    launchSpec: tool.launchSpec,
   };
 }
 
@@ -145,6 +146,7 @@ export async function effectiveToolsRoute(
         transaction,
         identity.host.organization_id,
         scope,
+        identity.host.id,
       );
     },
   );
@@ -287,6 +289,7 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
           transaction,
           organizationId,
           scope,
+          identity.host.id,
         );
         const tool = tools.find((candidate) =>
           candidate.connectionId === connectionId &&
@@ -298,6 +301,14 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
           throw new StandardError({
             code: "AUTH_FORBIDDEN",
             params: { reason: "tool_not_effective" },
+          });
+        }
+        // A local server is called by the worker that runs it, through the
+        // local-tool-calls door; the server's broker cannot reach it.
+        if (tool.launchSpec !== null) {
+          throw new StandardError({
+            code: "UNPROCESSABLE",
+            params: { reason: "tool_invocation_local" },
           });
         }
         const inserted = await transaction.query<{ id: string }>(
@@ -422,4 +433,276 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
       throw error;
     }
   };
+}
+
+export const LOCAL_TOOL_CALLS_PATH = "/v1/worker/attempts/:id/local-tool-calls";
+export const LOCAL_TOOL_CALL_OUTCOME_PATH =
+  "/v1/worker/attempts/:id/local-tool-calls/:callId/outcome";
+
+const leaseProofFields = EffectiveToolsRequestSchema.shape;
+
+/** Opening one call to a local (stdio) tool the worker runs itself (#441). */
+export const LocalToolCallOpenSchema = z.strictObject({
+  ...leaseProofFields,
+  mcpConnectionId: z.uuid().describe(
+    "The local MCP connection, placed on the calling worker's host.",
+  ),
+  toolName: z.string().min(1).max(200).describe(
+    "The tool's name as the gateway listed it or as the server named it.",
+  ),
+  arguments: z.record(
+    z.string().describe("One argument's name."),
+    z.unknown().describe("One argument's value."),
+  ).describe(
+    "The call's arguments, checked against the pinned input schema.",
+  ),
+}).describe(
+  "A worker asks to make one local stdio tool call for an attempt's session; the server checks and records it first.",
+);
+
+/** The outcome of a local call, once the worker has it. */
+export const LocalToolCallOutcomeSchema = z.strictObject({
+  ...leaseProofFields,
+  status: z.enum(["completed", "failed"]).describe(
+    "completed when the local server answered; failed when it did not run or refused.",
+  ),
+  content: z.array(z.unknown().describe("One MCP content block.")).max(1000)
+    .optional().describe("The tool's content blocks, for a completed call."),
+  isError: z.boolean().optional().describe(
+    "Whether the tool reported a failure, for a completed call.",
+  ),
+  failureCode: z.string().regex(/^[a-z0-9_]{1,100}$/).optional().describe(
+    "Short reason for a failed call, such as stdio_mcp_launch_failed.",
+  ),
+}).describe(
+  "A worker records how one local stdio tool call ended; only a call still sent is settled, once.",
+);
+
+const MAX_LOCAL_RESULT_BYTES = 1024 * 1024;
+
+/**
+ * `POST /v1/worker/attempts/{id}/local-tool-calls` (#441): the server's half of
+ * a call to a local stdio tool. It proves the lease, finds the tool among the
+ * session's effective tools on this host, records the call as sent under the
+ * Idempotency-Key, and runs the same pinned-tool checks a remote call gets
+ * (pin, drift, grant, the arguments against the pinned schema, and that the
+ * calling host is the one the connection is placed on). Only then does the
+ * worker send it to the process it launched, and report the outcome. A replay
+ * answers what happened; a call sent and never settled is not sent again.
+ */
+export function createLocalToolCallRoute(deps: ToolGatewayDeps) {
+  return async function localToolCallRoute(
+    context: Context,
+    options: ExecutionRouteOptions,
+  ): Promise<Response> {
+    const attemptId = readAttemptId(context);
+    const input = await parseContract(context, LocalToolCallOpenSchema);
+    const idempotencyKey = workerIdempotencyUuid(
+      context.req.header("Idempotency-Key"),
+    );
+    const argumentsDigest = await sha256Hex(canonicalJson(input.arguments));
+    const headers = context.req.raw.headers;
+    const opened = await workerTransaction(
+      options.database,
+      headers,
+      async (transaction, identity) => {
+        const organizationId = identity.host.organization_id;
+        const scope = await openGatewaySession(
+          transaction,
+          identity,
+          attemptId,
+          input,
+        );
+        const previous = (await transaction.query<CallRow>(
+          `select id, status, arguments_digest, result, failure_code, tool_name
+             from bakery.tool_gateway_calls
+            where organization_id = $1 and attempt_id = $2
+              and idempotency_key = $3`,
+          [organizationId, attemptId, idempotencyKey],
+        )).rows[0];
+        if (previous !== undefined) {
+          return { kind: "replay" as const, previous };
+        }
+        const { tools } = await effectiveMcpTools(
+          transaction,
+          organizationId,
+          scope,
+          identity.host.id,
+        );
+        const tool = tools.find((candidate) =>
+          candidate.connectionId === input.mcpConnectionId &&
+          candidate.launchSpec !== null &&
+          (candidate.toolName === input.toolName ||
+            candidate.name === input.toolName)
+        );
+        if (tool === undefined) {
+          throw new StandardError({
+            code: "AUTH_FORBIDDEN",
+            params: { reason: "tool_not_effective" },
+          });
+        }
+        const inserted = await transaction.query<{ id: string }>(
+          `insert into bakery.tool_gateway_calls (
+             organization_id, attempt_id, idempotency_key, mcp_connection_id,
+             tool_name, snapshot_digest, arguments_digest, read_only, status
+           ) values ($1, $2, $3, $4, $5, $6, $7, $8, 'sent')
+           returning id`,
+          [
+            organizationId,
+            attemptId,
+            idempotencyKey,
+            input.mcpConnectionId,
+            tool.toolName,
+            tool.snapshotDigest,
+            argumentsDigest,
+            tool.readOnly,
+          ],
+        );
+        return {
+          kind: "open" as const,
+          callId: inserted.rows[0]!.id,
+          organizationId,
+          hostId: identity.host.id,
+          actorRef: scope.startedByPrincipalId ?? identity.host.principal_id,
+          scope,
+          tool,
+        };
+      },
+    );
+    if (opened.kind === "replay") {
+      const previous = opened.previous;
+      if (previous.arguments_digest !== argumentsDigest) {
+        throw new StandardError({ code: "IDEMPOTENCY_PAYLOAD_MISMATCH" });
+      }
+      if (previous.status === "sent") {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "tool_call_outcome_unknown" },
+        });
+      }
+      return jsonResponse(
+        {
+          callId: previous.id,
+          status: previous.status === "completed" ? "completed" : "failed",
+          result: previous.status === "completed"
+            ? brokerResult(previous.tool_name, previous.result)
+            : failedResult(
+              previous.tool_name,
+              previous.failure_code ?? "failed",
+            ),
+        },
+        200,
+        true,
+      );
+    }
+    const { tool, scope } = opened;
+    // The same door a remote call goes through, with a transport that sends
+    // nothing: the worker sends the call once every check here has passed.
+    try {
+      await invokeMcpTool({
+        pinnedState: deps.pinnedState,
+        transport: { invoke: () => Promise.resolve(null) },
+      }, {
+        organizationId: opened.organizationId,
+        actorRef: opened.actorRef,
+        connectionId: input.mcpConnectionId,
+        toolName: tool.toolName,
+        pinnedDigest: tool.snapshotDigest,
+        arguments: input.arguments,
+        hostId: opened.hostId,
+        workflowVersionId: scope.workflowVersionId,
+        agentVersionId: scope.agentVersionId,
+        stepKey: scope.stepKey,
+        seatKey: scope.seatKey,
+        startedByPrincipalId: scope.startedByPrincipalId,
+      });
+    } catch (error) {
+      const code = error instanceof StandardError
+        ? String(error.params?.reason ?? error.code).toLowerCase()
+        : "unknown";
+      await settle(options, headers, opened.callId, { status: "failed", code });
+      throw error;
+    }
+    return jsonResponse({
+      callId: opened.callId,
+      status: "open",
+      result: null,
+    }, 200);
+  };
+}
+
+/**
+ * `POST /v1/worker/attempts/{id}/local-tool-calls/{callId}/outcome` (#441): the
+ * worker records how a local call ended. Lease-proved like every attempt
+ * mutation; only a call of this attempt, on a local connection, still sent, is
+ * settled, and only once. A worker that never learned the outcome of a write
+ * sends nothing, so the call stays sent for a person to settle.
+ */
+export async function localToolCallOutcomeRoute(
+  context: Context,
+  options: ExecutionRouteOptions,
+): Promise<Response> {
+  const attemptId = readAttemptId(context);
+  const callId = z.uuid().safeParse(context.req.param("callId"));
+  if (!callId.success) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const input = await parseContract(context, LocalToolCallOutcomeSchema);
+  if (
+    input.status === "completed"
+      ? input.failureCode !== undefined || input.content === undefined
+      : input.content !== undefined
+  ) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { reason: "local_tool_outcome_invalid" },
+    });
+  }
+  const result = input.status === "completed"
+    ? { content: input.content, isError: input.isError === true }
+    : null;
+  if (
+    result !== null &&
+    new TextEncoder().encode(JSON.stringify(result)).length >
+      MAX_LOCAL_RESULT_BYTES
+  ) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { reason: "local_tool_result_too_large" },
+    });
+  }
+  const settled = await workerTransaction(
+    options.database,
+    context.req.raw.headers,
+    async (transaction, identity) => {
+      await openGatewaySession(transaction, identity, attemptId, input);
+      const updated = await transaction.query<{ tool_name: string }>(
+        `update bakery.tool_gateway_calls call
+            set status = $4, result = $5::jsonb, failure_code = $6,
+                settled_at = now()
+           from bakery.mcp_connections connection
+          where call.organization_id = $1 and call.attempt_id = $2
+            and call.id = $3 and call.status = 'sent'
+            and connection.organization_id = call.organization_id
+            and connection.id = call.mcp_connection_id
+            and connection.worker_host_id = $7
+          returning call.tool_name`,
+        [
+          identity.host.organization_id,
+          attemptId,
+          callId.data,
+          input.status,
+          result === null ? null : JSON.stringify(result),
+          input.status === "failed" ? (input.failureCode ?? "failed") : null,
+          identity.host.id,
+        ],
+      );
+      return updated.rows[0] ?? null;
+    },
+  );
+  if (settled === null) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "local_tool_call_not_open" },
+    });
+  }
+  return jsonResponse({ callId: callId.data, status: input.status }, 200);
 }

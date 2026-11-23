@@ -1,6 +1,12 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { McpStdioLaunchSpecSchema } from "@bakery/contracts/mcp-capabilities";
+import {
+  launchStdioMcpServer,
+  StdioMcpError,
+  type StdioMcpServer,
+} from "./stdio-mcp.ts";
 
 /**
  * The worker-local tool gateway (#436, docs/technical-design/25-one-engine.md
@@ -29,6 +35,9 @@ export const GatewayToolSchema = z.object({
   description: z.string().max(10_000).describe("The tool's description."),
   inputSchema: z.unknown().describe("The tool's pinned input schema."),
   readOnly: z.boolean().describe("Whether an Admin classified it as a read."),
+  launchSpec: McpStdioLaunchSpecSchema.nullable().optional().describe(
+    "For a local (stdio) server this worker runs, its pinned launch; null or absent for a remote one.",
+  ),
 }).describe("One effective tool of an agent session.");
 export type GatewayTool = z.infer<typeof GatewayToolSchema>;
 
@@ -289,7 +298,58 @@ type GatewayClient = Readonly<{
     },
     signal?: AbortSignal,
   ): Promise<{ value: { content: unknown[]; isError: boolean } }>;
+  openLocalToolCall(
+    attemptId: string,
+    input: {
+      mcpConnectionId: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+      idempotencyKey: string;
+    },
+    proof: {
+      leaseToken: string;
+      fence: string;
+      workerSessionId: string;
+      workerSessionGeneration: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<{
+    value: {
+      callId: string;
+      status: "open" | "completed" | "failed";
+      result: { content: unknown[]; isError: boolean } | null;
+    };
+  }>;
+  settleLocalToolCall(
+    attemptId: string,
+    callId: string,
+    outcome:
+      | { status: "completed"; content: unknown[]; isError: boolean }
+      | { status: "failed"; failureCode: string },
+    proof: {
+      leaseToken: string;
+      fence: string;
+      workerSessionId: string;
+      workerSessionGeneration: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<void>;
 }>;
+
+/** How this host runs local (stdio) servers (#441). */
+export type LocalToolOptions = Readonly<{
+  /** Artifact digests the operator lets run outside the T1 sandbox. */
+  stdioAllowlist: readonly string[];
+  /** Launches a pinned server; replaced in tests. */
+  launch?: typeof launchStdioMcpServer;
+}>;
+
+/** Failures that happen before anything reaches the local server. */
+const NOT_SENT = new Set([
+  "STDIO_MCP_COMMAND_MISSING",
+  "STDIO_MCP_ARTIFACT_MISMATCH",
+  "STDIO_MCP_LAUNCH_FAILED",
+]);
 
 /**
  * Binds the gateway to the worker's server client: the session's tools come
@@ -299,7 +359,9 @@ type GatewayClient = Readonly<{
 export function createToolGatewayFactory(
   client: GatewayClient,
   authority: ToolGatewayAuthority,
+  local: LocalToolOptions = { stdioAllowlist: [] },
 ): ToolGatewayFactory {
+  const launch = local.launch ?? launchStdioMcpServer;
   return async (assignment, signal) => {
     const session = await authority();
     if (session === null) throw new Error("TOOL_GATEWAY_SESSION_MISSING");
@@ -309,11 +371,87 @@ export function createToolGatewayFactory(
       workerSessionId: session.workerSessionId,
       workerSessionGeneration: session.workerSessionGeneration,
     };
-    return await startToolGateway({
+    // One process per local connection for the session's life, launched on
+    // its first call and only after the server allowed that call.
+    const servers = new Map<string, Promise<StdioMcpServer>>();
+    const localServer = (tool: GatewayTool) => {
+      let started = servers.get(tool.connectionId);
+      if (started === undefined) {
+        started = launch(tool.launchSpec!, {
+          allowlist: local.stdioAllowlist,
+          signal,
+        });
+        servers.set(tool.connectionId, started);
+        started.catch(() => servers.delete(tool.connectionId));
+      }
+      return started;
+    };
+    const callLocal = async (
+      input: Parameters<ToolGatewayBackend["invokeTool"]>[0],
+      callSignal?: AbortSignal,
+    ) => {
+      const opened = (await client.openLocalToolCall(
+        assignment.attemptId,
+        {
+          mcpConnectionId: input.tool.connectionId,
+          toolName: input.tool.toolName,
+          arguments: input.arguments,
+          idempotencyKey: input.idempotencyKey,
+        },
+        proof,
+        callSignal,
+      )).value;
+      if (opened.status !== "open") {
+        if (opened.result === null) {
+          throw new Error("TOOL_GATEWAY_REPLAY_EMPTY");
+        }
+        return opened.result;
+      }
+      try {
+        const server = await localServer(input.tool);
+        const result = await server.callTool(
+          input.tool.toolName,
+          input.arguments,
+          callSignal,
+        );
+        await client.settleLocalToolCall(
+          assignment.attemptId,
+          opened.callId,
+          {
+            status: "completed",
+            content: result.content,
+            isError: result.isError,
+          },
+          proof,
+          callSignal,
+        );
+        return result;
+      } catch (error) {
+        const code = error instanceof StdioMcpError ? error.code : "UNKNOWN";
+        // A failure before the server got the call, or any failed read, is
+        // settled as failed. A write that may have reached the server stays
+        // sent: at most once, and a person settles it.
+        if (NOT_SENT.has(code) || input.tool.readOnly) {
+          await client.settleLocalToolCall(
+            assignment.attemptId,
+            opened.callId,
+            {
+              status: "failed",
+              failureCode: code.toLowerCase(),
+            },
+            proof,
+            callSignal,
+          );
+        }
+        throw error;
+      }
+    };
+    const gateway = await startToolGateway({
       listTools: async (listSignal) =>
         (await client.effectiveTools(assignment.attemptId, proof, listSignal))
           .value.tools,
       invokeTool: async (input, callSignal) => {
+        if (input.tool.launchSpec) return await callLocal(input, callSignal);
         const answered = await client.invokeTool(
           assignment.attemptId,
           {
@@ -331,5 +469,18 @@ export function createToolGatewayFactory(
         };
       },
     }, signal);
+    return Object.freeze({
+      ...gateway,
+      close: async () => {
+        await gateway.close();
+        const running = [...servers.values()];
+        servers.clear();
+        await Promise.all(
+          running.map((started) =>
+            started.then((server) => server.close(), () => undefined)
+          ),
+        );
+      },
+    });
   };
 }

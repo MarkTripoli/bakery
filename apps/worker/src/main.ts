@@ -19,6 +19,10 @@ import { createPiHarnessExecutor } from "./pi-harness.ts";
 import { designToolAvailableFrom } from "./harness-rpi.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
 import { createToolGatewayFactory } from "./tool-gateway.ts";
+import {
+  discoverLocalMcpServers,
+  LOCAL_MCP_DISCOVERY_INTERVAL_MS,
+} from "./local-mcp-discovery.ts";
 import { createCodexHarnessExecutor } from "./codex-harness.ts";
 import { withSessionCredentialFile } from "./session-credential-file.ts";
 import { createReviewerExecutor } from "./reviewer.ts";
@@ -389,7 +393,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
                 registration.workerSessionGeneration,
               ),
             };
-        }),
+        }, { stdioAllowlist: config.mcpStdioAllowlist ?? [] }),
         inner: checkedExecutor,
       })
       : codingHarness?.name === "pi"
@@ -501,6 +505,12 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     };
     Deno.addSignalListener("SIGTERM", drainForSigterm);
     Deno.addSignalListener("SIGINT", drainForSigint);
+    // Local stdio MCP servers placed on this host are discovered here (#441).
+    // Only a Claude-harness host serves sessions their tools, so only it
+    // looks; the first pass waits for registration to settle.
+    const localDiscovery = codingHarness?.name === "claude"
+      ? startLocalMcpDiscovery(client, config.mcpStdioAllowlist ?? [])
+      : undefined;
     try {
       await supervisor.run();
       if (supervisor.fatalReason) {
@@ -513,6 +523,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         }
       }
     } finally {
+      localDiscovery?.stop();
       Deno.removeSignalListener("SIGTERM", drainForSigterm);
       Deno.removeSignalListener("SIGINT", drainForSigint);
     }
@@ -535,6 +546,44 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       identity: shutdownReceiptIdentity,
     });
   }
+}
+
+/** Runs local MCP discovery a minute after start, then every ten minutes. */
+function startLocalMcpDiscovery(
+  client: WorkerApiClient,
+  allowlist: readonly string[],
+): { stop(): void } {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const pass = async () => {
+    try {
+      const outcomes = await discoverLocalMcpServers(client, {
+        allowlist,
+        signal: controller.signal,
+      });
+      for (const outcome of outcomes) {
+        if (outcome.failure !== null) {
+          console.error(JSON.stringify({
+            event: "local_mcp_discovery_failed",
+            connectionId: outcome.connectionId,
+            code: outcome.failure,
+          }));
+        }
+      }
+    } catch {
+      // Not registered yet, or the server is away: the next pass tries again.
+    }
+    if (!controller.signal.aborted) {
+      timer = setTimeout(pass, LOCAL_MCP_DISCOVERY_INTERVAL_MS);
+    }
+  };
+  timer = setTimeout(pass, 60_000);
+  return {
+    stop() {
+      controller.abort();
+      clearTimeout(timer);
+    },
+  };
 }
 
 if (import.meta.main) {
