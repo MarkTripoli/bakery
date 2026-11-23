@@ -13,6 +13,8 @@ for k in a b; do
 done
 PUB_A="$(cat "$KEYS/a.key.pub")"
 export APP_VERSION=1.3.0
+cargo build -p bakery-desktop 2>&1 | tail -1
+cp "$CARGO_TARGET_DIR/debug/bakery-desktop" /tmp/placeholder-bakery-desktop
 TAURI_CONFIG="{\"version\":\"$APP_VERSION\",\"plugins\":{\"updater\":{\"pubkey\":\"$PUB_A\"}}}" cargo build -p bakery-desktop 2>&1 | tail -1
 cp "$CARGO_TARGET_DIR/debug/bakery-desktop" /tmp/keyed-bakery-desktop
 
@@ -23,11 +25,12 @@ cargo tauri signer sign -f "$KEYS/b.key" -p "" "$SERVE/pay/update.bin" >/dev/nul
 
 eval "$(dbus-launch --sh-syntax)"
 printf "%s" "updating-keyring-password" | gnome-keyring-daemon --unlock --daemonize --components=secrets >/dev/null 2>&1
-Xvfb :99 -screen 0 1280x800x24 -nolisten tcp >/dev/null 2>&1 &
+mkdir -p /tmp/xfb
+Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -fbdir /tmp/xfb >/dev/null 2>&1 &
 export DISPLAY=:99 GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 NO_AT_BRIDGE=1 \
   WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
 sleep 2
-KEYED_BIN=/tmp/keyed-bakery-desktop OUT=/out python3 /app/e2e/updating.py
+PLACEHOLDER_BIN=/tmp/placeholder-bakery-desktop KEYED_BIN=/tmp/keyed-bakery-desktop OUT=/out python3 /app/e2e/updating.py
 status=$?
 chown -R "${HOST_UID:-0}:${HOST_GID:-0}" /out 2>/dev/null
 exit $status

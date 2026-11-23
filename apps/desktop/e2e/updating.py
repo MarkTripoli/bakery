@@ -2,6 +2,7 @@
 import http.server
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -17,7 +18,7 @@ ARCH = subprocess.check_output(["uname", "-m"], text=True).strip()  # x86_64 or 
 
 results = []
 LOG = []  # (monotonic seconds, method, path, query, authorization)
-MODE = {"feed": "204", "handoff_delay": 0.0, "compat": 1}
+MODE = {"feed": "204", "handoff_delay": 0.0, "compat": 1, "download": "normal"}
 
 def check(name, ok, detail=""):
     results.append(bool(ok))
@@ -72,11 +73,29 @@ class Stub(http.server.BaseHTTPRequestHandler):
                 self.offer(APP_VERSION, "update.bin", "a")
             elif feed == "nofeed":
                 self.send(404, b'{"title":"Not found"}')
+            elif feed == "slow":
+                time.sleep(40)
+                self.send(204)
             else:
                 self.send(500, b"{}")
         elif url.path.startswith("/pay/"):
             data = open(os.path.join(PAY, url.path[5:]), "rb").read()
-            self.send(200, data, "application/octet-stream")
+            mode = MODE.get("download", "normal")
+            if mode == "normal":
+                self.send(200, data, "application/octet-stream")
+            else:
+                self.send_response(200)
+                self.send_header("content-type", "application/octet-stream")
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                pieces = [data[i:i + len(data) // 8 + 1] for i in range(0, len(data), len(data) // 8 + 1)]
+                for index, piece in enumerate(pieces):
+                    if mode == "break" and index >= len(pieces) // 2:
+                        self.close_connection = True
+                        return
+                    self.wfile.write(piece)
+                    self.wfile.flush()
+                    time.sleep(1.5)
         else:
             self.send(404)
 
@@ -113,7 +132,7 @@ def wait_until(condition, timeout=40):
         time.sleep(0.3)
     return False
 
-def start(name, feed, tick=400, extra=None, handoff_delay=0.0):
+def start(name, feed, tick=400, extra=None, handoff_delay=0.0, binary=None):
     global app
     stop()
     MODE["feed"], MODE["handoff_delay"] = feed, handoff_delay
@@ -125,7 +144,7 @@ def start(name, feed, tick=400, extra=None, handoff_delay=0.0):
     env = dict(os.environ, BAKERY_SERVER=ORIGIN, BAKERY_DESKTOP_REPORT=os.path.join(path, "report.jsonl"),
                BAKERY_DESKTOP_COMMANDS=os.path.join(path, "cmd"), BAKERY_DESKTOP_CONFIG_DIR=config, TZ="UTC",
                BAKERY_DESKTOP_UPDATE_TICK_MS=str(tick), **(extra or {}))
-    app = subprocess.Popen([BIN], env=env, stdout=open(os.path.join(path, "app.log"), "a"), stderr=subprocess.STDOUT)
+    app = subprocess.Popen([binary or BIN], env=env, stdout=open(os.path.join(path, "app.log"), "a"), stderr=subprocess.STDOUT)
     return path
 
 def stop():
@@ -276,6 +295,172 @@ check("[after] and the page that was open comes back", wait_until(
     str([e["data"] for e in reports(p) if e["event"] == "server_page_opened"]))
 check("[after] the note is used once: the next start says nothing",
       not os.path.exists(os.path.join(OUT, "h-after", "config", "after-update.json")))
+
+
+SHOTS = os.environ.get("SHOTS")
+VIDEO = os.environ.get("VIDEO")
+
+
+def screen_picture(name):
+    os.makedirs(os.path.join(OUT, "shots"), exist_ok=True)
+    xwd = os.path.join(OUT, "shots", name + ".xwd")
+    shutil.copyfile("/tmp/xfb/Xvfb_screen0", xwd)
+    subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, os.path.join(OUT, "shots", name + ".png")], capture_output=True)
+    os.remove(xwd)
+
+
+def pointer_click(x, y):
+    import ctypes
+
+    x11 = ctypes.CDLL("libX11.so.6")
+    xtst = ctypes.CDLL("libXtst.so.6")
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    display = x11.XOpenDisplay(os.environ.get("DISPLAY", ":99").encode())
+    xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+    xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
+    x11.XFlush(display)
+    time.sleep(0.3)
+    xtst.XTestFakeButtonEvent(display, 1, 1, 0)
+    x11.XFlush(display)
+    time.sleep(0.2)
+    xtst.XTestFakeButtonEvent(display, 1, 0, 0)
+    x11.XFlush(display)
+
+
+class Recording:
+    def __init__(self, name):
+        self.directory = os.path.join(OUT, "video", name)
+        os.makedirs(self.directory, exist_ok=True)
+        self.count = 0
+        self.halt = threading.Event()
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def run(self):
+        while not self.halt.is_set():
+            began = time.time()
+            xwd = os.path.join(self.directory, "now.xwd")
+            try:
+                shutil.copyfile("/tmp/xfb/Xvfb_screen0", xwd)
+                png = os.path.join(self.directory, "frame%05d.png" % self.count)
+                subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, png], capture_output=True)
+                if os.path.exists(png):
+                    self.count += 1
+            except OSError:
+                pass
+            self.halt.wait(max(0.0, 0.5 - (time.time() - began)))
+
+    def finish(self):
+        self.halt.set()
+        self.thread.join(5)
+        print(f"VIDEO {self.directory}: {self.count} frames", flush=True)
+
+
+def on_server_page(path):
+    return wait_until(lambda: any(e["event"] == "server_page_opened" for e in reports(path)))
+
+
+def toast_starting(path, text):
+    return wait_until(lambda: any(t and t.startswith(text) for t in toasts(path)), timeout=60)
+
+
+APPIMAGE_STAND_IN = os.path.join(HOME, "Bakery.AppImage")
+open(APPIMAGE_STAND_IN, "wb").write(b"\x7fELF stand-in")
+os.chmod(APPIMAGE_STAND_IN, 0o755)
+
+MENU_ROWS = [
+    ("never-looked", "204", "normal", 600000, {}, lambda p: on_server_page(p) and time.sleep(2)),
+    ("looking", "slow", "normal", 500, {}, lambda p: on_server_page(p) and time.sleep(5)),
+    ("up-to-date", "204", "normal", 500, {}, lambda p: wait_until(lambda: "up_to_date" in states(p))),
+    ("downloading", "newer", "slow", 500, {}, lambda p: on_server_page(p) and time.sleep(9)),
+    ("ready", "newer", "normal", 500, {"APPIMAGE": APPIMAGE_STAND_IN}, lambda p: wait_until(lambda: "ready" in states(p))),
+    ("ready-package", "newer", "normal", 500, {}, lambda p: wait_until(lambda: "ready" in states(p))),
+    ("could-not-check", "error", "normal", 500, {}, lambda p: wait_until(lambda: "failed" in states(p))),
+    ("no-feed", "nofeed", "normal", 500, {}, lambda p: wait_until(lambda: "no_feed" in states(p))),
+]
+NOTICES = [
+    ("ready", "newer", "normal", {"APPIMAGE": APPIMAGE_STAND_IN}, False, "Bakery 9.9.9 is ready."),
+    ("ready-package", "newer", "normal", {}, False, "Bakery 9.9.9 is ready."),
+    ("not-verified", "tampered", "normal", {}, False, "An update could not be verified"),
+    ("up-to-date-asked", "204", "normal", {}, True, "Bakery is up to date."),
+    ("downloading-asked", "newer", "slow", {}, True, "Downloading Bakery 9.9.9"),
+    ("download-stopped", "newer", "break", {}, True, "The update did not finish downloading."),
+    ("could-not-check-asked", "error", "normal", {}, True, "Bakery could not check for updates."),
+    ("no-feed-asked", "nofeed", "normal", {}, True, "This server does not offer app updates."),
+]
+
+if SHOTS:
+    for theme, gtk in (("light", "Adwaita"), ("dark", "Adwaita:dark")):
+        for name, feed, download, tick, extra, settle in MENU_ROWS:
+            MODE["download"] = download
+            p = start(f"shots-menu-{name}-{theme}", feed, tick=tick, extra=dict(extra, GTK_THEME=gtk))
+            settle(p)
+            pointer_click(30, 12)
+            time.sleep(1.5)
+            screen_picture(f"menu-{name}-{theme}")
+            stop()
+        if os.environ.get("PLACEHOLDER_BIN"):
+            MODE["download"] = "normal"
+            p = start(f"shots-menu-unavailable-{theme}", "204", tick=600000, extra={"GTK_THEME": gtk},
+                      binary=os.environ["PLACEHOLDER_BIN"])
+            on_server_page(p)
+            time.sleep(2)
+            pointer_click(30, 12)
+            time.sleep(1.5)
+            screen_picture(f"menu-unavailable-{theme}")
+            stop()
+        for name, feed, download, extra, asked, text in NOTICES:
+            MODE["download"] = download
+            p = start(f"shots-notice-{name}-{theme}", feed, tick=600000 if asked else 500, extra=dict(extra, GTK_THEME=gtk))
+            on_server_page(p)
+            if asked:
+                time.sleep(2)
+                press_menu(p)
+            got = toast_starting(p, text)
+            check(f"[shots {theme}] the {name} notice is on screen", got, str(toasts(p)))
+            time.sleep(2 if name != "downloading-asked" else 1)
+            screen_picture(f"notice-{name}-{theme}")
+            stop()
+        config = os.path.join(OUT, f"shots-notice-updated-{theme}", "config")
+        os.makedirs(config, exist_ok=True)
+        json.dump({"to": "9.9.9", "path": "/"}, open(os.path.join(config, "after-update.json"), "w"))
+        MODE["download"] = "normal"
+        p = start(f"shots-notice-updated-{theme}", "204", tick=600000, extra={"GTK_THEME": gtk})
+        check(f"[shots {theme}] the updated notice is on screen", toast_starting(p, "Bakery was updated to version"), str(toasts(p)))
+        time.sleep(1.5)
+        screen_picture(f"notice-updated-{theme}")
+        stop()
+
+if VIDEO:
+    MODE["download"] = "slow"
+    recording = Recording("update-flow")
+    shutil.rmtree(os.path.join(OUT, "flow"), ignore_errors=True)
+    p = start("flow", "newer", tick=600000, extra={"APPIMAGE": APPIMAGE_STAND_IN})
+    on_server_page(p)
+    time.sleep(3)
+    pointer_click(30, 12)
+    time.sleep(2.5)
+    pointer_click(30, 12)
+    time.sleep(1)
+    press_menu(p)
+    toast_starting(p, "Bakery 9.9.9 is ready.")
+    time.sleep(4)
+    pointer_click(30, 12)
+    time.sleep(2.5)
+    pointer_click(30, 12)
+    time.sleep(1)
+    press_menu(p)
+    wait_until(lambda: app.poll() is not None, timeout=40)
+    time.sleep(3)
+    MODE["download"] = "normal"
+    p = start("flow", "204", tick=600000, extra={"APPIMAGE": APPIMAGE_STAND_IN})
+    toast_starting(p, "Bakery was updated to version")
+    time.sleep(5)
+    recording.finish()
+    stop()
 
 stop()
 passed = sum(results)
