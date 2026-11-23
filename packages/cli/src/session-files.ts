@@ -96,9 +96,32 @@ async function sha256Hex(content: Uint8Array): Promise<string> {
     .join("");
 }
 
+/**
+ * A listing that ran past the page guard, said plainly.
+ *
+ * The operation and the page count, because the person reading it needs to know
+ * which command stopped and how far it got; the advice is the same for every one
+ * of them, and it is not "try again".
+ */
+export class SessionListingTruncated extends Error {
+  override readonly name = "SessionListingTruncated";
+
+  constructor(readonly operation: string, readonly pages: number) {
+    super(
+      `${operation} answered more than ${pages} pages, so the listing was stopped. Nothing was returned: a partial list would look complete. Narrow the command, for example by listing one folder.`,
+    );
+  }
+}
+
 export function createSessionFilesApi(session: SessionApi): FilesApi {
-  const offered = async (): Promise<Set<string>> =>
-    new Set((await session.tools()).map((tool) => tool.name));
+  // Asked once per instance and kept: the offer is fixed for a session's life
+  // (its scopes come from the credential), and asking before every call meant a
+  // listing of ten pages asked eleven times for a list that could not change.
+  let offer: Promise<Set<string>> | null = null;
+  const offered = (): Promise<Set<string>> =>
+    offer ??= session.tools().then((tools) =>
+      new Set(tools.map((tool) => tool.name))
+    );
   const call = async <T>(operation: string, args: unknown): Promise<T> => {
     if (!(await offered()).has(operation)) {
       // Before calling, because the gateway's answer is "not offered" too, and
@@ -125,7 +148,10 @@ export function createSessionFilesApi(session: SessionApi): FilesApi {
       if (next === null) return items;
       cursor = next;
     }
-    return items;
+    // The guard is a fault, not a stopping point. Returning what came back would
+    // hand the caller a listing that looks complete: an agent told "these are the
+    // files" would conclude the ones past the last page do not exist.
+    throw new SessionListingTruncated(operation, PAGE_GUARD);
   };
   const one = async <T>(operation: string, args: unknown): Promise<T> =>
     await call<T>(operation, args);

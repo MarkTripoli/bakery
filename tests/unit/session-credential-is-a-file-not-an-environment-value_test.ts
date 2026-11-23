@@ -199,6 +199,60 @@ Deno.test("the file is gone when the attempt ends, however it ended", async () =
   });
 });
 
+Deno.test("the attempt's own folders go when its credential goes", async () => {
+  await withStateDir(async (stateDir) => {
+    const path = sessionCredentialPath(stateDir, assignmentOf());
+    assert(path !== null);
+    await writeSessionCredentialFile(stateDir, assignmentOf());
+    const fenceDirectory = path.slice(0, path.lastIndexOf("/"));
+    const attemptDirectory = fenceDirectory.slice(
+      0,
+      fenceDirectory.lastIndexOf("/"),
+    );
+    const credentialsRoot = attemptDirectory.slice(
+      0,
+      attemptDirectory.lastIndexOf("/"),
+    );
+    await removeSessionCredentialFile(path);
+    // One empty pair per attempt, never cleaned, grew the worker's state until a
+    // restart. Both folders go with the file; the root stays, because the next
+    // attempt writes into it.
+    assertEquals(
+      await Deno.stat(fenceDirectory).then(() => "present").catch(() => "gone"),
+      "gone",
+    );
+    assertEquals(
+      await Deno.stat(attemptDirectory).then(() => "present").catch(() =>
+        "gone"
+      ),
+      "gone",
+    );
+    assertEquals(
+      await Deno.stat(credentialsRoot).then(() => "present").catch(() =>
+        "gone"
+      ),
+      "present",
+    );
+  });
+});
+
+Deno.test("removal leaves a folder alone that another attempt still uses", async () => {
+  await withStateDir(async (stateDir) => {
+    const first = sessionCredentialPath(stateDir, assignmentOf());
+    assert(first !== null);
+    await writeSessionCredentialFile(stateDir, assignmentOf());
+    // A sibling at the same fence: the folder is not this attempt's to remove.
+    const sibling = `${first.slice(0, first.lastIndexOf("/"))}/other`;
+    await Deno.writeTextFile(sibling, "another attempt");
+    await removeSessionCredentialFile(first);
+    assertEquals(
+      await Deno.stat(sibling).then(() => "present").catch(() => "gone"),
+      "present",
+      "a folder another attempt still uses was removed",
+    );
+  });
+});
+
 Deno.test("a worker that starts after a crash clears stale credentials", async () => {
   await withStateDir(async (stateDir) => {
     const stale = await writeSessionCredentialFile(stateDir, assignmentOf());

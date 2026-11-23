@@ -39,10 +39,13 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "@bakery/persistence";
-import type { WorkerIdentity } from "./shared.ts";
-import type { HostRow } from "./shared.ts";
+import {
+  assertHostRowIntegrity,
+  type ExecutionRouteOptions,
+  type HostRow,
+  type WorkerIdentity,
+} from "./shared.ts";
 import type { SessionToolRegistry } from "./session-registry.ts";
-import type { ExecutionRouteOptions } from "./shared.ts";
 
 /** The header a session credential travels in. Never a query and never a body. */
 export const SESSION_CREDENTIAL_HEADER = "x-session-credential";
@@ -222,24 +225,6 @@ async function refusing<T>(run: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Which attempt is asking, and the host it belongs to.
- *
- * The session credential is the whole authority on this route: it was minted for
- * one attempt, names that attempt's lease hash and fence, and expires with the
- * lease. So resolving it is how the server learns the attempt without a host
- * bearer, and the host identity is then loaded from the attempt's own row rather
- * than presented by the caller.
- *
- * That keeps every downstream check real: `claimAttempt` still locks the attempt
- * under this host and still compares the fence, `assertSessionOperationLive`
- * still checks the host's session generation, and a host that has been revoked
- * or retired fails to load and the call is refused.
- *
- * A credential that resolves to an attempt with no host, or to a host that no
- * longer exists, is refused with the same code as a bad credential: telling a
- * caller which of the two failed would let it probe.
- */
-/**
  * The identity of the host that owns an attempt, read from the database.
  *
  * A worker route presented the host's bearer, so the host loads from its token
@@ -247,7 +232,8 @@ async function refusing<T>(run: () => Promise<T>): Promise<T> {
  * hold the machine's token, so the attempt's own row says which host owns it and
  * this loads that host by id. Every check downstream — the revoked status here,
  * the fence and the session generation in the gateway — then runs against the
- * real host row rather than an identity the caller asserted.
+ * real host row rather than an identity the caller asserted, and the row is
+ * checked for integrity before any of them use it.
  *
  * `tokenHash` is empty because this caller used no host token. It is an
  * identity, not a credential: nothing here grants reach, and the session
@@ -272,9 +258,39 @@ async function loadHostIdentityForSession(
   if (host === undefined || host.status === "revoked") {
     throw new SessionOperationError("SESSION_CREDENTIAL_INVALID");
   }
+  // The same integrity check every worker route runs on this row, so a session
+  // call cannot act on a host row those routes would refuse: a wrong principal
+  // type, a malformed token hash or an incoherent session pair.
+  try {
+    assertHostRowIntegrity(host);
+  } catch (error) {
+    // A row that fails the check is not a usable host, and naming that would tell
+    // a caller something about a machine it cannot reach. It answers as a bad
+    // credential, which is what it is from here.
+    throw new SessionOperationError("SESSION_CREDENTIAL_INVALID", {
+      cause: error,
+    });
+  }
   return { tokenHash: "", host };
 }
 
+/**
+ * Which attempt is asking, and the host it belongs to.
+ *
+ * The session credential is the whole authority on this route: it was minted for
+ * one attempt, names that attempt's lease hash and fence, and expires with the
+ * lease. So resolving it is how the server learns the attempt without a host
+ * bearer, and the host identity is then loaded from the attempt's own row rather
+ * than presented by the caller.
+ *
+ * That keeps every downstream check real: `claimAttempt` still locks the attempt
+ * under this host and still compares the fence, and `assertSessionOperationLive`
+ * still checks the host's session generation.
+ *
+ * A credential that resolves to an attempt with no host, or to a host row that no
+ * longer exists or is revoked, is refused with the same code as a bad credential:
+ * telling a caller which of the three failed would let it probe.
+ */
 async function resolveSession(
   transaction: PgTransactionClient,
   credentialToken: string,

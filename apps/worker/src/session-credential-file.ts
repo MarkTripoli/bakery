@@ -84,9 +84,11 @@ export class SessionCredentialFileError extends Error {
 /**
  * Writes this attempt's credential, owner-only, or answers null when it has none.
  *
- * `createNew` refuses an existing file: a path another process already filled
- * must not be replaced silently, because the file is the one place the value
- * exists and a half-written credential looks valid to a reader.
+ * A file already at the path is from an earlier claim of this attempt at this
+ * fence, so it is removed and replaced rather than appended to. A symlink there
+ * is refused: following it would write the credential wherever it points. The
+ * file itself is created with `createNew`, so nothing can be inserted between the
+ * removal and the write.
  */
 export async function writeSessionCredentialFile(
   stateDir: string,
@@ -132,17 +134,32 @@ export async function writeSessionCredentialFile(
   return path;
 }
 
-/** Removes a credential file. Missing is success: the end of an attempt runs once. */
+/**
+ * Removes a credential file and the empty folders it lived in.
+ *
+ * Missing is success: the end of an attempt runs once, and an attempt that never
+ * got a credential has nothing here. `Deno.remove` on a symlink removes the link
+ * and never its target, so one call covers both the file this wrote and a link
+ * someone left in its place — which is why the write refuses a link but the
+ * removal does not need to tell them apart.
+ *
+ * The two folders above the file are named for the attempt and the fence, so
+ * leaving them behind grew the worker's state with one empty pair per attempt
+ * until the next restart. They are removed only when empty, which is what an
+ * attempt that failed before writing needs to be safe.
+ */
 export async function removeSessionCredentialFile(path: string): Promise<void> {
-  const existing = await Deno.lstat(path).catch(() => null);
-  if (existing === null) return;
-  // Never follow a link out of the private directory on the way out, for the
-  // same reason the write refuses one.
-  if (existing.isSymlink) {
-    await Deno.remove(path).catch(() => undefined);
-    return;
-  }
   await Deno.remove(path).catch(() => undefined);
+  let directory = path.slice(0, path.lastIndexOf("/"));
+  for (let level = 0; level < 2; level += 1) {
+    const removed = await Deno.remove(directory)
+      .then(() => true)
+      .catch(() => false);
+    // Stops at the credentials root, and stops early when another attempt still
+    // has a file in this folder, which a non-empty directory answers.
+    if (!removed) return;
+    directory = directory.slice(0, directory.lastIndexOf("/"));
+  }
 }
 
 /** Clears anything a killed worker left behind, before any attempt starts. */

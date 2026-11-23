@@ -246,11 +246,10 @@ export function createSessionApi(
         credentials: "omit",
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       });
-    } catch (error) {
-      throw new SessionRefusal(
-        tool,
-        new ApiTransportError("network", error instanceof Error ? 0 : 0),
-      );
+    } catch {
+      // No status: the request never got one, so a 0 would claim the server
+      // answered with nothing. `kind` is what a caller can act on.
+      throw new SessionRefusal(tool, new ApiTransportError("network"));
     }
     const text = await response.text();
     let parsed: unknown = undefined;

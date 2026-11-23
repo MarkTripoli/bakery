@@ -15,4 +15,5 @@ export {
   createSessionFilesApi,
   SESSION_FILE_OPERATIONS,
   SessionFileMismatch,
+  SessionListingTruncated,
 } from "./session-files.ts";

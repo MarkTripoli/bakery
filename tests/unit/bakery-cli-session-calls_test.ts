@@ -18,6 +18,7 @@ import {
   SESSION_ENVIRONMENT,
   type SessionConfig,
   SessionFileMismatch,
+  SessionListingTruncated,
   SessionRefusal,
 } from "@bakery/cli";
 
@@ -26,6 +27,18 @@ const ATTEMPT = "11111111-1111-4111-8111-111111111111";
 const HOST_TOKEN = "host_credential_value_0123456789";
 const SESSION_TOKEN = "session_credential_value_abcdef";
 const FILE_ID = "22222222-2222-4222-8222-222222222222";
+
+async function assertRejectsTruncated(
+  work: () => Promise<unknown>,
+): Promise<SessionListingTruncated> {
+  try {
+    await work();
+  } catch (error) {
+    if (error instanceof SessionListingTruncated) return error;
+    throw error;
+  }
+  throw new Error("the listing was not refused");
+}
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
@@ -257,6 +270,50 @@ Deno.test("a call names the operation and carries the arguments unchanged", asyn
     tool: "storageFolderEntries.list",
     arguments: { id: FILE_ID },
   });
+});
+
+Deno.test("a listing that runs past the page guard is refused, not cut short", async () => {
+  // Every page says "there is another". Returning what came back would hand an
+  // agent a list that looks complete, so the files past the last page would read
+  // as files that do not exist.
+  let calls = 0;
+  const gateway = gatewayOf(() => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({
+        outcome: "allowed",
+        result: { items: [{ id: FILE_ID }], nextCursor: "more" },
+      }),
+      { headers: JSON_HEADERS },
+    );
+  });
+  const api = createSessionFilesApi(createSessionApi(config(), gateway.fetch));
+  const error = await assertRejectsTruncated(() => api.roots());
+  assert(error instanceof SessionListingTruncated, `${error}`);
+  assertEquals(error.operation, "storageRoots.list");
+  assert(error.message.includes("partial list"), error.message);
+  // The guard is the limit, so the calls stop there rather than looping on.
+  assertEquals(calls, 1_000);
+});
+
+Deno.test("the offered list is asked for once, not once per call", async () => {
+  // The offer comes from the credential's scopes and cannot change in a session's
+  // life, so asking per page was one round trip per page for the same answer.
+  const gateway = gatewayOf(() =>
+    new Response(
+      JSON.stringify({
+        outcome: "allowed",
+        result: { items: [], nextCursor: null },
+      }),
+      { headers: JSON_HEADERS },
+    )
+  );
+  const api = createSessionFilesApi(createSessionApi(config(), gateway.fetch));
+  await api.roots();
+  await api.entries(FILE_ID);
+  const listings =
+    gateway.seen.filter((seen) => seen.url.endsWith("/session/tools")).length;
+  assertEquals(listings, 1, `the tool list was asked for ${listings} times`);
 });
 
 Deno.test("the server's refusal is repeated with the operation named", async () => {
