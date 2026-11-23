@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  ControlButton,
   Controls,
   type Edge,
   Handle,
@@ -335,6 +336,7 @@ function Surface(props: WorkflowCanvasProps) {
     <RenderContext.Provider value={{ renderBlock, renderAdd }}>
       <UI.CanvasFrame
         data-layout={settled ? "ready" : "settling"}
+        data-popover-boundary="true"
         data-ui-region="workflow-canvas"
         height={frameHeight}
         variant={mode === "editor" ? "fill" : "page"}
@@ -375,16 +377,40 @@ function Surface(props: WorkflowCanvasProps) {
         >
           {mode === "editor" && larger
             ? (
+              // One horizontal group: zoom out, zoom in, then Fit with its word.
               <Controls
                 aria-label={labels.canvas}
-                onFitView={() =>
-                  flow.setViewport({
-                    x: Math.max(PAD, (width - bounds.w) / 2),
-                    y: PAD,
-                    zoom: 1,
-                  })}
+                orientation="horizontal"
+                showFitView={false}
                 showInteractive={false}
-              />
+                showZoom={false}
+              >
+                <ControlButton
+                  aria-label={labels.zoomOut}
+                  onClick={() => void flow.zoomOut()}
+                  title={labels.zoomOut}
+                >
+                  {"\u2212"}
+                </ControlButton>
+                <ControlButton
+                  aria-label={labels.zoomIn}
+                  onClick={() => void flow.zoomIn()}
+                  title={labels.zoomIn}
+                >
+                  +
+                </ControlButton>
+                <ControlButton
+                  data-fit="true"
+                  onClick={() =>
+                    void flow.setViewport({
+                      x: Math.max(PAD, (width - bounds.w) / 2),
+                      y: PAD,
+                      zoom: 1,
+                    })}
+                >
+                  {labels.fit}
+                </ControlButton>
+              </Controls>
             )
             : null}
         </ReactFlow>

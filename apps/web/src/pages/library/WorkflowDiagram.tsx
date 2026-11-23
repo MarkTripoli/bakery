@@ -177,6 +177,20 @@ export function WorkflowDiagram(
     // A narrower search changes what is hidden; re-measure after that render.
     measureListFade(listEl.current);
   }, [measureListFade, pickQuery]);
+  // The menu is placed by measurement and can change height after it opens (the
+  // window or the canvas resizes, a pan moves its "+"): the list is measured
+  // again whenever its own box changes, not only when it scrolls.
+  const listWatch = useRef<ResizeObserver | null>(null);
+  const setListEl = useCallback((node: HTMLElement | null) => {
+    listWatch.current?.disconnect();
+    listWatch.current = null;
+    listEl.current = node;
+    measureListFade(node);
+    if (node !== null && typeof ResizeObserver !== "undefined") {
+      listWatch.current = new ResizeObserver(() => measureListFade(node));
+      listWatch.current.observe(node);
+    }
+  }, [measureListFade]);
 
   const pickerBody = (
     <UI.Stack gap="compact" data-testid="step-picker">
@@ -192,10 +206,7 @@ export function WorkflowDiagram(
         data-picker-fade-top={listFade.top ? "true" : undefined}
         data-picker-list="true"
         onScroll={(event) => measureListFade(event.currentTarget)}
-        ref={(node) => {
-          listEl.current = node;
-          measureListFade(node);
-        }}
+        ref={setListEl}
       >
         {offered.length === 0
           ? (
@@ -278,6 +289,7 @@ export function WorkflowDiagram(
     return (
       <>
         <UI.Popover
+          floating
           open={phone ? false : open}
           label={addLabel}
           triggerLabel={addLabel}
@@ -334,21 +346,36 @@ export function WorkflowDiagram(
       problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
     const glyph = drawing ? "info" : ACTION_ICONS[node.uses];
-    const summary = drawing
-      ? undefined
-      : codeOnly && editedInCode !== undefined
-      ? editedInCode
-      : line(node.uses);
+    // A step written in code keeps its own sentence; that it is in code is the
+    // mark right of its name, said in words once, in the panel.
+    const summary = drawing ? undefined : line(node.uses);
     const extra = drawing ? undefined : detail?.(node.uses, node.id);
-    return { drawing, extra, glyph, summary };
+    return { codeOnly, drawing, extra, glyph, summary };
   };
+  // A step inside a box is in code because the box is, and the box says so.
+  const insideBox = useMemo(
+    () =>
+      new Set(
+        graph.blocks.filter((block) =>
+          block.kind === "step" && block.parent !== null
+        ).map((block) => block.id),
+      ),
+    [graph],
+  );
+  /** The words for a step's mark, added to its name for a screen reader. */
+  const markedName = (node: TreeStep, marked: boolean): string =>
+    marked && editedInCode !== undefined
+      ? `${stepName(node)} ${editedInCode}.`
+      : stepName(node);
 
   const card = (node: TreeStep): ReactNode => {
     const facts = stepFacts(node);
+    const marked = facts.codeOnly && !insideBox.has(node.id);
     return (
       <div data-card={node.id}>
         <UI.StepCard
-          aria-label={stepName(node)}
+          aria-label={markedName(node, marked)}
+          codeMark={marked ? codeMark() : undefined}
           icon={facts.glyph === undefined
             ? undefined
             : <UI.IconGlyph name={facts.glyph as never} size="small" />}
@@ -460,6 +487,7 @@ export function WorkflowDiagram(
           <UI.StepGroup
             data-group="if"
             codeMark={marked.has(block.id) ? codeMark() : undefined}
+            icon={<UI.IconGlyph name="branch" size="small" />}
             label={translate("library.editor.group.if" as never)}
           />
         );
@@ -513,11 +541,13 @@ export function WorkflowDiagram(
       ? undefined
       : <span data-connector={afterId ?? "start"}>{control}</span>;
   };
-  const stepRow = (node: TreeStep): ReactNode => {
+  const stepRow = (node: TreeStep, inCode: boolean): ReactNode => {
     const facts = stepFacts(node);
+    const marked = facts.codeOnly && !inCode;
     return (
       <UI.OutlineRow
         add={outlineAdd(node.id)}
+        codeMark={marked ? codeMark() : undefined}
         data-card={node.id}
         icon={facts.glyph === undefined
           ? undefined
@@ -526,7 +556,7 @@ export function WorkflowDiagram(
         needsSetup={facts.drawing}
         needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
         onSelect={canManage ? () => onSelect(node.id) : undefined}
-        selectLabel={stepName(node)}
+        selectLabel={markedName(node, marked)}
         selected={selectedId === node.id}
         summary={facts.extra === undefined ? facts.summary : (
           <>
@@ -573,7 +603,7 @@ export function WorkflowDiagram(
     for (let index = 0; index < held.length; index += 1) {
       const node = held[index];
       if (node.kind === "step") {
-        rows.push(stepRow(node));
+        rows.push(stepRow(node, inCode));
         continue;
       }
       // The two arms of a branch are consecutive in the tree: one If row.
@@ -586,6 +616,7 @@ export function WorkflowDiagram(
           <UI.OutlineRow
             codeMark={inCode ? undefined : codeMark()}
             data-group="if"
+            icon={<UI.IconGlyph name="branch" size="small" />}
             key={`if-${node.id}`}
             title={translate("library.editor.group.if" as never)}
           >
@@ -631,11 +662,10 @@ export function WorkflowDiagram(
 
   // The canvas is a separate chunk. If it cannot be fetched the same workflow
   // is drawn as the outline, with a notice and a way to try again.
-  const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
   const Canvas = useMemo(
     () => lazy(() => import("./WorkflowCanvas.tsx")),
-    [attempt],
+    [],
   );
   const mode = readOnlyPage ? "page" : "editor";
 
@@ -673,10 +703,11 @@ export function WorkflowDiagram(
               action={
                 <UI.Button
                   variant="secondary"
-                  onClick={() => {
-                    setFailed(false);
-                    setAttempt((was) => was + 1);
-                  }}
+                  // A browser remembers a module that failed to load, so asking
+                  // again for the same file answers with the same failure: the
+                  // only way to the diagram is a fresh page. Saves are
+                  // debounced and the list above is the same workflow.
+                  onClick={() => globalThis.location.reload()}
                 >
                   {translate("library.editor.canvas.retry" as never)}
                 </UI.Button>
@@ -699,14 +730,9 @@ export function WorkflowDiagram(
           fallback={
             <UI.CanvasFrame
               height={graph.blocks.length * (STEP_SIZE.height + WIRE_LENGTH)}
+              loading
               variant={mode === "page" ? "page" : "fill"}
-            >
-              <UI.Stack gap="standard">
-                <UI.Skeleton shape="surface" />
-                <UI.Skeleton shape="surface" />
-                <UI.Skeleton shape="surface" />
-              </UI.Stack>
-            </UI.CanvasFrame>
+            />
           }
         >
           <Canvas

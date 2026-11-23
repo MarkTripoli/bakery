@@ -50,6 +50,7 @@ export type IconGlyphName =
   | "chat"
   | "chevron-left"
   | "lanes"
+  | "branch"
   | "info"
   | "issue"
   | "close"
@@ -433,6 +434,7 @@ const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
   chat: <path d="M4 5h16v11H9l-5 4z" />,
   "chevron-left": <path d="m15 6-6 6 6 6" />,
   lanes: <path d="M4 6h6M4 12h10M4 18h16M14 6h6" />,
+  branch: <path d="M12 21v-8m0 0L6 5m6 8 6-8" />,
   arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
   back: <path d="M19 12H5m6-6-6 6 6 6" />,
   building: <path d="M4 21V3h11v18m0-12h5v12M2 21h20M8 7h3m-3 4h3m-3 4h3" />,

@@ -237,9 +237,18 @@
 }
 .ui-step-card__body {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-0-5);
   min-inline-size: 0;
+}
+/* The mark for a step written in code sits at the right end of the name. */
+.ui-step-card__code {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  flex: none;
+  padding-block-start: var(--space-0-5);
 }
 .ui-step-card__title {
   font: var(--type-body);
@@ -712,43 +721,49 @@ button.ui-step-group__header:focus-visible {
   flex-direction: column;
   min-inline-size: 0;
 }
+/* A row is flat: no card, only its own state draws a frame. The code mark sits
+   inside the row, at its right end. */
 .ui-outline__row {
   align-items: center;
+  border: var(--border-default) solid transparent;
+  border-radius: var(--radius-surface);
+  box-sizing: border-box;
   display: flex;
   gap: var(--space-2);
+  min-block-size: var(--target-coarse);
   min-inline-size: 0;
+  padding-inline: var(--space-2);
+}
+.ui-outline__row:has(button.ui-outline__main:hover) {
+  background: var(--color-surface-subtle);
 }
 .ui-outline__main {
   align-items: center;
-  background: var(--color-surface);
-  border: var(--border-default) solid var(--color-border);
-  border-radius: var(--radius-surface);
-  box-sizing: border-box;
+  background: transparent;
+  border: var(--border-none);
   color: var(--color-fg);
   display: flex;
   flex: 1 1 auto;
   gap: var(--space-2);
   min-block-size: var(--target-coarse);
   min-inline-size: 0;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-0);
   text-align: start;
 }
 button.ui-outline__main {
   cursor: pointer;
 }
-button.ui-outline__main:hover {
-  border-color: var(--color-border-strong);
-}
 button.ui-outline__main:focus-visible {
   outline: var(--border-emphasis) solid var(--color-selection);
   outline-offset: var(--space-0-5);
 }
-.ui-outline__item[data-selected="true"] > .ui-outline__row > .ui-outline__main {
+.ui-outline__item[data-selected="true"] > .ui-outline__row {
+  background: var(--color-surface-subtle);
   border-color: var(--color-selection);
   box-shadow: var(--shadow-subtle), inset 0 0 0 var(--border-emphasis)
     var(--color-selection);
 }
-.ui-outline__item[data-needs-setup="true"] > .ui-outline__row > .ui-outline__main {
+.ui-outline__item[data-needs-setup="true"] > .ui-outline__row {
   border-color: var(--color-destructive);
 }
 .ui-outline__icon {
@@ -766,6 +781,15 @@ button.ui-outline__main:focus-visible {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
+}
+/* From a tablet up the line sits beside the name; on a phone it sits under it. */
+@media (min-width: 744px) {
+  .ui-outline__body {
+    align-items: baseline;
+    column-gap: var(--space-3);
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }
 .ui-outline__title {
   font: var(--type-body);
@@ -833,7 +857,13 @@ button.ui-outline__main:focus-visible {
 }
 [data-ui-region="workflow-canvas"] .react-flow__controls-button {
   block-size: var(--size-control);
+  font: var(--type-control);
   inline-size: var(--size-control);
+}
+/* Fit carries its word, so its button is as wide as the word needs. */
+[data-ui-region="workflow-canvas"] .react-flow__controls-button[data-fit] {
+  inline-size: auto;
+  padding-inline: var(--space-2);
 }
 [data-ui-region="workflow-canvas"] .react-flow__attribution {
   color: var(--color-fg-muted);
@@ -869,6 +899,18 @@ button.ui-outline__main:focus-visible {
   box-sizing: border-box;
   inline-size: 100%;
   overflow: hidden;
+}
+/* While the diagram's code is fetched: three cards' worth of skeleton, centred
+   in the column the cards will take. */
+.ui-canvas-frame__loading {
+  display: grid;
+  gap: var(--space-12);
+  justify-items: center;
+  padding-block-start: var(--space-8);
+}
+.ui-canvas-frame__loading .ui-skeleton {
+  block-size: calc(var(--space-8) * 2);
+  inline-size: min(var(--layout-step-card), 100%);
 }
 .ui-canvas-frame[data-variant="page"] {
   border: var(--border-default) solid var(--color-border);

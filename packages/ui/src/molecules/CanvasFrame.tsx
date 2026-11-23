@@ -1,5 +1,6 @@
 import { type HTMLAttributes, useLayoutEffect, useRef } from "react";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
+import { Skeleton } from "../atoms/Skeleton.tsx";
 import "../steps.css";
 
 /**
@@ -17,6 +18,11 @@ export type CanvasFrameProps =
     variant?: "page" | "fill";
     /** The frame's height in pixels, for `page`. */
     height?: number;
+    /**
+     * Draws three card-sized skeletons, centred where the cards will land,
+     * instead of its children: what a diagram shows while its code is fetched.
+     */
+    loading?: boolean;
   };
 
 /** The shortest a filled canvas gets, in pixels. */
@@ -26,7 +32,8 @@ const FILL_GAP = 24;
 
 /** The box a workflow diagram is drawn in. */
 export function CanvasFrame(
-  { children, height, variant = "page", ...props }: CanvasFrameProps,
+  { children, height, loading = false, variant = "page", ...props }:
+    CanvasFrameProps,
 ) {
   const frame = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -47,7 +54,7 @@ export function CanvasFrame(
     <div
       {...props}
       className="ui-canvas-frame"
-      data-state="default"
+      data-state={loading ? "loading" : "default"}
       data-ui-component="canvasFrame"
       data-variant={variant}
       ref={frame}
@@ -55,7 +62,15 @@ export function CanvasFrame(
         ? { blockSize: `${height}px` }
         : undefined}
     >
-      {children}
+      {loading
+        ? (
+          <div className="ui-canvas-frame__loading">
+            <Skeleton shape="surface" />
+            <Skeleton shape="surface" />
+            <Skeleton shape="surface" />
+          </div>
+        )
+        : children}
     </div>
   );
 }

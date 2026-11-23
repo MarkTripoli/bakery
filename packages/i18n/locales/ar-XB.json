@@ -6471,5 +6471,6 @@
   "library.editor.outline.label": "⟪Steps in this workflow⟫",
   "library.editor.group.each": "⟪For each item⟫",
   "library.editor.group.eachLimit": "⟪At most {max, plural, one {# item} other {# items}}⟫",
-  "library.editor.group.eachHelp": "⟪Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.⟫"
+  "library.editor.group.eachHelp": "⟪Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.⟫",
+  "library.editor.publish.notSaved": "⟪Your latest changes are not saved. Press Try again first.⟫"
 }

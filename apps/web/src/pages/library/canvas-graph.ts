@@ -56,6 +56,8 @@ export const BOX_PADDING = { top: 40, side: 16, bottom: 16 } as const;
 export const WIRE_LENGTH = 48;
 /** The space beside blocks in a row (the two arms of an If). */
 export const SIDE_GAP = 24;
+/** The gap between two cards inside a box, as the design draws it. */
+export const BOX_GAP = 28;
 
 function isArmPair(
   node: TreeNode,
@@ -189,8 +191,12 @@ export function elkGraph(
           `[top=${BOX_PADDING.top},left=${BOX_PADDING.side},bottom=${BOX_PADDING.bottom},right=${BOX_PADDING.side}]`,
         "elk.direction": block.kind === "if" ? "RIGHT" : "DOWN",
         "elk.spacing.nodeNode": String(
-          block.kind === "if" ? SIDE_GAP : WIRE_LENGTH,
+          block.kind === "if" ? SIDE_GAP : BOX_GAP,
         ),
+        // The layers of a box are its rows: ELK's own default is 20.
+        ...(block.kind === "if"
+          ? { "elk.alignment": "TOP" }
+          : { "elk.layered.spacing.nodeNodeBetweenLayers": String(BOX_GAP) }),
       },
       // An empty box still has room for its one line and its "+".
       ...(held.length === 0

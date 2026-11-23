@@ -1,5 +1,5 @@
 {
-  "revision": "c994fcf87cf88ce3da5012126746249d9df4a244dd23a3315bb28fbee47fd6ff",
+  "revision": "6fe4479550eeff7b15baa03aee29c2bb21473a411b6f3ca13c6dea5a62306c8f",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -22299,7 +22299,7 @@
           "desktop-light-fine"
         ]
       },
-      "description": "The bordered surface a workflow diagram is drawn on: it gives the drawing a box with a definite height, as tall as the diagram on a page or filling the window below it in the editor.",
+      "description": "The bordered surface a workflow diagram is drawn on: it gives the drawing a box with a definite height, as tall as the diagram on a page or filling the window below it in the editor, and while the diagram loads it shows three card-sized skeletons.",
       "evidenceRefs": [
         "design.components"
       ],
@@ -22321,10 +22321,11 @@
       "requiredCases": [
         {
           "baselineIds": [],
-          "description": "Shows a page frame with a set height and a fill frame, each holding plain text in place of the diagram.",
+          "description": "Shows a page frame with a set height, a fill frame, and a loading frame with its three card-sized skeletons, each holding plain text in place of the diagram unless loading.",
           "id": "contract",
           "states": [
-            "default"
+            "default",
+            "loading"
           ],
           "variants": [
             "page",
@@ -22340,7 +22341,8 @@
         "i18n.translated-logical"
       ],
       "states": [
-        "default"
+        "default",
+        "loading"
       ],
       "status": "implemented",
       "storyTitle": "Bakery/Molecules/CanvasFrame",

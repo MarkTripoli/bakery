@@ -232,6 +232,10 @@ export function WorkflowEditorPage(
   const [saveState, setSaveState] = useState<SaveState>({ kind: "saved" });
   const [codeOpen, setCodeOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  // Publish pressed while a change is still waiting to save or being saved: the
+  // save finishes first, then the dialog opens. Publish sends the saved draft's
+  // id and digest, so it must never run ahead of what is on screen.
+  const [publishAfterSave, setPublishAfterSave] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
   // The step just deleted, by name, while its Undo is offered.
   const [deleted, setDeleted] = useState<string | null>(null);
@@ -240,7 +244,11 @@ export function WorkflowEditorPage(
   const lastSaved = useRef<string | null>(null);
   // The version the last save returned: a second edit made while the draft is
   // still being read again must send this one, not the one it last read.
-  const savedVersion = useRef<{ id: string; version: number } | null>(null);
+  // The newest save's record version and digest: what Publish must name, as the
+  // list of versions it was read from may not have caught up with the save yet.
+  const savedVersion = useRef<
+    { id: string; version: number; digest: string } | null
+  >(null);
   // The slots the last write sent, so only those are cleared when it lands.
   const sentSlots = useRef<string[]>([]);
   // Slots the person settled (by choosing a skill or removing the placeholder) and the
@@ -302,7 +310,11 @@ export function WorkflowEditorPage(
         idempotencyKey: crypto.randomUUID(),
       });
       if (!result.ok) throw result.error;
-      savedVersion.current = { id: draft.id, version: result.data.version };
+      savedVersion.current = {
+        id: draft.id,
+        version: result.data.version,
+        digest: result.data.digest,
+      };
       return result.data;
     },
     onMutate: () => setSaveState({ kind: "saving" }),
@@ -327,11 +339,17 @@ export function WorkflowEditorPage(
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
       if (draft === null) throw new Error("no draft version");
+      // The draft as last saved, never an older read of it.
+      const latest = savedVersion.current?.id === draft.id &&
+          savedVersion.current.version > draft.version
+        ? savedVersion.current
+        : { version: draft.version, digest: draft.digest };
       const published = await api.publishWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
         versionId: draft.id,
-        expectedDigest: draft.digest,
+        version: latest.version,
+        expectedDigest: latest.digest,
         idempotencyKey: crypto.randomUUID(),
       });
       if (!published.ok) throw published.error;
@@ -496,9 +514,13 @@ export function WorkflowEditorPage(
     if (!canManage || draft === null || saveState.kind === "failed") return;
     // One write at a time: the next waits for this one, then saves what changed since.
     if (!changed || save.isPending) return;
-    const timer = setTimeout(() => save.mutate(steps), SAVE_AFTER_MS);
+    const timer = setTimeout(
+      () => save.mutate(steps),
+      publishAfterSave ? 0 : SAVE_AFTER_MS,
+    );
     return () => clearTimeout(timer);
   }, [
+    publishAfterSave,
     changed,
     steps,
     canManage,
@@ -507,6 +529,20 @@ export function WorkflowEditorPage(
     save.isPending,
     resolving,
   ]);
+
+  // Once the save Publish waited for has landed the dialog opens; if it failed
+  // there is no dialog and the header says "Not saved".
+  useEffect(() => {
+    if (!publishAfterSave) return;
+    if (saveState.kind === "failed") {
+      setPublishAfterSave(false);
+      return;
+    }
+    if (saveState.kind === "saved" && !changed && !save.isPending) {
+      setPublishAfterSave(false);
+      setPublishOpen(true);
+    }
+  }, [publishAfterSave, saveState.kind, changed, save.isPending]);
 
   // Leaving while the latest change is not saved asks first.
   useEffect(() => {
@@ -934,6 +970,9 @@ export function WorkflowEditorPage(
     </UI.Stack>
   );
 
+  // The Diagram / Outline switch belongs to the title row whenever steps show.
+  const showsSteps = !forbidden && !missing && !offline && !loading &&
+    draft !== null;
   const body = forbidden
     ? (
       <UI.ErrorState
@@ -976,9 +1015,6 @@ export function WorkflowEditorPage(
     : (
       <UI.Inline gap="standard" data-ui-region="editor-work-surface">
         <UI.Stack gap="standard">
-          <div data-ui-region="workflow-view-switch">
-            <DiagramViewSwitch onChange={setDiagramView} view={diagramView} />
-          </div>
           <WorkflowDiagram
             tree={tree}
             selectedId={selectedId}
@@ -1026,8 +1062,11 @@ export function WorkflowEditorPage(
       )
       : null
   );
+  // After a failed save the draft on screen is not the saved one, so "Ready to
+  // publish" would promise something the save has not delivered. Problems stay.
+  const notSaved = shownSave.kind === "failed";
   const problems = problemCount === 0
-    ? (
+    ? notSaved ? null : (
       <span data-testid="editor-problems">
         <UI.Badge tone="neutral">{problemWord}</UI.Badge>
       </span>
@@ -1049,14 +1088,33 @@ export function WorkflowEditorPage(
       {translate("library.editor.viewAsCode" as never)}
     </UI.Button>
   );
-  const publishButton = (
+  const pressPublish = () => {
+    if (notSaved) return;
+    if (changed || save.isPending || shownSave.kind === "saving") {
+      setPublishAfterSave(true);
+    } else setPublishOpen(true);
+  };
+  // After a failed save Publish stays focusable but does nothing, and says why.
+  const publishCore = (
     <UI.Button
+      aria-disabled={notSaved ? true : undefined}
+      loading={publishAfterSave}
+      onClick={pressPublish}
+      state={notSaved ? "disabled" : undefined}
       variant="primary"
-      onClick={() => setPublishOpen(true)}
     >
       {translate("library.editor.publish" as never)}
     </UI.Button>
   );
+  const publishButton = notSaved
+    ? (
+      <UI.Tooltip
+        content={translate("library.editor.publish.notSaved" as never)}
+      >
+        {publishCore}
+      </UI.Tooltip>
+    )
+    : publishCore;
 
   return (
     <>
@@ -1085,6 +1143,13 @@ export function WorkflowEditorPage(
           `split` nests it in a paragraph, which a stack cannot live inside. */
       }
       <UI.PageHeader
+        aside={showsSteps && !phone
+          ? (
+            <div data-ui-region="workflow-view-switch">
+              <DiagramViewSwitch onChange={setDiagramView} view={diagramView} />
+            </div>
+          )
+          : undefined}
         flush
         variant="list"
         title={workflow.data?.name ??

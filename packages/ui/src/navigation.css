@@ -2376,6 +2376,20 @@ a.bakery-application-rail__link:hover {
 .bakery-page-header--list .bakery-page-header__subtitle p {
   margin: var(--space-0);
 }
+/* An aside takes the right end of the title row; the actions, when drawn, stay
+   on their own row beneath. */
+.bakery-page-header--list[data-aside="true"] {
+  align-items: start;
+  column-gap: var(--space-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.bakery-page-header--list[data-aside="true"] > .bakery-page-header__actions {
+  grid-column: 1 / -1;
+}
+.bakery-page-header__aside {
+  align-self: start;
+}
 .bakery-page-header--list .bakery-page-header__actions {
   display: none;
 }

@@ -2108,11 +2108,12 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowVersionResponse>>;
-  /** Publishes a draft version (its digest expected back, so a stale page cannot publish). */
+  /** Publishes a draft version: its digest is expected back, and `version` is the draft's own, sent as If-Match, so a stale page cannot publish. */
   readonly publishWorkflowVersion: (options: {
     readonly organizationId: string;
     readonly workflowId: string;
     readonly versionId: string;
+    readonly version: number;
     readonly expectedDigest: string;
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
@@ -6868,6 +6869,7 @@ export function createBakeryApiClient({
             expectedDigest: options.expectedDigest,
           },
           {
+            ifMatch: versionEtag(options.version),
             idempotencyKey: options.idempotencyKey,
             signal: options.signal,
           },

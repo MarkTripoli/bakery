@@ -90,3 +90,30 @@ export async function still(
     }
   }
 }
+
+/**
+ * Like `still`, but the window is left as it is: for a screen whose pane is
+ * window-high on purpose (the workflow canvas fills what is left of the
+ * window), where growing the window to the page's height would stretch it.
+ */
+export async function windowStill(page: Page, name: string): Promise<void> {
+  const directory = process.env.BAKERY_EVIDENCE_DIR ??
+    process.env.BAKERY_STILLS_DIR;
+  if (directory === undefined || directory === "") return;
+  const phone = (page.viewportSize()?.width ?? 1280) <= 743;
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.waitForFunction(
+      (expected) =>
+        Array.from(document.querySelectorAll("img[data-logo-variant]")).every(
+          (image) =>
+            image instanceof HTMLImageElement && image.complete &&
+            image.dataset.logoVariant?.endsWith(expected),
+        ),
+      scheme,
+    );
+    await page.screenshot({
+      path: `${directory}/${name}-${phone ? "phone" : "desktop"}-${scheme}.png`,
+    });
+  }
+}

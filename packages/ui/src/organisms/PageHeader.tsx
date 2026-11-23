@@ -34,6 +34,12 @@ export type PageHeaderProps = {
    */
   actionsLayout?: "stack" | "row";
   /**
+   * `list` only: a control at the right end of the title row, such as the
+   * switch between two views of the page. It is not drawn on a phone unless the
+   * caller passes one there.
+   */
+  aside?: ReactNode;
+  /**
    * `list` only: no inline inset, so the title, its line and anything under
    * them start at the same left edge as the section headings and field labels
    * of the page below (a main-rail page in the shell's own gutter), instead of
@@ -47,6 +53,7 @@ export function PageHeader(
   {
     actions,
     actionsLayout = "stack",
+    aside,
     description,
     flush,
     meta,
@@ -62,6 +69,7 @@ export function PageHeader(
       <div
         className={`bakery-page-header bakery-page-header--${variant}`}
         data-state="default"
+        data-aside={variant === "list" && aside ? "true" : undefined}
         data-flush={variant === "list" && flush ? "true" : undefined}
         data-ui-component="pageHeader"
         data-variant={variant}
@@ -77,6 +85,9 @@ export function PageHeader(
               : <p className="bakery-page-header__subtitle">{subtitle}</p>
             : null}
         </div>
+        {variant === "list" && aside
+          ? <div className="bakery-page-header__aside">{aside}</div>
+          : null}
         {summary
           ? <div className="bakery-page-header__summary">{summary}</div>
           : null}

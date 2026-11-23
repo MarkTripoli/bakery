@@ -34,6 +34,12 @@ export type StepCardProps =
     /** What the definition states, when the step could not be read. */
     writtenInCode?: ReactNode;
     /**
+     * The mark, right of the name, that says the step is written in code. The
+     * caller names it for a screen reader in the card's own label, so it adds
+     * no tab stop and no second announcement.
+     */
+    codeMark?: ReactNode;
+    /**
      * One further line inside the card, under the summary: on a read-only page,
      * which agent the step runs. It belongs to the card so it cannot sit on top
      * of the path line between cards (#67 UX ruling 6932934119 fix 13).
@@ -44,6 +50,7 @@ export type StepCardProps =
 /** A step drawn as a card, selectable, for the workflow diagram. */
 export function StepCard(
   {
+    codeMark,
     controls,
     detail,
     icon,
@@ -96,6 +103,9 @@ export function StepCard(
           ? null
           : <span className="ui-step-card__written">{writtenInCode}</span>}
       </span>
+      {codeMark === undefined
+        ? null
+        : <span className="ui-step-card__code">{codeMark}</span>}
     </button>
   );
 }

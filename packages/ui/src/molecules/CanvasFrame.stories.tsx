@@ -21,6 +21,7 @@ export const Contract: StoryObj = {
       <CanvasFrame variant="fill">
         <p>A fill frame, as tall as the window leaves it.</p>
       </CanvasFrame>
+      <CanvasFrame height={280} loading variant="page" />
     </div>
   ),
 };

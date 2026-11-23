@@ -5333,6 +5333,7 @@
   "library.editor.check.ok": "Nothing to fix in these steps.",
   "library.editor.check.problems": "Steps need attention: {count}.",
   "library.editor.publish": "Publish",
+  "library.editor.publish.notSaved": "Your latest changes are not saved. Press Try again first.",
   "library.editor.publish.title": "Publish version {version}",
   "library.editor.publish.body": "This saves the steps as a new version and makes it the one new tasks get.",
   "library.editor.publish.confirm": "Publish",
