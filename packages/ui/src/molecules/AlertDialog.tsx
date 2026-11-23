@@ -21,6 +21,9 @@ export type AlertDialogProps =
     variant?: "destructive" | "security";
   };
 
+const safeActionSelector =
+  ".ui-alert-dialog__safe-action button:not(:disabled)";
+
 /** Requests confirmation for a consequential action. */
 export function AlertDialog(
   {
@@ -54,7 +57,7 @@ export function AlertDialog(
     onOpenChange?.(nextOpen);
   };
 
-  useNativeDialogOpen(dialogRef, isOpen);
+  useNativeDialogOpen(dialogRef, isOpen, safeActionSelector);
 
   return (
     <dialog

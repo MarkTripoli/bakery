@@ -886,6 +886,10 @@ test("the section has no accessibility violations and fits a 390px screen", asyn
 const nowCard = (page: Page) =>
   page.getByTestId("delivery-section").getByTestId("delivery-now");
 const notice = (page: Page) => page.getByTestId("delivery-approval-notice");
+const actions = (card: Locator) =>
+  card.getByRole("button").and(
+    card.locator("button:not(.ui-reference__plain)"),
+  );
 const button = (card: Locator, name: string) =>
   card.getByRole("button", { name, exact: true });
 
@@ -1909,7 +1913,7 @@ test("a merging entry whose newest attempt is unknown is the unknown card with C
   const now = nowCard(page);
   await expect(now).toContainText("Bakery does not know whether this merged");
   await expect(button(now, "Check again")).toBeVisible();
-  await expect(now.getByRole("button")).toHaveCount(1);
+  await expect(actions(now)).toHaveCount(1);
 });
 
 for (
@@ -1989,8 +1993,7 @@ for (
     await expect(now).toContainText(title);
     await expect(now).toContainText(text);
     await expect(mergeStep(page)).toContainText("Bakery did not merge.");
-    // One primary action, or none: pressing it must be able to help.
-    const buttons = now.getByRole("button");
+    const buttons = actions(now);
     const links = now.getByRole("link", { name: /Open on GitHub/ });
     await expect(buttons).toHaveCount(action === "Merge again" ? 1 : 0);
     await expect(links).toHaveCount(action === "Open on GitHub" ? 1 : 0);
@@ -2047,7 +2050,7 @@ test("a stopped merge stops showing when the pull request's head changes", async
   const now = nowCard(page);
   await expect(now).toContainText("Not merged: the pull request changed");
   await expect(now).toContainText("now ends at 4be19c2");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
 });
 
 test("someone who may not merge is told so and is offered no button", async ({ page }) => {
@@ -2162,7 +2165,7 @@ test("a pull request that moved after the approval is not offered to merge, and 
   );
   await expect(now).toContainText("Commit 91d0aa3 was approved");
   await expect(now).toContainText("now ends at 4be19c2");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
   // The results, review and approval are marked as being for the older commit,
   // not shown as green for the commit the pull request no longer ends at.
   const section = page.getByTestId("delivery-section");
@@ -2387,7 +2390,7 @@ test("an approved commit with no check results says so, offers no Merge, and nev
     "Bakery merges only what was checked, and it has no check results for commit 91d0aa3. Open the pull request to see its checks.",
   );
   await expect(now).not.toContainText("Ready to merge");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
   await expect(now.getByRole("link", { name: /Open on GitHub/ }))
     .toHaveAttribute("href", "https://github.com/o/r/pull/482");
   expect(seen.merges).toHaveLength(0);
