@@ -1,4 +1,9 @@
 import { type CodingAgent, codingAgents } from "./machine-state.ts";
+import {
+  defaultSystemRow,
+  isSupportedSystem,
+  type MachineSystem,
+} from "./machine-systems.ts";
 
 /**
  * What the add-a-machine wizard asks and what it sends (#70). The wizard holds
@@ -9,29 +14,22 @@ import { type CodingAgent, codingAgents } from "./machine-state.ts";
 export const WIZARD_STEPS = ["system", "agent", "install"] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
 
-export type MachineSystem = "linux" | "macos";
-
-export const PROCESSORS = ["x86_64", "arm64"] as const;
-export type Processor = (typeof PROCESSORS)[number];
-
 export type WizardAnswers = Readonly<{
   name: string;
-  os: MachineSystem;
+  /** Null until a system is chosen: with two or more supported rows none is chosen for the person. */
+  os: MachineSystem | null;
   architecture: string;
   slots: string;
   agent: CodingAgent | null;
 }>;
 
-/** The processor a system most often has; the person can change it. */
-export function suggestedProcessor(os: MachineSystem): Processor {
-  return os === "macos" ? "arm64" : "x86_64";
-}
-
+/** The system chosen when the page opens: the only supported row, or none when there are several (see `machine-systems.ts`). */
 export function initialAnswers(): WizardAnswers {
+  const row = defaultSystemRow();
   return {
     name: "",
-    os: "linux",
-    architecture: suggestedProcessor("linux"),
+    os: row?.os ?? null,
+    architecture: row?.architecture ?? "",
     slots: "1",
     agent: null,
   };
@@ -40,7 +38,17 @@ export function initialAnswers(): WizardAnswers {
 export const NAME_MAX = 200;
 export const SLOTS_MAX = 100;
 
-export type SystemProblem = "nameRequired" | "nameTooLong" | "slotsInvalid";
+export type SystemProblem =
+  | "nameRequired"
+  | "nameTooLong"
+  | "systemRequired"
+  | "slotsInvalid";
+
+/** Whether the answers name a system Bakery can set up. */
+export function systemChosen(answers: WizardAnswers): boolean {
+  return answers.os !== null &&
+    isSupportedSystem(answers.os, answers.architecture);
+}
 
 /** What is wrong with the first step's answers, in the order the fields are shown. */
 export function systemProblems(answers: WizardAnswers): SystemProblem[] {
@@ -48,6 +56,7 @@ export function systemProblems(answers: WizardAnswers): SystemProblem[] {
   const name = answers.name.trim();
   if (name.length === 0) problems.push("nameRequired");
   else if (name.length > NAME_MAX) problems.push("nameTooLong");
+  if (!systemChosen(answers)) problems.push("systemRequired");
   if (parsedSlots(answers.slots) === null) problems.push("slotsInvalid");
   return problems;
 }
@@ -81,7 +90,8 @@ export function enrollmentInput(
   const slots = parsedSlots(answers.slots);
   if (
     systemProblems(answers).length > 0 || slots === null ||
-    answers.agent === null || answers.architecture.trim().length === 0
+    answers.agent === null || answers.os === null ||
+    !isSupportedSystem(answers.os, answers.architecture)
   ) return null;
   return {
     name: answers.name.trim(),
@@ -114,16 +124,6 @@ export const HARNESS_REPOSITORY = "/workspace/repository";
 /** The setting that names that folder, for the sentence that tells the person to change it. */
 export function harnessRepositorySetting(agent: CodingAgent): string {
   return `BAKERY_${HARNESS[agent].prefix}_HARNESS_REPOSITORY`;
-}
-
-/**
- * Whether Bakery can run its worker on this system by the steps the wizard
- * shows. Only Linux can: its steps are the production layout
- * (`infra/production`). There is no installer, and no tested way to run the
- * worker, on macOS yet.
- */
-export function hasInstaller(os: MachineSystem): boolean {
-  return os === "linux";
 }
 
 /**

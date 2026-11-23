@@ -54,6 +54,8 @@ const run = (finished: boolean) => ({
   workspaceBaseSha: null,
   requestedBy: uuid(1),
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: finished ? "completed" : "running",
   budgetLimitUsd: "10.00",
   startedAt: "2026-01-01T00:00:01.000Z",

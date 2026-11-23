@@ -1237,6 +1237,8 @@ test("unsupported steering is explicit in the run controls while a run is active
     workspaceBaseSha: null,
     requestedBy: principalId,
     inngestRunId: null,
+    // Required since #921: the run's pinned environment.
+    environment: "live",
     status: "running",
     budgetLimitUsd: "10.00",
     startedAt: "2026-01-01T00:00:01.000Z",
@@ -1303,6 +1305,8 @@ test(
       workspaceBaseSha: null,
       requestedBy: principalId,
       inngestRunId: null,
+      // Required since #921: the run's pinned environment.
+      environment: "live",
       status: "running",
       budgetLimitUsd: "10.00",
       startedAt: "2026-01-01T00:00:01.000Z",
@@ -2255,6 +2259,8 @@ const runFixture = (status: string) => ({
   workspaceBaseSha: null,
   requestedBy: principalId,
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status,
   budgetLimitUsd: "10.00",
   startedAt: "2026-01-01T00:00:01.000Z",
