@@ -12,8 +12,12 @@ import {
   createEffectExecutor,
   type EffectExecutorDeps,
 } from "../effects/index.ts";
-import { createMcpEffectPort } from "../mcp/effect-port.ts";
+import {
+  createMcpEffectPort,
+  mcpCallWasNotExecuted,
+} from "../mcp/effect-port.ts";
 import type { ToolCallRecorder } from "./tool-call-record.ts";
+import { budgetRefusalReason, type ToolCallCosts } from "./tool-call-cost.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
 import { McpToolCallError } from "../mcp/tool-transport.ts";
 import { toRunEnvironment } from "../work/run-environment.ts";
@@ -73,6 +77,12 @@ export type ToolCallStepDeps = Readonly<{
    * it settles. Absent, nothing is recorded (a test that does not read the feed).
    */
   toolCalls?: ToolCallRecorder;
+  /**
+   * Holds a step's per-call cost ceiling before it sends and ends the hold after.
+   * Absent, a step that names a ceiling is refused by name rather than sent
+   * unguarded.
+   */
+  costs?: ToolCallCosts;
   /** Finds which kind of connection an id names. Defaults to the connection tables. */
   connectionKind?: (
     organizationId: string,
@@ -89,8 +99,26 @@ export function toolCallEffectKey(
   return `${request.runId}:${request.stepKey}:${request.iteration}`;
 }
 
-function failed(code: string, message: string): EngineStepResult {
-  return { kind: "failed", code, message };
+/**
+ * What a call answered, with whether it may have spent money. A failure is
+ * taken as spending nothing unless its maker says the call may have reached the
+ * server: the ceiling held for it is then charged rather than given back.
+ */
+type CallResult = EngineStepResult & { mayHaveSpent?: boolean };
+
+function failed(
+  code: string,
+  message: string,
+  mayHaveSpent = false,
+): CallResult {
+  return { kind: "failed", code, message, mayHaveSpent };
+}
+
+/** What the engine is told: the answer without the runner's own note on spending. */
+function toStepResult(result: CallResult): EngineStepResult {
+  return result.kind === "failed"
+    ? { kind: "failed", code: result.code, message: result.message }
+    : result;
 }
 
 /** The reason a refusal carries, when it is a fixed lower-case token; otherwise the error code. */
@@ -164,7 +192,7 @@ export function createToolCallStepRunner(
   async function runMcp(
     request: EngineStepRequest,
     input: { connectionId: string; tool: string; arguments: unknown },
-  ): Promise<EngineStepResult> {
+  ): Promise<CallResult> {
     if (deps.mcp === undefined) {
       return failed(
         "TOOL_CALL_MCP_UNAVAILABLE",
@@ -303,6 +331,8 @@ export function createToolCallStepRunner(
         return failed(
           `TOOL_CALL_MCP_${error.reason.toUpperCase()}`,
           "The MCP server did not give a usable answer.",
+          // A call that may have reached the server is charged its ceiling.
+          !mcpCallWasNotExecuted(error.reason),
         );
       }
       if (!(error instanceof StandardError)) throw error;
@@ -331,7 +361,7 @@ export function createToolCallStepRunner(
       allowed: readonly unknown[];
       runStepId: string | null;
     }>,
-  ): Promise<EngineStepResult> {
+  ): Promise<CallResult> {
     if (mcpExecutor === undefined) {
       return failed(
         "TOOL_CALL_MCP_UNAVAILABLE",
@@ -415,6 +445,57 @@ export function createToolCallStepRunner(
     }
   }
 
+  /**
+   * Holds the step's per-call cost ceiling, when it names one, and answers with
+   * the failure that stops the call, or null when the call may go ahead. A step
+   * with a ceiling is never sent without a hold: no budget configured, or an
+   * account that cannot cover it, refuses the step before anything is sent.
+   */
+  async function hold(request: EngineStepRequest): Promise<CallResult | null> {
+    const ceiling = request.costCeilingUsd;
+    if (ceiling === null) return null;
+    if (deps.costs === undefined) {
+      return failed(
+        "TOOL_CALL_COST_UNAVAILABLE",
+        "This server has no budget configured to hold a per-call cost ceiling.",
+      );
+    }
+    try {
+      await deps.costs.reserve({
+        organizationId: request.organizationId,
+        runId: request.runId,
+        runStepId: request.runStepId,
+        callId: toolCallEffectKey(request),
+        ceilingUsd: ceiling,
+      });
+      return null;
+    } catch (error) {
+      const reason = budgetRefusalReason(error);
+      if (reason === null) throw error;
+      return failed(
+        "TOOL_CALL_BUDGET_EXCEEDED",
+        "The run's or the installation's budget cannot cover this call's cost ceiling, so nothing was sent.",
+      );
+    }
+  }
+
+  /** Ends the hold once the call's answer is known; a step still waiting keeps it. */
+  async function endHold(
+    request: EngineStepRequest,
+    result: CallResult,
+  ): Promise<void> {
+    if (request.costCeilingUsd === null || deps.costs === undefined) return;
+    if (result.kind === "pending") return;
+    await deps.costs.finish({
+      organizationId: request.organizationId,
+      runStepId: request.runStepId,
+      callId: toolCallEffectKey(request),
+      outcome: result.kind === "failed" && result.mayHaveSpent !== true
+        ? "release"
+        : "settle",
+    });
+  }
+
   async function run(request: EngineStepRequest): Promise<EngineStepResult> {
     const parsed = contractSchemas.ToolCallInput.safeParse(request.input);
     if (!parsed.success) {
@@ -425,7 +506,6 @@ export function createToolCallStepRunner(
     }
     const input = parsed.data;
     const record = deps.toolCalls;
-    if (record === undefined) return await dispatch(request, input);
     const call = {
       organizationId: request.organizationId,
       runId: request.runId,
@@ -437,12 +517,17 @@ export function createToolCallStepRunner(
     };
     // A look at a step whose write is unproven finds its started record and
     // adds none; only a settled call adds its second.
-    await record({ ...call, phase: "started" });
-    const result = await dispatch(request, input);
-    if (result.kind === "completed") {
-      await record({ ...call, phase: "completed" });
-    } else if (result.kind === "failed") {
-      await record({ ...call, phase: "failed", failureCode: result.code });
+    if (record !== undefined) await record({ ...call, phase: "started" });
+    const refused = await hold(request);
+    const result = refused ?? await dispatch(request, input);
+    // A refused hold never held anything, so there is nothing to end.
+    if (refused === null) await endHold(request, result);
+    if (record !== undefined) {
+      if (result.kind === "completed") {
+        await record({ ...call, phase: "completed" });
+      } else if (result.kind === "failed") {
+        await record({ ...call, phase: "failed", failureCode: result.code });
+      }
     }
     return result;
   }
@@ -450,7 +535,7 @@ export function createToolCallStepRunner(
   async function dispatch(
     request: EngineStepRequest,
     input: z.output<typeof contractSchemas.ToolCallInput>,
-  ): Promise<EngineStepResult> {
+  ): Promise<CallResult> {
     const kind = await kindOf(request.organizationId, input.connectionId);
     if (kind === null) {
       return failed(
@@ -533,16 +618,27 @@ export function createToolCallStepRunner(
 
   return {
     handles: (action) => action === TOOL_CALL_ACTION,
-    run(request) {
+    async abandon(request) {
+      // The engine gave up on a step that was still waiting: whether its write
+      // ran is not known, so the ceiling is charged, never given back.
+      if (request.costCeilingUsd === null || deps.costs === undefined) return;
+      await deps.costs.finish({
+        organizationId: request.organizationId,
+        runStepId: request.runStepId,
+        callId: toolCallEffectKey(request),
+        outcome: "settle",
+      });
+    },
+    async run(request) {
       if (request.action !== TOOL_CALL_ACTION) {
-        return Promise.resolve(
+        return toStepResult(
           failed(
             "TOOL_CALL_ACTION_UNKNOWN",
             "This runner does not own that action.",
           ),
         );
       }
-      return run(request);
+      return toStepResult(await run(request));
     },
   };
 }

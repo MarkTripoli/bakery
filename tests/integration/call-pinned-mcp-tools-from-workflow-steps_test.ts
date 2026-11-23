@@ -291,6 +291,8 @@ function request(
     iteration: 0,
     action: "tool.call",
     input: { connectionId: w.connectionId, tool, arguments: args },
+    runStepId: crypto.randomUUID(),
+    costCeilingUsd: null,
   };
 }
 

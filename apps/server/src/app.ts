@@ -2,6 +2,7 @@ import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
 import { createPostgresToolCallRecorder } from "./modules/tool-call/tool-call-record.ts";
 import { createToolCallStepRunner } from "./modules/tool-call/tool-call-step.ts";
+import { createPostgresToolCallCosts } from "./modules/tool-call/tool-call-cost.ts";
 import { createPostgresMcpPinnedStatePort } from "./modules/mcp/postgres.ts";
 import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
 import { httpsMcpTransport } from "./modules/mcp/discovery-transport.ts";
@@ -823,6 +824,12 @@ export function createApp(options: {
           providerRequests,
           // Each call lands in the run's tool feed (runs.feed).
           toolCalls: createPostgresToolCallRecorder(options.pgDatabase),
+          // A step that names a per-call cost ceiling holds it on the run's and
+          // the installation's budgets before it sends.
+          costs: createPostgresToolCallCosts(
+            options.pgDatabase,
+            options.config.budget,
+          ),
           // A remote MCP tool is called by this server's own broker, through the
           // pinned-tool door; the credential never leaves the server.
           mcp: {

@@ -57,7 +57,7 @@ import {
 } from "../execution/step-notes.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
 import { isEngineSettledStepAction } from "@bakery/contracts/implemented-actions";
-import type { EngineStepRunner } from "./engine-steps.ts";
+import type { EngineStepRequest, EngineStepRunner } from "./engine-steps.ts";
 import {
   nextPlanStep,
   planActionAgentsFromSnapshot,
@@ -1561,6 +1561,24 @@ function stepRetryAtOf(dispatch: unknown): Date | null {
 }
 
 /**
+ * The per-call cost ceiling a step's dispatch carries (`limits.maxCostUsd`, in
+ * US dollars), as a decimal of at most six places; null when it names none.
+ * Read from the stored dispatch itself, which keeps the limits the plan's
+ * dispatch type leaves out. A value that is not a finite non-negative number is
+ * ignored rather than guessed.
+ */
+function costCeilingOfDispatch(dispatch: unknown): string | null {
+  if (dispatch === null || typeof dispatch !== "object") return null;
+  const limits = (dispatch as { limits?: unknown }).limits;
+  if (limits === null || typeof limits !== "object") return null;
+  const value = (limits as { maxCostUsd?: unknown }).maxCostUsd;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return value.toFixed(6);
+}
+
+/**
  * Settles a step a pack runner owns (the delivery steps today) the way a
  * projection is settled: no job, no budget. The
  * target is called outside any transaction, between two short ones: the first
@@ -1616,7 +1634,7 @@ async function admitEngineStep(
       return { key, terminal: true };
     });
   }
-  const result = await runner.run({
+  const request: EngineStepRequest = {
     organizationId: due.row.organizationId,
     runId: due.row.runId,
     taskId: due.row.taskId,
@@ -1627,8 +1645,14 @@ async function admitEngineStep(
     iteration: due.row.iteration,
     action: due.action,
     input: due.input,
-  });
-  return await withPgTransaction(database, async (transaction) => {
+    runStepId: due.row.runStepId,
+    costCeilingUsd: costCeilingOfDispatch(due.row.stepDispatch),
+  };
+  const result = await runner.run(request);
+  // The step ended without the runner's answer being used: whatever the runner
+  // holds for it is ended after this transaction, as unknown.
+  let abandoned = false;
+  const admission = await withPgTransaction(database, async (transaction) => {
     await requireEngineOwner(transaction, key.runId, owner);
     const row = await loadLogical(transaction, key, true) as AdmissionStepRow;
     // Cancelled, ended or finished meanwhile: whatever the call answered, the
@@ -1637,6 +1661,7 @@ async function admitEngineStep(
       !eligibleRunStatuses[row.runStatus] ||
       !eligibleStepStatuses[row.stepStatus] || row.cancelRequestedAt !== null
     ) {
+      abandoned = true;
       return { key, terminal: true };
     }
     if (result.kind === "completed") {
@@ -1670,6 +1695,7 @@ async function admitEngineStep(
         "ENGINE_STEP_TIMED_OUT:The step did not settle within its wait limit.",
         owner,
       );
+      abandoned = true;
       return { key, terminal: true };
     }
     // Not done: the row stays pending, started, with the time of the next look
@@ -1710,6 +1736,8 @@ async function admitEngineStep(
     }
     return { key, terminal: false };
   });
+  if (abandoned) await runner.abandon?.(request);
+  return admission;
 }
 
 export function createBakeryPostgresWorkflowRepository(options: {

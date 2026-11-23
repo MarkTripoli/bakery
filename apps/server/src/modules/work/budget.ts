@@ -972,6 +972,204 @@ export async function reserveCoordinatorTurn(
   return { reservationId, reservedUsd: amountText };
 }
 
+/** The reservation key of one tool call: its one effect key, so a replay finds the same hold. */
+export function toolCallDedupeKey(callId: string): string {
+  return `tool-call:${callId}`;
+}
+
+export type ToolCallReservation = Readonly<{
+  /** What the call's two reservations are now; a replay of a finished call reads back its end state. */
+  state: "held" | "settled" | "released";
+  reservedUsd: string;
+}>;
+
+type ToolCallReservationRow = ReservationRow & { organizationId: string };
+
+async function loadToolCallReservations(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  callId: string,
+  runStepId: string | null,
+): Promise<ToolCallReservationRow[]> {
+  const result = await transaction.query<ToolCallReservationRow>(
+    `select id, organization_id as "organizationId",
+            budget_account_id as "budgetAccountId",
+            reserved_usd::text as "reservedUsd",
+            settled_usd::text as "settledUsd", status
+       from bakery.budget_reservations
+      where organization_id = $1 and dedupe_key = $2
+        and run_step_id is not distinct from $3
+      order by id
+      for update`,
+    [organizationId, toolCallDedupeKey(callId), runStepId],
+  );
+  return result.rows;
+}
+
+/**
+ * Holds the per-call cost ceiling of one `tool.call` step before anything is
+ * sent (chapter 25 section 15.4: "a per-call cost ceiling is reserved and
+ * settled like model usage"). The ceiling is reserved on the run's account and
+ * on the installation's, like a model step's, so a call that would take either
+ * past its limit is refused with `budget_cap_exceeded` and sends nothing. The
+ * reservation is keyed by the step's one effect key: a step looked at again
+ * while its write is unproven finds its own hold and adds none, and the
+ * step's replay after it settled reads back that it did.
+ */
+export async function reserveToolCall(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    runId: string;
+    runStepId: string;
+    callId: string;
+    ceilingUsd: string;
+    policy: BudgetPolicy | undefined;
+  }>,
+): Promise<ToolCallReservation> {
+  const policy = requirePolicy(options.policy);
+  const amount = parseMicroUsd(options.ceilingUsd, "tool_call_ceiling");
+  if (amount <= 0n) conflict("tool_call_ceiling_invalid");
+  const amountText = formatMicroUsd(amount);
+  const planBudget = await lockPlanBudget(
+    transaction,
+    options.organizationId,
+    options.runId,
+  );
+  const period = await installationPeriod(transaction);
+  const installation = await account(transaction, {
+    scope: "installation",
+    organizationId: null,
+    runId: null,
+    periodStart: period.periodStart,
+    periodEnd: period.periodEnd,
+    limitUsd: policy.installationMonthlyLimitUsd,
+  });
+  const run = await loadRun(transaction, options.organizationId, options.runId);
+  const runAccount = await account(transaction, {
+    scope: "run",
+    organizationId: options.organizationId,
+    runId: options.runId,
+    periodStart: run.createdAt,
+    periodEnd: new Date(
+      run.createdAt.getTime() + policy.maxRunDurationSeconds * 1_000,
+    ),
+    limitUsd: run.limitUsd,
+  });
+  const existing = await loadToolCallReservations(
+    transaction,
+    options.organizationId,
+    options.callId,
+    options.runStepId,
+  );
+  if (existing.length > 0) {
+    const [first] = existing;
+    if (
+      existing.length !== 2 ||
+      existing.some((row) =>
+        row.status !== first!.status ||
+        parseMicroUsd(row.reservedUsd, "stored_reserved_usd") !== amount
+      )
+    ) conflict("budget_replay_content_mismatch");
+    return { state: first!.status, reservedUsd: amountText };
+  }
+  if (planBudget) {
+    await assertPlanBudget(
+      transaction,
+      options.organizationId,
+      planBudget,
+      amount,
+    );
+  }
+  for (const budgetAccountId of [installation.id, runAccount.id]) {
+    await transaction.query(
+      `insert into bakery.budget_reservations (
+         id, organization_id, budget_account_id, run_step_id, dedupe_key,
+         reserved_usd, settled_usd, status, expires_at, version
+       ) values ($1, $2, $3, $4, $5, $6, null, 'held',
+                 now() + ($7::integer * interval '1 second'), 1)`,
+      [
+        crypto.randomUUID(),
+        options.organizationId,
+        budgetAccountId,
+        options.runStepId,
+        toolCallDedupeKey(options.callId),
+        amountText,
+        policy.reservationTtlSeconds,
+      ],
+    );
+    const updated = await transaction.query(
+      `update bakery.budget_accounts
+          set reserved_usd = reserved_usd + $2::numeric,
+              updated_at = now(), version = version + 1
+        where id = $1
+          and reserved_usd + settled_usd + $2::numeric <= limit_usd
+        returning id`,
+      [budgetAccountId, amountText],
+    );
+    if (!updated.rows[0]) conflict("budget_cap_exceeded");
+  }
+  return { state: "held", reservedUsd: amountText };
+}
+
+/**
+ * Ends a tool call's hold. `settle` charges the held amount: a tool does not
+ * report what it cost, so a call that may have run is charged its ceiling, never
+ * less. `release` gives the hold back, for a call that was refused before
+ * anything was sent. Either is a no-op when the call has no hold (a step with no
+ * ceiling) or the hold already ended the same way, so a replay is harmless; a
+ * hold that ended the other way is left as it is, because money once settled is
+ * never returned and money once released is never charged afterwards.
+ */
+export async function finishToolCall(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    runStepId: string;
+    callId: string;
+    outcome: "settle" | "release";
+  }>,
+): Promise<"none" | "settled" | "released" | "already_ended"> {
+  const rows = await loadToolCallReservations(
+    transaction,
+    options.organizationId,
+    options.callId,
+    options.runStepId,
+  );
+  if (rows.length === 0) return "none";
+  if (rows.length !== 2) conflict("budget_reservations_missing");
+  const target = options.outcome === "settle" ? "settled" : "released";
+  if (rows[0]!.status !== "held") {
+    return rows[0]!.status === target ? target : "already_ended";
+  }
+  await lockAccounts(transaction, rows.map((row) => row.budgetAccountId));
+  for (const reservation of rows) {
+    const updated = await transaction.query(
+      `update bakery.budget_accounts
+          set reserved_usd = reserved_usd - $2::numeric,
+              settled_usd = settled_usd + $3::numeric,
+              updated_at = now(), version = version + 1
+        where id = $1 and reserved_usd >= $2::numeric
+        returning id`,
+      [
+        reservation.budgetAccountId,
+        reservation.reservedUsd,
+        options.outcome === "settle" ? reservation.reservedUsd : "0",
+      ],
+    );
+    if (!updated.rows[0]) conflict("budget_reservation_balance_invalid");
+  }
+  await transaction.query(
+    `update bakery.budget_reservations
+        set status = $3,
+            settled_usd = case when $3 = 'settled' then reserved_usd else null end,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = any($2::uuid[]) and status = 'held'`,
+    [options.organizationId, rows.map((row) => row.id), target],
+  );
+  return target;
+}
+
 async function loadIntent(
   transaction: PgTransactionClient,
   organizationId: string,

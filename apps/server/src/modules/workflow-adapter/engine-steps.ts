@@ -17,6 +17,14 @@ export type EngineStepRequest = Readonly<{
   iteration: number;
   action: string;
   input: unknown;
+  /** The step's own row, which a pack may key what it holds for the step by. */
+  runStepId: string;
+  /**
+   * The step's per-call cost ceiling in US dollars (`limits.maxCostUsd`), as a
+   * decimal of at most six places; null when the step names none. A runner that
+   * can spend money holds it before anything is sent.
+   */
+  costCeilingUsd: string | null;
 }>;
 
 /** Done, refused with a stable code, or not yet (the engine looks again later). */
@@ -33,6 +41,13 @@ export type EngineStepRunner = Readonly<{
    * crash: the key is the one effect key of the step end to end.
    */
   run(request: EngineStepRequest): Promise<EngineStepResult>;
+  /**
+   * Called once when the engine ends a step it did not settle (it waited past
+   * its limit, or the run was canceled or ended while the step was pending).
+   * A runner that holds something for the step ends it here, as unknown, never
+   * as free. Absent, nothing is held. It must be safe to call for any step.
+   */
+  abandon?(request: EngineStepRequest): Promise<void>;
 }>;
 
 /**
@@ -54,6 +69,10 @@ export function composeEngineStepRunners(
         });
       }
       return owner.run(request);
+    },
+    async abandon(request) {
+      await runners.find((runner) => runner.handles(request.action))
+        ?.abandon?.(request);
     },
   };
 }

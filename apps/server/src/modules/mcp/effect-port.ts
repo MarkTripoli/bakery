@@ -61,6 +61,11 @@ const REJECTED: ReadonlySet<McpToolCallFailure> = new Set([
   "tool_failed",
 ]);
 
+/** Whether a failed exchange is one the server never executed or answered that it did not run. */
+export function mcpCallWasNotExecuted(reason: McpToolCallFailure): boolean {
+  return NOT_SENT.has(reason) || REJECTED.has(reason);
+}
+
 /** How one failed exchange maps to what the ledger records; anything else may have arrived. */
 export function mcpWriteFailure(error: unknown): McpWriteResult {
   // A refusal by the door happens before anything is sent.

@@ -4,6 +4,7 @@ import {
   createToolCallStepRunner,
   toolCallEffectKey,
 } from "../../apps/server/src/modules/tool-call/tool-call-step.ts";
+import type { ToolCallCosts } from "../../apps/server/src/modules/tool-call/tool-call-cost.ts";
 import { composeEngineStepRunners } from "../../apps/server/src/modules/workflow-adapter/engine-steps.ts";
 import type { EngineStepRequest } from "../../apps/server/src/modules/workflow-adapter/engine-steps.ts";
 
@@ -24,6 +25,8 @@ function request(input: unknown, action = "tool.call"): EngineStepRequest {
     iteration: 0,
     action,
     input,
+    runStepId: "00000000-0000-4000-8000-0000000000f1",
+    costCeilingUsd: null,
   };
 }
 
@@ -37,8 +40,12 @@ const validInput = {
 
 // A runner whose connection lookup is faked; the gate itself is exercised by the
 // integration lane. These cases never reach it: each is refused before a send.
-function runner(kind: "integration" | "mcp" | null) {
+function runner(
+  kind: "integration" | "mcp" | null,
+  costs?: ToolCallCosts,
+) {
   return createToolCallStepRunner({
+    ...(costs === undefined ? {} : { costs }),
     database: {} as never,
     registry: { integrations: [] } as never,
     providerRequests: {} as never,
@@ -200,4 +207,100 @@ Deno.test("a step input that is not the contract records nothing", async () => {
 Deno.test("a runner with no recorder still runs the call", async () => {
   const result = await runner("integration").run(request(validInput));
   assertEquals(result.kind, "failed");
+});
+
+// #439: the per-call cost ceiling, held before a send and ended after it.
+
+const CEILING_REQUEST = { ...request(validInput), costCeilingUsd: "0.250000" };
+
+/** A costs port that records what it was asked and refuses on demand. */
+function fakeCosts(refuse: unknown = undefined) {
+  const calls: string[] = [];
+  const costs: ToolCallCosts = {
+    reserve: (call) => {
+      calls.push(`reserve ${call.ceilingUsd} ${call.callId}`);
+      if (refuse !== undefined) return Promise.reject(refuse);
+      return Promise.resolve({ state: "held", reservedUsd: call.ceilingUsd });
+    },
+    finish: (call) => {
+      calls.push(`${call.outcome} ${call.callId}`);
+      return Promise.resolve();
+    },
+  };
+  return { costs, calls };
+}
+
+const KEY = "00000000-0000-4000-8000-0000000000b1:notify:0";
+
+Deno.test("a step that names a ceiling on a server with no budget is refused before anything is sent", async () => {
+  const result = await runner("integration").run(CEILING_REQUEST);
+  assertEquals(
+    result.kind === "failed" && result.code,
+    "TOOL_CALL_COST_UNAVAILABLE",
+  );
+});
+
+Deno.test("a step with no ceiling never touches the budget", async () => {
+  const { costs, calls } = fakeCosts();
+  await runner("integration", costs).run(request(validInput));
+  assertEquals(calls, []);
+});
+
+Deno.test("a ceiling is held before the call and given back when the call was refused before a send", async () => {
+  const { costs, calls } = fakeCosts();
+  const result = await runner("integration", costs).run(CEILING_REQUEST);
+  // The registry holds no integrations, so the call is refused unsent.
+  assertEquals(
+    result.kind === "failed" && result.code,
+    "TOOL_CALL_ARGUMENTS_REFUSED",
+  );
+  assertEquals(calls, [`reserve 0.250000 ${KEY}`, `release ${KEY}`]);
+});
+
+Deno.test("an MCP connection with no broker holds nothing it must keep", async () => {
+  const { costs, calls } = fakeCosts();
+  const result = await runner("mcp", costs).run(CEILING_REQUEST);
+  assertEquals(
+    result.kind === "failed" && result.code,
+    "TOOL_CALL_MCP_UNAVAILABLE",
+  );
+  assertEquals(calls, [`reserve 0.250000 ${KEY}`, `release ${KEY}`]);
+});
+
+Deno.test("a ceiling the budget cannot cover refuses the step and holds nothing to end", async () => {
+  const refusal = new StandardError({
+    code: "STATE_CONFLICT",
+    params: { reason: "budget_cap_exceeded" },
+  });
+  const { costs, calls } = fakeCosts(refusal);
+  const result = await runner("integration", costs).run(CEILING_REQUEST);
+  assertEquals(
+    result.kind === "failed" && result.code,
+    "TOOL_CALL_BUDGET_EXCEEDED",
+  );
+  assertEquals(calls, [`reserve 0.250000 ${KEY}`]);
+});
+
+Deno.test("an error that is not a budget refusal is not turned into one", async () => {
+  const { costs } = fakeCosts(new Error("database down"));
+  let thrown: unknown;
+  try {
+    await runner("integration", costs).run(CEILING_REQUEST);
+  } catch (error) {
+    thrown = error;
+  }
+  assertEquals(thrown instanceof Error && thrown.message, "database down");
+});
+
+Deno.test("the engine giving up on a step charges its held ceiling, and only a step that names one", async () => {
+  const { costs, calls } = fakeCosts();
+  const tool = runner("integration", costs);
+  await tool.abandon!(request(validInput));
+  assertEquals(calls, []);
+  await tool.abandon!(CEILING_REQUEST);
+  assertEquals(calls, [`settle ${KEY}`]);
+  // Composed runners pass the call to the runner that owns the action.
+  const composed = composeEngineStepRunners([tool]);
+  await composed.abandon!(CEILING_REQUEST);
+  assertEquals(calls, [`settle ${KEY}`, `settle ${KEY}`]);
 });
