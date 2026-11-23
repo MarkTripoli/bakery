@@ -84,6 +84,22 @@ Deno.test("an item that appears twice is refused", async () => {
   assert((await packageDefects(pkg)).some((d) => d.code === "duplicate_item"));
 });
 
+Deno.test("an item keyed differently from its slug is refused, because the importer reads both", async () => {
+  const pkg = await buildPackage("Starter", [
+    { ...workflow({ steps: [] }), key: "other-key" },
+  ]);
+  const defects = await packageDefects(pkg);
+  assertEquals(defects.map((d) => d.code), ["key_slug_mismatch"]);
+  assertEquals(defects[0].path, ["items", 0, "key"]);
+  assertEquals(
+    (await packageDefects(
+      await buildPackage("Starter", [workflow({ steps: [] })]),
+    ))
+      .length,
+    0,
+  );
+});
+
 Deno.test("grants, credentials, connections, repository bindings, runs and activations never travel", async () => {
   for (
     const member of [

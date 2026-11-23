@@ -1,3 +1,5 @@
+import type { z } from "zod";
+import type { contractSchemas } from "@bakery/contracts/contracts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import {
@@ -60,13 +62,8 @@ function refuse(issues: readonly Issue[]): never {
 const UUID_IN_TEXT =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
-type ExportInput = {
-  name: string;
-  workflowIds?: string[];
-  artifactKindKeys?: string[];
-  skillIds?: string[];
-  agentIds?: string[];
-};
+type ExportInput = z.output<typeof contractSchemas.PackageExport>;
+type ImportInput = z.output<typeof contractSchemas.PackageImport>;
 
 export type PackageDependencies = Readonly<{
   skillFileStore?: SkillFileStoreOperations;
@@ -74,20 +71,19 @@ export type PackageDependencies = Readonly<{
 
 export function createPackageHandlers(dependencies: PackageDependencies) {
   return {
-    exportPackage: (context: ActionContext, input: unknown) =>
+    exportPackage: (context: ActionContext, input: ExportInput) =>
       exportPackage(context, input, dependencies),
-    importPackage: (context: ActionContext, input: unknown) =>
+    importPackage: (context: ActionContext, input: ImportInput) =>
       importPackage(context, input, dependencies),
   };
 }
 
 export async function exportPackage(
   context: ActionContext,
-  input: unknown,
+  value: ExportInput,
   dependencies: PackageDependencies = {},
 ): Promise<BakeryPackage> {
   const { transaction, organizationId } = requireWorkTransaction(context);
-  const value = input as ExportInput;
   const drafts: PackageItemDraft[] = [];
   const issues: Issue[] = [];
   const skills = new Map<string, KnownReference>();
@@ -353,14 +349,14 @@ export type PackageImportResult = {
 
 export async function importPackage(
   context: ActionContext,
-  input: unknown,
+  input: ImportInput,
   dependencies: PackageDependencies = {},
 ): Promise<PackageImportResult> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
   const parsed = BakeryPackageSchema.safeParse(
-    (input as { package: unknown }).package,
+    input.package,
   );
   if (!parsed.success) {
     refuse(parsed.error.issues.map((issue) => ({
@@ -503,22 +499,15 @@ export async function importPackage(
   }
   for (const item of pkg.items) {
     if (item.kind !== "artifactKind") continue;
-    const latest = await transaction.query<{ max: number }>(
-      `select coalesce(max(version.revision), 0)::integer as max
-         from bakery.artifact_kinds kind
-         join bakery.artifact_kind_versions version
-           on version.organization_id = kind.organization_id
-          and version.kind_id = kind.id
-        where kind.organization_id = $1 and kind.key = $2`,
-      [organizationId, item.key],
-    );
     const version = await publishArtifactKindVersion(
       {
         ...context,
         params: { ...context.params, id: organizationId, key: item.key },
       },
       {
-        expectedRevision: latest.rows[0]?.max ?? 0,
+        // The pre-check refused a key the organization already has, so this
+        // is always the first revision.
+        expectedRevision: 0,
         definition: item.data,
       },
     ) as { id: string };
@@ -536,7 +525,7 @@ export async function importPackage(
       slug: item.data.slug,
       name: item.data.name,
       description: item.data.description,
-    } as never, {
+    }, {
       visibility: "listed",
       originKind: "package",
     });

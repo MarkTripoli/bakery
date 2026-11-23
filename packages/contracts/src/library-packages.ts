@@ -284,6 +284,7 @@ export type PackageDefect = Readonly<{
     | "digest_mismatch"
     | "package_digest_mismatch"
     | "duplicate_item"
+    | "key_slug_mismatch"
     | "installation_only_member"
     | "workflow_definition_not_json"
     | "workflow_definition_not_canonical"
@@ -365,6 +366,19 @@ export async function packageDefects(
         code: "digest_mismatch",
         path: ["items", index, "digest"],
         message: `${identity} does not match its digest.`,
+      });
+    }
+    // The importer finds duplicates and checks existing slugs by `data.slug`
+    // but resolves references and records lineage by `key`: the two must agree.
+    if (
+      (item.kind === "skill" || item.kind === "agent" ||
+        item.kind === "workflow") && item.key !== item.data.slug
+    ) {
+      defects.push({
+        code: "key_slug_mismatch",
+        path: ["items", index, "key"],
+        message:
+          `${identity} is keyed differently from its slug ${item.data.slug}.`,
       });
     }
     if (item.kind === "workflow") {
