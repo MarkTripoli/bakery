@@ -20,6 +20,12 @@ import type { ToolCallRecorder } from "./tool-call-record.ts";
 import { budgetRefusalReason, type ToolCallCosts } from "./tool-call-cost.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
 import { McpToolCallError } from "../mcp/tool-transport.ts";
+import {
+  type AsyncForm,
+  asyncStatusOf,
+  handleOf,
+  readAsyncForm,
+} from "../mcp/async-form.ts";
 import { toRunEnvironment } from "../work/run-environment.ts";
 import {
   connectionInvokeDeps,
@@ -236,10 +242,11 @@ export function createToolCallStepRunner(
         effect_class: string;
         effect_key_argument: string | null;
         paired_read_tool: string | null;
+        async_form: unknown;
         digest: string;
       }>(
         `select effect_class, effect_key_argument, paired_read_tool,
-                snapshot_digest as digest
+                async_form, snapshot_digest as digest
            from bakery.mcp_tool_classifications
           where organization_id = $1 and connection_id = $2 and tool_name = $3`,
         [request.organizationId, input.connectionId, input.tool],
@@ -265,6 +272,7 @@ export function createToolCallStepRunner(
         effectClass: effect.rows[0]?.effect_class ?? null,
         keyArgument: effect.rows[0]?.effect_key_argument ?? null,
         pairedRead: effect.rows[0]?.paired_read_tool ?? null,
+        asyncFormValue: effect.rows[0]?.async_form ?? null,
         classifiedAgainst: effect.rows[0]?.digest ?? null,
         runStepId: step.rows[0]?.id ?? null,
       };
@@ -294,6 +302,17 @@ export function createToolCallStepRunner(
     }
     const asArguments = input.arguments as Record<string, unknown>;
     if (facts.effectClass !== "read") {
+      // A declaration that cannot be read back is never guessed at: the call is
+      // refused before anything is sent.
+      let asyncForm: AsyncForm | null = null;
+      try {
+        asyncForm = readAsyncForm(facts.asyncFormValue);
+      } catch {
+        return failed(
+          "TOOL_CALL_MCP_ASYNC_FORM_INVALID",
+          "The Admin's asynchronous declaration for this tool cannot be read, so nothing was sent.",
+        );
+      }
       return await runMcpWrite(request, input.connectionId, input.tool, {
         arguments: asArguments,
         pinnedDigest: facts.pinnedDigest,
@@ -302,6 +321,9 @@ export function createToolCallStepRunner(
         pairedRead: facts.pairedRead,
         allowed: facts.allowed,
         runStepId: facts.runStepId,
+        asyncForm,
+        versionId: facts.versionId,
+        stepKey,
       });
     }
     try {
@@ -344,6 +366,93 @@ export function createToolCallStepRunner(
   }
 
   /**
+   * One look at an asynchronous tool's job (#439): the paired read, given the
+   * handle the submit answered with, says whether it is done, failed or still
+   * running. The submit is in the ledger under the step's one effect key, so a
+   * look never submits again; only this read is sent, and a read is safe to
+   * repeat. A job that is still running leaves the step pending, to be looked at
+   * again after the Admin's interval, and the step's own wait limit bounds how
+   * long. A job the server accepted may have spent money, so its failure is
+   * charged the ceiling like any call that may have run.
+   */
+  async function followJob(
+    request: EngineStepRequest,
+    connectionId: string,
+    tool: string,
+    write: Readonly<{
+      pinnedDigest: string;
+      pairedRead: string | null;
+      asyncForm: AsyncForm | null;
+      versionId: string;
+      stepKey: string;
+    }>,
+    submit: Readonly<{ remoteId: string | null; submitted: unknown }>,
+  ): Promise<CallResult> {
+    const form = write.asyncForm;
+    if (form === null || write.pairedRead === null || deps.mcp === undefined) {
+      return failed(
+        "TOOL_CALL_ASYNC_UNAVAILABLE",
+        "The job was accepted but this server cannot read its status.",
+        true,
+      );
+    }
+    const handle = handleOf(submit.submitted, form.handlePath);
+    if (handle === null) {
+      return failed(
+        "TOOL_CALL_ASYNC_HANDLE_MISSING",
+        "The tool accepted the job but its answer carries no handle where the Admin said it would.",
+        true,
+      );
+    }
+    try {
+      const status = await invokeMcpTool(deps.mcp, {
+        organizationId: request.organizationId,
+        actorRef: request.requestedBy,
+        connectionId,
+        toolName: write.pairedRead,
+        pinnedDigest: write.pinnedDigest,
+        arguments: { [form.handleArgument]: handle },
+        hostId: null,
+        workflowVersionId: write.versionId,
+        stepKey: write.stepKey,
+        startedByPrincipalId: request.requestedBy,
+      });
+      switch (asyncStatusOf(status.output, form)) {
+        case "done":
+          return {
+            kind: "completed",
+            output: actionResultSchema().parse({
+              accepted: true,
+              operation: tool,
+              externalEffectId: submit.remoteId,
+              result: status.output ?? null,
+            }),
+          };
+        case "failed":
+          return failed(
+            "TOOL_CALL_ASYNC_FAILED",
+            "The job reported that it failed.",
+            true,
+          );
+        default:
+          return { kind: "pending", retryAfterMs: form.pollEveryMs };
+      }
+    } catch (error) {
+      // The server did not answer this look: a read is safe to repeat, so the
+      // step waits and looks again rather than failing a job that may be fine.
+      if (error instanceof McpToolCallError) {
+        return { kind: "pending", retryAfterMs: form.pollEveryMs };
+      }
+      if (!(error instanceof StandardError)) throw error;
+      return failed(
+        `TOOL_CALL_MCP_REFUSED_${refusalCode(error).toUpperCase()}`,
+        "The read of the job's status was refused.",
+        true,
+      );
+    }
+  }
+
+  /**
    * A write to an MCP tool, through the ledger. The ledger row is the step's one
    * effect key; what an unproven send means depends on the Admin's class (see
    * `dispatchMcpEffect`). An unclassified tool is treated as opaque.
@@ -360,6 +469,11 @@ export function createToolCallStepRunner(
       pairedRead: string | null;
       allowed: readonly unknown[];
       runStepId: string | null;
+      /** How a job is followed, when the Admin declared the tool asynchronous. */
+      asyncForm: AsyncForm | null;
+      versionId: string;
+      /** The step's key without the round marks, as its binding is keyed. */
+      stepKey: string;
     }>,
   ): Promise<CallResult> {
     if (mcpExecutor === undefined) {
@@ -414,6 +528,14 @@ export function createToolCallStepRunner(
       });
       switch (ran.outcome) {
         case "confirmed":
+          // An asynchronous tool is confirmed when it accepted the job; the job
+          // itself is followed by reading its status, once a look.
+          if (write.asyncForm !== null) {
+            return await followJob(request, connectionId, tool, write, {
+              remoteId: ran.effect.remoteId,
+              submitted: ran.effect.safeResult,
+            });
+          }
           return {
             kind: "completed",
             output: actionResultSchema().parse({

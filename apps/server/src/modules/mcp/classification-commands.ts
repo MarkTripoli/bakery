@@ -16,6 +16,7 @@ import {
   requireMayChange,
 } from "./connection-commands.ts";
 import type { DiscoveredTool } from "./discovery.ts";
+import { AsyncFormSchema, readAsyncForm } from "./async-form.ts";
 
 /**
  * Tool effect classification (#434, O26).
@@ -49,13 +50,14 @@ type Row = {
   effect_class: string;
   effect_key_argument: string | null;
   paired_read_tool: string | null;
+  async_form: unknown;
   snapshot_digest: string;
   updated_at: Date;
   version: number;
 };
 
 const COLUMNS =
-  "tool_name, effect_class, effect_key_argument, paired_read_tool, snapshot_digest, updated_at, version";
+  "tool_name, effect_class, effect_key_argument, paired_read_tool, async_form, snapshot_digest, updated_at, version";
 
 /** The connection's current snapshot, or null when nothing has been discovered. */
 async function currentSnapshot(
@@ -88,6 +90,7 @@ function toItem(
       classified: false,
       effectKeyArgument: null,
       pairedReadTool: null,
+      asyncForm: null,
       classifiedAgainstCurrentSnapshot: true,
       classifiedAt: null,
       version: 0,
@@ -99,6 +102,7 @@ function toItem(
     classified: true,
     effectKeyArgument: row.effect_key_argument,
     pairedReadTool: row.paired_read_tool,
+    asyncForm: readAsyncForm(row.async_form),
     classifiedAgainstCurrentSnapshot: row.snapshot_digest === digest,
     classifiedAt: row.updated_at.toISOString(),
     version: row.version,
@@ -213,6 +217,29 @@ export async function putMcpToolClassification(
   } else if (pairedRead !== null) {
     throw unprocessable(["pairedReadTool"], "paired_read_not_allowed");
   }
+  // An asynchronous tool is a reconcilable write whose paired read reports the
+  // job's status, so the declaration is only valid beside that pairing.
+  let asyncForm: ReturnType<typeof AsyncFormSchema.parse> | null = null;
+  if (input.asyncForm !== undefined && input.asyncForm !== null) {
+    if (input.effectClass !== "write_reconcilable") {
+      throw unprocessable(["asyncForm"], "async_form_not_allowed");
+    }
+    const parsed = AsyncFormSchema.safeParse(input.asyncForm);
+    if (!parsed.success) {
+      throw unprocessable(["asyncForm"], "async_form_invalid");
+    }
+    asyncForm = parsed.data;
+    const properties = (snapshot.tools.find((entry) =>
+      entry.name === pairedRead
+    )?.inputSchema as { properties?: unknown } | undefined)?.properties;
+    if (
+      !properties || typeof properties !== "object" ||
+      !Object.hasOwn(properties, asyncForm.handleArgument)
+    ) {
+      throw unprocessable(["asyncForm"], "async_handle_unknown_argument");
+    }
+  }
+  const asyncJson = asyncForm === null ? null : JSON.stringify(asyncForm);
 
   const existing = (await transaction.query<Row>(
     `select ${COLUMNS} from bakery.mcp_tool_classifications
@@ -255,8 +282,9 @@ export async function putMcpToolClassification(
       await transaction.query(
         `insert into bakery.mcp_tool_classifications (
            organization_id, connection_id, tool_name, effect_class,
-           effect_key_argument, paired_read_tool, snapshot_digest, classified_by
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+           effect_key_argument, paired_read_tool, snapshot_digest, classified_by,
+           async_form
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
         [
           organizationId,
           connection.id,
@@ -266,6 +294,7 @@ export async function putMcpToolClassification(
           pairedRead,
           snapshot.digest,
           principalId,
+          asyncJson,
         ],
       );
     } else {
@@ -273,6 +302,7 @@ export async function putMcpToolClassification(
         `update bakery.mcp_tool_classifications
             set effect_class = $4, effect_key_argument = $5,
                 paired_read_tool = $6, snapshot_digest = $7, classified_by = $8,
+                async_form = $9::jsonb,
                 updated_at = now(), version = version + 1
           where organization_id = $1 and connection_id = $2 and tool_name = $3`,
         [
@@ -284,6 +314,7 @@ export async function putMcpToolClassification(
           pairedRead,
           snapshot.digest,
           principalId,
+          asyncJson,
         ],
       );
     }
@@ -313,6 +344,7 @@ export async function putMcpToolClassification(
       previousEffectClass: existing?.effect_class ?? null,
       effectKeyArgument: keyArgument,
       pairedReadTool: pairedRead,
+      asynchronous: asyncForm !== null,
       snapshotDigest: snapshot.digest,
     },
   });

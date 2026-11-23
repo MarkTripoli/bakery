@@ -25,13 +25,24 @@ export type EngineStepRequest = Readonly<{
    * can spend money holds it before anything is sent.
    */
   costCeilingUsd: string | null;
+  /**
+   * How long the engine lets the step wait for an answer, in milliseconds
+   * (`limits.maxDuration`); null when the step names none and the engine's own
+   * default applies. A runner whose call takes a long time reads it to know how
+   * far apart to look.
+   */
+  maxWaitMs: number | null;
 }>;
 
 /** Done, refused with a stable code, or not yet (the engine looks again later). */
 export type EngineStepResult =
   | Readonly<{ kind: "completed"; output: unknown }>
   | Readonly<{ kind: "failed"; code: string; message: string }>
-  | Readonly<{ kind: "pending" }>;
+  | Readonly<{
+    kind: "pending";
+    /** How long to leave before the engine looks again; absent, the engine's own interval. */
+    retryAfterMs?: number;
+  }>;
 
 export type EngineStepRunner = Readonly<{
   /** Whether this runner owns the action. */

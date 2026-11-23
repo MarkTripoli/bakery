@@ -253,6 +253,87 @@ Deno.test("mcp classification: an effect key is a declared argument, and a confi
   }
 });
 
+Deno.test("mcp classification: an asynchronous declaration is valid only beside a paired read that takes the handle (#439)", async () => {
+  const f = await openInstallationFixture();
+  try {
+    const id = await pinned(f, f.adminCookie, "organization", [
+      tool("render", { text: {} }),
+      tool("render_status", { jobId: {} }),
+      tool("search", { query: {} }),
+    ]);
+    const put = (name: string, body: Body, ifMatch?: string) =>
+      send(f, f.adminCookie, "PUT", path(id, name), { body, ifMatch });
+    const form = {
+      handlePath: "job.id",
+      handleArgument: "jobId",
+      statusPath: "job.status",
+      doneValues: ["succeeded"],
+      failedValues: ["failed"],
+    };
+    const pair = {
+      effectClass: "write_reconcilable",
+      pairedReadTool: "render_status",
+    };
+    assertEquals(
+      (await put("render_status", { effectClass: "read" })).status,
+      200,
+    );
+
+    // Only a reconcilable write may be asynchronous.
+    for (const effectClass of ["read", "write_opaque"]) {
+      const refused = await put("search", { effectClass, asyncForm: form });
+      assertEquals(refused.status, 422, effectClass);
+    }
+    // The declaration is checked: its shape, its statuses and its handle argument.
+    for (
+      const bad of [
+        { ...form, doneValues: [] },
+        { ...form, failedValues: ["succeeded"] },
+        { ...form, statusPath: "job[0].status" },
+        { ...form, pollEveryMs: 5 },
+        { ...form, extra: true },
+        { ...form, handleArgument: "nope" },
+        "running",
+      ]
+    ) {
+      const refused = await put("render", { ...pair, asyncForm: bad });
+      assertEquals(refused.status, 422, JSON.stringify(bad));
+    }
+    assertEquals(
+      ((await send(f, f.adminCookie, "GET", path(id))).json.items as Body[])
+        .find((item) => item.toolName === "render")!.classified,
+      false,
+    );
+
+    // A valid one is stored, with the defaults the declaration takes.
+    const made = await put("render", { ...pair, asyncForm: form });
+    assertEquals(made.status, 200, JSON.stringify(made.json));
+    assertEquals(made.json.asyncForm, { ...form, pollEveryMs: 15_000 });
+    const listed = (await send(f, f.adminCookie, "GET", path(id))).json
+      .items as Body[];
+    assertEquals(
+      listed.find((item) => item.toolName === "render")!.asyncForm,
+      { ...form, pollEveryMs: 15_000 },
+    );
+    assertEquals(
+      listed.find((item) => item.toolName === "search")!.asyncForm,
+      null,
+    );
+    // Saving it again without the declaration makes the tool finish in the call.
+    const cleared = await put("render", pair, '"1"');
+    assertEquals(cleared.status, 200);
+    assertEquals(cleared.json.asyncForm, null);
+    const stored = await f.pgDatabase.query<{ asyncForm: unknown }>(
+      `select async_form as "asyncForm" from bakery.mcp_tool_classifications
+        where connection_id = $1 and tool_name = 'render'`,
+      [id],
+    );
+    assertEquals(stored.rows[0].asyncForm, null);
+  } finally {
+    await f.finish();
+  }
+});
+
 Deno.test("mcp classification: a rediscovered connection flags what was classified against the earlier snapshot", async () => {
   const f = await openInstallationFixture();
   try {
@@ -366,6 +447,7 @@ Deno.test("mcp classification: the application role holds exactly the grants the
         "effect_class",
         "effect_key_argument",
         "paired_read_tool",
+        "async_form",
         "snapshot_digest",
         "classified_by",
         "version",

@@ -1579,6 +1579,21 @@ function costCeilingOfDispatch(dispatch: unknown): string | null {
 }
 
 /**
+ * The longest the engine lets a step wait (`limits.maxDuration`), in
+ * milliseconds, read from the stored dispatch; null when it names none or the
+ * value is not a positive whole number of milliseconds.
+ */
+function maxWaitOfDispatch(dispatch: unknown): number | null {
+  if (dispatch === null || typeof dispatch !== "object") return null;
+  const limits = (dispatch as { limits?: unknown }).limits;
+  if (limits === null || typeof limits !== "object") return null;
+  const value = (limits as { maxDurationMs?: unknown }).maxDurationMs;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+/**
  * Settles a step a pack runner owns (the delivery steps today) the way a
  * projection is settled: no job, no budget. The
  * target is called outside any transaction, between two short ones: the first
@@ -1647,6 +1662,7 @@ async function admitEngineStep(
     input: due.input,
     runStepId: due.row.runStepId,
     costCeilingUsd: costCeilingOfDispatch(due.row.stepDispatch),
+    maxWaitMs: maxWaitOfDispatch(due.row.stepDispatch),
   };
   const result = await runner.run(request);
   // The step ended without the runner's answer being used: whatever the runner
@@ -1687,7 +1703,8 @@ async function admitEngineStep(
     const waitingSince = stepWaitingSinceOf(row.stepDispatch);
     if (
       waitingSince !== null &&
-      Date.now() - waitingSince.getTime() >= ENGINE_STEP_WAIT_LIMIT_MS
+      Date.now() - waitingSince.getTime() >=
+        (request.maxWaitMs ?? ENGINE_STEP_WAIT_LIMIT_MS)
     ) {
       await projectFailure(
         transaction,
@@ -1721,7 +1738,15 @@ async function admitEngineStep(
               started_at = coalesce(started_at, clock_timestamp()),
               updated_at = clock_timestamp(), version = version + 1
         where organization_id = $1 and id = $2 and status = 'pending'`,
-      [row.organizationId, row.runStepId, ENGINE_STEP_RETRY_MS],
+      [
+        row.organizationId,
+        row.runStepId,
+        // A runner may ask to be looked at later (an asynchronous tool is read
+        // once an interval), never sooner than the engine's own pace allows.
+        result.kind === "pending" && result.retryAfterMs !== undefined
+          ? Math.max(1_000, Math.round(result.retryAfterMs))
+          : ENGINE_STEP_RETRY_MS,
+      ],
     );
     const runUpdate = await transaction.query<{ version: number }>(
       `update bakery.workflow_runs

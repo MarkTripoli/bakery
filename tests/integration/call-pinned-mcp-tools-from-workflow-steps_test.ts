@@ -60,6 +60,37 @@ const FIND_NOTE = {
   },
 };
 
+// #439: an asynchronous tool accepts a job and answers with a handle; a paired
+// read, given the handle, reports the job's status.
+const RENDER = {
+  name: "render",
+  description: "start a render job",
+  inputSchema: {
+    type: "object",
+    properties: { text: { type: "string" } },
+    required: ["text"],
+    additionalProperties: false,
+  },
+};
+const RENDER_STATUS = {
+  name: "render_status",
+  description: "the status of a render job",
+  inputSchema: {
+    type: "object",
+    properties: { jobId: { type: "string" } },
+    required: ["jobId"],
+    additionalProperties: false,
+  },
+};
+const RENDER_FORM = {
+  handlePath: "job.id",
+  handleArgument: "jobId",
+  statusPath: "job.status",
+  doneValues: ["succeeded"],
+  failedValues: ["failed", "canceled"],
+  pollEveryMs: 2_000,
+};
+
 type Sent = {
   method: string;
   params: Record<string, unknown>;
@@ -137,6 +168,10 @@ async function world(
     allowed?: string[];
     /** Classify `find_note` as the read a reconcilable write is paired with. */
     withFindNote?: boolean;
+    /** Classify `render_status` as the read an asynchronous tool is paired with. */
+    withRenderStatus?: boolean;
+    /** The tool's asynchronous declaration (#439). */
+    asyncForm?: unknown;
   } = {},
 ) {
   const db = fixture.pgDatabase;
@@ -153,7 +188,7 @@ async function world(
   );
   await db.query(
     `insert into bakery.mcp_connections (id, organization_id, server_id, label, config, enabled_capabilities, status, current_snapshot_id, version)
-     values ($1, $2, $3, 'Docs', '{}'::jsonb, '["search","create_note","find_note"]'::jsonb, 'enabled', null, 1)`,
+     values ($1, $2, $3, 'Docs', '{}'::jsonb, '["search","create_note","find_note","render","render_status"]'::jsonb, 'enabled', null, 1)`,
     [connectionId, org, serverId],
   );
   await db.query(
@@ -163,7 +198,9 @@ async function world(
       snapshotId,
       org,
       connectionId,
-      JSON.stringify({ tools: [SEARCH, CREATE_NOTE, FIND_NOTE] }),
+      JSON.stringify({
+        tools: [SEARCH, CREATE_NOTE, FIND_NOTE, RENDER, RENDER_STATUS],
+      }),
       DIGEST,
     ],
   );
@@ -180,7 +217,9 @@ async function world(
         crypto.randomUUID(),
         org,
         connectionId,
-        JSON.stringify({ tools: [SEARCH, CREATE_NOTE, FIND_NOTE] }),
+        JSON.stringify({
+          tools: [SEARCH, CREATE_NOTE, FIND_NOTE, RENDER, RENDER_STATUS],
+        }),
         options.snapshotDigest,
       ],
     );
@@ -188,8 +227,8 @@ async function world(
   const tool = options.tool ?? "search";
   if (options.effectClass !== null) {
     await db.query(
-      `insert into bakery.mcp_tool_classifications (organization_id, connection_id, tool_name, effect_class, effect_key_argument, paired_read_tool, snapshot_digest, classified_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `insert into bakery.mcp_tool_classifications (organization_id, connection_id, tool_name, effect_class, effect_key_argument, paired_read_tool, snapshot_digest, classified_by, async_form)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
       [
         org,
         connectionId,
@@ -199,6 +238,9 @@ async function world(
         options.pairedRead ?? null,
         options.classifiedDigest ?? DIGEST,
         fixture.principalId,
+        options.asyncForm === undefined
+          ? null
+          : JSON.stringify(options.asyncForm),
       ],
     );
   }
@@ -206,6 +248,13 @@ async function world(
     await db.query(
       `insert into bakery.mcp_tool_classifications (organization_id, connection_id, tool_name, effect_class, snapshot_digest, classified_by)
        values ($1, $2, 'find_note', 'read', $3, $4)`,
+      [org, connectionId, DIGEST, fixture.principalId],
+    );
+  }
+  if (options.withRenderStatus === true) {
+    await db.query(
+      `insert into bakery.mcp_tool_classifications (organization_id, connection_id, tool_name, effect_class, snapshot_digest, classified_by)
+       values ($1, $2, 'render_status', 'read', $3, $4)`,
       [org, connectionId, DIGEST, fixture.principalId],
     );
   }
@@ -293,6 +342,7 @@ function request(
     input: { connectionId: w.connectionId, tool, arguments: args },
     runStepId: crypto.randomUUID(),
     costCeilingUsd: null,
+    maxWaitMs: null,
   };
 }
 
@@ -665,3 +715,138 @@ Deno.test("a tool that reports its own failure fails the step, and a huge result
   );
   assert(true);
 });
+
+// ---------------------------------------------------------------------------
+// #439: an asynchronous tool. The submit is one effect in the ledger under the
+// step's key; every later look is one read of the job's status.
+// ---------------------------------------------------------------------------
+
+const asyncOptions = {
+  tool: "render",
+  effectClass: "write_reconcilable",
+  pairedRead: "render_status",
+  withRenderStatus: true,
+  allowed: ["render", "render_status"],
+  asyncForm: RENDER_FORM,
+};
+
+const renderCalls = (server: ReturnType<typeof fakeServer>, name: string) =>
+  server.calls().filter((call) => call.params.name === name);
+
+/** A server whose job reports each of `statuses` in turn, then the last one for ever. */
+function jobServer(statuses: readonly string[]): Answer {
+  let looks = 0;
+  return (params) => {
+    if (params.name === "render") {
+      return { structuredContent: { job: { id: "job-7" } } };
+    }
+    const status = statuses[Math.min(looks, statuses.length - 1)];
+    looks += 1;
+    return { structuredContent: { job: { status, progress: looks } } };
+  };
+}
+
+Deno.test("an asynchronous tool is submitted once and followed by one read a look until the job is done (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(fixture, w, { text: "hello" }, "lookup@2", "render");
+      // The first look submits, then reads the job: still running.
+      assertEquals(await runner.run(req), {
+        kind: "pending",
+        retryAfterMs: 2_000,
+      });
+      // Looked at again: the job is still running, and nothing is submitted again.
+      assertEquals(await runner.run(req), {
+        kind: "pending",
+        retryAfterMs: 2_000,
+      });
+      // The job finishes: the step completes with the status the read answered.
+      const done = await runner.run(req);
+      assertEquals(done.kind, "completed");
+      const output = (done as { output: Record<string, unknown> }).output;
+      assertEquals(output.accepted, true);
+      assertEquals(output.operation, "render");
+      assertEquals(
+        (output.result as { job: { status: string } }).job.status,
+        "succeeded",
+      );
+      // One submit in all; each read carried the handle the submit answered with.
+      assertEquals(renderCalls(server, "render").length, 1);
+      assertEquals(renderCalls(server, "render_status").length, 3);
+      assertEquals(
+        renderCalls(server, "render_status").map((call) =>
+          call.params.arguments
+        ),
+        [{ jobId: "job-7" }, { jobId: "job-7" }, { jobId: "job-7" }],
+      );
+      assertEquals((await ledger(fixture)).map((r) => r.status), ["confirmed"]);
+      // A look after the end finds the same effect and still submits nothing.
+      assertEquals((await runner.run(req)).kind, "completed");
+      assertEquals(renderCalls(server, "render").length, 1);
+    },
+    asyncOptions,
+    jobServer(["queued", "running", "succeeded"]),
+  ));
+
+Deno.test("an asynchronous job that reports failure fails the step with a fixed code (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(fixture, w, { text: "hello" }, "lookup@2", "render");
+      assertEquals((await runner.run(req)).kind, "pending");
+      assertEquals(code(await runner.run(req)), "TOOL_CALL_ASYNC_FAILED");
+      assertEquals(renderCalls(server, "render").length, 1);
+    },
+    asyncOptions,
+    jobServer(["running", "failed"]),
+  ));
+
+Deno.test("a status the Admin did not list means the job is still running, never done (#439)", () =>
+  withRunner(
+    async (fixture, runner, _server, w) => {
+      const req = request(fixture, w, { text: "hello" }, "lookup@2", "render");
+      for (let look = 0; look < 3; look += 1) {
+        assertEquals((await runner.run(req)).kind, "pending");
+      }
+    },
+    asyncOptions,
+    jobServer(["SUCCEEDED", "done", "ok"]),
+  ));
+
+Deno.test("a submit whose answer carries no handle fails the step, and nothing is read (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(fixture, w, { text: "hello" }, "lookup@2", "render");
+      assertEquals(
+        code(await runner.run(req)),
+        "TOOL_CALL_ASYNC_HANDLE_MISSING",
+      );
+      assertEquals(renderCalls(server, "render_status").length, 0);
+    },
+    asyncOptions,
+    () => ({ structuredContent: { accepted: true } }),
+  ));
+
+Deno.test("a read of the job's status that cannot be understood leaves the step waiting, not failed (#439)", () =>
+  withRunner(
+    async (fixture, runner, _server, w) => {
+      const req = request(fixture, w, { text: "hello" }, "lookup@2", "render");
+      assertEquals((await runner.run(req)).kind, "pending");
+      assertEquals((await runner.run(req)).kind, "pending");
+    },
+    asyncOptions,
+    (params) =>
+      params.name === "render"
+        ? { structuredContent: { job: { id: "job-7" } } }
+        : null,
+  ));
+
+Deno.test("a tool with no declaration finishes in the call, as before (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(fixture, w, { text: "hello" }, "lookup@2", "render");
+      assertEquals((await runner.run(req)).kind, "completed");
+      assertEquals(renderCalls(server, "render_status").length, 0);
+    },
+    { ...asyncOptions, asyncForm: undefined },
+    () => ({ structuredContent: { job: { id: "job-7" } } }),
+  ));

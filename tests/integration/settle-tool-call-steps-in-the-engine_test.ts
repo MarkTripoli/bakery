@@ -103,6 +103,7 @@ async function atTheToolCall(
     input,
     runStepId: "00000000-0000-4000-8000-000000000000",
     costCeilingUsd: ceiling === null ? null : ceiling.toFixed(6),
+    maxWaitMs: null,
   };
   return { seeded, runner, repository, request };
 }
@@ -493,4 +494,54 @@ Deno.test("a step with no ceiling holds nothing (#439)", () =>
       (await ledgerOf(fixture, at.seeded.job.runId)).reservations,
       [],
     );
+  }));
+
+Deno.test("a step the engine gives up on while its write is unproven is timed out, and its ceiling is charged (#439)", () =>
+  withWorkerFixture(async (fixture) => {
+    const github = fakeGithub();
+    github.post = "hang";
+    const { at, before } = await withCeiling(fixture, github, {
+      deadlineMs: 50,
+    });
+    const key = await at.repository.findNext(
+      at.seeded.job.runId,
+      at.seeded.owner,
+    );
+    assert(key !== undefined);
+    assertEquals(
+      (await at.repository.admit(key, at.seeded.owner)).terminal,
+      false,
+    );
+    assertEquals((await step(fixture, at.seeded.job.runId)).status, "pending");
+    assertEquals(
+      (await ledgerOf(fixture, at.seeded.job.runId)).reservations.map((row) =>
+        row.status
+      ),
+      ["held", "held"],
+    );
+    // The step has waited past its limit.
+    await fixture.pgDatabase.query(
+      `update bakery.run_steps
+          set dispatch = dispatch || jsonb_build_object(
+                'stepWaitingSince',
+                to_char((clock_timestamp() - interval '2 hours') at time zone 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+        where run_id = $1 and step_key = 'comment'`,
+      [at.seeded.job.runId],
+    );
+    assertEquals(
+      (await at.repository.admit(key, at.seeded.owner)).terminal,
+      true,
+    );
+    assertEquals((await step(fixture, at.seeded.job.runId)).status, "failed");
+    // Whether the write ran is not known: the ceiling is charged, not freed.
+    const ledger = await ledgerOf(fixture, at.seeded.job.runId);
+    assertEquals(ledger.reservations.map((row) => row.status), [
+      "settled",
+      "settled",
+    ]);
+    assertEquals(gained(before, ledger), [
+      ["installation", "0.000000", "0.003000"],
+      ["run", "0.000000", "0.003000"],
+    ]);
   }));

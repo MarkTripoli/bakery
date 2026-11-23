@@ -13353,12 +13353,25 @@
             "maxLength": 128
           },
           "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        },
+        {
+          "name": "asyncForm",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxBytes": 2000
+          },
+          "description": "For write_reconcilable only: declares that the tool is asynchronous. It accepts a job and answers with a handle; the pairedReadTool, given that handle, reports the job's status. An object with handlePath (where the submit answer carries the handle), handleArgument (the paired read's argument that takes it), statusPath (where the paired read's answer carries the status), doneValues (statuses that finish the job), optional failedValues (statuses that fail it) and optional pollEveryMs (1000 to 600000, default 15000). Any other status means still running. Null or omitted means the tool finishes in the call."
         }
       ],
       "rules": [
         "effectKeyArgument is required for write_idempotent and refused for any other class",
         "pairedReadTool is required for write_reconcilable and refused for any other class",
-        "the tool must be in the connection's current snapshot"
+        "the tool must be in the connection's current snapshot",
+        "asyncForm is refused for any class but write_reconcilable",
+        "asyncForm.handleArgument must be an argument the paired read tool's input schema declares",
+        "a status value cannot be both a done value and a failed value"
       ],
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
     },
@@ -35094,6 +35107,7 @@
         "classified",
         "effectKeyArgument",
         "pairedReadTool",
+        "asyncForm",
         "classifiedAgainstCurrentSnapshot",
         "classifiedAt",
         "version"
@@ -35101,7 +35115,8 @@
       "nullableFields": [
         "effectKeyArgument",
         "pairedReadTool",
-        "classifiedAt"
+        "classifiedAt",
+        "asyncForm"
       ],
       "fieldTypes": {
         "toolName": "string",
@@ -35109,6 +35124,7 @@
         "classified": "boolean",
         "effectKeyArgument": "string",
         "pairedReadTool": "string",
+        "asyncForm": "json",
         "classifiedAgainstCurrentSnapshot": "boolean",
         "classifiedAt": "timestamp",
         "version": "integer"
@@ -35120,6 +35136,7 @@
         "classified": "True once an Admin has classified this tool.",
         "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
         "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "asyncForm": "For an asynchronous write_reconcilable tool, how its job is followed: where the handle is, how the status is read and which values end the job; otherwise null.",
         "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
         "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
         "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."

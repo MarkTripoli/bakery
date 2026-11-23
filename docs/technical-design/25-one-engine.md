@@ -634,6 +634,22 @@ charged the ceiling too. A step with no ceiling holds nothing, and a step with a
 ceiling on a server with no budget configured is refused rather than sent
 unguarded.
 
+A tool that does not finish in the call is declared asynchronous by the Admin on
+the classification of the submitting tool (`asyncForm`, valid only on a
+`write_reconcilable` tool, beside its paired read): where the submit answer
+carries the job's handle, which argument of the paired read takes it, where the
+read's answer carries the status, which status values end the job (done or
+failed) and how often to look (`pollEveryMs`, 1 s to 10 min, default 15 s). The
+declaration is the grant: nothing runs asynchronously unless an Admin said how
+to read its status. The step submits once through the effect ledger under its one
+effect key, so a look after a crash finds its own effect and never submits again,
+then waits durably: each look is one read of the paired read with the handle. A
+listed done value completes the step with that answer, a listed failed value
+fails it with `TOOL_CALL_ASYNC_FAILED`, and any other value, or an answer that
+cannot be read, leaves it waiting. The step waits at most its `limits.maxDuration`
+(the engine's 30 minutes when it names none), after which the engine ends it as
+timed out; a cost ceiling held for the step is then charged, never freed.
+
 ### 15.5 Skills, integrations and MCP tools in a workflow
 
 | Building block           | Attaches to                                                                                                          | Pinned by                                      |
