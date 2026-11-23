@@ -306,11 +306,13 @@ async function personalAndRecordAreasTakeNoGrants(
   const projects = roots.find((r) => r.name === "projects")!;
   const record = await restrict(fixture, admin, projects.id as string, true);
   assertEquals((await shape(record))[1], "STORAGE_AREA_REFUSED");
-  const shared = await folder(fixture, admin, "/shared/open");
+  await folder(fixture, admin, "/shared/open");
+  const closed = await folder(fixture, admin, "/shared/closed");
+  await ok(await restrict(fixture, admin, closed, true));
   const stranger = await grant(
     fixture,
     admin,
-    shared,
+    closed,
     crypto.randomUUID(),
     "view",
   );
@@ -555,6 +557,64 @@ async function aFolderTakesAtMostTwoHundredGrants(
   assertEquals(listed.length, 200);
 }
 
+async function aGrantOnAnOpenFolderIsRefusedSoRestrictingLaterAdmitsOnlyTheRestrictor(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const bob: Member = await addMember(fixture as never, seed, "bob");
+  const plans = await folder(fixture, admin, "/shared/plans");
+  assertEquals(
+    await refusal(
+      await grant(fixture, bob.cookie, plans, bob.principalId, "manage"),
+    ),
+    [409, "STORAGE_AREA_REFUSED", "folder_not_restricted"],
+  );
+  assertEquals(
+    await refusal(await grant(fixture, admin, plans, bob.principalId, "view")),
+    [409, "STORAGE_AREA_REFUSED", "folder_not_restricted"],
+  );
+  await ok(await restrict(fixture, admin, plans, true));
+  assertEquals(
+    await shape(await listing(fixture, bob.cookie, plans)),
+    [404, "RESOURCE_NOT_FOUND"],
+  );
+  const grants = (await ok(
+    await call(fixture, admin, "GET", `/v1/storage/folders/${plans}/grants`),
+  )).items as Json[];
+  assertEquals(grants.map((g) => g.principalId), [fixture.principalId]);
+}
+
+async function aTrashedRestrictedFolderIsHiddenFromTrash(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const bob: Member = await addMember(fixture as never, seed, "bob");
+  const made = await ok(
+    await call(fixture, admin, "POST", "/v1/storage/folders", {
+      path: "/shared/archived",
+    }),
+    201,
+  );
+  await ok(await restrict(fixture, admin, made.id as string, true));
+  const trashed = await trash(fixture, admin, {
+    id: made.id,
+    version: Number(made.version) + 1,
+  });
+  assert(trashed.status < 300, await trashed.clone().text());
+  assertEquals(
+    (await names(await call(fixture, bob.cookie, "GET", "/v1/storage/trash")))
+      .includes("archived"),
+    false,
+  );
+  assertEquals(
+    (await names(await call(fixture, admin, "GET", "/v1/storage/trash")))
+      .includes("archived"),
+    true,
+  );
+}
+
 async function aRestrictedRootIsHiddenFromTheRootsList(
   fixture: Fixture,
 ): Promise<void> {
@@ -585,6 +645,10 @@ Deno.test("folder grants and restricted folders", async () => {
       await aViewGranteeCannotMoveTrashOrRestore(fixture);
       await onlyAManagerRevokesAGrant(fixture);
       await searchHidesFilesInARestrictedFolder(fixture);
+      await aGrantOnAnOpenFolderIsRefusedSoRestrictingLaterAdmitsOnlyTheRestrictor(
+        fixture,
+      );
+      await aTrashedRestrictedFolderIsHiddenFromTrash(fixture);
       await aFolderTakesAtMostTwoHundredGrants(fixture);
       await aRestrictedRootIsHiddenFromTheRootsList(fixture);
     });

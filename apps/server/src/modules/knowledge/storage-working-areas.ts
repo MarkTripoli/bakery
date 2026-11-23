@@ -1608,10 +1608,14 @@ export function createTrashLister(secret: string) {
     const rows = found.rows.slice(0, limit);
     const listed = [];
     for (const row of rows) {
+      const parentVisible = row.trash_parent_id === null ||
+        await mayViewAt(tx, organizationId, principalId, row.trash_parent_id);
       if (
-        row.trash_parent_id === null ||
-        await mayViewAt(tx, organizationId, principalId, row.trash_parent_id)
-      ) listed.push(row);
+        parentVisible &&
+        await mayViewAt(tx, organizationId, principalId, row.id)
+      ) {
+        listed.push(row);
+      }
     }
     const items = listed.map((row) => entryView(row, row.original_folder_path));
     const last = rows.at(-1);

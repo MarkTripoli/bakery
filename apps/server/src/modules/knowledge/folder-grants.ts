@@ -169,6 +169,8 @@ export async function createFolderGrant(
     principalId,
     context.params.id,
   );
+  const access = await accessAt(tx, organizationId, principalId, folder.id);
+  if (!access.restricted) refuse("folder_not_restricted");
   const member = await tx.query(
     `select 1 from bakery.organization_memberships
       where organization_id = $1 and principal_id = $2 and status = 'active'`,

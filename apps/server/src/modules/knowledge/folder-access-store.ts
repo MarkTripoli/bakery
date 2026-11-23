@@ -141,12 +141,12 @@ export function deniedEntriesCte(
                 and g.principal_id = ${principal}::uuid
                 and g.revoked_at is null)`;
   return `${name}(id, in_restricted, granted) as (
-    select root.id, root.restricted, ${granted("root")}
-      from bakery.storage_entries root
-     where root.organization_id = ${organization}::uuid
-       and root.parent_id is null
+    select seed.id, true, ${granted("seed")}
+      from bakery.storage_entries seed
+     where seed.organization_id = ${organization}::uuid
+       and seed.restricted
     union all
-    select child.id, up.in_restricted or child.restricted,
+    select child.id, true,
            case when child.restricted then ${granted("child")}
                 else up.granted or ${granted("child")} end
       from bakery.storage_entries child

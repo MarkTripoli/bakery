@@ -1,6 +1,10 @@
 alter table bakery.storage_entries
   add column restricted boolean not null default false;
 
+create index storage_entries_restricted_idx
+  on bakery.storage_entries (organization_id, id)
+  where restricted;
+
 create table bakery.storage_folder_grants (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
