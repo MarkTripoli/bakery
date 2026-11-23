@@ -6026,7 +6026,6 @@
   "tasks.preview.linkExpires": "⟦Ôþëñš ïñ à ñëŵ ŧàƀ. Ŧĥïš ļïñķ ëẋþïŕëš ïñ {seconds, plural, one {# second} other {# seconds}}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "tasks.preview.details.summary": "⟦Ðëŧàïļš…⟧",
   "tasks.preview.details.preview": "⟦Ŧĥïš þŕëṽïëŵ ŧë⟧",
-  "tasks.preview.details.notReleased": "⟦ñôŧ ŕëļëàšëð ŧë⟧",
   "tasks.preview.details.change": "⟦Ŧĥë çĥàñĝë ïš ñôŵ àŧ ŧëšŧ⟧",
   "tasks.preview.details.stops": "⟦Šŧôþš ƀÿ ïŧšëļƒ ŧëš⟧",
   "tasks.preview.details.stopsValue": "⟦{time} (ïñ {minutes, plural, one {# minute} other {# minutes}}) ôŕ ŵĥëñ ŧĥë ŕûñ ëñðš ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
@@ -6593,5 +6592,7 @@
   "tasks.delivery.release.dialog.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë þëŕɱïššïôñ ŧô ðëþļôÿ ŧĥïš ŕëþôšïŧôŕÿ. Àšķ àñ àðɱïñïšŧŕàŧôŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.delivery.release.dialog.error": "⟦Ɓàķëŕÿ çôûļð ñôŧ ĝô ƀàçķ ŧô ŧĥë ļàšŧ ŕëļëàšë. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.delivery.release.dialog.noAnswer": "⟦Ɓàķëŕÿ ðïð ñôŧ àñšŵëŕ, šô ïŧ ɱàÿ àļŕëàðÿ ƀë ĝôïñĝ ƀàçķ. Ÿôû çàñ þŕëšš Ĝô ƀàçķ àĝàïñ; ïŧ ŕëþëàŧš ŧĥë šàɱë ŕëǫûëšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "tasks.run.details": "⟦Ŕûñ ðëŧàïļš ŧ⟧"
+  "tasks.run.details": "⟦Ŕûñ ðëŧàïļš ŧ⟧",
+  "tasks.preview.details.notReleased": "⟦à þŕëṽïëŵ, ñôŧ à ŕëļëàšë ŧëšŧ ç⟧",
+  "tasks.delivery.release.dialog.reason.empty": "⟦Ŵŕïŧë ŵĥÿ ÿôû àŕë ĝôïñĝ ƀàçķ. ŧëšŧ çôþ⟧"
 }

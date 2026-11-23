@@ -1,9 +1,6 @@
 import type { MessageKey } from "@bakery/i18n";
 import type { NowCard, ReleaseEnvironment, ReleaseView } from "./model.ts";
 
-// The headline words for a release (#63, design-ux's table). Pure: the
-// translate function comes in, so one unit test proves every state's words.
-
 type Translate = (
   key: MessageKey,
   values?: Record<string, string | number>,
@@ -17,7 +14,6 @@ export type ReleaseCopy = Readonly<{
   action: "goBack" | "tell" | null;
 }>;
 
-/** The environment as a person reads it: `preview` is "the preview environment". */
 export function environmentWord(
   t: Translate,
   environment: ReleaseEnvironment,
@@ -46,7 +42,6 @@ export function releaseTone(
     case "verifying":
     case "rolling_back":
     case "rolled_back":
-      // The design draws a rolled-back release neutral; a banner has no neutral tone.
       return "information";
   }
 }
@@ -87,7 +82,6 @@ export function releaseCopy(t: Translate, now: ReleaseNow): ReleaseCopy {
         action: now.goBack === "offer" ? "goBack" : null,
       };
     case "failed": {
-      // The sentence follows the field, not the status, and goes before the last.
       const parts = [
         t("tasks.delivery.release.failed.body"),
         ...(now.rollbackFailed
@@ -126,7 +120,6 @@ export function releaseCopy(t: Translate, now: ReleaseNow): ReleaseCopy {
   }
 }
 
-/** The facts the Details group names: this release and the one kept before it. */
 export type ReleaseDetails = Readonly<{
   thisRelease: string;
   before: string | null;

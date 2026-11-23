@@ -197,16 +197,12 @@ export function DeliverySection(
     refetchInterval: 5000,
   });
 
-  // The run's releases: asked for once the change is merged. Like the merge
-  // reads it never blocks the section; a refused or failed read shows no release.
   const merged = chosen?.status === "merged" && chosen.mergedSha !== null;
   const deployments = useQuery({
     ...runDeploymentsQueryOptions(api, scope, runId),
     enabled: enabled && merged,
     refetchInterval: 5000,
   });
-  // Administrators and developers may go back; the page cannot read the
-  // repository's deploy grant, so a refusal in the dialog explains the rest.
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
     enabled: enabled && merged,
@@ -248,8 +244,6 @@ export function DeliverySection(
       deployments: merged && !deployments.isError
         ? (deployments.data?.items ?? []).map((item) => ({
           ...item,
-          // The server always sends both; the contract marks them optional so
-          // older records and clients keep working.
           previousCommitSha: item.previousCommitSha ?? null,
           rollbackFailed: item.rollbackFailed ?? false,
         }))

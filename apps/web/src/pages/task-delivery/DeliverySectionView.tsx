@@ -58,11 +58,8 @@ export type DeliverySectionViewProps = Readonly<{
   onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
   /** Forgets the last merge notice before a new attempt. */
   onClearMerge: () => void;
-  /** Where a request to go back to the last release stands. */
   goBackPhase: GoBackPhase;
-  /** Asks Bakery to go back; resolves to how it ended (`idle` when accepted). */
   onGoBack: (deploymentId: string, reason: string) => Promise<GoBackPhase>;
-  /** Forgets the last refusal before a new attempt. */
   onClearGoBack: () => void;
 }>;
 
@@ -496,6 +493,7 @@ function ReadyView(
   const [comment, setComment] = useState("");
   const [goBackOpen, setGoBackOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [reasonMissing, setReasonMissing] = useState(false);
   const reasonId = `${fieldId}-reason`;
   const release = model.release;
   const goingBack = goBackPhase === "working";
@@ -582,8 +580,8 @@ function ReadyView(
   const openGoBack = () => {
     onClearGoBack();
     setReason("");
+    setReasonMissing(false);
     setGoBackOpen(true);
-    // The reason is typed straight away, so its field takes focus.
     focusAfterPaint(fieldInOpenDialog(reasonId));
   };
   const closeGoBack = () => {
@@ -594,8 +592,12 @@ function ReadyView(
   };
   const confirmGoBack = async () => {
     if (release === null) return;
+    if (reason.trim() === "") {
+      setReasonMissing(true);
+      focusAfterPaint(fieldInOpenDialog(reasonId));
+      return;
+    }
     const outcome = await onGoBack(release.id, reason.trim());
-    // A refusal keeps the dialog and the typed reason, with its one notice.
     if (outcome !== "idle") return;
     setGoBackOpen(false);
     setReason("");
@@ -1101,7 +1103,7 @@ function ReadyView(
           }
           confirmAction={
             <UI.Button
-              disabled={goBackDisabled || reason.trim() === ""}
+              disabled={goBackDisabled}
               loading={goingBack}
               onClick={() => void confirmGoBack()}
               variant="destructive"
@@ -1139,16 +1141,24 @@ function ReadyView(
               />
             </UI.Text>
             <UI.Field
+              error={reasonMissing
+                ? t("tasks.delivery.release.dialog.reason.empty")
+                : undefined}
               hint={t("tasks.delivery.release.dialog.reason.help")}
               htmlFor={reasonId}
               label={t("tasks.delivery.release.dialog.reason.label")}
+              state={reasonMissing ? "invalid" : "default"}
               variant="textarea"
             >
               <textarea
+                aria-invalid={reasonMissing || undefined}
                 aria-required="true"
                 id={reasonId}
                 name="reason"
-                onChange={(event) => setReason(event.currentTarget.value)}
+                onChange={(event) => {
+                  setReason(event.currentTarget.value);
+                  setReasonMissing(false);
+                }}
                 readOnly={goingBack}
                 required
                 rows={3}

@@ -2009,7 +2009,6 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MergeEntryResponse>>;
-  /** One run's releases, newest first: what the delivery section says about the release. */
   readonly listDeployments: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -2017,11 +2016,6 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<DeploymentListResponse>>;
-  /**
-   * Asks Bakery to put the environment back on the release before this one.
-   * The reason is kept in the audit log. A repeat with the same key answers
-   * with the same record.
-   */
   readonly rollbackDeployment: (options: {
     readonly organizationId: string;
     readonly deploymentId: string;

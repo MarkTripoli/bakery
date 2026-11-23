@@ -15,15 +15,10 @@ import {
 import { goBackFailure } from "../../apps/web/src/pages/task-delivery/use-go-back.ts";
 import { englishCatalog } from "../../packages/i18n/src/catalog.ts";
 
-// #63. After a change is merged, the Delivery headline says where its release
-// stands, in design-ux's words, and Go back is offered only to who may deploy
-// and only with a release before this one.
-
 const RUN = "3f0d1c2e-0000-4000-8000-0000000000a1";
 const NEW = "91d0aa3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const PREVIOUS = "4be19c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
-/** The English catalog with `{name}` filled in, as the page's translate does. */
 const t = (key: string, values: Record<string, string | number> = {}) => {
   const text = (englishCatalog as Record<string, string>)[key];
   if (text === undefined) throw new Error(`no English text for ${key}`);

@@ -3486,12 +3486,6 @@ export function approvalsQueryOptions(
   });
 }
 
-/**
- * One pull request's merge attempts, newest first. Read whole (the newest is
- * what the section shows) and kept fresh, so a refused or unknown attempt is
- * what the page says after a reload, never a guess.
- */
-/** One run's releases, newest first. The delivery section reads the newest. */
 export function runDeploymentsQueryOptions(
   client: Pick<BakeryApiClient, "listDeployments">,
   scope: ApiScope,
@@ -3512,6 +3506,11 @@ export function runDeploymentsQueryOptions(
   });
 }
 
+/**
+ * One pull request's merge attempts, newest first. Read whole (the newest is
+ * what the section shows) and kept fresh, so a refused or unknown attempt is
+ * what the page says after a reload, never a guess.
+ */
 export function mergeAttemptsQueryOptions(
   client: Pick<BakeryApiClient, "listMergeAttempts">,
   scope: ApiScope,

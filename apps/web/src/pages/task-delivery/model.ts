@@ -408,12 +408,7 @@ export type DeliveryInput = Readonly<{
    * there, so no merge is offered.
    */
   mergeUnavailable: boolean;
-  /**
-   * The run's releases, as `deployments.list` returns them. A read that failed
-   * or was refused is an empty list: nothing is said that was not reported.
-   */
   deployments?: readonly DeliveryDeployment[];
-  /** The person may deploy this repository (administrator or developer). */
   mayDeploy?: boolean;
   paused: boolean;
 }>;
@@ -454,27 +449,18 @@ export type DeploymentStatus =
   | "rolling_back"
   | "rolled_back";
 
-/** A release as `deployments.list` serves it, with only what the section reads. */
 export type DeliveryDeployment = Readonly<{
   id: string;
   environment: string;
   commitSha: string;
   status: DeploymentStatus;
-  /** The commit of the release this one replaced; null when it replaced nothing. */
   previousCommitSha: string | null;
-  /** Going back ended in failure, so the environment may not run the release before. */
   rollbackFailed: boolean;
   createdAt: string;
 }>;
 
-/** `preview` is a real environment on the server; the page never calls it "Preview". */
 export type ReleaseEnvironment = "staging" | "production" | "preview";
 
-/**
- * Who may go back: `offer` shows the button, `viewer` says someone who may
- * deploy can, `none` says nothing (no release before this one, or a status that
- * cannot be rolled back).
- */
 export type GoBack = "offer" | "viewer" | "none";
 
 export type ReleaseView = Readonly<{
@@ -519,7 +505,6 @@ export type NowCard =
   | Readonly<
     { kind: "mergeMoved"; approved: string; current: string; tried: boolean }
   >
-  /** The change is merged and a release exists for this run. */
   | Readonly<
     {
       kind: "release";
@@ -626,7 +611,6 @@ export type DeliveryModel = Readonly<{
   /** What the person may do about merging, else null. */
   merge: MergeView | null;
   now: NowCard;
-  /** This run's newest release once its change is merged, else null. */
   release: ReleaseView | null;
   /** Every whole commit id the section may name, so a sentence that shows a short one can draw it as a reference. */
   commits: readonly string[];
@@ -1091,7 +1075,6 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
   const after = afterApproval(input.pullRequests, input.runId);
   const release = releaseView(
     input.deployments ?? [],
-    // Never "merged" without the merge commit GitHub reported.
     chosenPullRequest?.status === "merged" &&
       chosenPullRequest.mergedSha !== null,
     input.mayDeploy ?? false,
@@ -1161,11 +1144,6 @@ const ENVIRONMENTS: readonly ReleaseEnvironment[] = [
   "preview",
 ];
 
-/**
- * The run's release, once its change is merged: the newest one the server
- * listed. Before the merge, or with no release recorded, the headline stays as
- * it is. An environment this page has no words for is not shown.
- */
 export function releaseView(
   deployments: readonly DeliveryDeployment[],
   merged: boolean,

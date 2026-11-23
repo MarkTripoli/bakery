@@ -6025,7 +6025,6 @@
   "tasks.preview.linkExpires": "⟪Opens in a new tab. This link expires in {seconds, plural, one {# second} other {# seconds}}.⟫",
   "tasks.preview.details.summary": "⟪Details⟫",
   "tasks.preview.details.preview": "⟪This preview⟫",
-  "tasks.preview.details.notReleased": "⟪not released⟫",
   "tasks.preview.details.change": "⟪The change is now at⟫",
   "tasks.preview.details.stops": "⟪Stops by itself⟫",
   "tasks.preview.details.stopsValue": "⟪{time} (in {minutes, plural, one {# minute} other {# minutes}}) or when the run ends⟫",
@@ -6593,5 +6592,7 @@
   "tasks.delivery.release.dialog.forbidden": "⟪You do not have permission to deploy this repository. Ask an administrator.⟫",
   "tasks.delivery.release.dialog.error": "⟪Bakery could not go back to the last release. Try again.⟫",
   "tasks.delivery.release.dialog.noAnswer": "⟪Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request.⟫",
-  "tasks.run.details": "⟪Run details⟫"
+  "tasks.run.details": "⟪Run details⟫",
+  "tasks.preview.details.notReleased": "⟪a preview, not a release⟫",
+  "tasks.delivery.release.dialog.reason.empty": "⟪Write why you are going back.⟫"
 }

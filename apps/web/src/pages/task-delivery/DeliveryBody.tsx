@@ -526,7 +526,6 @@ function ChecksTable(
   );
 }
 
-/** The release and the one kept before it; no state, the headline has it. */
 function ReleaseGroup(
   { goBackButton, known, release }: Readonly<{
     goBackButton: ReactNode;
@@ -813,7 +812,6 @@ export function DeliveryBody(
           model.release === null
         ? null
         : (
-          // Two closed links share one row; one that opens takes the whole row.
           <UI.Inline gap="standard">
             <Tried commits={model.commits} fixing={model.fixing} />
             <Details goBackButton={goBackButton} model={model} />
