@@ -2372,6 +2372,41 @@ const EACHING: Options = {
   ],
 };
 
+/**
+ * An If inside a For each item, followed by a step: the paths the block's
+ * path line, selected look and one "Edited in code" also reach (#417).
+ */
+const EACHING_IF: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "forEach",
+          items: "issues",
+          as: "issue",
+          max: 5,
+          steps: [
+            {
+              kind: "branch",
+              then: [{
+                kind: "action",
+                id: "implement",
+                uses: "harness.implement",
+              }],
+              else: [],
+            },
+            { kind: "action", id: "check", uses: "quality.check" },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 for (
   const viewport of [
     { name: "desktop", width: 1440, height: 900 },
@@ -2421,6 +2456,40 @@ for (
       await expect(repeat.locator(":scope > [data-connector]")).toHaveCount(0);
       await page.mouse.move(700, 700);
       await shot(page, "workflow-for-each");
+    });
+
+    test("an If inside a For each item has a path line after it, says nothing more about code, and shows which arm is selected", async ({ page }) => {
+      await libraryFixture(page, EACHING_IF);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const each = page.locator("[data-group=each]");
+      await expect(each).toHaveCount(1);
+      const inner = each.locator("[data-group=if]");
+      await expect(inner).toHaveCount(1);
+      // The plain path line follows the If, with no "+": a step comes after it.
+      const after = inner.locator("xpath=following-sibling::*[1]");
+      await expect(after).toHaveAttribute("data-connector", /.+/);
+      await expect(after.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      // "Edited in code" is said once, by the outer block, and not by the If in it.
+      await expect(
+        page.locator("[data-group-label]").filter({
+          hasText: "Edited in code",
+        }),
+      ).toHaveCount(1);
+      await expect(each.locator("[data-group-label=if]")).not.toContainText(
+        "Edited in code",
+      );
+      // Pressing an arm's name selects that arm and nothing else.
+      const yes = inner.locator("[data-group-arm=yes]");
+      const otherwise = inner.locator("[data-group-arm=otherwise]");
+      const name = yes.getByRole("button", { name: "Yes" });
+      await expect(yes).not.toHaveAttribute("data-selected", "true");
+      await expect(name).toHaveAttribute("aria-pressed", "false");
+      await name.click();
+      await expect(yes).toHaveAttribute("data-selected", "true");
+      await expect(name).toHaveAttribute("aria-pressed", "true");
+      await expect(otherwise).not.toHaveAttribute("data-selected", "true");
+      await expect(each).not.toHaveAttribute("data-selected", "true");
     });
 
     test("in the editor the block says what it does as text, with no field for the limit", async ({ page }) => {
