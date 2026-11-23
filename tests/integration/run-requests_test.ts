@@ -69,6 +69,10 @@ Deno.test("asking someone gives them the run to see, and nothing else", async ()
       (await api(o.fixture, o.guest.cookie, "GET", path)).status,
       404,
     );
+    assertEquals(
+      (await api(o.fixture, o.guest.cookie, "GET", `${path}/feed`)).status,
+      404,
+    );
     const made = await body<Request>(
       await o.ask(o.fixture.cookie, {
         recipientId: o.guest.principalId,
@@ -86,6 +90,15 @@ Deno.test("asking someone gives them the run to see, and nothing else", async ()
     assertEquals(
       (await api(o.fixture, o.guest.cookie, "GET", path)).status,
       200,
+    );
+    // The run's tool feed reads like its steps: with the grant, not without.
+    assertEquals(
+      (await api(o.fixture, o.guest.cookie, "GET", `${path}/feed`)).status,
+      200,
+    );
+    assertEquals(
+      (await api(o.fixture, o.other.cookie, "GET", `${path}/feed`)).status,
+      404,
     );
     const mine = await body<{ requests: Request[] }>(
       await api(o.fixture, o.guest.cookie, "GET", `${path}/requests/mine`),

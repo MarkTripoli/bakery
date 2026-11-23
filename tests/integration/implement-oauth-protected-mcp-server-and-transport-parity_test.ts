@@ -153,6 +153,7 @@ Deno.test("a pre-registered client uses PKCE, calls tools, is listed, and revoke
       "bakery_repositoryRules_getEffective",
       "bakery_runSteps_list",
       "bakery_runs_create",
+      "bakery_runs_feed",
       "bakery_runs_get",
       "bakery_runs_list",
       "bakery_taskDependencies_create",
