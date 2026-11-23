@@ -1,10 +1,12 @@
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
 import { useEffect } from "react";
 
+const NO_INITIAL_FOCUS: readonly string[] = [];
+
 export function useNativeDialogOpen(
   dialogRef: RefObject<HTMLDialogElement | null>,
   isOpen: boolean,
-  initialFocusSelectors: readonly string[] = [],
+  initialFocusSelectors: readonly string[] = NO_INITIAL_FOCUS,
 ) {
   useEffect(() => {
     const dialog = dialogRef.current;
