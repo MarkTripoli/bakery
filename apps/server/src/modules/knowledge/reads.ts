@@ -580,9 +580,10 @@ export function createArtifactReadHandlers(
           where v.organization_id=$1
             and v.artifact_id=$2
             and v.task_id=$3
-            -- A staged version waits for its probe and a refused one failed it
-            -- (O29): neither is a version of the artifact a list shows.
-            and v.publication_status='current'
+            -- Staged and refused versions are listed too (O29), with their
+            -- publicationStatus and refusal fields, so a publisher can see why a
+            -- version never became current. Their bytes stay unserved: content,
+            -- preview, extract, comments, handoff and pins read current only.
             and (
               v.run_step_id is null or exists (
                 select 1

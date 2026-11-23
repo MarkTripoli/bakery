@@ -16,7 +16,9 @@
  * - A refusal that is the file's fault (too-large, malformed, unreadable) refuses
  *   the version with that code.
  * - A refusal about the host (sandbox-unavailable, timeout, memory) decides
- *   nothing: the version stays staged and the runner asks again.
+ *   nothing: the version stays staged and the runner asks again, until the
+ *   request reaches its attempt ceiling; then `refuseStagedVersions` refuses it
+ *   as `probe-abandoned`.
  */
 import type { PgTransactionClient } from "@bakery/persistence";
 import type { ArtifactProbeResult } from "@bakery/contracts/artifact-probe";
@@ -34,6 +36,13 @@ export const ARTIFACT_PUBLICATION_STATUSES = Object.freeze(
 );
 export type ArtifactPublicationStatus =
   typeof ARTIFACT_PUBLICATION_STATUSES[number];
+
+/**
+ * The refusal reason of a staged version whose probe request reached the attempt
+ * ceiling: the host never produced an answer, so the version cannot be judged
+ * and is refused rather than left staged for ever.
+ */
+export const PROBE_ABANDONED_REASON = "probe-abandoned";
 
 /** Probe refusals that are about the file, and so refuse a staged version. */
 const FILE_FAULT_CODES: ReadonlySet<string> = new Set([
@@ -204,4 +213,34 @@ export async function settleStagedVersions(
     promoted++;
   }
   return { promoted, refused };
+}
+
+/**
+ * Refuses every staged version waiting on one subject with a fixed reason and
+ * no rule: used when the runner gives up on the subject, so no answer will come.
+ * Scoped by organization like the settle.
+ */
+export async function refuseStagedVersions(
+  transaction: Pick<PgTransactionClient, "query">,
+  input: Readonly<{
+    organizationId: string;
+    subject: ProbeSubject;
+    reason: string;
+  }>,
+): Promise<number> {
+  if ("entryId" in input.subject) return 0;
+  const match = "blobId" in input.subject ? "blob_id = $2" : "id = $2";
+  const value = "blobId" in input.subject
+    ? input.subject.blobId
+    : input.subject.artifactVersionId;
+  const result = await transaction.query(
+    `update bakery.artifact_versions
+        set publication_status = 'refused', settled_at = now(),
+            refused_kind_version_id = null, refused_rule_type = null,
+            refused_reason = $3
+      where organization_id = $1 and ${match}
+        and publication_status = 'staged'`,
+    [input.organizationId, value, input.reason],
+  );
+  return result.rowCount ?? 0;
 }

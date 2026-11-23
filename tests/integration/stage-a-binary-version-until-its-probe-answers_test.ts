@@ -3,7 +3,8 @@
  * #437 final slice), against real Postgres.
  *
  * A version published under a kind with a probe-backed rule is written staged:
- * it is not the artifact's current version and no list shows it. The probe
+ * it is not the artifact's current version, and the version list shows it as
+ * staged while no reader serves its bytes. The probe
  * runner, with a stub launcher standing in for the sandbox, stores the answer
  * and in the same transaction promotes the version to current or refuses it.
  */
@@ -15,7 +16,10 @@ import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { commitArtifactVersion } from "../../apps/server/src/modules/knowledge/persistence.ts";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { forgetSandboxPreflight } from "../../apps/server/src/modules/knowledge/probe.ts";
-import { runProbeTick } from "../../apps/server/src/modules/knowledge/probe-runner.ts";
+import {
+  PROBE_MAX_ATTEMPTS,
+  runProbeTick,
+} from "../../apps/server/src/modules/knowledge/probe-runner.ts";
 import { writeBlobProbe } from "../../apps/server/src/modules/knowledge/blob-probes.ts";
 import { settleStagedVersions } from "../../apps/server/src/modules/knowledge/staged-versions.ts";
 import {
@@ -217,7 +221,13 @@ async function listedVersionIds(fixture: WorkerFixture, artifactId: string) {
   );
   assertEquals(response.status, 200, await response.clone().text());
   const page = await response.json() as {
-    items: { id: string; publicationStatus?: string }[];
+    items: {
+      id: string;
+      publicationStatus?: string;
+      refusedKindVersionId?: string | null;
+      refusedRuleType?: string | null;
+      refusedReason?: string | null;
+    }[];
   };
   return page.items;
 }
@@ -280,7 +290,10 @@ Deno.test("an image over maxPixels is staged, then refused, and never becomes la
       null,
       "a staged version is not latest",
     );
-    assertEquals(await listedVersionIds(fixture, published.artifactId), []);
+    const stagedList = await listedVersionIds(fixture, published.artifactId);
+    assertEquals(stagedList.map((item) => item.id), [published.versionId]);
+    assertEquals(stagedList[0].publicationStatus, "staged");
+    assertEquals(stagedList[0].refusedReason, null);
 
     const result = await tick(
       fixture,
@@ -302,7 +315,13 @@ Deno.test("an image over maxPixels is staged, then refused, and never becomes la
     );
     assertEquals(refused.current_version_id, null);
     assertEquals(refused.probes, 1, "the answer is stored with the verdict");
-    assertEquals(await listedVersionIds(fixture, published.artifactId), []);
+    // The list shows the refusal and why, read through the real route.
+    const refusedList = await listedVersionIds(fixture, published.artifactId);
+    assertEquals(refusedList.map((item) => item.id), [published.versionId]);
+    assertEquals(refusedList[0].publicationStatus, "refused");
+    assertEquals(refusedList[0].refusedKindVersionId, kindVersionId);
+    assertEquals(refusedList[0].refusedRuleType, "maxPixels");
+    assertEquals(refusedList[0].refusedReason, refused.refused_reason);
   }));
 
 Deno.test("an image within maxPixels is staged, then current, and becomes latest", () =>
@@ -625,6 +644,102 @@ Deno.test("the content route does not serve the bytes of a refused version", () 
     const full = await getContent(fixture, published.versionId);
     await full.body?.cancel();
     assert(full.status !== 200, `refused bytes served: ${full.status}`);
+  }));
+
+Deno.test("the version list shows a staged and a refused version while content of each is not found", () =>
+  withWorkerFixture(async (fixture) => {
+    const kindVersionId = await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const refusedOne = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Listed",
+      bytes: bytes("pretend png, too many pixels"),
+    });
+    await tick(fixture, `printf '%s' '${frame({ width: 20, height: 20 })}'`);
+    const stagedOne = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Listed",
+      bytes: bytes("pretend png, second revision"),
+    });
+    assertEquals(stagedOne.artifactId, refusedOne.artifactId);
+    assertEquals(stagedOne.publicationStatus, "staged");
+    const listed = await listedVersionIds(fixture, refusedOne.artifactId);
+    const byId = new Map(listed.map((item) => [item.id, item]));
+    assertEquals(byId.size, 2, JSON.stringify(listed));
+    const refused = byId.get(refusedOne.versionId)!;
+    assertEquals(refused.publicationStatus, "refused");
+    assertEquals(refused.refusedKindVersionId, kindVersionId);
+    assertEquals(refused.refusedRuleType, "maxPixels");
+    assert(refused.refusedReason?.includes("400"), refused.refusedReason ?? "");
+    const staged = byId.get(stagedOne.versionId)!;
+    assertEquals(staged.publicationStatus, "staged");
+    assertEquals(staged.refusedReason, null);
+    for (const versionId of [refusedOne.versionId, stagedOne.versionId]) {
+      const content = await getContent(fixture, versionId);
+      await content.body?.cancel();
+      assertEquals(content.status, 404, `content of ${versionId}`);
+    }
+  }));
+
+Deno.test("a stored host-limit answer does not clear the request of a version staged since", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Timed out before",
+      bytes: bytes("pretend png, timed out once"),
+    });
+    assertEquals(published.publicationStatus, "staged");
+    // A timeout stored for these bytes while nothing waited on them.
+    await writeBlobProbe(fixture.pgDatabase, {
+      organizationId: fixture.organizationId,
+      artifactVersionId: published.versionId,
+      result: { status: "refused", code: "timeout" },
+    });
+    const result = await tick(
+      fixture,
+      `printf '%s' '${frame({ width: 10, height: 10 })}'`,
+    );
+    assertEquals(result.answered, 1, JSON.stringify(result));
+    const settled = await state(
+      fixture,
+      published.artifactId,
+      published.versionId,
+    );
+    assertEquals(settled.publication_status, "current", "probed again");
+    assertEquals(settled.current_version_id, published.versionId);
+    assertEquals(await openRequests(fixture, published.versionId), 0);
+  }));
+
+Deno.test("a request abandoned at the attempt ceiling refuses its staged version as probe-abandoned", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Never answered",
+      bytes: bytes("fine bytes, host never answers"),
+    });
+    await fixture.pgDatabase.query(
+      `update bakery.probe_requests set attempts = $3
+        where organization_id = $1 and artifact_version_id = $2`,
+      [fixture.organizationId, published.versionId, PROBE_MAX_ATTEMPTS - 1],
+    );
+    const result = await tick(fixture, "exit 1");
+    assertEquals(result.abandoned, 1, JSON.stringify(result));
+    const refused = await state(
+      fixture,
+      published.artifactId,
+      published.versionId,
+    );
+    assertEquals(refused.publication_status, "refused");
+    assertEquals(refused.refused_reason, "probe-abandoned");
+    assertEquals(refused.refused_rule_type, null);
+    assertEquals(refused.refused_kind_version_id, null);
+    assertEquals(refused.current_version_id, null);
+    const listed = await listedVersionIds(fixture, published.artifactId);
+    assertEquals(listed[0].refusedReason, "probe-abandoned");
   }));
 
 /** A storage file over the artifact, so the storage routes can read it. */

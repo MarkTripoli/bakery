@@ -53,6 +53,8 @@ import { assertStoredBytes } from "./stored-bytes.ts";
 import { withPgTransaction } from "@bakery/persistence";
 import {
   hasStagedVersions,
+  PROBE_ABANDONED_REASON,
+  refuseStagedVersions,
   settlesStagedVersion,
   settleStagedVersions,
 } from "./staged-versions.ts";
@@ -351,7 +353,7 @@ export async function completeProbeRequest(
  * real.
  */
 export async function failProbeRequest(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   input: { id: string; attempts: number; error: string },
 ): Promise<"retry" | "abandoned"> {
   if (input.attempts + 1 >= PROBE_MAX_ATTEMPTS) {
@@ -456,11 +458,7 @@ export async function runProbeTick(
       // The class goes to stderr because the row keeps only `probe-failed`, and a
       // deferred subject whose reason is discarded cannot be diagnosed anywhere --
       // not by an operator reading the table, and not by the person who reported it.
-      const outcome = await failProbeRequest(database, {
-        id: request.id,
-        attempts: request.attempts,
-        error: "probe-failed",
-      });
+      const outcome = await failAndSettleAbandoned(database, request);
       deps.log?.(
         `bakery: probe request ${request.id} failed (${
           error instanceof Error ? error.constructor.name : typeof error
@@ -513,6 +511,37 @@ export async function runProbeTick(
   };
 }
 
+/**
+ * Counts a failed attempt, and when that reaches the ceiling refuses every
+ * version still staged on the subject as `probe-abandoned`, in one transaction
+ * under the request's row lock. A terminal request is never claimed again, so
+ * a version left staged then would wait for an answer nothing will ever give.
+ */
+async function failAndSettleAbandoned(
+  database: PgDatabase,
+  request: RequestRow,
+): Promise<"retry" | "abandoned"> {
+  return await withPgTransaction(database, async (transaction) => {
+    await transaction.query(
+      "select id from bakery.probe_requests where id = $1 for update",
+      [request.id],
+    );
+    const outcome = await failProbeRequest(transaction, {
+      id: request.id,
+      attempts: request.attempts,
+      error: "probe-failed",
+    });
+    if (outcome === "abandoned") {
+      await refuseStagedVersions(transaction, {
+        organizationId: request.organization_id,
+        subject: subjectOf(request),
+        reason: PROBE_ABANDONED_REASON,
+      });
+    }
+    return outcome;
+  });
+}
+
 /** Both seals, for the same reason the probe asks both before touching bytes. */
 async function sandboxAvailable(
   options: ArtifactProbeOptions | undefined,
@@ -558,12 +587,18 @@ async function probeOne(
   if (existing !== null) {
     // The answer is already on record -- the bytes were probed for an earlier
     // version that shares them -- so a version staged since is settled on it.
-    await storeSettleAndClear(database, request, subject, {
+    //
+    // Unless that answer is a host limit (timeout, memory) stored while nothing
+    // waited: it cannot settle a version, and clearing the request on it would
+    // leave the version staged for ever. Then the stored row is ignored and the
+    // bytes are probed again, below.
+    const cleared = await storeSettleAndClear(database, request, subject, {
       result: existing.result,
       store: false,
       hostLimit: false,
+      onlyIfSettled: true,
     });
-    return "cleared";
+    if (cleared) return "cleared";
   }
   const attempt = await probeArtifactAttempt({
     readBytes: () => Promise.resolve(bytes.bytes),
@@ -597,6 +632,8 @@ async function probeOne(
  * While a staged version waits, a host limit stores nothing: stored, it would
  * clear the request and leave the version undecided. The attempt counts against
  * the request's ceiling instead.
+ *
+ * Answers true when the request was cleared, false when `onlyIfSettled` left it.
  */
 async function storeSettleAndClear(
   database: PgDatabase,
@@ -606,9 +643,14 @@ async function storeSettleAndClear(
     readonly result: ArtifactProbeResult;
     readonly store: boolean;
     readonly hostLimit: boolean;
+    /**
+     * Leave everything untouched and answer false when a staged version waits
+     * and this result cannot settle it, so the caller can probe again.
+     */
+    readonly onlyIfSettled?: boolean;
   },
-): Promise<void> {
-  await withPgTransaction(database, async (transaction) => {
+): Promise<boolean> {
+  return await withPgTransaction(database, async (transaction) => {
     await transaction.query(
       "select id from bakery.probe_requests where id = $1 for update",
       [request.id],
@@ -619,6 +661,11 @@ async function storeSettleAndClear(
       subject,
     );
     if (waiting && input.hostLimit) throw new ProbeHostFault(input.result);
+    // Checked under the row lock, so a version staged a moment ago is seen.
+    if (
+      waiting && input.onlyIfSettled === true &&
+      !settlesStagedVersion(input.result)
+    ) return false;
     if (input.store) {
       await writeBlobProbe(transaction, {
         organizationId: request.organization_id,
@@ -634,6 +681,7 @@ async function storeSettleAndClear(
       });
     }
     await completeProbeRequest(transaction, request.id);
+    return true;
   });
 }
 

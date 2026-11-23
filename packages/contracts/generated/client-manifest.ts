@@ -40015,7 +40015,7 @@ export const clientManifest = {
                 ]
               },
               "publicationStatus": {
-                "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; not listed or resolved as latest. refused: the probe answer failed a require rule or the probe refused the file; kept for audit, never listed. Omitted reads as current.",
+                "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
                 "type": "string",
                 "enum": [
                   "current",
@@ -40058,7 +40058,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Why the version was refused: the failing rule's message, or the probe refusal code (too-large, malformed, unreadable). Null unless publicationStatus is refused."
+                    "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
                   },
                   {
                     "type": "null",
@@ -57782,7 +57782,7 @@ export const clientManifest = {
           ]
         },
         "publicationStatus": {
-          "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; not listed or resolved as latest. refused: the probe answer failed a require rule or the probe refused the file; kept for audit, never listed. Omitted reads as current.",
+          "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
           "type": "string",
           "enum": [
             "current",
@@ -57825,7 +57825,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Why the version was refused: the failing rule's message, or the probe refusal code (too-large, malformed, unreadable). Null unless publicationStatus is refused."
+              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
             },
             {
               "type": "null",
