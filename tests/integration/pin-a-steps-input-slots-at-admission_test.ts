@@ -201,3 +201,40 @@ Deno.test("a slot whose artifact version does not exist fails the step and creat
       "a refused slot leaves no pin behind",
     );
   }));
+
+for (const status of ["staged", "refused"]) {
+  Deno.test(`a slot naming a ${status} artifact version fails the step and pins nothing`, () =>
+    withWorkerFixture(async (fixture) => {
+      const versionId = crypto.randomUUID();
+      const seeded = await seedGate(fixture, withBrief, versionId);
+      await seedVersion(fixture, seeded.job.taskId, versionId, "# Brief");
+      // Staged waits on its probe and refused failed its kind (O29): neither is
+      // bytes a step may read.
+      await fixture.pgDatabase.query(
+        `update bakery.artifact_versions set publication_status = $2 where id = $1`,
+        [versionId, status],
+      );
+      const admission = await seeded.repository.admit(seeded.key, seeded.owner);
+      assertEquals(admission.terminal, true);
+      assertEquals((await gateJob(fixture, seeded.job.runId)).length, 0);
+      const step = (await fixture.pgDatabase.query<{ detail: string }>(
+        `select to_jsonb(step)::text as detail
+           from bakery.run_steps step
+          where run_id = $1 and step_key = 'gate'`,
+        [seeded.job.runId],
+      )).rows[0];
+      assert(
+        step.detail.includes(
+          `artifact version ${versionId} is ${status}, not current`,
+        ),
+        step.detail,
+      );
+      assertEquals(
+        (await fixture.pgDatabase.query(
+          `select 1 from bakery.run_input_pins where run_id = $1`,
+          [seeded.job.runId],
+        )).rows.length,
+        0,
+      );
+    }));
+}
