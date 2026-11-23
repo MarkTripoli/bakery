@@ -842,7 +842,8 @@ test.describe("machine page: Add a model", () => {
       routes: [route({ provider: "acme" })],
     });
     await open(page, w, `/machines/${MACHINE_ID}/models/new`);
-    await expect(page.getByText("Models could not be loaded.")).toBeVisible();
+    await expect(page.getByText("This machine's details could not be loaded."))
+      .toBeVisible();
     await expect(page.getByText("Not signed in on this machine.")).toHaveCount(
       0,
     );

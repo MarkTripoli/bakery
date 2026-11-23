@@ -159,7 +159,7 @@ export function MachineModelNewPage(
   const content = unreadable
     ? (
       <UI.ErrorState
-        title={say("machines.models.loadFailed")}
+        title={say("machines.models.new.loadFailed")}
         description=""
         action={
           <UI.Button

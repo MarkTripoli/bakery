@@ -6536,5 +6536,6 @@
   "machines.models.new.intro": "⟪Say which model a coding agent on this machine may use. Nothing is charged or switched by adding it.⟫",
   "machines.models.new.back": "⟪Back to models⟫",
   "machines.models.new.modelHelp": "⟪The model's exact name at the provider.⟫",
-  "machines.models.new.regionHelp": "⟪Leave empty unless the provider has regional addresses.⟫"
+  "machines.models.new.regionHelp": "⟪Leave empty unless the provider has regional addresses.⟫",
+  "machines.models.new.loadFailed": "⟪This machine's details could not be loaded.⟫"
 }
