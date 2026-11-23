@@ -257,6 +257,24 @@ function Surface(props: WorkflowCanvasProps) {
     });
   }, [laid, width, bounds.w, zoom, mode]);
 
+  // The canvas gets narrower when the panel opens and wider when it closes.
+  // Keep the diagram where it was relative to the middle of the canvas, so a
+  // wide box is not left half behind the panel, and a person's own pan stays.
+  const lastWidth = useRef(0);
+  useEffect(() => {
+    const before = lastWidth.current;
+    lastWidth.current = width;
+    if (mode !== "editor" || before === 0 || width === 0 || before === width) {
+      return;
+    }
+    const [viewX, viewY, scale] = stores.viewportStore.getState().transform;
+    flow.setViewport({
+      x: viewX + (width - before) / 2,
+      y: viewY,
+      zoom: scale,
+    });
+  }, [width]);
+
   // A block that is selected or added is brought into view.
   useEffect(() => {
     if (mode !== "editor" || selectedId === null || laid === null) return;

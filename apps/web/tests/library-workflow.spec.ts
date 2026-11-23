@@ -1215,6 +1215,19 @@ for (
       await expect(panel.getByRole("button", { name: "Delete" })).toHaveCount(
         0,
       );
+      if (viewport.name === "desktop") {
+        // The panel narrowed the canvas: the wide If box is not left half
+        // behind it, because the diagram keeps its place around the middle.
+        await expect.poll(async () => {
+          const canvas = await page.locator(
+            '[data-ui-region="workflow-canvas"]',
+          )
+            .boundingBox();
+          const box = await page.locator("[data-group='if']").boundingBox();
+          return canvas !== null && box !== null && box.x >= canvas.x &&
+            box.x + box.width <= canvas.x + canvas.width;
+        }).toBe(true);
+      }
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-code-only");
     });
