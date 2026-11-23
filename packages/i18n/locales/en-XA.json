@@ -6451,5 +6451,8 @@
   "installation.updates.held.action": "⟦Àçŧïôñ…⟧",
   "installation.updates.held.count": "⟦Ĥôŵ ɱàñÿ…⟧",
   "installation.updates.held.since": "⟦Ĥëļð šïñçë ŧ⟧",
-  "core.reference.close": "⟦Çļôšë⟧"
+  "core.reference.close": "⟦Çļôšë⟧",
+  "installation.updates.history.moreError": "⟦Ṁôŕë ĥïšŧôŕÿ çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
+  "installation.updates.notice.dismissFailed": "⟦Ŧĥïš çôûļð ñôŧ ƀë ðïšɱïššëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
+  "installation.updates.held.error": "⟦Ŧĥë àçŧïôñš ĥëļð ôûŧšïðë Ɓàķëŕÿ çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

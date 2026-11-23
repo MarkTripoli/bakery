@@ -49,6 +49,7 @@ export function InstallationUpdatesPage() {
   const [problem, setProblem] = useState<"conflict" | "failed" | null>(null);
   const [saved, setSaved] = useState(false);
   const [dismissing, setDismissing] = useState(false);
+  const [dismissFailed, setDismissFailed] = useState(false);
   const intent = useRef<{ key: string; version: number; body: string } | null>(
     null,
   );
@@ -57,6 +58,7 @@ export function InstallationUpdatesPage() {
     setDraft(null);
     setProblem(null);
     setSaved(false);
+    setDismissFailed(false);
     intent.current = null;
   }, [scope.sessionGeneration]);
 
@@ -115,6 +117,7 @@ export function InstallationUpdatesPage() {
     const key = dismissKeys.current.get(id) ?? crypto.randomUUID();
     dismissKeys.current.set(id, key);
     setDismissing(true);
+    setDismissFailed(false);
     const result = await api.installationUpdates.dismiss({
       id,
       idempotencyKey: key,
@@ -130,7 +133,10 @@ export function InstallationUpdatesPage() {
         });
       }
       void history.refetch();
+      return;
     }
+    // Nothing else tells the admin the notice is still there for a reason.
+    setDismissFailed(true);
   };
 
   const events = useMemo(
@@ -150,6 +156,7 @@ export function InstallationUpdatesPage() {
 
   return (
     <InstallationUpdatesScreen
+      dismissFailed={dismissFailed}
       dismissing={dismissing}
       history={{
         state: history.isPending
@@ -164,6 +171,7 @@ export function InstallationUpdatesPage() {
       onDismiss={(id) => void dismiss(id)}
       onLoadMore={() => void history.fetchNextPage()}
       onOpenRestore={() => void navigate({ to: "/installation/restore" })}
+      onRetryUncertain={() => void uncertain.refetch()}
       onPolicyChange={(next) => {
         setDraft(next);
         setSaved(false);
@@ -187,6 +195,7 @@ export function InstallationUpdatesPage() {
       state={state}
       status={status.data ?? null}
       uncertain={uncertain.data ?? null}
+      uncertainFailed={uncertain.isError && uncertain.data === undefined}
     />
   );
 }

@@ -245,8 +245,20 @@ export function Reference(
     )
     : (
       <span
+        aria-controls={hasCard && open ? cardId : undefined}
+        aria-expanded={hasCard ? open : undefined}
         className="ui-reference__plain"
         onClick={hasCard ? () => setOpen((now) => !now) : undefined}
+        onKeyDown={hasCard
+          ? (event) => {
+            // A control that opens something answers Enter and Space.
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setOpen((now) => !now);
+            }
+          }
+          : undefined}
+        role={hasCard ? "button" : undefined}
         tabIndex={hasCard ? 0 : undefined}
       >
         <DataText fit variant="identifier">{shown}</DataText>

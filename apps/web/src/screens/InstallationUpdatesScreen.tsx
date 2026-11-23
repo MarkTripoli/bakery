@@ -43,7 +43,12 @@ export type InstallationUpdatesScreenProps = {
   readonly uncertain: InstallationUncertainActions | null;
   readonly policy: UpdatePolicyForm;
   readonly dismissing: boolean;
+  /** The last Dismiss was refused or did not arrive: the notice stays, and says why. */
+  readonly dismissFailed: boolean;
+  /** The held outside actions could not be read: said, not hidden. */
+  readonly uncertainFailed: boolean;
   readonly onRetry: () => void;
+  readonly onRetryUncertain: () => void;
   readonly onRetryHistory: () => void;
   readonly onLoadMore: () => void;
   readonly onPolicyChange: (value: UpdatePolicyValue) => void;
@@ -193,8 +198,24 @@ export function InstallationUpdatesScreen(
                 onDismiss={props.onDismiss}
                 status={status}
               />
+              {props.dismissFailed
+                ? (
+                  <UI.InlineNotice
+                    data-result="dismiss-failed"
+                    role="alert"
+                    tone="error"
+                  >
+                    {translate("installation.updates.notice.dismissFailed")}
+                  </UI.InlineNotice>
+                )
+                : null}
               <Facts date={date} status={status} />
-              <Held date={date} uncertain={props.uncertain} />
+              <Held
+                date={date}
+                failed={props.uncertainFailed}
+                onRetry={props.onRetryUncertain}
+                uncertain={props.uncertain}
+              />
               <Policy {...props} />
               <History {...props} dateTime={dateTime} />
             </>
@@ -661,6 +682,22 @@ function History(
             state="ready"
           />
         )}
+      {history.state === "error" && history.rows.length > 0
+        ? (
+          <UI.InlineNotice
+            action={
+              <UI.Button onClick={props.onLoadMore} variant="secondary">
+                {translate("core.actions.retry")}
+              </UI.Button>
+            }
+            data-result="history-more-failed"
+            role="alert"
+            tone="error"
+          >
+            {translate("installation.updates.history.moreError")}
+          </UI.InlineNotice>
+        )
+        : null}
       {history.hasMore
         ? (
           <UI.Inline>
@@ -684,13 +721,39 @@ function History(
 }
 
 function Held(
-  { uncertain, date }: {
+  { uncertain, date, failed, onRetry }: {
     readonly uncertain: InstallationUncertainActions | null;
     readonly date: (iso: string) => string;
+    readonly failed: boolean;
+    readonly onRetry: () => void;
   },
 ) {
   const { translate } = useI18n();
   const phone = useShellViewport() === "phone";
+  // A read that failed is not "nothing held": say so, with a way to try again.
+  if (failed) {
+    return (
+      <UI.SettingsSection
+        data-section="held"
+        id={HELD_SECTION}
+        title={translate("installation.updates.held.title")}
+        variant="stack"
+      >
+        <UI.InlineNotice
+          action={
+            <UI.Button onClick={onRetry} variant="secondary">
+              {translate("core.actions.retry")}
+            </UI.Button>
+          }
+          data-result="held-failed"
+          role="alert"
+          tone="error"
+        >
+          {translate("installation.updates.held.error")}
+        </UI.InlineNotice>
+      </UI.SettingsSection>
+    );
+  }
   if (uncertain === null || uncertain.total === 0) return null;
   return (
     <UI.SettingsSection

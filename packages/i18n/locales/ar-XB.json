@@ -6451,5 +6451,8 @@
   "installation.updates.held.action": "⟪Action⟫",
   "installation.updates.held.count": "⟪How many⟫",
   "installation.updates.held.since": "⟪Held since⟫",
-  "core.reference.close": "⟪Close⟫"
+  "core.reference.close": "⟪Close⟫",
+  "installation.updates.history.moreError": "⟪More history could not be loaded.⟫",
+  "installation.updates.notice.dismissFailed": "⟪This could not be dismissed. Try again.⟫",
+  "installation.updates.held.error": "⟪The actions held outside Bakery could not be loaded.⟫"
 }

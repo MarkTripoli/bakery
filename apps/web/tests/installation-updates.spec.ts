@@ -1,4 +1,10 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
@@ -94,7 +100,31 @@ type Options = {
   policy?: "go_back" | "ask";
   /** The updates status answer waits for this, so the loading state shows. */
   hold?: Promise<void>;
+  /** The first Dismiss is refused; the next one works. */
+  dismissFailsOnce?: boolean;
+  /** Reads of the second page of history are refused until `stop.more()`. */
+  moreFails?: boolean;
+  /** Reads of the held outside actions are refused until `stop.held()`. */
+  heldFails?: boolean;
 };
+
+/** One refused answer, shaped like the server's problem details. */
+function refused(route: Route) {
+  return route.fulfill({
+    status: 503,
+    contentType: "application/problem+json",
+    body: JSON.stringify({
+      type: "https://bakery.example/problems/test",
+      title: "Refused",
+      detail: "Refused.",
+      status: 503,
+      code: "DEPENDENCY_UNAVAILABLE",
+      retryable: false,
+      requestId: crypto.randomUUID(),
+      traceId: crypto.randomUUID(),
+    }),
+  });
+}
 
 async function updatesFixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
@@ -110,6 +140,11 @@ async function updatesFixture(page: Page, options: Options = {}) {
   };
   const writes: { body: unknown; ifMatch: string | undefined }[] = [];
   let changedElsewhere = false;
+  let dismissRefused = options.dismissFailsOnce !== true;
+  // A refused read is tried again by the app, so a read stays refused until the
+  // test lets it through.
+  let moreRefusing = options.moreFails === true;
+  let heldRefusing = options.heldFails === true;
   await page.route("**/v1/installation/status", (route) =>
     route.fulfill({
       status: 200,
@@ -163,6 +198,7 @@ async function updatesFixture(page: Page, options: Options = {}) {
     (url) => url.pathname === "/v1/installation/updates",
     (route) => {
       const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      if (cursor === "page-2" && moreRefusing) return refused(route);
       const items = options.empty
         ? []
         : cursor === "page-2"
@@ -181,6 +217,10 @@ async function updatesFixture(page: Page, options: Options = {}) {
   await page.route(
     (url) => /^\/v1\/installation\/updates\/[^/]+\/dismiss$/.test(url.pathname),
     (route) => {
+      if (!dismissRefused) {
+        dismissRefused = true;
+        return refused(route);
+      }
       const id = new URL(route.request().url()).pathname.split("/")[4] ?? "";
       state.dismissed.push(id);
       const dismissed = {
@@ -197,8 +237,9 @@ async function updatesFixture(page: Page, options: Options = {}) {
   );
   await page.route(
     "**/v1/installation/uncertain-actions",
-    (route) =>
-      route.fulfill({
+    (route) => {
+      if (heldRefusing) return refused(route);
+      return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(
@@ -229,7 +270,8 @@ async function updatesFixture(page: Page, options: Options = {}) {
               total: options.held,
             },
         ),
-      }),
+      });
+    },
   );
   await page.route("**/v1/installation/settings", (route) => {
     const request = route.request();
@@ -268,6 +310,14 @@ async function updatesFixture(page: Page, options: Options = {}) {
   return {
     state,
     writes,
+    stop: {
+      more: () => {
+        moreRefusing = false;
+      },
+      held: () => {
+        heldRefusing = false;
+      },
+    },
     changeElsewhere: () => {
       changedElsewhere = true;
     },
@@ -667,6 +717,89 @@ for (
       await reference.locator(".ui-reference__plain").focus();
       await expect(card).toBeVisible();
       await still(page, "updates-release-card");
+    });
+
+    test("a Dismiss that fails keeps the notice and says why; trying again works", async ({ page }) => {
+      await updatesFixture(page, { dismissFailsOnce: true });
+      await page.goto("/installation/updates");
+      const notice = page.locator("[data-failure='went_back']");
+      await expect(notice).toBeVisible();
+      await notice.getByRole("button", { name: "Dismiss" }).click();
+      const problem = page.locator("[data-result='dismiss-failed']");
+      await expect(problem).toContainText(
+        "This could not be dismissed. Try again.",
+      );
+      await expect(notice).toBeVisible();
+      await page.mouse.move(5, 5);
+      await still(page, "updates-dismiss-failed");
+      await notice.getByRole("button", { name: "Dismiss" }).click();
+      await expect(notice).toHaveCount(0);
+      await expect(problem).toHaveCount(0);
+    });
+
+    test("Load more that fails says so above the button and Retry loads the rest", async ({ page }) => {
+      const fixture = await updatesFixture(page, { moreFails: true });
+      await page.goto("/installation/updates");
+      const rows = page.locator("[data-event]");
+      await expect(rows).toHaveCount(25);
+      await page.getByRole("button", { name: "Load more" }).click();
+      const problem = page.locator("[data-result='history-more-failed']");
+      await expect(problem).toContainText("More history could not be loaded.", {
+        timeout: 20_000,
+      });
+      await expect(rows).toHaveCount(25);
+      await page.mouse.move(5, 5);
+      await still(page, "updates-history-more-failed");
+      fixture.stop.more();
+      await problem.getByRole("button", { name: "Try again" }).click();
+      await expect(problem).toHaveCount(0);
+      await expect(rows).toHaveCount(HISTORY.length);
+    });
+
+    test("held actions that cannot be read say so with Retry, not nothing", async ({ page }) => {
+      const fixture = await updatesFixture(page, { heldFails: true, held: 2 });
+      await page.goto("/installation/updates");
+      const held = page.locator("[data-section='held']");
+      await expect(held.locator("[data-result='held-failed']")).toContainText(
+        "The actions held outside Bakery could not be loaded.",
+        { timeout: 20_000 },
+      );
+      await page.mouse.move(5, 5);
+      await still(page, "updates-held-failed");
+      fixture.stop.held();
+      await held.getByRole("button", { name: "Try again" }).click();
+      await expect.poll(() => said(held)).toContain("github.issue.create");
+      await expect(held.locator("[data-result='held-failed']")).toHaveCount(0);
+    });
+
+    test("a release id is a button: it says it opens a card, and Enter and Space toggle it", async ({ page }) => {
+      await updatesFixture(page, { failure: null });
+      await page.goto("/installation/updates");
+      const reference = page.locator("[data-fact='running']")
+        .locator("[data-ui-component='reference']");
+      const plain = reference.locator(".ui-reference__plain");
+      await expect(plain).toHaveAttribute("role", "button");
+      await expect(plain).toHaveAttribute("aria-expanded", "false");
+      await expect(plain).not.toHaveAttribute("aria-controls", /.+/);
+      // Keyboard focus opens it, and the button points at the card it opened.
+      await page.keyboard.press("Tab");
+      await plain.focus();
+      await expect(plain).toHaveAttribute("aria-expanded", "true");
+      const card = reference.getByRole("group", { name: "Release" });
+      await expect(card).toBeVisible();
+      await expect(plain).toHaveAttribute(
+        "aria-controls",
+        (await card.getAttribute("id")) ?? "",
+      );
+      await page.keyboard.press("Escape");
+      await expect(plain).toHaveAttribute("aria-expanded", "false");
+      await expect(card).toHaveCount(0);
+      await page.keyboard.press("Enter");
+      await expect(plain).toHaveAttribute("aria-expanded", "true");
+      await expect(card).toBeVisible();
+      await page.keyboard.press("Space");
+      await expect(plain).toHaveAttribute("aria-expanded", "false");
+      await expect(card).toHaveCount(0);
     });
 
     test("an update is running: the saved choice is plain text and the hint says when it unlocks", async ({ page }) => {
