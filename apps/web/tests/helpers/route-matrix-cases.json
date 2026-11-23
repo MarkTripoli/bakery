@@ -100,6 +100,14 @@
     "path": "/machines/$machineId"
   },
   {
+    "id": "machine-models",
+    "path": "/machines/$machineId/models"
+  },
+  {
+    "id": "machine-model-new",
+    "path": "/machines/$machineId/models/new"
+  },
+  {
     "id": "notifications",
     "path": "/notifications"
   },

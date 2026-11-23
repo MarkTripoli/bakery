@@ -1,22 +1,32 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "3168f1fe748788dccf820aa9f82f9414c2120211"
+    "6f5e7b6ec00203ea3351be7b66d6bd8550b741b6"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:8629bb2d416ffdea01d9b410359e50ddb54ca346a360d9f7bab4f0872f04d88f",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 3168f1fe748788dccf820aa9f82f9414c2120211: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker now refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
+  "targetCompatibilityDigest": "sha256:3dec69b5417cf7b11b815fa9480e62b4ff135847e6f62f3e05b74a82d116a9af",
+  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 6f5e7b6ec00203ea3351be7b66d6bd8550b741b6: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2864ff3cf9bd4cdf9a2c3f2d802339415d682013"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:29f2c36d33afdecc79f3465c7a3cb9e355afab0dd86fa13acfc86dcf154d80de",
+      "reason": "Displaced by the #34 plugin job version pin rebind onto main 6f5e7b6ec: main's own approval, kept unchanged. It approved main 2864ff3cf before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
         "0a4d1eb165ac9949938bc0267797f13459891e1b"
       ],
-      "status": "displaced",
+      "status": "approved",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:ccdb73044818cceadc5b2cedb97217d7abce69ddff1583f50487aa5bae49b6f1",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 3168f1fe7: #436 tool gateway, kept unchanged. It approved main 0a4d1eb16 before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+      "reason": "#436 tool gateway and capability bindings by dev-server on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 0a4d1eb165ac9949938bc0267797f13459891e1b: CapabilityBinding gains seatKey (a seat is a workflow version plus the role a step runs as, 25-one-engine.md 15.5) and CapabilityBindingCreate and BindingQuery gain it as an optional field; BrokerToolInvocation (worker.invokeTool, never served before this change) makes integrationConnectionId optional beside a new mcpConnectionId and gains the worker session pair; capabilityBindings.create, list and delete declare their required organization context; capabilityBindings.create, list and delete also declare SCOPE_REQUIRED and MALFORMED_REQUEST like every required-context action; the paper workflow action capability is removed, because rpi.design reaches its design tool through a capability binding (a Paper connection bound to the step, seat or agent) and no longer needs a worker that advertises paper. No client called worker.invokeTool or the capability binding routes before, since none was mounted. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
