@@ -40058,7 +40058,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+                    "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
                   },
                   {
                     "type": "null",
@@ -57825,7 +57825,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
             },
             {
               "type": "null",

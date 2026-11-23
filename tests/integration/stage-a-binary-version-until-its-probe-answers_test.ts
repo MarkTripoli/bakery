@@ -742,6 +742,39 @@ Deno.test("a request abandoned at the attempt ceiling refuses its staged version
     assertEquals(listed[0].refusedReason, "probe-abandoned");
   }));
 
+Deno.test("a subject whose bytes are gone refuses its staged version as bytes-missing", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Purged before probing",
+      bytes: bytes("pretend png, purged"),
+    });
+    assertEquals(published.publicationStatus, "staged");
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions set purged_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.versionId],
+    );
+    const result = await tick(
+      fixture,
+      `printf '%s' '${frame({ width: 10, height: 10 })}'`,
+    );
+    assertEquals(result.answered, 0, JSON.stringify(result));
+    const refused = await state(
+      fixture,
+      published.artifactId,
+      published.versionId,
+    );
+    assertEquals(refused.publication_status, "refused", "left staged for ever");
+    assertEquals(refused.refused_reason, "bytes-missing");
+    assertEquals(refused.refused_rule_type, null);
+    assertEquals(refused.current_version_id, null);
+    const listed = await listedVersionIds(fixture, published.artifactId);
+    assertEquals(listed[0].refusedReason, "bytes-missing");
+  }));
+
 /** A storage file over the artifact, so the storage routes can read it. */
 async function storageFile(fixture: WorkerFixture, artifactId: string) {
   const folder = await fixture.pgDatabase.query<{ id: string }>(

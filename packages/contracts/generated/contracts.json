@@ -115187,7 +115187,7 @@
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+                  "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
                 },
                 {
                   "type": "null",
@@ -149537,7 +149537,7 @@
                       {
                         "type": "string",
                         "maxLength": 65536,
-                        "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+                        "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
                       },
                       {
                         "type": "null",
@@ -168654,7 +168654,7 @@
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+                  "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
                 },
                 {
                   "type": "null",
@@ -289566,7 +289566,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9f151fd955b5fbc39b5e892cd4ce7fa49690efb6507b45e075aac73e6de3825f",
+  "compatibilityDigest": "sha256:75905e04d31de3743314b5ff80e6fa7612a5082556251830e6afb376cfee380d",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -352864,7 +352864,7 @@
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
             },
             {
               "type": "null",
@@ -387332,7 +387332,7 @@
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+                    "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
                   },
                   {
                     "type": "null",
@@ -406501,7 +406501,7 @@
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), or probe-abandoned when the probe failed on the host until the runner gave up. Null unless publicationStatus is refused."
+              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
             },
             {
               "type": "null",

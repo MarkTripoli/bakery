@@ -52,6 +52,7 @@ import {
 import { assertStoredBytes } from "./stored-bytes.ts";
 import { withPgTransaction } from "@bakery/persistence";
 import {
+  BYTES_MISSING_REASON,
   hasStagedVersions,
   PROBE_ABANDONED_REASON,
   refuseStagedVersions,
@@ -382,7 +383,7 @@ export async function failProbeRequest(
  * subject is finished.
  */
 export async function giveUpProbeRequest(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   id: string,
 ): Promise<void> {
   await database.query(
@@ -473,8 +474,10 @@ export async function runProbeTick(
       answered++;
     } else if (stored === "gone") {
       // The bytes are gone: there is nothing to ask about and never will be. The
-      // row stays, terminal, so the backfill does not queue it again.
-      await giveUpProbeRequest(database, request.id);
+      // row stays, terminal, so the backfill does not queue it again, and every
+      // version still staged on the subject is refused in the same transaction:
+      // a terminal request is never claimed again, so nothing else would.
+      await giveUpAndRefuseStaged(database, request);
     } else if (stored === "unavailable") {
       // No store on this server, so a blob-backed subject cannot be read at all.
       // Leaving that row untouched is the only honest answer: the file is fine,
@@ -539,6 +542,29 @@ async function failAndSettleAbandoned(
       });
     }
     return outcome;
+  });
+}
+
+/**
+ * Gives up on a subject whose bytes are gone and refuses every version still
+ * staged on it as `bytes-missing`, in one transaction under the request's row
+ * lock.
+ */
+async function giveUpAndRefuseStaged(
+  database: PgDatabase,
+  request: RequestRow,
+): Promise<void> {
+  await withPgTransaction(database, async (transaction) => {
+    await transaction.query(
+      "select id from bakery.probe_requests where id = $1 for update",
+      [request.id],
+    );
+    await giveUpProbeRequest(transaction, request.id);
+    await refuseStagedVersions(transaction, {
+      organizationId: request.organization_id,
+      subject: subjectOf(request),
+      reason: BYTES_MISSING_REASON,
+    });
   });
 }
 

@@ -44,6 +44,13 @@ export type ArtifactPublicationStatus =
  */
 export const PROBE_ABANDONED_REASON = "probe-abandoned";
 
+/**
+ * The refusal reason of a staged version whose subject's bytes are gone (purged,
+ * or never stored) before its probe ran: there is nothing to judge and never will
+ * be, so the version is refused rather than left staged for ever.
+ */
+export const BYTES_MISSING_REASON = "bytes-missing";
+
 /** Probe refusals that are about the file, and so refuse a staged version. */
 const FILE_FAULT_CODES: ReadonlySet<string> = new Set([
   "too-large",
