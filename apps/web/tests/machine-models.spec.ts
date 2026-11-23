@@ -816,6 +816,11 @@ test.describe("machine page: Add a model", () => {
       world({ gate, routes: [route({ provider: "acme" })] }),
       `/machines/${MACHINE_ID}/models/new`,
     );
+    // The sign-ins are asked for only once the role and the machine are read: wait for that request, so the
+    // assertions below run while the answer is held, not before the page has got that far.
+    await page.waitForRequest((request) =>
+      new URL(request.url()).pathname.endsWith("/provider-bindings")
+    );
     await expect(page.getByText("Loading").first()).toBeVisible();
     await expect(page.getByText("Not signed in on this machine.")).toHaveCount(
       0,
