@@ -95,7 +95,11 @@ async function scenario(
     {
       action: "plugin.job",
       capabilities: ["plugin.job.contained"],
-      input: { installId, entry: "jobs/nightly.sh" },
+      input: {
+        installId,
+        entry: "jobs/nightly.sh",
+        versionId: published.versionId,
+      },
     },
   );
   const assignment = await claimAssignment(fixture, worker, {
