@@ -9,7 +9,7 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "harness.repair",
     "quality.check",
     "review.independent",
-    "integration.action",
+    "tool.call",
     "delivery.candidate_evidence",
     "delivery.prepare",
     "delivery.merge",
@@ -160,9 +160,11 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
       },
       effectPolicy: "review_evidence",
     }),
-    "integration.action": metadata({
-      input: "IntegrationActionInput",
-      output: "IntegrationActionOutput",
+    "tool.call": metadata({
+      input: "ToolCallInput",
+      output: "ToolCallOutput",
+      // The server settles the call itself, as the person who started the run, so
+      // no worker host runs it; like the delivery steps it names what it needs.
       capabilities: ["integration"],
       cancel: "cooperative_fenced",
       retry: {

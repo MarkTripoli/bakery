@@ -107,6 +107,8 @@ function containsRevision(nodes: readonly WorkflowNode[]): boolean {
           (node.seed.form === "sequence" && containsRevision(node.seed.steps));
       case "parallel":
         return node.lanes.some((lane) => containsRevision(lane.steps));
+      case "forEach":
+        return containsRevision(node.steps);
       case "wait":
         return false;
     }
@@ -176,6 +178,19 @@ function visit(
         : state;
       let current = start;
       let guaranteed = start;
+      for (let pass = 0; pass < node.max; pass += 1) {
+        const next = fold(node.steps, current, false, walk);
+        guaranteed = intersect(guaranteed, next);
+        if (same(next, current)) break;
+        current = next;
+      }
+      after = guaranteed;
+      break;
+    }
+    case "forEach": {
+      // The body runs once per item: zero to `max` times.
+      let current = state;
+      let guaranteed = state;
       for (let pass = 0; pass < node.max; pass += 1) {
         const next = fold(node.steps, current, false, walk);
         guaranteed = intersect(guaranteed, next);

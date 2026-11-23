@@ -86,7 +86,7 @@ function isValueSlot(segments: readonly PointerSegment[]): boolean {
 /**
  * Whether `path` is the exact authored path of a step node: `steps/N` from the
  * root, then any nesting of sequence nodes (`steps/N`), branch arms, repeat
- * bodies, repeat seed sequences and parallel lanes. Declared-name positions (branch outputs, lane ids, lane
+ * bodies, repeat seed sequences, forEach steps and parallel lanes. Declared-name positions (branch outputs, lane ids, lane
  * exports, arm keys, repeat candidates) count only below such a path, so a
  * submitted key chain cannot rebuild one elsewhere (`ui`, `limits`, ...).
  */
@@ -101,7 +101,7 @@ function isNodePath(path: readonly PointerSegment[]): boolean {
     } else if (a === "branch" && (b === "then" || b === "else")) {
       if (typeof path[i + 2] !== "number") return false;
       i += 3;
-    } else if (a === "repeat" && b === "steps") {
+    } else if ((a === "repeat" || a === "forEach") && b === "steps") {
       if (typeof path[i + 2] !== "number") return false;
       i += 3;
     } else if (a === "repeat" && b === "seed" && path[i + 2] === "steps") {
