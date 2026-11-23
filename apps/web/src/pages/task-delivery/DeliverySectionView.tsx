@@ -1147,6 +1147,7 @@ function ReadyView(
               hint={t("tasks.delivery.release.dialog.reason.help")}
               htmlFor={reasonId}
               label={t("tasks.delivery.release.dialog.reason.label")}
+              required
               state={reasonMissing ? "invalid" : "default"}
               variant="textarea"
             >
