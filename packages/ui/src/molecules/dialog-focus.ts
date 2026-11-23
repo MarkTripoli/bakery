@@ -1,9 +1,12 @@
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
 import { useEffect } from "react";
 
+const NO_INITIAL_FOCUS: readonly string[] = [];
+
 export function useNativeDialogOpen(
   dialogRef: RefObject<HTMLDialogElement | null>,
   isOpen: boolean,
+  initialFocusSelectors: readonly string[] = NO_INITIAL_FOCUS,
 ) {
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -26,11 +29,16 @@ export function useNativeDialogOpen(
         return;
       }
       dialog.showModal();
+      for (const selector of initialFocusSelectors) {
+        const target = dialog.querySelector<HTMLElement>(selector);
+        target?.focus();
+        if (target !== null && document.activeElement === target) break;
+      }
     };
 
     syncOpenState();
     return () => observer?.disconnect();
-  }, [dialogRef, isOpen]);
+  }, [dialogRef, initialFocusSelectors, isOpen]);
 }
 
 function isSequentiallyFocusable(element: HTMLElement) {

@@ -401,6 +401,8 @@ for (
       await card(page).first().getByRole("button", { name: "Start work" })
         .click();
       const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByRole("button", { name: "Cancel" }))
+        .toBeFocused();
       const workflows = dialog.getByRole("radiogroup", { name: "Workflow" });
       await expect(workflows.getByRole("radio")).toHaveCount(2);
       // The repository's own is chosen, since nothing else was asked for.
