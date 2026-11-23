@@ -1,0 +1,617 @@
+import { useEffect, useRef, useState } from "react";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as UI from "@bakery/ui";
+import { formatDate } from "@bakery/i18n";
+import { useBakeryApi } from "../../api/context.tsx";
+import {
+  handoffManifestQueryOptions,
+  storageFileAtVersionQueryOptions,
+} from "../../api/query.ts";
+import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { useSession } from "../../app/session-context.tsx";
+import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { stepTitle } from "../task-timeline.ts";
+import {
+  type CarryOn,
+  carryOn,
+  type ManifestView,
+  outcomeKey,
+  outcomeUnknown,
+  reasonKey,
+  refusalOf,
+  viewManifest,
+} from "./model.ts";
+
+/** A step the card can be offered on: running, with a saved point still pending. */
+export type HandOverStep = Readonly<{
+  id: string;
+  stepKey: string;
+  status: string;
+  handoffManifest: Readonly<{ id: string; status: string }> | null;
+}>;
+
+type Notice = Readonly<{
+  stepId: string;
+  tone: "success" | "warning" | "information";
+  text: string;
+}>;
+
+const DECISIONS_SHOWN = 5;
+const DOCUMENTS_SHOWN = 5;
+
+/**
+ * Hand a running step to a new session (#72, design revision 3). The button is
+ * offered only while the step has a saved point and the person may control the
+ * run. The card says how the new session will carry on before the click, and
+ * the click sends the run version the card was drawn from; the server decides
+ * again, and the line on the timeline says what it did. The page keeps no
+ * domain state: every answer here is the server's.
+ */
+export function HandOver(
+  { taskId, runId, runVersion, steps, canControl, online, onReceipt }: {
+    readonly taskId: string;
+    readonly runId: string;
+    readonly runVersion: number;
+    readonly steps: readonly HandOverStep[];
+    /** The person may control this run (the same access as pausing it). */
+    readonly canControl: boolean;
+    readonly online: boolean;
+    readonly onReceipt: (event: UI.RunTimelineEvent) => void;
+  },
+) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const cache = useQueryClient();
+  const session = useSession();
+  const { translate: t, locale, timeZone } = useI18n();
+  const [openStep, setOpenStep] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const alive = useRef(true);
+  const opener = useRef<HTMLElement | null>(null);
+  const pending = useRef<{ signature: string; key: string } | null>(null);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const offered = canControl
+    ? steps.filter((step) =>
+      step.status === "running" && step.handoffManifest?.status === "pending"
+    )
+    : [];
+  const open = offered.find((step) => step.id === openStep) ?? null;
+  const manifest = useQuery({
+    ...handoffManifestQueryOptions(
+      api,
+      scope,
+      open?.handoffManifest?.id ?? "",
+    ),
+    enabled: open !== null && scope.organizationId !== null,
+    // The card is right before the click: always the server's current answer.
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+
+  const closeCard = () => {
+    setOpenStep(null);
+    setProblem(null);
+    pending.current = null;
+    const button = opener.current;
+    requestAnimationFrame(() => {
+      if (button?.isConnected) button.focus();
+    });
+  };
+
+  // The step stopped running, or its saved point went, while the card was
+  // open and nothing was being sent: what the person was handing over is gone.
+  useEffect(() => {
+    if (openStep === null || working || open !== null) return;
+    setOpenStep(null);
+    setProblem(null);
+    pending.current = null;
+  }, [openStep, working, open]);
+
+  const refresh = async () => {
+    try {
+      await cache.invalidateQueries({
+        predicate: ({ queryKey: key }) => {
+          if (
+            key[0] !== "protected" || key[1] !== scope.sessionGeneration ||
+            key[2] !== scope.organizationId
+          ) return false;
+          if (key[3] === "handoffManifests.get") return true;
+          const input = key[4];
+          if (typeof input !== "object" || input === null) return false;
+          return ("id" in input && input.id === taskId) ||
+            ("taskId" in input && input.taskId === taskId) ||
+            ("runId" in input && input.runId === runId);
+        },
+      });
+    } catch {
+      // The page keeps what it has; the next read says what changed.
+    }
+  };
+
+  const view = manifest.data ? viewManifest(manifest.data.manifest) : null;
+  const way: CarryOn | null = manifest.data && view
+    ? carryOn(manifest.data, view)
+    : null;
+
+  const submit = async () => {
+    const organizationId = scope.organizationId;
+    if (
+      open === null || open.handoffManifest === null || working ||
+      organizationId === null || !online || manifest.data === undefined ||
+      view === null || view.capturePaused
+    ) return;
+    const manifestId = open.handoffManifest.id;
+    const input = { runVersion };
+    // The same hand-over sent again after a lost answer reuses its key, so it
+    // can never be admitted twice.
+    const signature = JSON.stringify({ manifestId, input });
+    const key = pending.current?.signature === signature
+      ? pending.current.key
+      : crypto.randomUUID();
+    pending.current = { signature, key };
+    setWorking(true);
+    setProblem(null);
+    const stepName = stepTitle(t, open.stepKey);
+    const result = await api.continueHandoff({
+      organizationId,
+      manifestId,
+      input,
+      idempotencyKey: key,
+    });
+    if (!alive.current) return;
+    setWorking(false);
+    if (result.ok) {
+      closeCard();
+      const outcome = outcomeKey(result.data, view.unconfirmedEffects);
+      const name = session.identity?.displayName ?? "";
+      const description = outcome === "exact"
+        ? t("tasks.run.handover.done.exact", { name })
+        : outcome === "fresh"
+        ? t("tasks.run.handover.done.fresh", {
+          name,
+          reason: t(
+            reasonKey(
+              (result.data.freshReason ?? "unknown") as Parameters<
+                typeof reasonKey
+              >[0],
+            ) as never,
+            { count: view.unconfirmedEffects },
+          ),
+        })
+        : t("tasks.run.handover.done.waiting", {
+          count: view.unconfirmedEffects,
+        });
+      onReceipt({
+        id: `handover:${key}`,
+        scope: "control",
+        title: `${
+          formatDate(new Date(), locale, { timeZone, timeStyle: "short" })
+        } — ${stepName}`,
+        description,
+      });
+      setNotice(
+        outcome === "waiting"
+          ? {
+            stepId: open.id,
+            tone: "information",
+            text: t("tasks.run.handover.done.waiting", {
+              count: view.unconfirmedEffects,
+            }),
+          }
+          : null,
+      );
+      await refresh();
+      return;
+    }
+    // Only a definite answer ends the key; a lost one keeps it for the retry.
+    if (!outcomeUnknown(result.error)) pending.current = null;
+    const refusal = refusalOf(result.error);
+    if (refusal.where === "page") {
+      closeCard();
+      setNotice({
+        stepId: open.id,
+        tone: "warning",
+        text: t(refusal.key as never),
+      });
+    } else {
+      setProblem(t(refusal.key as never));
+    }
+    if (refusal.reload) void refresh();
+  };
+
+  if (offered.length === 0 && notice === null) return null;
+
+  return (
+    <UI.Stack gap="standard" data-testid="handover">
+      {offered.map((step) => {
+        const isOpen = openStep === step.id;
+        return (
+          <UI.Stack gap="standard" key={step.id}>
+            <UI.Inline gap="compact">
+              <UI.Text variant="muted">{stepTitle(t, step.stepKey)}</UI.Text>
+              <UI.Button
+                aria-expanded={isOpen}
+                data-testid="handover-open"
+                data-step-key={step.stepKey}
+                disabled={working}
+                variant="secondary"
+                onClick={(event) => {
+                  if (isOpen) {
+                    closeCard();
+                    return;
+                  }
+                  opener.current = event.currentTarget;
+                  setProblem(null);
+                  setNotice(null);
+                  pending.current = null;
+                  setOpenStep(step.id);
+                }}
+              >
+                {t("tasks.run.handover.button")}
+              </UI.Button>
+            </UI.Inline>
+            {isOpen
+              ? (
+                <Card
+                  key={step.id}
+                  stepName={stepTitle(t, step.stepKey)}
+                  loading={manifest.isPending}
+                  gone={manifest.isError ||
+                    (manifest.data !== undefined &&
+                      (manifest.data.status !== "pending" || view === null))}
+                  savedAt={step.handoffManifest?.status === "pending"
+                    ? manifest.data?.createdAt ?? null
+                    : null}
+                  view={view}
+                  way={way}
+                  online={online}
+                  working={working}
+                  problem={problem}
+                  onKeep={closeCard}
+                  onConfirm={() => void submit()}
+                />
+              )
+              : null}
+          </UI.Stack>
+        );
+      })}
+      {notice === null ? null : (
+        <UI.InlineNotice
+          data-testid="handover-notice"
+          onDismiss={() => setNotice(null)}
+          tone={notice.tone}
+        >
+          {notice.text}
+        </UI.InlineNotice>
+      )}
+    </UI.Stack>
+  );
+}
+
+function Card(
+  {
+    stepName,
+    loading,
+    gone,
+    savedAt,
+    view,
+    way,
+    online,
+    working,
+    problem,
+    onKeep,
+    onConfirm,
+  }: {
+    readonly stepName: string;
+    readonly loading: boolean;
+    readonly gone: boolean;
+    readonly savedAt: string | null;
+    readonly view: ManifestView | null;
+    readonly way: CarryOn | null;
+    readonly online: boolean;
+    readonly working: boolean;
+    readonly problem: string | null;
+    readonly onKeep: () => void;
+    readonly onConfirm: () => void;
+  },
+) {
+  const { translate: t, locale, timeZone } = useI18n();
+  // The card opens in place; focus goes to its heading so a keyboard or screen
+  // reader user lands on what opened.
+  useEffect(() => {
+    const heading = document.getElementById("handover-heading");
+    heading?.setAttribute("tabindex", "-1");
+    heading?.focus();
+  }, [loading, gone]);
+  const when = savedAt === null ? "" : formatDate(new Date(savedAt), locale, {
+    timeZone,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  if (loading) {
+    return (
+      <UI.Stack gap="compact" data-testid="handover-card" aria-busy="true">
+        <UI.Text variant="muted" role="status">
+          {t("tasks.run.handover.loading")}
+        </UI.Text>
+        <UI.Skeleton shape="surface" />
+      </UI.Stack>
+    );
+  }
+  if (gone || view === null || way === null) {
+    return (
+      <UI.Stack gap="compact" data-testid="handover-card">
+        <UI.Text role="status" data-testid="handover-gone">
+          {t("tasks.run.handover.gone")}
+        </UI.Text>
+        <UI.Inline gap="compact">
+          <UI.Button variant="secondary" onClick={onKeep}>
+            {t("tasks.run.handover.keep")}
+          </UI.Button>
+        </UI.Inline>
+      </UI.Stack>
+    );
+  }
+  const blockedReason = !online
+    ? t("tasks.run.handover.offline")
+    : view.capturePaused
+    ? t("tasks.run.handover.capturePaused")
+    : null;
+  return (
+    <UI.Stack gap="standard" data-testid="handover-card">
+      <UI.Heading level="subsection" rank={3} id="handover-heading">
+        {t("tasks.run.handover.title", { step: stepName })}
+      </UI.Heading>
+      <UI.Text>{t("tasks.run.handover.leadNoMachine")}</UI.Text>
+      <UI.InlineNotice
+        data-testid="handover-way"
+        data-way={way.kind}
+        tone={way.kind === "exact" ? "information" : "warning"}
+      >
+        <UI.Stack gap="tight">
+          <UI.Text variant="strong">
+            {way.kind === "exact"
+              ? t("tasks.run.handover.exact.title")
+              : t("tasks.run.handover.fresh.title")}
+          </UI.Text>
+          <UI.Text>
+            {way.kind === "exact"
+              ? t("tasks.run.handover.exact.body", { time: when })
+              : t("tasks.run.handover.fresh.body")}
+          </UI.Text>
+          {way.kind === "exact"
+            ? (
+              <UI.Text variant="muted">
+                {t("tasks.run.handover.exact.caption")}
+              </UI.Text>
+            )
+            : (
+              <>
+                <UI.Text variant="muted">
+                  {t("tasks.run.handover.fresh.why")}
+                </UI.Text>
+                <UI.Text data-testid="handover-reason">
+                  {t(reasonKey(way.reason) as never, {
+                    count: view.unconfirmedEffects,
+                  })}
+                </UI.Text>
+              </>
+            )}
+        </UI.Stack>
+      </UI.InlineNotice>
+      <Given view={view} />
+      {problem === null
+        ? null
+        : (
+          <UI.InlineNotice tone="warning" data-testid="handover-problem">
+            {problem}
+          </UI.InlineNotice>
+        )}
+      {blockedReason === null
+        ? null
+        : (
+          <UI.Text variant="muted" role="status" data-testid="handover-blocked">
+            {blockedReason}
+          </UI.Text>
+        )}
+      <UI.Inline variant="actions" gap="compact">
+        <UI.Button
+          data-testid="handover-keep"
+          disabled={working}
+          variant="secondary"
+          onClick={onKeep}
+        >
+          {t("tasks.run.handover.keep")}
+        </UI.Button>
+        <UI.Button
+          data-testid="handover-confirm"
+          disabled={blockedReason !== null}
+          loading={working}
+          variant="primary"
+          onClick={onConfirm}
+        >
+          {t("tasks.run.handover.confirm")}
+        </UI.Button>
+      </UI.Inline>
+      <UI.Text variant="caption">{t("tasks.run.handover.same")}</UI.Text>
+    </UI.Stack>
+  );
+}
+
+/** What the new session is given, as a quiet two-column list (design section 3). */
+function Given({ view }: { readonly view: ManifestView }) {
+  const { translate: t } = useI18n();
+  const [allDecisions, setAllDecisions] = useState(false);
+  const decisions = allDecisions
+    ? view.decisions
+    : view.decisions.slice(0, DECISIONS_SHOWN);
+  return (
+    <UI.DescriptionList labels="quiet" data-testid="handover-given">
+      <UI.DescriptionItem
+        title={t("tasks.run.handover.next")}
+        description={
+          <UI.Stack gap="tight">
+            <UI.Text>{view.goal}</UI.Text>
+            <UI.Text>{view.nextAction}</UI.Text>
+          </UI.Stack>
+        }
+      />
+      {view.decisions.length === 0 ? null : (
+        <UI.DescriptionItem
+          title={t("tasks.run.handover.decisions", {
+            count: view.decisions.length,
+          })}
+          description={
+            <UI.Stack gap="tight">
+              {decisions.map((decision, index) => (
+                <UI.Text key={index}>{decision}</UI.Text>
+              ))}
+              {view.decisions.length > DECISIONS_SHOWN && !allDecisions
+                ? (
+                  <UI.Button
+                    variant="quiet"
+                    onClick={() => setAllDecisions(true)}
+                  >
+                    {t("tasks.run.handover.showAll", {
+                      count: view.decisions.length,
+                    })}
+                  </UI.Button>
+                )
+                : null}
+            </UI.Stack>
+          }
+        />
+      )}
+      <Documents refs={view.documents} />
+      <UI.DescriptionItem
+        title={t("tasks.run.handover.code")}
+        description={view.hasPatch
+          ? t("tasks.run.handover.codeWithPatch", { sha: view.commitShort })
+          : t("tasks.run.handover.codeCommit", { sha: view.commitShort })}
+      />
+      {view.checks.length === 0 ? null : (
+        <UI.DescriptionItem
+          title={t("tasks.run.handover.checks", { count: view.checks.length })}
+          description={
+            <UI.Stack gap="tight">
+              {view.checks.map((check, index) => (
+                <UI.Inline gap="compact" key={index}>
+                  <UI.DataText variant="code">{check.command}</UI.DataText>
+                  <UI.Badge
+                    tone={check.result === "passed"
+                      ? "success"
+                      : check.result === "failed"
+                      ? "danger"
+                      : "neutral"}
+                  >
+                    {t(`tasks.run.handover.check.${check.result}` as never)}
+                  </UI.Badge>
+                  {check.evidenceVersionId === null ? null : (
+                    <UI.Link
+                      href={`/files/versions/${check.evidenceVersionId}`}
+                    >
+                      {t("tasks.run.handover.checkEvidence")}
+                    </UI.Link>
+                  )}
+                </UI.Inline>
+              ))}
+            </UI.Stack>
+          }
+        />
+      )}
+      <UI.DescriptionItem
+        title={t("tasks.run.handover.outside")}
+        description={view.unconfirmedEffects === 0
+          ? t("tasks.run.handover.outsideNone")
+          : (
+            <UI.Stack gap="tight">
+              <UI.Badge tone="warning">
+                {t("tasks.run.handover.outsideUnconfirmed", {
+                  count: view.unconfirmedEffects,
+                })}
+              </UI.Badge>
+              <UI.Text>
+                {t("tasks.run.handover.outsideUnconfirmedBody")}
+              </UI.Text>
+            </UI.Stack>
+          )}
+      />
+    </UI.DescriptionList>
+  );
+}
+
+/**
+ * The documents the new session may read: each named, as a link to that exact
+ * version. A document this reader may not open is counted and never named.
+ */
+function Documents(
+  { refs }: { readonly refs: ManifestView["documents"] },
+) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const { translate: t } = useI18n();
+  const [all, setAll] = useState(false);
+  const reads = useQueries({
+    queries: refs.map((ref) =>
+      storageFileAtVersionQueryOptions(api, scope, ref.versionId)
+    ),
+  });
+  const known = reads.flatMap((read, index) =>
+    read.data
+      ? [{
+        versionId: refs[index]!.versionId,
+        name: read.data.file.path.split("/").pop() ?? read.data.file.path,
+        revision: read.data.revision,
+      }]
+      : []
+  );
+  const settled = reads.every((read) => !read.isPending);
+  const hidden = settled ? reads.filter((read) => read.isError).length : 0;
+  const shown = all ? known : known.slice(0, DOCUMENTS_SHOWN);
+  return (
+    <UI.DescriptionItem
+      title={t("tasks.run.handover.documents", { count: refs.length })}
+      description={refs.length === 0
+        ? t("tasks.run.handover.documentsNone")
+        : (
+          <UI.Stack gap="tight">
+            {shown.map((document) => (
+              <UI.Link
+                key={document.versionId}
+                href={`/files/versions/${document.versionId}`}
+              >
+                {t("tasks.run.handover.documentVersion", {
+                  name: document.name,
+                  version: document.revision,
+                })}
+              </UI.Link>
+            ))}
+            {known.length > DOCUMENTS_SHOWN && !all
+              ? (
+                <UI.Button variant="quiet" onClick={() => setAll(true)}>
+                  {t("tasks.run.handover.showAll", { count: known.length })}
+                </UI.Button>
+              )
+              : null}
+            {hidden === 0 ? null : (
+              <UI.Text
+                variant="muted"
+                data-testid="handover-documents-hidden"
+              >
+                {t("tasks.run.handover.documentsHidden", { count: hidden })}
+              </UI.Text>
+            )}
+          </UI.Stack>
+        )}
+    />
+  );
+}

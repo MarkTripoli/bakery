@@ -48,6 +48,7 @@ import type {
   FileFactPage,
   FileSearchInput,
   FileSearchPage,
+  HandoffManifestResponse,
   InstallationCapabilities,
   InstallationRestore,
   InstallationSettings,
@@ -1077,6 +1078,39 @@ export function runQueryOptions(
         throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
       }
       return run;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * A step's saved point and how a handoff would carry on from it now. Read when
+ * the card is open, and again after a refusal, so the card is right before the
+ * click.
+ */
+export function handoffManifestQueryOptions(
+  client: Pick<BakeryApiClient, "getHandoffManifest">,
+  scope: ApiScope,
+  manifestId: string,
+) {
+  return queryOptions<HandoffManifestResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "handoffManifests.get", { manifestId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const manifest = unwrap(
+        await client.getHandoffManifest({
+          organizationId: scope.organizationId,
+          manifestId,
+          signal,
+        }),
+      );
+      if (signal.aborted || manifest.id !== manifestId) {
+        throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
+      }
+      return manifest;
     },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,

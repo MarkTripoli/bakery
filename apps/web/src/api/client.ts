@@ -87,6 +87,10 @@ export type RouteContinuationOffersResponse =
   ClientOutputMap["RouteContinuationOffers"];
 export type RouteContinuationAdmit = ClientInputMap["RouteContinuationAdmit"];
 export type RouteContinuationResponse = ClientOutputMap["RouteContinuation"];
+export type HandoffManifestResponse = ClientOutputMap["HandoffManifestRecord"];
+export type HandoffContinueInput = ClientInputMap["HandoffContinue"];
+export type HandoffContinuationResponse =
+  ClientOutputMap["HandoffContinuation"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
 export type AgentSessionPageResponse = ClientOutputMap["AgentSessionPage"];
 export type SessionFeedResponse = ClientOutputMap["SessionFeed"];
@@ -1855,6 +1859,29 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RouteContinuationResponse>>;
+  /**
+   * `GET /v1/handoff-manifests/{id}`: a step's saved point and how a handoff
+   * would carry on from it now (`decisionMode`, `freshReason`). Nothing is
+   * admitted by reading it.
+   */
+  readonly getHandoffManifest: (options: {
+    readonly organizationId: string;
+    readonly manifestId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<HandoffManifestResponse>>;
+  /**
+   * `POST /v1/handoff-manifests/{id}/continuations`: hand a running step to a
+   * new session, against the run version the person saw. Refusals carry their
+   * reason in `ApiFailure.problem.reason`. Reuse the key and input when the
+   * outcome is unknown.
+   */
+  readonly continueHandoff: (options: {
+    readonly organizationId: string;
+    readonly manifestId: string;
+    readonly input: HandoffContinueInput;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<HandoffContinuationResponse>>;
   readonly getRunControlCapabilities: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -6147,6 +6174,45 @@ export function createBakeryApiClient({
           },
         );
         if (data.runId !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getHandoffManifest(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["handoffManifests.get"](
+          { id: options.manifestId },
+          { signal: options.signal },
+        );
+        if (data.id !== options.manifestId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async continueHandoff(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["handoffManifests.continue"](
+          { id: options.manifestId, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.manifestId !== options.manifestId) {
           throw new ApiTransportError("protocol", 200);
         }
         return { ok: true, data };

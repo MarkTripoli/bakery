@@ -40,6 +40,7 @@ import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
+import { HandOver } from "./task-handover/HandOver.tsx";
 import { RouteWaiting } from "./task-waiting/RouteWaiting.tsx";
 import { stepRowCopy } from "./task-waiting/model.ts";
 import { useWaitingOffers } from "./task-waiting/use-waiting-offers.ts";
@@ -539,6 +540,33 @@ export function TaskRunSection(
                 failed={waiting.failed}
                 retrying={waiting.retrying}
                 onRetry={waiting.retry}
+              />
+            )
+            : null}
+          {validRun && run.data && steps.data && !invalidSteps
+            ? (
+              <HandOver
+                key={`handover:${runId}`}
+                taskId={taskId}
+                runId={runId}
+                runVersion={run.data.version}
+                steps={steps.data.items}
+                // The same access as pausing the run: a person who may not
+                // control it is not offered the button.
+                canControl={capabilities.data?.actions.some((item) =>
+                  item.canRequest
+                ) === true}
+                online={online}
+                onReceipt={(event) =>
+                  setReceipts((current) => ({
+                    authority,
+                    events: [
+                      ...(current.authority === authority
+                        ? current.events
+                        : []),
+                      event,
+                    ],
+                  }))}
               />
             )
             : null}
