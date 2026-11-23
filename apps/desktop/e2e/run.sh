@@ -3,9 +3,8 @@
 #
 #   run.sh stills <output dir>      screenshots of every named state, size and theme
 #   run.sh policy <output dir>      the content security policy, tried in the real window
-#   run.sh a11y <output dir>        the window read over the accessibility bus, as a screen reader reads it
 set -uo pipefail
-MODE="${1:?stills, policy or a11y}"
+MODE="${1:?stills, policy, a11y or motion}"
 OUT="$(realpath -m "${2:?output directory}")"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APP="$(realpath "$HERE/..")"
@@ -15,7 +14,7 @@ mkdir -p "$OUT"
 # The page embeds the web's own tokens: copy them in first.
 (cd "$APP/../.." && deno run --allow-read --allow-write apps/desktop/scripts/sync-foundations.ts) || exit 1
 docker run --rm -e CARGO_TARGET_DIR=/cache/target-desktop -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
-  -e STATES -e SIZES -e THEMES \
+  -e STATES -e SIZES -e THEMES -e ZOOM \
   -v "$APP:/app" -v "$OUT:/out" -v "$CACHE/target-desktop:/cache/target-desktop" \
   -v "$CACHE/registry:/opt/rust/cargo/registry" -v "$CACHE/git:/opt/rust/cargo/git" \
   -w /app "$IMAGE" bash -c '
@@ -27,6 +26,7 @@ docker run --rm -e CARGO_TARGET_DIR=/cache/target-desktop -e HOST_UID="$(id -u)"
         && python3 e2e/check_stills.py /out ;;
       policy) bash e2e/policy.sh /out ;;
       a11y) bash e2e/a11y.sh /out ;;
+      motion) bash e2e/motion.sh /out ;;
     esac
     status=$?
     chown -R "$HOST_UID:$HOST_GID" /out

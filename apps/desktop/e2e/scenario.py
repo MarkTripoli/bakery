@@ -96,6 +96,8 @@ def start_app(path, bus=None, server=None, extra=None):
     env = dict(os.environ, BAKERY_SERVER=server or SERVER, BAKERY_DESKTOP_REPORT=os.path.join(path, "report.jsonl"),
                BAKERY_DESKTOP_COMMANDS=os.path.join(path, "cmd"), BAKERY_DESKTOP_CONFIG_DIR=config, TZ="UTC",
                **(extra or {}))
+    for name in [name for name, value in env.items() if value is None]:
+        del env[name]
     if bus:
         env["DBUS_SESSION_BUS_ADDRESS"] = bus
     app_env.clear()
@@ -885,6 +887,52 @@ def phase_web_repeat_links():
     shot("repeat-links-end")
 
 
+def phase_a11y_server_page():
+    """The keyboard path through a server's own page, read over the accessibility bus (#77, native accessibility):
+    with the real web app in the window, Tab moves through named controls, one after another, and the window
+    and the page can be read. Skipped, said plainly, where the image has no accessibility tooling."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        return
+    if subprocess.run(["python3", "-c", "import gi; gi.require_version('Atspi','2.0')"], capture_output=True).returncode != 0:
+        print("SKIP the server page accessibility phase: this image has no python3-gi and at-spi2-core", flush=True)
+        return
+    p = os.path.join(OUT, "s-a11y")
+    clear_store()
+    clear_store(web)
+    subprocess.run(["pkill", "-f", "at-spi"], capture_output=True)
+    time.sleep(1)
+    subprocess.Popen(["/usr/libexec/at-spi-bus-launcher", "--launch-immediately"], stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL)
+    time.sleep(2)
+    keep_alive_client = subprocess.Popen(
+        ["python3", "-c", "import gi; gi.require_version('Atspi','2.0'); from gi.repository import Atspi; "
+                          "Atspi.get_desktop(0); Atspi.event_main()"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    start_app(p, server=web, extra={"GTK_A11Y": "atspi", "NO_AT_BRIDGE": None})
+    assert wait_window(p, "sign_in") is not None
+    url = sign_in_to_waiting(p, "[a11y]")
+    if not url:
+        return
+    deliver(confirm(request_id_of(url), session_cookie()))
+    if not wait_report(p, "server_page_opened", 1, timeout=40):
+        check("[a11y] the server's page opens", False)
+        return
+    time.sleep(8)
+    out_dir = os.path.join(OUT, "a11y-server")
+    done = subprocess.run(["python3", "/app/e2e/a11y_check.py", "server-page", "960x640", out_dir],
+                          capture_output=True, text=True, timeout=180)
+    os.makedirs(out_dir, exist_ok=True)
+    open(os.path.join(out_dir, "checks.txt"), "w").write(done.stdout + done.stderr)
+    for line in done.stdout.splitlines():
+        if line.startswith("NOTE"):
+            print(line, flush=True)
+        if line.startswith(("PASS ", "FAIL ")):
+            check(line[5:].split("  ")[0], line.startswith("PASS "), line[5:][-160:] if line.startswith("FAIL ") else "")
+    keep_alive_client.terminate()
+    check("[a11y] the server page check ran to the end", done.returncode in (0, 1), done.stderr[-200:])
+
+
 def phase_web_handoff_retry():
     """design-ux (#77): when the server will not give a page, the app says so with Try again. A press while the
     server is still down brings the dialog back (never a stack); a press once it answers opens the page."""
@@ -1241,7 +1289,7 @@ def main():
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_web_handoff_retry, phase_record_flow, phase_web_download, phase_web_shots):
+                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_web_handoff_retry, phase_a11y_server_page, phase_record_flow, phase_web_download, phase_web_shots):
         if only and not any(s in phase.__name__ for s in only):
             continue
         try:

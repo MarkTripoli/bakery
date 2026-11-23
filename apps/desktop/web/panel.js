@@ -165,7 +165,6 @@ function chooserNode(detail) {
   box.value = draft.typed;
   box.autocomplete = "off";
   box.spellcheck = false;
-  // The box has no label of its own: it is named by its option's, "Another address".
   box.setAttribute("aria-labelledby", "choice-label-another");
   box.setAttribute("aria-describedby", "server-address-note");
   box.addEventListener("input", () => {
@@ -346,8 +345,6 @@ function drawLinkDialog(view, _placeholder) {
   if (linkDialogKind === null) beforeLinkDialog = document.activeElement;
   const { scrim, node, title } = linkDialogNode(dialog);
   root.append(scrim);
-  // A modal dialog holds the keyboard: what is behind it can neither be tabbed to nor read (found by the
-  // accessibility check, #77: Tab used to leave the dialog for the panel behind it).
   for (const child of root.children) {
     if (child !== scrim) child.inert = true;
   }
