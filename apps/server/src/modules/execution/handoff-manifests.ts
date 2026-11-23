@@ -186,6 +186,8 @@ async function verifyArtifactRefs(
       where v.organization_id = $1
         and v.task_id = $2
         and v.purged_at is null
+        -- A staged or refused version (O29) cannot be handed off.
+        and v.publication_status = 'current'
         and v.id = any($3::uuid[])`,
     [organizationId, taskId, ids],
   );

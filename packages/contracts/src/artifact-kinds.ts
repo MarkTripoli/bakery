@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { canonicalJson } from "./workflow-compiler/canonical.ts";
+import type { ArtifactProbeResult } from "./artifact-probe.ts";
 
 /**
  * The closed set of rule types a kind may compose.
@@ -23,9 +24,40 @@ export const PLATFORM_RULE_TYPES = Object.freeze(
     "mediaType",
     "maxBytes",
     "linesAtMost",
+    "probedMediaType",
+    "maxPixels",
+    "maxDurationSeconds",
   ] as const,
 );
 export type PlatformRuleType = typeof PLATFORM_RULE_TYPES[number];
+
+/**
+ * The rule types that read what the sandboxed probe measured (chapter 25
+ * section 17.5, O29), not the bytes the publisher sent.
+ *
+ * They can never run in the publish transaction: the probe runs later, in a
+ * sandbox, on the stored bytes. A version under a kind that has any of them is
+ * written as staged and becomes current only when the probe answers and these
+ * rules pass (`validateProbedArtifactKindDocument`).
+ */
+export const PROBE_BACKED_RULE_TYPES = Object.freeze(
+  ["probedMediaType", "maxPixels", "maxDurationSeconds"] as const,
+);
+export type ProbeBackedRuleType = typeof PROBE_BACKED_RULE_TYPES[number];
+
+export function isProbeBackedRuleType(
+  value: unknown,
+): value is ProbeBackedRuleType {
+  return typeof value === "string" &&
+    (PROBE_BACKED_RULE_TYPES as readonly string[]).includes(value);
+}
+
+/** Whether a kind version has any rule only a probe answer can evaluate. */
+export function hasProbeBackedRules(
+  definition: ArtifactKindDefinition,
+): boolean {
+  return definition.rules.some((rule) => isProbeBackedRuleType(rule.type));
+}
 
 export function isPlatformRuleType(value: unknown): value is PlatformRuleType {
   return typeof value === "string" &&
@@ -131,7 +163,7 @@ export const ArtifactKindFactSchema = z.object({
 const RuleOptionsSchema = z.object({
   value: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional()
     .describe(
-      "The bound this rule enforces: a character count for maxLength, a byte count for maxBytes, a line count for linesAtMost.",
+      "The bound this rule enforces: a character count for maxLength, a byte count for maxBytes, a line count for linesAtMost, a pixel count (width times height) for maxPixels, whole seconds for maxDurationSeconds.",
     ),
   mediaTypes: z.array(
     artifactKindFreeText(
@@ -140,7 +172,7 @@ const RuleOptionsSchema = z.object({
       ),
     ),
   ).min(1).max(20).optional().describe(
-    "Media types this rule accepts, such as text/markdown or image/png. Required by mediaType and refused by every other rule type.",
+    "Media types this rule accepts, such as text/markdown or image/png. Required by mediaType (compared with the declared type) and probedMediaType (compared with the type the probe detected from the bytes), and refused by every other rule type.",
   ),
 }).strict().describe(
   "Bounded options for one platform rule type: a numeric bound, an accepted media type list, or neither for nonEmpty.",
@@ -263,7 +295,8 @@ export function artifactKindDefinitionDefects(
     // bound nothing - both are author mistakes that would otherwise publish a
     // kind that cannot do what it says.
     const needsValue = rule.type === "maxLength" || rule.type === "maxBytes" ||
-      rule.type === "linesAtMost";
+      rule.type === "linesAtMost" || rule.type === "maxPixels" ||
+      rule.type === "maxDurationSeconds";
     if (needsValue && rule.options.value === undefined) {
       defects.push({
         path: ["rules", index, "options", "value"],
@@ -278,12 +311,13 @@ export function artifactKindDefinitionDefects(
         message: `Rule type ${rule.type} does not read options.value.`,
       });
     }
-    const needsMediaTypes = rule.type === "mediaType";
+    const needsMediaTypes = rule.type === "mediaType" ||
+      rule.type === "probedMediaType";
     if (needsMediaTypes && !rule.options.mediaTypes) {
       defects.push({
         path: ["rules", index, "options", "mediaTypes"],
         code: "rule_media_types_required",
-        message: "Rule type mediaType requires options.mediaTypes.",
+        message: `Rule type ${rule.type} requires options.mediaTypes.`,
       });
     }
     if (!needsMediaTypes && rule.options.mediaTypes !== undefined) {
@@ -402,6 +436,9 @@ export function validateArtifactKindDocument(
     }
   }
   for (const rule of definition.rules) {
+    // A probe-backed rule is not judged here: the publish transaction has no
+    // probe answer, and "staged until the probe answers" is its verdict.
+    if (isProbeBackedRuleType(rule.type)) continue;
     const finding = applyRule(rule, definition, document);
     if (finding) findings.push(finding);
   }
@@ -420,6 +457,84 @@ export function refusesArtifactKindPublication(
   findings: ReadonlyArray<ArtifactKindFinding>,
 ): boolean {
   return findings.some((finding) => finding.severity === "require");
+}
+
+/**
+ * Runs a kind version's probe-backed rules over what the probe measured.
+ *
+ * Only the probe-backed rules run: the others already ran in the publish
+ * transaction on the same bytes. The answer must be a described probe; a probe
+ * refusal is handled by the caller, because a refusal says nothing a rule can
+ * measure. A measurement the probe did not take (no width for a video, no
+ * duration for an image) is `unavailable`, so a `require` rule refuses and a
+ * `warn` rule records it: "we could not check" is not a pass.
+ */
+export function validateProbedArtifactKindDocument(
+  definition: ArtifactKindDefinition,
+  probe: Extract<ArtifactProbeResult, { status: "described" }>,
+): ReadonlyArray<ArtifactKindFinding> {
+  const findings: ArtifactKindFinding[] = [];
+  for (const rule of definition.rules) {
+    if (!isProbeBackedRuleType(rule.type)) continue;
+    const defect = (message: string, unavailable = false) =>
+      findings.push({
+        ruleType: rule.type,
+        severity: rule.severity,
+        path: "content",
+        message,
+        unavailable,
+      });
+    if (rule.type === "probedMediaType") {
+      const accepted = rule.options.mediaTypes ?? [];
+      if (!accepted.includes(probe.mediaType)) {
+        defect(
+          `Kind ${definition.key} accepts ${
+            accepted.join(", ")
+          }, and the probe found ${probe.mediaType}.`,
+        );
+      }
+      continue;
+    }
+    const value = rule.options.value ?? 0;
+    if (rule.type === "maxPixels") {
+      if (
+        probe.kind !== "image" || probe.width === undefined ||
+        probe.height === undefined
+      ) {
+        defect(
+          `Rule maxPixels needs an image the probe measured, and it found ${probe.kind}.`,
+          true,
+        );
+        continue;
+      }
+      const pixels = probe.width * probe.height;
+      if (pixels > value) {
+        defect(
+          `Kind ${definition.key} allows at most ${value} pixels, and the image is ${probe.width}x${probe.height} (${pixels}).`,
+        );
+      }
+      continue;
+    }
+    // maxDurationSeconds: the probe measures whole milliseconds.
+    if (
+      (probe.kind !== "video" && probe.kind !== "audio") ||
+      probe.durationMs === undefined
+    ) {
+      defect(
+        `Rule maxDurationSeconds needs audio or video with a measured duration, and the probe found ${probe.kind}.`,
+        true,
+      );
+      continue;
+    }
+    if (probe.durationMs > value * 1000) {
+      defect(
+        `Kind ${definition.key} allows at most ${value} seconds, and the file lasts ${
+          probe.durationMs / 1000
+        }.`,
+      );
+    }
+  }
+  return findings;
 }
 
 function applyRule(

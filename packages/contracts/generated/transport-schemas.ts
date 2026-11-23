@@ -21567,7 +21567,11 @@ const transportSchemas = {
         "version",
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21586,14 +21590,21 @@ const transportSchemas = {
         "version": "integer",
         "retentionClass": "enum(transient|evidence)",
         "expiresAt": "timestamp|null",
-        "purgedAt": "timestamp|null"
+        "purgedAt": "timestamp|null",
+        "publicationStatus": "enum(current|staged|refused)",
+        "refusedKindVersionId": "uuid|null",
+        "refusedRuleType": "string|null",
+        "refusedReason": "string|null"
       },
       "nullableFields": [
         "runStepId",
         "subjectHeadSha",
         "subjectBaseSha",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "description": "Metadata for one immutable artifact version published by a worker through its attempt lease: media type, size, server-computed digest, the run step that produced it, optional subject head/base commit SHAs, and validated metadata. Content bytes are not included.",
       "fieldDescriptions": {
@@ -21613,12 +21624,20 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "retentionClass": "Trusted publication retention policy class.",
         "expiresAt": "Eligibility deadline; null only during legacy backfill.",
-        "purgedAt": "Collection timestamp, null while content remains retained."
+        "purgedAt": "Collection timestamp, null while content remains retained.",
+        "publicationStatus": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+        "refusedKindVersionId": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself.",
+        "refusedRuleType": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason).",
+        "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ]
     },
     "ArtifactVersionMetadata": {
@@ -21640,7 +21659,11 @@ const transportSchemas = {
         "version",
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21659,14 +21682,21 @@ const transportSchemas = {
         "version": "integer",
         "retentionClass": "enum(transient|evidence)",
         "expiresAt": "timestamp|null",
-        "purgedAt": "timestamp|null"
+        "purgedAt": "timestamp|null",
+        "publicationStatus": "enum(current|staged|refused)",
+        "refusedKindVersionId": "uuid|null",
+        "refusedRuleType": "string|null",
+        "refusedReason": "string|null"
       },
       "nullableFields": [
         "runStepId",
         "subjectHeadSha",
         "subjectBaseSha",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "description": "Metadata for one immutable artifact version returned to the developer after artifactVersions.create or artifactVersions.import: digest, size, media type, and server-verified provenance without content bytes.",
       "fieldDescriptions": {
@@ -21686,12 +21716,20 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "retentionClass": "Trusted publication retention policy class.",
         "expiresAt": "Eligibility deadline; null only during legacy backfill.",
-        "purgedAt": "Collection timestamp, null while content remains retained."
+        "purgedAt": "Collection timestamp, null while content remains retained.",
+        "publicationStatus": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+        "refusedKindVersionId": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself.",
+        "refusedRuleType": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason).",
+        "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ]
     },
     "ChannelLink": {
