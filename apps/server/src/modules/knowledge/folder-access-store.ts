@@ -1,10 +1,3 @@
-/**
- * Loads what folder-access.ts needs and asks it (#449). The rules are pure and
- * tested there; this file only reads a folder's ancestors and the grants on
- * them, so every place that decides who may see or write an entry asks one
- * function.
- */
-
 import type { PgTransactionClient } from "../../platform/database.ts";
 import {
   folderAccess,
@@ -17,7 +10,6 @@ import {
 
 export type EntryAccess = ReturnType<typeof folderAccess>;
 
-/** The folders from the root down to the entry, with their restriction flag. */
 export async function ancestorChain(
   tx: PgTransactionClient,
   organizationId: string,
@@ -52,7 +44,6 @@ export async function ancestorChain(
   }));
 }
 
-/** Whether the principal is an active Admin of the organization. */
 export async function isOrganizationAdmin(
   tx: PgTransactionClient,
   organizationId: string,
@@ -67,7 +58,6 @@ export async function isOrganizationAdmin(
   return found.rows.length > 0;
 }
 
-/** The live grants a principal holds on any of the folders. */
 export async function liveGrants(
   tx: PgTransactionClient,
   organizationId: string,
@@ -93,11 +83,6 @@ export async function liveGrants(
   }));
 }
 
-/**
- * What the principal holds at an entry. An entry nobody restricted is open and
- * costs one ancestor read; grants and the Admin check are read only when some
- * folder on the way down is restricted.
- */
 export async function accessAt(
   tx: PgTransactionClient,
   organizationId: string,
@@ -144,12 +129,6 @@ export async function mayEditAt(
   );
 }
 
-/**
- * Of some child folders, the ids a principal may not see. A child that is not
- * restricted inherits its parent's access, which the caller already holds, so
- * only restricted children are looked at; each one's cut-off is its own, so
- * only grants on the child (and below, which a listing never asks about) count.
- */
 export async function hiddenRestrictedChildren(
   tx: PgTransactionClient,
   organizationId: string,

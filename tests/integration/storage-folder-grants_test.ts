@@ -1,11 +1,3 @@
-/**
- * #449: folder grants and restricted folders, through the HTTP routes. A
- * restricted folder does not exist to a member with no grant inside it (not a
- * refusal that would confirm the path), a grant opens it at its level, the
- * restriction stops what is granted above it, and personal and artifact areas
- * take no grants.
- */
-
 import { assert, assertEquals } from "@std/assert";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { addMember, type Member } from "../helpers/durable-questions.ts";
@@ -43,7 +35,6 @@ async function ok(response: Response, status = 200): Promise<Json> {
   return JSON.parse(text) as Json;
 }
 
-/** The status and body of a refusal, to compare one with another. */
 async function shape(response: Response): Promise<[number, unknown]> {
   const body = JSON.parse(await response.text()) as Json;
   return [response.status, body.code];
@@ -102,7 +93,6 @@ async function scenario1(fixture: Fixture): Promise<void> { // a restricted fold
   await ok(await put(fixture, admin, "/shared/secret/plan.txt"));
   await ok(await restrict(fixture, admin, secret, true), 200);
 
-  // To bob it is not there: the same answer as an id that never existed.
   const missing = await shape(
     await listing(fixture, bob.cookie, crypto.randomUUID()),
   );
@@ -115,7 +105,6 @@ async function scenario1(fixture: Fixture): Promise<void> { // a restricted fold
     await shape(await put(fixture, bob.cookie, "/shared/secret/x.txt")),
     await shape(await put(fixture, bob.cookie, "/shared/nowhere/x.txt")),
   );
-  // And it is not in its parent's listing.
   const shared = await ok(
     await call(fixture, admin, "GET", "/v1/storage/roots"),
   );
@@ -130,7 +119,6 @@ async function scenario1(fixture: Fixture): Promise<void> { // a restricted fold
     (await names(await listing(fixture, admin, sharedId))).includes("secret"),
   );
 
-  // A view grant reads and writes nothing.
   await ok(await grant(fixture, admin, secret, bob.principalId, "view"), 201);
   assertEquals(await names(await listing(fixture, bob.cookie, secret)), [
     "plan.txt",
@@ -149,16 +137,13 @@ async function scenario1(fixture: Fixture): Promise<void> { // a restricted fold
     "folder_view_only",
   );
 
-  // An edit grant writes.
   await ok(await grant(fixture, admin, secret, bob.principalId, "edit"), 201);
   await ok(await put(fixture, bob.cookie, "/shared/secret/x.txt"));
-  // cara, granted nothing, still sees nothing.
   assertEquals(
     await shape(await listing(fixture, cara.cookie, secret)),
     missing,
   );
 
-  // Bob cannot manage with edit; a manage grant lets him grant cara.
   const denied = await grant(
     fixture,
     bob.cookie,
@@ -181,7 +166,6 @@ async function scenario1(fixture: Fixture): Promise<void> { // a restricted fold
     ),
   );
 
-  // Revoking closes it again.
   const grants = (await ok(
     await call(fixture, admin, "GET", `/v1/storage/folders/${secret}/grants`),
   )).items as Json[];
@@ -217,19 +201,16 @@ async function scenario2(fixture: Fixture): Promise<void> { // what is granted a
     await names(await listing(fixture, bob.cookie, outer)),
     ["inner"],
   );
-  // inner is open under outer, so bob's grant on outer reaches it.
   assertEquals(
     await names(await listing(fixture, bob.cookie, inner)),
     ["deep.txt"],
   );
-  // Restrict inner: the grant above it stops there.
   await ok(await restrict(fixture, admin, inner, true));
   assertEquals(
     await shape(await listing(fixture, bob.cookie, inner)),
     [404, "RESOURCE_NOT_FOUND"],
   );
   assertEquals(await names(await listing(fixture, bob.cookie, outer)), []);
-  // Lifting it brings it back.
   await ok(await restrict(fixture, admin, inner, false));
   assertEquals(
     await names(await listing(fixture, bob.cookie, inner)),
@@ -294,7 +275,6 @@ async function scenario4(fixture: Fixture): Promise<void> { // personal and arti
   const projects = roots.find((r) => r.name === "projects")!;
   const record = await restrict(fixture, admin, projects.id as string, true);
   assertEquals((await shape(record))[1], "STORAGE_AREA_REFUSED");
-  // A grant to someone outside the organization is not made.
   const shared = await folder(fixture, admin, "/shared/open");
   const stranger = await grant(
     fixture,
@@ -304,13 +284,9 @@ async function scenario4(fixture: Fixture): Promise<void> { // personal and arti
     "view",
   );
   assertEquals((await shape(stranger))[0], 422);
-  // An unrestricted folder is untouched: bob still writes there.
   await ok(await put(fixture, bob.cookie, "/shared/open/ok.txt"));
 }
 
-// One fixture for every scenario: the members each one adds stay in the
-// database until the fixture closes, and a second fixture refuses to open on
-// them.
 Deno.test("folder grants and restricted folders", () =>
   withWorkerFixture(async (fixture) => {
     await scenario1(fixture); // a restricted folder does not exist to a member without a grant, and a grant opens it at its level

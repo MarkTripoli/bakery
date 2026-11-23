@@ -202,11 +202,7 @@ async function visibleEntry(
   if (!row || row.purged_at !== null || !isVisibleTo(area(row), principalId)) {
     notFound();
   }
-  // A restricted folder is open only to people granted inside it; to anyone
-  // else it does not exist, so no refusal confirms the path (#449).
   if (!(await mayViewAt(tx, organizationId, principalId, row.id))) notFound();
-  // A trashed entry sits under /trash, so what hid it before it was trashed is
-  // the folder it came from.
   if (
     row.trash_parent_id !== null &&
     !(await mayViewAt(tx, organizationId, principalId, row.trash_parent_id))
@@ -214,10 +210,6 @@ async function visibleEntry(
   return row;
 }
 
-/**
- * Refuses a change to an entry the caller may see but not edit: a view grant
- * on a restricted folder reads it and writes nothing (#449).
- */
 async function requireEdit(
   tx: PgTransactionClient,
   organizationId: string,
@@ -250,8 +242,6 @@ async function resolvePath(
     if (!isVisibleTo(area(row), principalId)) return undefined;
     parentId = row.id;
   }
-  // Only the entry the path ends at is returned, so one check covers every
-  // restricted folder on the way: it hides the path as if it were not there.
   if (row && !(await mayViewAt(tx, organizationId, principalId, row.id))) {
     return undefined;
   }
@@ -1616,8 +1606,6 @@ export function createTrashLister(secret: string) {
       limit + 1,
     ]);
     const rows = found.rows.slice(0, limit);
-    // An entry trashed out of a restricted folder is listed only to people who
-    // could see that folder. The cursor still follows the unfiltered page.
     const listed = [];
     for (const row of rows) {
       if (

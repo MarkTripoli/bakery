@@ -1,13 +1,3 @@
-/**
- * Folder grants and restriction (chapter 25 section 17.3, O36, O41, #449).
- *
- * A person with manage on a folder grants other people view, edit or manage on
- * it, and may restrict it so that nothing granted above it reaches below it.
- * The rules live in folder-access.ts and are enforced where entries are read
- * and written (storage-working-areas.ts, storage-reads.ts); these handlers
- * only change the two facts they read.
- */
-
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import { appendAudit } from "@bakery/persistence/event-audit";
@@ -26,7 +16,6 @@ import { writeRefusal } from "./storage-areas.ts";
 import type { StoragePolicy } from "./storage-tree.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Most grants one folder lists; a folder with more is not a place to curate by hand. */
 const MAX_LISTED = 200;
 
 type FolderRow = {
@@ -86,18 +75,12 @@ function unprocessable(path: string, code: string): never {
   });
 }
 
-/** Only a person changes who can open a folder; an agent never widens its own scope. */
 function requirePerson(context: ActionContext, principalId: string): void {
   if (attributeAction(context, principalId).actorKind !== "person") {
     throw new StandardError({ code: "AUTH_FORBIDDEN" });
   }
 }
 
-/**
- * The folder, locked, when the actor may manage its grants. A folder the actor
- * cannot see is not found, as everywhere in the tree; one they can see but not
- * manage is refused, and so is an area that takes no grants.
- */
 async function manageableFolder(
   tx: PgTransactionClient,
   organizationId: string,
@@ -200,7 +183,6 @@ export async function createFolderGrant(
   );
   let row: GrantRow;
   if (existing.rows[0]) {
-    // A second grant to the same person changes the level; it never stacks.
     row = (await tx.query<GrantRow>(
       `update bakery.storage_folder_grants
           set level = $4, version = version + 1
@@ -244,7 +226,6 @@ export async function revokeFolderGrant(context: ActionContext) {
   );
   const grant = found.rows[0];
   if (!grant) notFound();
-  // Revoking is managing the folder the grant is on, judged the same way.
   await manageableFolder(tx, organizationId, principalId, grant.folder_id);
   if (grant.revoked_at !== null) return toGrant(grant);
   const row = (await tx.query<GrantRow>(
@@ -309,8 +290,6 @@ export async function setFolderRestriction(
       [organizationId, folder.id, input.restricted],
     );
     if (input.restricted) {
-      // Whoever restricts a folder keeps manage on it, or they would lock
-      // themselves out of what they just closed.
       const held = await tx.query(
         `select 1 from bakery.storage_folder_grants
           where organization_id = $1 and folder_id = $2 and principal_id = $3

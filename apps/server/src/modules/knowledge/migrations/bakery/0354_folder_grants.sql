@@ -1,12 +1,3 @@
--- Folder grants and restricted folders (one engine O36, O41, #449).
---
--- A grant names a person and a level (view, edit or manage) on a folder, and it
--- inherits downward. A restricted folder stops inheritance: what is granted
--- above it does not reach below it. Which areas take grants, what the levels
--- allow and who may see a restricted folder are TypeScript rules
--- (folder-access.ts); this migration only stores the two facts. A level is
--- bounded text and a live grant is the one without a revocation, as in
--- agent_file_grants.
 alter table bakery.storage_entries
   add column restricted boolean not null default false;
 
@@ -35,7 +26,6 @@ create table bakery.storage_folder_grants (
     references bakery.principals (id) on delete restrict
 );
 
--- One live grant per person per folder; a second one changes the level.
 create unique index storage_folder_grants_live_unique
   on bakery.storage_folder_grants (organization_id, folder_id, principal_id)
   where revoked_at is null;

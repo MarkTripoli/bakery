@@ -189,8 +189,6 @@ export async function readableEntry(
     )
   ) notFound();
   if (row.purged_at !== null && row.artifact_id === null) notFound();
-  // A restricted folder and everything under it is open only to people granted
-  // inside it, and to Admins; to anyone else it does not exist (#449).
   if (
     !(await mayViewAt(tx, organizationId, principalId, row.id, reader.isAdmin))
   ) notFound();
@@ -447,8 +445,6 @@ export function createFolderLister(secret: string) {
         " and (e.purged_at is null or e.artifact_id is not null)" +
         " and (e.policy not in ('personal', 'scratch')" +
         " or e.owner_id is null or e.owner_id = $3)" +
-        // A restricted child folder is listed only for people granted on it
-        // (#449); to everyone else it is not there.
         " and (not e.restricted or $8::boolean or exists (" +
         " select 1 from bakery.storage_folder_grants g" +
         " where g.organization_id = e.organization_id" +

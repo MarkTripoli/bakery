@@ -1,11 +1,3 @@
-/**
- * #449: mutation checks for the folder access rules. The rules decide who can
- * see a restricted folder, so a quiet bug in them is a leak. Each mutant is a
- * copy of folder-access.ts with one deliberate bug; the checks below must
- * catch every one, and must pass on the real file. A mutant that survives
- * means a check stopped guarding something.
- */
-
 import { assertEquals } from "@std/assert";
 
 const ROOT = new URL(
@@ -32,7 +24,6 @@ const grant = (folderId: string, principalId: string, level: string) => ({
   level,
 });
 
-/** The names of the guarantees this build of the rules breaks. */
 function broken(rules: Rules): string[] {
   const failures: string[] = [];
   const check = (name: string, ok: () => boolean) => {
@@ -214,8 +205,6 @@ for (const mutant of MUTANTS) {
 }
 
 Deno.test("the store answers 'not found', never a refusal, once the view check fails", async () => {
-  // The refusal that would confirm a path must not exist on this branch: after
-  // a failed view check each entry point says "not found" and nothing else.
   for (const file of ["storage-working-areas.ts", "storage-reads.ts"]) {
     const source = await Deno.readTextFile(new URL(file, ROOT));
     const checks = [...source.matchAll(/!\(\s*await mayViewAt\(/g)];

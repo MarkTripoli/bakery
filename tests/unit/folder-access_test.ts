@@ -9,9 +9,6 @@ import {
   mayView,
 } from "../../apps/server/src/modules/knowledge/folder-access.ts";
 
-// #449 (chapter 25 section 17.3): grants inherit downward and a restricted
-// folder stops inheritance; personal and record areas are not grantable.
-
 const node = (
   id: string,
   extra: Partial<FolderNode> = {},
