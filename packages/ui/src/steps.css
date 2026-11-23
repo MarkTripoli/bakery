@@ -743,6 +743,9 @@ button.ui-outline__main:focus-visible {
   box-shadow: var(--shadow-subtle), inset 0 0 0 var(--border-emphasis)
     var(--color-selection);
 }
+.ui-outline__item[data-needs-setup="true"] {
+  outline: var(--border-none);
+}
 .ui-outline__item[data-needs-setup="true"] > .ui-outline__row {
   border-color: var(--color-destructive);
 }
@@ -797,8 +800,13 @@ button.ui-outline__main:focus-visible {
 }
 .ui-outline__add {
   align-items: center;
+  box-sizing: border-box;
   display: flex;
+  inline-size: calc(
+    var(--space-2) + var(--border-default) + var(--size-control)
+  );
   justify-content: center;
+  padding-inline-start: calc(var(--space-2) + var(--border-default));
 }
 
 [data-ui-region="workflow-canvas"] {
@@ -866,12 +874,18 @@ button.ui-outline__main:focus-visible {
   box-sizing: border-box;
   inline-size: 100%;
   overflow: hidden;
+  position: relative;
 }
 .ui-canvas-frame__loading {
   display: grid;
   gap: var(--space-12);
   justify-items: center;
   padding-block-start: var(--space-8);
+}
+.ui-canvas-frame__loading[data-over="true"] {
+  background: var(--color-canvas);
+  inset: 0;
+  position: absolute;
 }
 .ui-canvas-frame__loading .ui-skeleton {
   block-size: calc(var(--space-8) * 2);

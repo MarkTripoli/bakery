@@ -1096,7 +1096,9 @@ export function WorkflowEditorPage(
   const publishButton = notSaved
     ? (
       <UI.Tooltip
+        align="end"
         content={translate("library.editor.publish.notSaved" as never)}
+        placement="below"
       >
         {publishCore}
       </UI.Tooltip>

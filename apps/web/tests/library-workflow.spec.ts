@@ -1145,6 +1145,92 @@ test.describe("the workflow canvas on a wide window", () => {
     }
   });
 
+  test("selecting a box that fits brings the whole box into view", async ({ page }) => {
+    await libraryFixture(page, {
+      ...WORLD,
+      versions: [
+        ...VERSIONS.filter((row) => row.status !== "draft"),
+        {
+          ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+          spec: [
+            { kind: "action", id: "brief", uses: "task.brief" },
+            { kind: "action", id: "add", uses: "harness.implement" },
+            {
+              kind: "branch",
+              then: [{ kind: "action", id: "rev", uses: "agent.review" }],
+              else: [],
+            },
+            {
+              kind: "repeat",
+              steps: [
+                { kind: "action", id: "fix", uses: "harness.implement" },
+                { kind: "action", id: "check", uses: "agent.review" },
+              ],
+            },
+            { kind: "action", id: "done", uses: "agent.review" },
+          ],
+        },
+      ],
+    });
+    await page.goto(editorUrl);
+    const canvas = page.locator('[data-ui-region="workflow-canvas"]');
+    await expect(canvas).toHaveAttribute("data-layout", "ready");
+    const repeat = page.locator("[data-group='repeat']");
+    await repeat.getByRole("button", { name: /Repeat/ }).first().click();
+    await expect(
+      page.getByRole("complementary", { name: "The selected step" }),
+    ).toBeVisible();
+    await expect.poll(async () => {
+      const frame = (await canvas.boundingBox())!;
+      const box = (await repeat.boundingBox())!;
+      return box.y >= frame.y - 1 &&
+        box.y + box.height <= frame.y + frame.height + 1;
+    }).toBe(true);
+  });
+
+  test("the skeletons stay until the cards are placed, with no blank canvas between", async ({ page }) => {
+    await libraryFixture(
+      page,
+      flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+        { id: "rev", uses: "agent.review" },
+      ]),
+    );
+    await page.addInitScript(() => {
+      const seen = { gaps: 0, loading: 0 };
+      (globalThis as unknown as { __canvas: typeof seen }).__canvas = seen;
+      const tick = () => {
+        const frame = document.querySelector(
+          '[data-ui-region="workflow-canvas"]',
+        );
+        if (frame) {
+          if (frame.querySelector(".ui-canvas-frame__loading") !== null) {
+            seen.loading += 1;
+          } else if (frame.getAttribute("data-layout") !== "ready") {
+            seen.gaps += 1;
+          }
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await page.route(/WorkflowCanvas/, async (route) => {
+      await new Promise((done) => setTimeout(done, 800));
+      await route.continue();
+    });
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    await expect(page.locator(".ui-canvas-frame__loading")).toHaveCount(0);
+    const seen = await page.evaluate(() =>
+      (globalThis as unknown as { __canvas: { gaps: number; loading: number } })
+        .__canvas
+    );
+    expect(seen.gaps).toBe(0);
+    expect(seen.loading).toBeGreaterThan(0);
+  });
+
   test("the add menu stays whole inside the canvas, from a + near the top and one near the bottom", async ({ page }) => {
     const steps = Array.from({ length: 12 }, (_, index) => ({
       id: "s" + index,
@@ -1270,11 +1356,20 @@ test.describe("Publish and the save", () => {
     await expect(publish).toHaveAttribute("aria-disabled", "true");
     await expect(page.getByTestId("editor-problems")).toHaveText("2 problems");
     await publish.focus();
-    await expect(
-      page.getByRole("tooltip").filter({
-        hasText: "Your latest changes are not saved. Press Try again first.",
-      }),
-    ).toBeVisible();
+    const tooltip = page.getByRole("tooltip").filter({
+      hasText: "Your latest changes are not saved. Press Try again first.",
+    });
+    await expect(tooltip).toBeVisible();
+    const box = (await tooltip.boundingBox())!;
+    const window = page.viewportSize()!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(window.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(window.height);
+    expect(box.width).toBeGreaterThanOrEqual(200);
+    expect(box.height).toBeLessThanOrEqual(80);
+    const publishBox = (await publish.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(publishBox.y + publishBox.height);
     await publish.click({ force: true });
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await page.mouse.move(5, 5);
@@ -1372,6 +1467,29 @@ test.describe("the editor header on a phone", () => {
     await expect(page.getByText("Ready to publish")).toHaveCount(0);
     await page.mouse.move(5, 5);
     await still(page, "editor-header-save-failed");
+  });
+
+  test("a step with a problem is ringed on its row alone, and a + sits under the icon column", async ({ page }) => {
+    await libraryFixture(page, { ...WORLD, validation: "warnings" });
+    await page.goto(editorUrl);
+    const item = page.locator("li[data-card]").nth(1);
+    await expect(item).toContainText("Needs setup");
+    const look = await item.evaluate((element) => {
+      const row = element.querySelector(".ui-outline__row")!;
+      const icon = element.querySelector(".ui-outline__icon")!
+        .getBoundingClientRect();
+      const add = element.querySelector(".ui-outline__add button")!
+        .getBoundingClientRect();
+      return {
+        outline: getComputedStyle(element).outlineStyle,
+        radius: getComputedStyle(row).borderTopLeftRadius,
+        iconCentre: icon.left + icon.width / 2,
+        addCentre: add.left + add.width / 2,
+      };
+    });
+    expect(look.outline).toBe("none");
+    expect(look.radius).not.toBe("0px");
+    expect(Math.abs(look.iconCentre - look.addCentre)).toBeLessThanOrEqual(1);
   });
 
   test("a member sees the title and the sentences, and no actions", async ({ page }) => {

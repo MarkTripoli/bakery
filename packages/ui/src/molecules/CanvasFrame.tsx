@@ -9,14 +9,21 @@ export type CanvasFrameProps =
     variant?: "page" | "fill";
     height?: number;
     loading?: boolean;
+    settling?: boolean;
   };
 
 const FILL_MIN = 480;
 const FILL_GAP = 24;
 
 export function CanvasFrame(
-  { children, height, loading = false, variant = "page", ...props }:
-    CanvasFrameProps,
+  {
+    children,
+    height,
+    loading = false,
+    settling = false,
+    variant = "page",
+    ...props
+  }: CanvasFrameProps,
 ) {
   const frame = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -37,7 +44,7 @@ export function CanvasFrame(
     <div
       {...props}
       className="ui-canvas-frame"
-      data-state={loading ? "loading" : "default"}
+      data-state={loading || settling ? "loading" : "default"}
       data-ui-component="canvasFrame"
       data-variant={variant}
       ref={frame}
@@ -45,15 +52,19 @@ export function CanvasFrame(
         ? { blockSize: `${height}px` }
         : undefined}
     >
-      {loading
+      {loading ? null : children}
+      {loading || settling
         ? (
-          <div className="ui-canvas-frame__loading">
+          <div
+            className="ui-canvas-frame__loading"
+            data-over={settling ? "true" : undefined}
+          >
             <Skeleton shape="surface" />
             <Skeleton shape="surface" />
             <Skeleton shape="surface" />
           </div>
         )
-        : children}
+        : null}
     </div>
   );
 }

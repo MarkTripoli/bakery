@@ -317,6 +317,7 @@
   color: var(--color-fg);
   display: none;
   font: var(--type-caption);
+  inline-size: max-content;
   inset-block-end: calc(100% + var(--space-2));
   inset-inline-start: 50%;
   max-inline-size: 32ch;
@@ -325,6 +326,15 @@
   transform: translateX(-50%);
   white-space: normal;
   z-index: var(--layer-tooltip);
+}
+.ui-tooltip[data-placement="below"] .ui-tooltip__content {
+  inset-block-end: auto;
+  inset-block-start: calc(100% + var(--space-2));
+}
+.ui-tooltip[data-align="end"] .ui-tooltip__content {
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  transform: none;
 }
 
 .ui-tooltip:hover .ui-tooltip__content,

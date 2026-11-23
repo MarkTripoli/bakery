@@ -187,6 +187,10 @@ function Surface(props: WorkflowCanvasProps) {
     return () => globalThis.clearTimeout(timer);
   }, [signature]);
   const settled = stable && laid !== null && laidKey === sizesKey;
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    if (settled) setRevealed(true);
+  }, [settled]);
 
   const nodes = useMemo<Node<BlockData>[]>(
     () =>
@@ -289,7 +293,7 @@ function Surface(props: WorkflowCanvasProps) {
     flow.setViewport({ x: viewX + dx, y: viewY + dy, zoom: scale }, {
       duration: calm ? 0 : 200,
     });
-  }, [selectedId, laid]);
+  }, [selectedId, laid, width, height]);
 
   const larger = (bounds.h + 2 * PAD) * zoom > height ||
     (bounds.w + 2 * PAD) * zoom > width;
@@ -304,6 +308,7 @@ function Surface(props: WorkflowCanvasProps) {
         data-popover-boundary="true"
         data-ui-region="workflow-canvas"
         height={frameHeight}
+        settling={!revealed}
         variant={mode === "editor" ? "fill" : "page"}
       >
         <ReactFlow
