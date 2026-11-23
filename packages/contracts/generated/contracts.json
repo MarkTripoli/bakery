@@ -4333,7 +4333,7 @@
       "path": "/v1/desktop/update",
       "action": "desktopUpdates.get",
       "access": "Authenticated",
-      "permission": "desktopUpdate:read",
+      "permission": "identity:read",
       "input": "DesktopUpdateQuery",
       "output": "DesktopUpdate",
       "event": "",
@@ -243830,7 +243830,6 @@
                   "capabilityBinding:manage",
                   "capabilityBinding:read",
                   "identity:read",
-                  "desktopUpdate:read",
                   "profile:read",
                   "profile:write",
                   "installationSetting:read",
@@ -295927,7 +295926,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:3252884a0d97cf1c4147b5b47c512b4b30094ef033196e1796d11876a3fb0d4a",
+  "compatibilityDigest": "sha256:09505b0b82ff0caf85d690c4ae044f9aa21b0b4bdfe393eff84f983319731282",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -482989,7 +482988,6 @@
               "capabilityBinding:manage",
               "capabilityBinding:read",
               "identity:read",
-              "desktopUpdate:read",
               "profile:read",
               "profile:write",
               "installationSetting:read",

@@ -4198,7 +4198,7 @@
       "path": "/v1/desktop/update",
       "action": "desktopUpdates.get",
       "access": "Authenticated",
-      "permission": "desktopUpdate:read",
+      "permission": "identity:read",
       "input": "DesktopUpdateQuery",
       "output": "DesktopUpdate",
       "event": "",
