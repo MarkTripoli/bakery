@@ -867,6 +867,29 @@ somewhere to attach.
 | MCP outward    | Bakery's own MCP server exposes the tree under its OAuth scopes                                                                                                                                                                                                                                                                                                         |
 | Integrations   | A `storage` family: list, stat, read by range, write, change events. Connections mount under `/connections`, read through. Using an outside file ingests it into a version; one-way sync is a workflow; writing out is a keyed effect; no two-way sync in the first version (O38)                                                                                       |
 
+**Outside storage as shipped (F9, #452).** A storage connection is an
+integration connection whose provider serves the storage family. An Admin
+mounts it as a record-area folder under `/connections/<connection>`; listing,
+stat and range reads go through the provider's port and copy nothing. Using a
+file ingests it into an artifact version keyed by mount, remote path and remote
+revision, so using it again returns the same version. One-way sync is a
+workflow over that ingest, driven by the provider's change feed, and a remote
+deletion leaves ingested versions alone. Writing out is a keyed external
+effect, written with `If-Match` on the remote revision. Access is the
+connection's permission (read, invoke, manage), the tree's read rule on the
+mount folder, and a live connection.
+
+The first provider is **local disk**. The operator sets one root
+(`BAKERY_STORAGE_LOCAL_ROOT`, read through `RuntimeConfig`, server only), and
+a connection with provider `local-disk` reads and writes only
+`<root>/<organization>/<connection>`. A remote path is absolute with no empty,
+`.` or `..` segment, and is resolved with `realpath`. An answer outside the
+connection folder reads as missing. Listing and the change feed skip symbolic
+links, and a link in place of the organization or connection folder is never
+followed. A read checks that the file it opened is the one it resolved. With no
+root set, a `local-disk` connection answers `STORAGE_PROVIDER_UNAVAILABLE`,
+like any provider that is not deployed.
+
 ### 17.5 Lifecycle
 
 - **Retention** follows folder policy. Record areas keep today's rules (30 days
@@ -905,7 +928,7 @@ acts for.
 | The rest of the project (other items' artifacts, `assets`, `workspaces`) | Yes                                    | No. With a declared section or grant: `assets` and `workspaces`, under the one-writer rule                                                          |
 | `/shared`                                                                | Yes                                    | Only with a grant                                                                                                                                   |
 | `/library`                                                               | Published items the principal may read | Not by file write; drafts through the library's own operations                                                                                      |
-| `/connections/<connection>`                                              | Only connections the definition binds  | Only as a keyed external effect                                                                                                                     |
+| `/connections/<connection>`                                              | Only connections the step binds        | Only as a keyed external effect                                                                                                                     |
 | `/users/<member>`, including the starter's own                           | No, unless that member grants it       | No                                                                                                                                                  |
 | `/trash`, `/system`                                                      | No                                     | No                                                                                                                                                  |
 
@@ -923,6 +946,23 @@ them:
   recorded, pinned with the version and revocable. Widening its own file scope
   is off by default (O52).
 - **Never beyond the principal.** Widening adds scope, not authority.
+
+**Binding connections (O44, #452).** A step binds storage connections in its
+`files` section: `files: { read: [connections, ...], connections: [<id>] }`,
+at most 16 ids. The workflow SDK takes the same section as an action step's
+`files` option. The compiler lower-cases and sorts the ids and refuses a
+repeat, a value that is not an id, or a binding whose `read` does not name
+`connections`. A sealed step cannot bind. When a run is admitted, each bound
+connection must be mounted in the run's organization, readable by the person
+starting the run, and live. Otherwise the start is refused with
+`storage_connection_not_bindable`, or `connection_unavailable` for a disabled
+or archived connection. At claim the session gets `files.read:connections` and
+one `files.read:connection:<id>` scope per bound connection. It also gets the
+mount's list, stat and read tools. The read guard opens `/connections` itself,
+showing only the bound mounts, and everything under a bound mount. Any other
+connection is refused with `agent_file_connection_not_bound` unless a person
+granted the workflow that folder. A step that binds nothing never sees
+`/connections`, even when its `read` names the area.
 
 **Reads (O46).** Each file an agent opens joins the step's **read set** (entry,
 version, digest, feed position). A read returns the version current when the
