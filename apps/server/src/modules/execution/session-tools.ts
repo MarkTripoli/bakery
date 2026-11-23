@@ -95,6 +95,15 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "storageRoots.list": "files.read",
     "storageFolderEntries.list": "files.read",
     "storageFiles.content": "files.read",
+    // A file's saved versions, the runs that used one, and what a version
+    // belongs to (#404). These are the same tree read three more ways, and the
+    // `bakery` CLI inside a session has commands for each: `history`, `uses` and
+    // `open`. Without them those commands would exist, be listed by nobody, and
+    // refuse for a reason an agent cannot act on. Reads only - a pin is an
+    // administrator's write and stays off this map.
+    "storageFileVersions.list": "files.read",
+    "storageFileUses.list": "files.read",
+    "storageFiles.byVersion": "files.read",
     // Comments and work-item edits (#448 S9a, chapter 25 section 18.2: "the
     // same operations as people"). Draft comments are not offered: they run
     // through the draft routes' own staged execution, which a session call does

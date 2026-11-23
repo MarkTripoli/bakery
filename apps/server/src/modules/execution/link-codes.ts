@@ -52,15 +52,20 @@ export async function deviceSecretHash(secret: string): Promise<string> {
 }
 
 /**
- * The systems the installer is proven on: the same list as the web's systems
- * table (#864, `apps/web/src/pages/machine-systems.ts`), whose only
- * supported row is Linux on arm64 (`scripts/deploy/bootstrap-host.sh`).
+ * The systems the installer is proven on. The source is the native support
+ * matrix (`docs/backend-delivery/native-support-matrix.json`): a system is here
+ * only when its worker-target row is verified, and
+ * `tests/unit/machine-systems_test.ts` fails when the two disagree. The web's
+ * systems table (`apps/web/src/pages/machine-systems.ts`) is the same list.
  * Architectures are in the server's stored form (see `normalizeArchitecture`).
  */
 export const SUPPORTED_WORKER_SYSTEMS: readonly Readonly<{
   os: "linux" | "macos";
   architecture: string;
-}>[] = [{ os: "linux", architecture: "arm64" }];
+}>[] = [
+  { os: "linux", architecture: "arm64" },
+  { os: "linux", architecture: "x64" },
+];
 
 /** The stored system name for what a machine reports (`process.platform` or a person's word), or null for one Bakery has no name for. */
 export function reportedOs(value: string): "linux" | "macos" | null {
