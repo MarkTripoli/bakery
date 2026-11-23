@@ -377,15 +377,15 @@ Deno.test("an unsupported system does not use the code up", () =>
       },
     );
     assertEquals(refused.status, 422);
-    const x64 = await registerWithLinkCode(
+    const riscv = await registerWithLinkCode(
       fixture,
       linkCode,
       workerCredential(),
       {
-        architecture: "x86_64",
+        architecture: "riscv64",
       },
     );
-    assertEquals(x64.status, 422);
+    assertEquals(riscv.status, 422);
     const row = await fixture.pgDatabase.query<{ consumed: boolean }>(
       "select consumed_at is not null as consumed from bakery.worker_enrollments where id = $1",
       [enrollmentId],
@@ -398,6 +398,34 @@ Deno.test("an unsupported system does not use the code up", () =>
     );
     assertEquals(supported.status, 200, await supported.clone().text());
     fixture.workerHostIds.push((await supported.json()).workerHostId);
+  }));
+
+Deno.test("a Linux x86_64 machine is supported: inspection says so and it registers", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const { linkCode } = await enrollForLink(fixture);
+    const inspection = await inspect(fixture, linkCode, {
+      os: "linux",
+      architecture: "x86_64",
+    });
+    assertEquals(inspection.status, 200);
+    const body = await inspection.json();
+    assertEquals(body.supported, true);
+    // The list the terminal prints names both Linux processors, in the stored form.
+    assertEquals(
+      body.supportedSystems.map((
+        system: { os: string; architecture: string },
+      ) => `${system.os}/${system.architecture}`).sort(),
+      ["linux/arm64", "linux/x64"],
+    );
+    const registered = await registerWithLinkCode(
+      fixture,
+      linkCode,
+      workerCredential(),
+      { architecture: "x86_64" },
+    );
+    assertEquals(registered.status, 200, await registered.clone().text());
+    fixture.workerHostIds.push((await registered.json()).workerHostId);
   }));
 
 const enrollmentCount = async (fixture: Fixture) =>
