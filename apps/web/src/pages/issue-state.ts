@@ -224,6 +224,32 @@ export function reasonKey(code: string): KnownReason | "unknown" {
     : "unknown";
 }
 
+/**
+ * The message key and values for a reason's sentence on one issue. When the
+ * check did not name the issue number or the label, the sentence says "an
+ * issue" or "a required label" instead of printing an empty "#" or "" (design-ux
+ * #61, revision 10); each of those has a message key of its own.
+ */
+export function reasonMessage(
+  row: IssueRow,
+  code: string,
+): { readonly key: string; readonly values: Record<string, string> } {
+  const key = reasonKey(code);
+  if (key === "unknown") return { key: "issues.reason.unknown", values: {} };
+  const check = decidingCheck(row);
+  const number = referencedNumber(evidenceValue(check, "blocker")) ?? "";
+  const label = evidenceValue(check, "label") ?? "";
+  const unnamed = (key === "predecessor_open" || key === "closed_unmerged")
+    ? number === ""
+    : (key === "label_missing" || key === "label_withdrawn")
+    ? label === ""
+    : false;
+  return {
+    key: unnamed ? `issues.reason.${key}_unnamed` : `issues.reason.${key}`,
+    values: { number, label },
+  };
+}
+
 /** What the person can do about a reason, in the design's words: where the fix lives. */
 export type ReasonAction =
   | { kind: "none" }

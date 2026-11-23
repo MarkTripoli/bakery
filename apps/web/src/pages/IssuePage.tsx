@@ -384,11 +384,13 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
       .map((dependency) => `${dependency.repository}#${dependency.number}`)
       .join(", ");
   })();
-  // A dependency known by name is said once, by the line above ("Bakery will
-  // start this when … is done" or the Start when ready note), not again as
-  // "Depends on #n" (#61 revision 9).
+  // The dependency is said once: by the line above when it is known by name
+  // ("Bakery will start this when … is done", #61 revision 9), and by the Start
+  // when ready note whether or not it is (revision 10). It is not said again
+  // as "Depends on".
   const dependsOnSaid = (code: string) =>
-    code === "predecessor_open" && waitingOn !== "";
+    code === "predecessor_open" &&
+    (waitingOn !== "" || offer === "startWhenReady");
   const hasRelations = links.dependencies.length > 0 || links.parent !== null ||
     links.subIssues > 0;
 

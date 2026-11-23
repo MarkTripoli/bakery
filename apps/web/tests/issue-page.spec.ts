@@ -244,7 +244,47 @@ for (
       await expect(side.getByRole("button", { name: "Start when ready" }))
         .toBeVisible();
       await expect(side.getByText(/by itself when/)).toHaveCount(0);
+      // The Start when ready note already says it: no "Depends on" sentence,
+      // and no empty "#" anywhere on the card (revision 10).
+      await expect(side.getByText(/Depends on/)).toHaveCount(0);
+      await expect(side.getByText(/#,|#\./)).toHaveCount(0);
       await expect(side.getByText(/Uses .* in acme\/web\./)).toBeVisible();
+    });
+
+    test("a waiting issue with no dependency number and no Start when ready note says an issue, never an empty number", async ({ page }) => {
+      // Two things are in the way, so there is no note; the dependency check names no issue.
+      const unnamed: Seed = {
+        ...WAITING,
+        checks: [
+          ...ready,
+          {
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+          },
+          {
+            id: "acceptance_present",
+            status: "wait",
+            reason: "acceptance_missing",
+          },
+        ],
+        links: {
+          parent: null,
+          subIssuesTotal: 0,
+          blockedBy: [],
+          blockingTotal: 0,
+        },
+      };
+      await open(page, unnamed, { open: [unnamed] });
+      const side = card(page).first();
+      await expect(
+        side.getByText("Only what this issue depends on is in the way."),
+      ).toHaveCount(0);
+      await expect(side.getByText("Depends on an issue that is still open."))
+        .toBeVisible();
+      await expect(side.getByText(/#,|#\./)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await shot(page, "issue-card-no-number");
     });
 
     test("an issue that cannot start gives every reason with where to fix it and no button", async ({ page }) => {

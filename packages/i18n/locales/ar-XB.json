@@ -6463,5 +6463,9 @@
   "issues.work.stoppedByYou": "⟪stopped by you⟫",
   "issues.line.needsAnswer": "⟪Work is paused until someone answers.⟫",
   "issues.card.workflow": "⟪Uses {workflow} in {repository}.⟫",
-  "issues.start.body": "⟪Bakery creates a task in {repository}. You can follow it in Work.⟫"
+  "issues.start.body": "⟪Bakery creates a task in {repository}. You can follow it in Work.⟫",
+  "issues.reason.predecessor_open_unnamed": "⟪Depends on an issue that is still open.⟫",
+  "issues.reason.closed_unmerged_unnamed": "⟪An issue this depends on was closed without merged work, so this cannot rely on it.⟫",
+  "issues.reason.label_missing_unnamed": "⟪Missing a required label.⟫",
+  "issues.reason.label_withdrawn_unnamed": "⟪A required label was removed.⟫"
 }

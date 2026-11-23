@@ -6463,5 +6463,9 @@
   "issues.work.stoppedByYou": "⟦šŧôþþëð ƀÿ ÿôû ŧë⟧",
   "issues.line.needsAnswer": "⟦Ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš. ŧëšŧ çôþÿŧ⟧",
   "issues.card.workflow": "⟦Ûšëš {workflow} ïñ {repository}. ŧëšŧ çôþÿ⟧",
-  "issues.start.body": "⟦Ɓàķëŕÿ çŕëàŧëš à ŧàšķ ïñ {repository}. Ÿôû çàñ ƒôļļôŵ ïŧ ïñ Ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "issues.start.body": "⟦Ɓàķëŕÿ çŕëàŧëš à ŧàšķ ïñ {repository}. Ÿôû çàñ ƒôļļôŵ ïŧ ïñ Ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "issues.reason.predecessor_open_unnamed": "⟦Ðëþëñðš ôñ àñ ïššûë ŧĥàŧ ïš šŧïļļ ôþëñ. ŧëšŧ çôþÿ ŧ⟧",
+  "issues.reason.closed_unmerged_unnamed": "⟦Àñ ïššûë ŧĥïš ðëþëñðš ôñ ŵàš çļôšëð ŵïŧĥôûŧ ɱëŕĝëð ŵôŕķ, šô ŧĥïš çàññôŧ ŕëļÿ ôñ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "issues.reason.label_missing_unnamed": "⟦Ṁïššïñĝ à ŕëǫûïŕëð ļàƀëļ. ŧëšŧ ç⟧",
+  "issues.reason.label_withdrawn_unnamed": "⟦À ŕëǫûïŕëð ļàƀëļ ŵàš ŕëɱôṽëð. ŧëšŧ çôþ⟧"
 }

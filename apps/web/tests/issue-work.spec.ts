@@ -753,7 +753,7 @@ for (
       });
       await expect(section(page).getByText("Waiting", { exact: true }))
         .toBeVisible();
-      await expect(section(page).getByText(/Missing the .* label\./))
+      await expect(section(page).getByText("Missing a required label."))
         .toBeVisible();
     });
 

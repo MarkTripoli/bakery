@@ -2,16 +2,13 @@ import type { Translator } from "@bakery/i18n";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import {
-  decidingCheck,
-  evidenceValue,
   issueNumber,
   type IssueRow,
   issueSnapshot,
   type IssueStatus,
   issueStatus,
   listedStatus,
-  reasonKey,
-  referencedNumber,
+  reasonMessage,
 } from "./issue-state.ts";
 
 const BADGE_TONE = {
@@ -35,15 +32,8 @@ export function reasonSentence(
   code: string,
   translate: Translator,
 ): string {
-  const key = reasonKey(code);
-  if (key === "unknown") {
-    return translate("issues.reason.unknown" as never);
-  }
-  const check = decidingCheck(row);
-  return translate(`issues.reason.${key}` as never, {
-    number: referencedNumber(evidenceValue(check, "blocker")) ?? "",
-    label: evidenceValue(check, "label") ?? "",
-  });
+  const message = reasonMessage(row, code);
+  return translate(message.key as never, message.values);
 }
 
 /**
