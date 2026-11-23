@@ -404,7 +404,6 @@ Deno.test("history that is no longer authorized is not reused: a purged cited ve
     );
   }));
 
-/** Reads a handoff manifest as an Admin of the given scope. */
 function readManifest(
   fixture: WorkerFixture,
   manifestId: string,
@@ -421,21 +420,15 @@ function readManifest(
   );
 }
 
-// #72: the read says what a continuation would get now, from the same decision
-// the admit makes, so the page is right before the click.
-
 Deno.test("the manifest read says an exact resume will be tried, and the admit then does it; once continued the read says nothing", () =>
   withWorkerFixture(async (fixture) => {
     const live = await liveAttempt(fixture, "read-exact");
     const record = await exactCandidate(fixture, live);
-    // The worker's own write makes no decision.
     assertEquals(record.decisionMode, null);
     assertEquals(record.freshReason, null);
     const before = await body(await readManifest(fixture, String(record.id)));
     assertEquals(before.decisionMode, "exact_harness_resume");
     assertEquals(before.freshReason, null);
-    // The machine the source session ran on is named, and nothing is said yet
-    // about a hand-over.
     const host = await fixture.pgDatabase.query<{ name: string }>(
       `select h.name from bakery.job_attempts a
          join bakery.worker_hosts h on h.id = a.worker_host_id
@@ -445,7 +438,6 @@ Deno.test("the manifest read says an exact resume will be tried, and the admit t
     assertEquals(before.machineName, host.rows[0].name);
     assertEquals(before.continuedByName, null);
     assertEquals(before.continuedAt, null);
-    // A read admits nothing and moves nothing.
     assertEquals((await state(fixture, live)).attempt, "leased");
     const response = await continueManifest(
       fixture,
@@ -459,7 +451,6 @@ Deno.test("the manifest read says an exact resume will be tried, and the admit t
     assertEquals(after.status, "continued");
     assertEquals(after.decisionMode, null);
     assertEquals(after.freshReason, null);
-    // Who handed the step over is what the server recorded, for any reader.
     const admitter = await fixture.pgDatabase.query<{ display_name: string }>(
       `select p.display_name from bakery.handoff_continuations c
          join bakery.principals p on p.id = c.admitted_by_principal_id
@@ -474,7 +465,6 @@ Deno.test("the manifest read says an exact resume will be tried, and the admit t
     assertEquals(after.machineName, host.rows[0].name);
   }));
 
-/** A second, different person who is a developer in the fixture's organization. */
 async function addSecondReader(fixture: WorkerFixture) {
   const db = fixture.pgDatabase;
   const providerUserId = crypto.randomUUID();
@@ -541,11 +531,9 @@ Deno.test("a second member reading a continued manifest sees who admitted it, no
       assertEquals(read.status, 200);
       const seen = await body(read);
       assertEquals(seen.status, "continued");
-      // The reader is a different person with a different name.
       assert(reader.displayName !== admitterName);
       assertEquals(seen.continuedByName, admitterName);
     } finally {
-      // Seeded users would make the next fixture refuse the database.
       const db = fixture.pgDatabase;
       await db.query(
         `delete from public.session where "userId" in (
@@ -587,8 +575,6 @@ Deno.test("the manifest read gives the reason a continuation would start fresh, 
       (await auditDetails(fixture, String(continuation.id))).reason,
       read.freshReason,
     );
-    // The reason is kept on the continuation and returned, so a page can say it
-    // after the fact; an exact resume keeps none.
     assertEquals(continuation.freshReason, read.freshReason);
     const kept = await fixture.pgDatabase.query<
       { fresh_reason: string | null }

@@ -3,13 +3,6 @@ import AxeBuilder from "@axe-core/playwright";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 
-// #72: a running step with a saved point shows "Hand over to a new session".
-// The card says how the new session will carry on before the click (the server's
-// own decision on `handoffManifests.get`), lists what it is given, and the click
-// sends the run version the card was drawn from. The reads and the continue are
-// mocked with the shapes of `handoffManifests.get`, `handoffManifests.continue`,
-// `runSteps.list` (`handoffManifest`) and `storageFiles.byVersion`.
-
 registerPageHealth(test);
 
 const EVIDENCE = process.env.BAKERY_EVIDENCE_DIR;
@@ -19,10 +12,6 @@ const SCHEME = process.env.BAKERY_EVIDENCE_SCHEME === "dark"
   ? "light"
   : null;
 
-/**
- * A still of the page tall enough to hold the card: it sits in the scrolling
- * conversation pane, so a one-screen capture would cut it off.
- */
 async function still(page: Page, name: string, needsCard = true) {
   if (!EVIDENCE) return;
   if (SCHEME) await page.emulateMedia({ colorScheme: SCHEME });
@@ -115,7 +104,6 @@ const task = {
 };
 
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
-/** A problem answer as the server sends it (`application/problem+json`). */
 const problemReply = (
   route: Route,
   status: number,
@@ -189,7 +177,6 @@ type World = {
   stepHasManifest: boolean;
   canControl: boolean;
   continues: { key: string; body: Record<string, unknown> }[];
-  /** Who the server recorded as having handed the step over, once it is. */
   continuedBy: string | null;
   reply?: (route: Route) => Promise<void>;
   reads: number;
@@ -288,7 +275,6 @@ async function open(page: Page, w: World) {
         body: r.request().postDataJSON() as Record<string, unknown>,
       });
       if (w.reply) return await w.reply(r);
-      // The server records the hand-over: the step's saved point is now used.
       w.status = "continued";
       await r.fulfill({
         status: 201,
@@ -340,8 +326,6 @@ async function open(page: Page, w: World) {
       },
     });
   });
-  // A document that is not a storage file is read through its own artifact and
-  // version reads; one with no artifact access is not readable at all.
   await page.route(/\/v1\/artifacts\/[^/?]+$/, (r) => {
     const id = new URL(r.request().url()).pathname.split("/").pop()!;
     if (id === uuid(95)) return problemReply(r, 500, "INTERNAL_ERROR");
@@ -363,7 +347,6 @@ async function open(page: Page, w: World) {
       },
     });
   });
-  // The pinned version is not on the first page: it is found by paging on.
   await page.route(/\/v1\/artifacts\/[^/]+\/versions(\?.*)?$/, (r) => {
     const url = new URL(r.request().url());
     const item = (id: string, revision: number) => ({
@@ -395,8 +378,6 @@ async function open(page: Page, w: World) {
         : { items: [item(uuid(86), 5)], nextCursor: "page-2" },
     });
   });
-  // The step has a session, as a running step does, so the timeline and the
-  // card speak of the same one.
   await page.route("**/v1/sessions?*", (r) =>
     r.fulfill({
       json: {
@@ -425,9 +406,7 @@ async function open(page: Page, w: World) {
       }),
   );
   await page.route(`**/v1/sessions/${SESSION}/feed/stream`, () => {});
-  // The live events socket opens and says nothing.
   await page.routeWebSocket("**/v1/events?*", () => {});
-  // The step's raw output: nothing yet, which is a normal state, not an error.
   await page.route(
     "**/v1/output-streams?*",
     (r) =>
@@ -509,28 +488,22 @@ test.describe("hand over a running step to a new session", () => {
     await expect(given).toContainText(
       "None waiting. Everything the session did outside Bakery is confirmed.",
     );
-    // A document the reader may open is named with its exact version; one they
-    // may not is counted and never named.
     await expect(
       given.getByRole("link", { name: "refund-rules.md, version 3" }),
     )
       .toHaveAttribute("href", `/files/versions/${DOC_OPEN}`);
-    // An artifact that is not a storage file is named through its own read.
     await expect(
       given.getByRole("link", { name: "refund-plan.pdf, version 2" }),
     ).toHaveAttribute("href", `/files/versions/${DOC_PLAIN}`);
-    // A document that could not be read is said so, never dropped.
     await expect(page.getByTestId("handover-documents-unchecked")).toHaveText(
       "1 could not be checked right now.",
     );
-    // A version that is gone is not "no access".
     await expect(page.getByTestId("handover-documents-gone")).toHaveText(
       "1 is no longer available.",
     );
     await expect(page.getByTestId("handover-documents-hidden")).toHaveText(
       "1 more that you do not have access to.",
     );
-    // Reading the card admits nothing.
     expect(w.continues).toHaveLength(0);
     await still(page, "handover-exact");
     const axe = await new AxeBuilder({ page }).include(
@@ -543,7 +516,6 @@ test.describe("hand over a running step to a new session", () => {
     expect(w.continues).toHaveLength(1);
     expect(w.continues[0]!.body).toEqual({ runVersion: RUN_VERSION });
     expect(w.continues[0]!.key).toBeTruthy();
-    // The timeline says what happened, and by whom.
     await expect(page.getByText(
       "Ana Silva handed this step to a new session. It picked up exactly where it stopped.",
     )).toBeVisible();
@@ -596,14 +568,14 @@ test.describe("hand over a running step to a new session", () => {
     );
     await still(page, "handover-outside");
     await page.getByTestId("handover-confirm").click();
-    await expect(page.getByTestId("handover-notice")).toContainText(
+    await expect(page.getByText(
       "Handed over. The old session has stopped. The new one starts when Bakery knows whether 2 outside actions happened.",
-    );
+    )).toBeVisible();
+    await expect(page.getByTestId("handover-notice")).toHaveCount(0);
     await still(page, "handed-over-waiting", false);
   });
 
   test("a later reader sees who the server recorded, not their own name", async ({ page }) => {
-    // The page is opened after the hand-over: nothing was done in this tab.
     await open(
       page,
       world({
@@ -620,7 +592,6 @@ test.describe("hand over a running step to a new session", () => {
     )).toBeVisible();
     await expect(page.getByText("Fixture Admin handed", { exact: false }))
       .toHaveCount(0);
-    // No button: the saved point is already used.
     await expect(button(page)).toHaveCount(0);
   });
 
@@ -705,10 +676,13 @@ test.describe("hand over a running step to a new session", () => {
     });
     await open(page, w);
     await button(page).click();
-    await expect(page.getByTestId("handover-confirm")).toBeDisabled();
+    await expect(page.getByTestId("handover-confirm")).toBeEnabled();
     await expect(page.getByTestId("handover-blocked")).toHaveText(
       "Its changes are still being saved.",
     );
+    await page.getByTestId("handover-confirm").click();
+    await expect(page.getByTestId("handover-blocked")).toBeFocused();
+    expect(w.continues).toHaveLength(0);
     await still(page, "saving-blocked");
   });
 
@@ -821,7 +795,6 @@ test.describe("hand over a running step to a new session", () => {
       await still(page, "handover-refused");
       await page.getByTestId("handover-confirm").click();
       await expect.poll(() => w.continues.length).toBe(2);
-      // The answer to the first never arrived: the same hand-over, the same key.
       expect(w.continues[1]!.key).toBe(w.continues[0]!.key);
     });
   });

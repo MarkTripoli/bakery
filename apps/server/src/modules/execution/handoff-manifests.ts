@@ -390,13 +390,6 @@ export async function createHandoffManifest(
   return { kind: "replayed", record: toRecord(row) };
 }
 
-/**
- * `GET /v1/handoff-manifests/{id}`: one stored manifest, in the caller's
- * organization, with the decision a continuation would get now. The decision is
- * the one `handoffManifests.continue` makes (`decideManifestResume`), computed
- * without admitting anything; it is null when the manifest is no longer
- * pending or no longer parses.
- */
 export async function getHandoffManifest(
   context: ActionContext,
 ): Promise<HandoffManifestRecord> {
@@ -411,8 +404,6 @@ export async function getHandoffManifest(
   );
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  // The machine the source session ran on, by name; the host id also feeds
-  // the decision below.
   const source = (await transaction.query<
     { worker_host_id: string | null; name: string | null }
   >(
@@ -425,8 +416,6 @@ export async function getHandoffManifest(
   )).rows[0];
   const machineName = source?.name ?? null;
   if (row.status === "continued") {
-    // Who handed the step over is the person the server recorded, never the
-    // person reading, so every later reader sees the same line.
     const continued = (await transaction.query<
       {
         mode: string;

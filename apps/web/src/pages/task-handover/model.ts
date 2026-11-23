@@ -1,14 +1,5 @@
 import type { HandoffManifestResponse } from "../../api/client.ts";
 
-/**
- * What the "Hand over to a new session" card says (#72, design revision 3).
- * Pure functions over what the server returned, so the rules are tested
- * without a page: how the new session will carry on, what it is given, and
- * what each refusal reads as. The page never decides eligibility itself; it
- * only tells the person what the server said and what the server's own rows
- * make of it when the click arrives.
- */
-
 export type FreshReason = NonNullable<HandoffManifestResponse["freshReason"]>;
 
 export const FRESH_REASONS: readonly FreshReason[] = [
@@ -42,7 +33,6 @@ export type ManifestView = Readonly<{
     result: CheckResult;
     evidenceVersionId: string | null;
   }>[];
-  /** Outside actions the server has not seen confirmed or failed. */
   unconfirmedEffects: number;
 }>;
 
@@ -54,11 +44,6 @@ const text = (value: unknown): string | null =>
 
 const RESULTS: readonly string[] = ["passed", "failed", "skipped", "unknown"];
 
-/**
- * The stored manifest as the card shows it, or null when it does not have the
- * shape the server validated on the way in (a row that no longer parses is
- * never guessed at; the card then says there is no saved point to show).
- */
 export function viewManifest(manifest: unknown): ManifestView | null {
   if (!isRecord(manifest)) return null;
   const goal = text(manifest.goal);
@@ -117,11 +102,6 @@ export function viewManifest(manifest: unknown): ManifestView | null {
   };
 }
 
-/**
- * How the new session will carry on, as the page can tell before the click. An
- * exact pick-up is promised only as "will try": the server decides again when
- * the click arrives, and the page says so afterwards if it was not exact.
- */
 export function carryOn(
   record: Pick<
     HandoffManifestResponse,
@@ -143,12 +123,10 @@ export function carryOn(
   };
 }
 
-/** The key of the sentence for a reason, for `translate`. */
 export function reasonKey(reason: FreshReason | "unknown"): string {
   return `tasks.run.handover.reason.${reason}`;
 }
 
-/** What a continuation's answer says happened, for the line on the timeline. */
 export function outcomeKey(
   continuation: {
     readonly mode: string;
@@ -157,7 +135,6 @@ export function outcomeKey(
   unconfirmedEffects: number,
 ): "waiting" | "exact" | "fresh" {
   if (continuation.mode === "exact_harness_resume") return "exact";
-  // An unsettled outside action parks the step until it is settled.
   if (
     continuation.freshReason === "effects_unresolved" ||
     unconfirmedEffects > 0
@@ -167,9 +144,7 @@ export function outcomeKey(
 
 export type Refusal = Readonly<{
   key: string;
-  /** `card` keeps the card open and says it there; `page` closes it and says it on the step. */
   where: "card" | "page";
-  /** The run or the saved point moved: read them again. */
   reload: boolean;
 }>;
 
@@ -195,11 +170,6 @@ const REFUSALS: Readonly<Record<string, Refusal>> = {
   capture_incomplete: card("tasks.run.handover.refused.capture"),
 };
 
-/**
- * What a refused hand-over reads as. A changed run redraws the card from the
- * server's current answer; every reason the page does not know reads as the
- * plain "Not handed over. Nothing changed. Try again."
- */
 export function refusalOf(
   failure: {
     readonly kind: string;
@@ -215,10 +185,6 @@ export function refusalOf(
   return REFUSALS[reason] ?? OTHER;
 }
 
-/**
- * True when the answer never arrived or the server could not say, so the
- * hand-over may have gone through: the same key is sent again on a retry.
- */
 export function outcomeUnknown(
   failure: {
     readonly kind: string;
@@ -230,12 +196,6 @@ export function outcomeUnknown(
   return retryable || status >= 500 || status === 408;
 }
 
-/**
- * What the server recorded about a hand-over that already happened, for the
- * line on the timeline. It reads the stored fields, never the reader, so every
- * person who opens the page sees the same line. Null until the step was handed
- * over.
- */
 export function recordedHandover(
   record: Pick<
     HandoffManifestResponse,

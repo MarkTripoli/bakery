@@ -442,7 +442,6 @@ export function TaskRunSection(
   })();
   // A step list is drawn newest first. A finished, failed or paused run folds
   // everything past the newest three under one link; a running one shows all.
-  // Steps handed to a new session, drawn from what the server recorded.
   const handoverEvents = useHandoverEvents(
     steps.data?.items ?? [],
     activeRun && !invalidSteps,
@@ -558,8 +557,6 @@ export function TaskRunSection(
                 runId={runId}
                 runVersion={run.data.version}
                 steps={steps.data.items}
-                // The same access as pausing the run: a person who may not
-                // control it is not offered the button.
                 canControl={capabilities.data?.actions.some((item) =>
                   item.canRequest
                 ) === true}

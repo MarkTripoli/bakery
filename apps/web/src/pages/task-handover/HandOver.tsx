@@ -17,14 +17,12 @@ import {
   type CarryOn,
   carryOn,
   type ManifestView,
-  outcomeKey,
   outcomeUnknown,
   reasonKey,
   refusalOf,
   viewManifest,
 } from "./model.ts";
 
-/** A step the card can be offered on: running, with a saved point still pending. */
 export type HandOverStep = Readonly<{
   id: string;
   stepKey: string;
@@ -41,21 +39,12 @@ type Notice = Readonly<{
 const DECISIONS_SHOWN = 5;
 const DOCUMENTS_SHOWN = 5;
 
-/**
- * Hand a running step to a new session (#72, design revision 3). The button is
- * offered only while the step has a saved point and the person may control the
- * run. The card says how the new session will carry on before the click, and
- * the click sends the run version the card was drawn from; the server decides
- * again, and the line on the timeline says what it did. The page keeps no
- * domain state: every answer here is the server's.
- */
 export function HandOver(
   { taskId, runId, runVersion, steps, canControl, online }: {
     readonly taskId: string;
     readonly runId: string;
     readonly runVersion: number;
     readonly steps: readonly HandOverStep[];
-    /** The person may control this run (the same access as pausing it). */
     readonly canControl: boolean;
     readonly online: boolean;
   },
@@ -91,7 +80,6 @@ export function HandOver(
       open?.handoffManifest?.id ?? "",
     ),
     enabled: open !== null && scope.organizationId !== null,
-    // The card is right before the click: always the server's current answer.
     staleTime: 0,
     refetchOnMount: "always",
   });
@@ -106,8 +94,6 @@ export function HandOver(
     });
   };
 
-  // The step stopped running, or its saved point went, while the card was
-  // open and nothing was being sent: what the person was handing over is gone.
   useEffect(() => {
     if (openStep === null || working || open !== null) return;
     setOpenStep(null);
@@ -132,7 +118,7 @@ export function HandOver(
         },
       });
     } catch {
-      // The page keeps what it has; the next read says what changed.
+      return;
     }
   };
 
@@ -150,8 +136,6 @@ export function HandOver(
     ) return;
     const manifestId = open.handoffManifest.id;
     const input = { runVersion };
-    // The same hand-over sent again after a lost answer reuses its key, so it
-    // can never be admitted twice.
     const signature = JSON.stringify({ manifestId, input });
     const key = pending.current?.signature === signature
       ? pending.current.key
@@ -169,24 +153,10 @@ export function HandOver(
     setWorking(false);
     if (result.ok) {
       closeCard();
-      // The line on the timeline is drawn from what the server recorded once
-      // the page reads it again; only a step that now waits for an outside
-      // action also says so here, on the step, until it starts.
-      setNotice(
-        outcomeKey(result.data, view.unconfirmedEffects) === "waiting"
-          ? {
-            stepId: open.id,
-            tone: "information",
-            text: t("tasks.run.handover.done.waiting", {
-              count: view.unconfirmedEffects,
-            }),
-          }
-          : null,
-      );
+      setNotice(null);
       await refresh();
       return;
     }
-    // Only a definite answer ends the key; a lost one keeps it for the retry.
     if (!outcomeUnknown(result.error)) pending.current = null;
     const refusal = refusalOf(result.error);
     if (refusal.where === "page") {
@@ -303,8 +273,6 @@ function Card(
 ) {
   const { translate: t, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
-  // The card opens in place; focus goes to its heading so a keyboard or screen
-  // reader user lands on what opened.
   useEffect(() => {
     const heading = document.getElementById("handover-heading");
     heading?.setAttribute("tabindex", "-1");
@@ -357,10 +325,15 @@ function Card(
       </UI.Button>
       <UI.Button
         data-testid="handover-confirm"
-        disabled={blockedReason !== null}
         loading={working}
         variant="primary"
-        onClick={onConfirm}
+        onClick={() => {
+          if (blockedReason !== null) {
+            document.getElementById("handover-blocked")?.focus();
+            return;
+          }
+          onConfirm();
+        }}
       >
         {t("tasks.run.handover.confirm")}
       </UI.Button>
@@ -424,13 +397,17 @@ function Card(
             {problem}
           </UI.InlineNotice>
         )}
-      {blockedReason === null
-        ? null
-        : (
-          <UI.Text variant="muted" role="status" data-testid="handover-blocked">
-            {blockedReason}
-          </UI.Text>
-        )}
+      {blockedReason === null ? null : (
+        <UI.InlineNotice
+          tone="warning"
+          id="handover-blocked"
+          tabIndex={-1}
+          role="status"
+          data-testid="handover-blocked"
+        >
+          {blockedReason}
+        </UI.InlineNotice>
+      )}
       {phone
         ? (
           <>
@@ -439,8 +416,6 @@ function Card(
           </>
         )
         : (
-          // On a wide screen the buttons keep their own width, at the right,
-          // with the caption on the left of the same row.
           <UI.Inline variant="between" gap="compact">
             <UI.Text variant="caption">{t("tasks.run.handover.same")}</UI.Text>
             <UI.Inline gap="compact">{actions}</UI.Inline>
@@ -450,7 +425,6 @@ function Card(
   );
 }
 
-/** What the new session is given, as a quiet two-column list (design section 3). */
 function Given(
   { view, reasonIsOutside }: {
     readonly view: ManifestView;
@@ -485,14 +459,16 @@ function Given(
               ))}
               {view.decisions.length > DECISIONS_SHOWN && !allDecisions
                 ? (
-                  <UI.Button
-                    variant="quiet"
-                    onClick={() => setAllDecisions(true)}
-                  >
-                    {t("tasks.run.handover.showAll", {
-                      count: view.decisions.length,
-                    })}
-                  </UI.Button>
+                  <UI.Inline>
+                    <UI.Button
+                      variant="quiet"
+                      onClick={() => setAllDecisions(true)}
+                    >
+                      {t("tasks.run.handover.showAll", {
+                        count: view.decisions.length,
+                      })}
+                    </UI.Button>
+                  </UI.Inline>
                 )
                 : null}
             </UI.Stack>
@@ -551,7 +527,6 @@ function Given(
                   })}
                 </UI.Badge>
               </UI.Inline>
-              {/* The notice above already says why when that is the reason. */}
               {reasonIsOutside ? null : (
                 <UI.Text>
                   {t("tasks.run.handover.outsideUnconfirmedBody")}
@@ -564,10 +539,6 @@ function Given(
   );
 }
 
-/**
- * The documents the new session may read: each named, as a link to that exact
- * version. A document this reader may not open is counted and never named.
- */
 function Documents(
   { refs }: { readonly refs: ManifestView["documents"] },
 ) {
@@ -575,8 +546,6 @@ function Documents(
   const scope = useProtectedScope();
   const { translate: t } = useI18n();
   const [all, setAll] = useState(false);
-  // A storage file names itself by its path. Any other artifact is read through
-  // its own artifact and version reads, so it is named too.
   const files = useQueries({
     queries: refs.map((ref) =>
       storageFileAtVersionQueryOptions(api, scope, ref.versionId)
@@ -618,8 +587,6 @@ function Documents(
       }]
       : [];
   });
-  // Only a document that is genuinely not readable counts as no access; one
-  // that could not be checked is said so, never dropped.
   const noAccess = (error: unknown) => {
     const failure = error as { kind?: string; problem?: { status: number } };
     return failure?.kind === "problem" &&
@@ -629,8 +596,6 @@ function Documents(
     if (!files[index]?.isError) return false;
     return noAccess(artifacts[index]?.error);
   }).length;
-  // The artifact reads, but the version is not in its list: it is gone, which
-  // is not the same as a document this reader may not open.
   const gone = refs.filter((_, index) =>
     files[index]?.isError === true &&
     artifacts[index]?.data !== undefined &&

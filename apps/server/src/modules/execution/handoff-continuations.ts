@@ -216,8 +216,6 @@ export async function admitHandoffContinuation(
   // parks in awaiting_reconciliation instead of queueing, and the coordinator
   // queues it (as a fresh session) once every effect of the step is settled.
   // Exact resume reuses the source's native history, so the server decides it
-  // from its own rows (the same decision the manifest read shows): any mismatch
-  // is a fresh bounded session, never a resume.
   const { decision, effectsSettled } = await decideManifestResume(transaction, {
     organizationId,
     runId: named.run_id,

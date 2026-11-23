@@ -1912,22 +1912,11 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RouteContinuationResponse>>;
-  /**
-   * `GET /v1/handoff-manifests/{id}`: a step's saved point and how a handoff
-   * would carry on from it now (`decisionMode`, `freshReason`). Nothing is
-   * admitted by reading it.
-   */
   readonly getHandoffManifest: (options: {
     readonly organizationId: string;
     readonly manifestId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<HandoffManifestResponse>>;
-  /**
-   * `POST /v1/handoff-manifests/{id}/continuations`: hand a running step to a
-   * new session, against the run version the person saw. Refusals carry their
-   * reason in `ApiFailure.problem.reason`. Reuse the key and input when the
-   * outcome is unknown.
-   */
   readonly continueHandoff: (options: {
     readonly organizationId: string;
     readonly manifestId: string;

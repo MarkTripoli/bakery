@@ -9,12 +9,6 @@ import { stepTitle } from "../task-timeline.ts";
 import { reasonKey, recordedHandover } from "./model.ts";
 import type { HandOverStep } from "./HandOver.tsx";
 
-/**
- * The timeline lines for steps that were handed to a new session. They are
- * drawn from what the server recorded (who, when, exact or fresh and why), one
- * read per handed-over step, so every reader sees the same line and a reload
- * keeps it. A step that was never handed over costs no read.
- */
 export function useHandoverEvents(
   steps: readonly HandOverStep[],
   enabled: boolean,
@@ -58,12 +52,7 @@ export function useHandoverEvents(
         dateStyle: "medium",
         timeStyle: "short",
       }),
-      title: `${
-        formatDate(new Date(recorded.at), locale, {
-          timeZone,
-          timeStyle: "short",
-        })
-      } — ${stepTitle(t, continued[index]!.stepKey)}`,
+      title: stepTitle(t, continued[index]!.stepKey),
       description,
     });
   });

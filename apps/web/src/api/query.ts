@@ -1142,11 +1142,6 @@ export function runQueryOptions(
   });
 }
 
-/**
- * A step's saved point and how a handoff would carry on from it now. Read when
- * the card is open, and again after a refusal, so the card is right before the
- * click.
- */
 export function handoffManifestQueryOptions(
   client: Pick<BakeryApiClient, "getHandoffManifest">,
   scope: ApiScope,
@@ -1606,11 +1601,6 @@ export function artifactVersionsQueryOptions(
   });
 }
 
-/**
- * One version of an artifact, found by paging its version list until it turns
- * up: a pinned older version is not on the first page. Null when the list ends
- * without it, so a version that is gone is told apart from a failed read.
- */
 export function artifactVersionAmongQueryOptions(
   client: Pick<BakeryApiClient, "listArtifactVersions">,
   scope: ApiScope,
@@ -1630,7 +1620,6 @@ export function artifactVersionAmongQueryOptions(
         throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
       }
       let cursor: string | undefined;
-      // A bound, so a runaway list cannot keep this reading for ever.
       for (let page = 0; page < 40; page++) {
         const read = unwrap(
           await client.listArtifactVersions({

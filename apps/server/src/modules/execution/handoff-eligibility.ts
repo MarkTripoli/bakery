@@ -214,13 +214,6 @@ export async function loadSourceSession(
     : null;
 }
 
-/**
- * The server's decision for a stored manifest as the rows stand now: the
- * effects of the step, the source session, the host and the history's
- * authorization. Admitting a continuation and reading a manifest both use it,
- * so what the page says before the click is what the click then does. A read
- * only; the caller holds whatever locks it needs.
- */
 export async function decideManifestResume(
   transaction: PgTransactionClient,
   input: {
@@ -240,8 +233,6 @@ export async function decideManifestResume(
     [input.organizationId, input.runStepId, [...NON_REPLAY_SAFE_EFFECT_STATES]],
   );
   const effectsSettled = unsettledEffects.rows.length === 0;
-  // The session and the history are read only when an exact resume was asked
-  // for; a fresh-only manifest decides from its own mode.
   const wantsExact = input.manifest.mode === "exact_harness_resume";
   const decision = decideResume({
     manifestId: input.manifestId,

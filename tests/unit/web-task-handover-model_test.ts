@@ -10,10 +10,6 @@ import {
   viewManifest,
 } from "../../apps/web/src/pages/task-handover/model.ts";
 
-// #72: the card tells a person how a hand-over will carry on and what the new
-// session is given. The page never decides eligibility; it reports the server's
-// answer, and promises an exact pick-up no more than "will try".
-
 const UUID = "00000000-0000-4000-8000-000000000001";
 const SHA = "a".repeat(40);
 
@@ -90,7 +86,6 @@ Deno.test("a manifest that is not in the shape the server stored is not shown, n
       manifest({ pendingEffects: [7] }),
     ]
   ) assertEquals(viewManifest(bad), null, JSON.stringify(bad)?.slice(0, 60));
-  // An unknown check result reads as "not known", not as a pass.
   assertEquals(
     viewManifest(manifest({
       tests: [{ command: "x", result: "great", evidenceVersionId: null }],
@@ -120,7 +115,6 @@ Deno.test("an exact pick-up is promised only when the server says exact, the poi
     }, view),
     { kind: "fresh", reason: "native_evidence_mismatch" },
   );
-  // A fresh answer with no reason, or one the page does not know, reads plainly.
   assertEquals(
     carryOn({
       decisionMode: "fresh_session",
@@ -184,9 +178,7 @@ Deno.test("each refusal reads as designed: the card stays or closes, and the run
     conflict("attempt_budget_exhausted").key,
     "tasks.run.handover.refused.budget",
   );
-  // A paused capture keeps the card open: try again in a moment.
   assertEquals(conflict("capture_incomplete").where, "card");
-  // Anything else, or no reason, is the plain answer and the card stays.
   for (
     const other of [
       conflict("something_new"),
@@ -245,12 +237,10 @@ Deno.test("a hand-over already made reads from what the server recorded, the sam
     }),
   }))!;
   assertEquals([waiting.outcome, waiting.unconfirmedEffects], ["waiting", 1]);
-  // No recorded person reads as null, so the page says "Someone", not the reader.
   assertEquals(
     recordedHandover(recorded({ continuedByName: null }))!.byName,
     null,
   );
-  // Nothing before a hand-over, or from a manifest still pending.
   assertEquals(recordedHandover(recorded({ status: "pending" })), null);
   assertEquals(recordedHandover(recorded({ continuedAt: null })), null);
   assertEquals(recordedHandover(recorded({ continuedMode: null })), null);
