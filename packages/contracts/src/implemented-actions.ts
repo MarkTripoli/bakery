@@ -1123,6 +1123,9 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     // A deterministic call of one pinned tool on a connection, run by the server
     // for the person who started the run (docs/technical-design/25-one-engine.md 15.4).
     ToolCall: "tool.call",
+    // The parent run's step that owns a plan of child work items and completes
+    // from the plan's terminal projection (docs/technical-design/25-one-engine.md 5).
+    CoordinationSplit: "coordination.split",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
@@ -1141,6 +1144,7 @@ export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
     WorkflowRuntimeImplementedAction.DeliveryDeploy,
     WorkflowRuntimeImplementedAction.DeliveryHealth,
     WorkflowRuntimeImplementedAction.ToolCall,
+    WorkflowRuntimeImplementedAction.CoordinationSplit,
   ] as const,
 );
 
