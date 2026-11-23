@@ -1,3 +1,4 @@
+import { loadCalledWorkflows } from "../workflows/called-workflows.ts";
 import { StandardError } from "@bakery/contracts/http";
 import {
   compileWorkflowDocumentDetailed,
@@ -56,9 +57,18 @@ export async function resolvePlanAdmission(
     profileAgentBindings: Readonly<Record<string, string>> | undefined;
   },
 ): Promise<PlanAdmission> {
+  // The versions a call names are immutable, so admitting the run again reads
+  // exactly what publishing read, and the run pins the inlined result.
   const { result, actionSites } = await compileWorkflowDocumentDetailed(
     options.definition,
-    { catalog: defaultWorkflowCompilerCatalog() },
+    {
+      catalog: defaultWorkflowCompilerCatalog(),
+      workflows: await loadCalledWorkflows(
+        transaction,
+        options.organizationId,
+        options.definition,
+      ),
+    },
   );
   if (!result.ok) conflict("workflow_plan_not_compilable");
   const document = result.document;

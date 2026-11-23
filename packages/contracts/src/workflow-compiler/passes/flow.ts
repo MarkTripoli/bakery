@@ -24,6 +24,7 @@ import {
   readerEndOf,
   type Scope,
 } from "./flow-index.ts";
+import { guardsOfScope } from "./flow-index.ts";
 import { inputTypesOf } from "./references.ts";
 import type { NodeLocations } from "./shape.ts";
 import {
@@ -367,4 +368,20 @@ export function checkWorkflowFlow(
     }
   }
   visitScope(env, index.root);
+  // A workflow's declared outputs are read where the workflow ends, so each
+  // must name a step output that exists there.
+  for (const name of Object.keys(document.outputs ?? {})) {
+    analyzeValue(
+      env,
+      {
+        scope: index.root,
+        index: index.root.members.length,
+        self: undefined,
+        repeat: undefined,
+        guards: guardsOfScope(index.root),
+      },
+      document.outputs![name]!,
+      ["outputs", name],
+    );
+  }
 }

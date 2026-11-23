@@ -107,6 +107,17 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "for_each_max_invalid",
     "for_each_as_invalid",
     "for_each_items_invalid",
+    // Calls and declared workflow outputs.
+    "call_shape_invalid",
+    "call_version_unavailable",
+    "call_child_invalid",
+    "call_input_unknown",
+    "call_input_missing",
+    "call_input_unusable",
+    "call_depth_exceeded",
+    "call_action_unsupported",
+    "call_output_unknown",
+    "workflow_outputs_invalid",
     "wait_shape_invalid",
     "wait_timeout_required",
     "parallel_lanes_invalid",
@@ -243,6 +254,25 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   for_each_as_invalid:
     "The forEach item name is invalid or repeats an enclosing forEach's name.",
   for_each_items_invalid: "The forEach items must be a list.",
+  call_shape_invalid:
+    "A call needs a `call` object with a published `workflow` version id and, when the child declares inputs, a `with` object.",
+  call_version_unavailable:
+    "The called workflow version is not a published version of this organization.",
+  call_child_invalid: "The called workflow version does not compile.",
+  call_input_unknown:
+    "The call names an input the called workflow does not declare.",
+  call_input_missing:
+    "The call leaves out a required input of the called workflow.",
+  call_input_unusable:
+    "A value the call passes cannot stand where the called workflow reads that input.",
+  call_depth_exceeded:
+    "Calls nest at most two levels: a workflow, its child and that child's own child.",
+  call_action_unsupported:
+    "A called workflow cannot use `tool.call` yet: a tool pin belongs to the version that holds the step.",
+  call_output_unknown:
+    "Only an output the called workflow declares can be read from a call; its inner steps and its outcome are not readable.",
+  workflow_outputs_invalid:
+    "A workflow output must be a name mapped to a `$step` reference.",
   wait_shape_invalid: "The wait must declare a duration or an event.",
   wait_timeout_required: "An event wait requires a timeout.",
   parallel_lanes_invalid: "The parallel lanes are invalid.",
