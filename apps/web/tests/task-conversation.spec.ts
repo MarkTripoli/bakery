@@ -2502,7 +2502,7 @@ test("Current run has one status badge, and the run id sits under Details", asyn
   // The id is not on the page until Details is opened, and then it is short.
   const row = page.getByTestId("run-id-row");
   await expect(row).toBeHidden();
-  await page.getByText("Details", { exact: true }).first().click();
+  await page.getByText("Run details", { exact: true }).first().click();
   await expect(row).toBeVisible();
   await expect(row).toContainText("Run ID");
   await expect(row).toContainText(runId.slice(0, 8));
@@ -2725,7 +2725,7 @@ test("still: the two load failures together", async ({ page }) => {
 test("still: the Current run line with Details open", async ({ page }) => {
   test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
   await openRun(page, "running");
-  await page.getByText("Details", { exact: true }).first().click();
+  await page.getByText("Run details", { exact: true }).first().click();
   await expect(page.getByTestId("run-id-row")).toBeVisible();
   await still(page, "task-page-run-details");
 });

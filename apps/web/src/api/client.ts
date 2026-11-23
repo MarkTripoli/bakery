@@ -101,6 +101,8 @@ export type DeliveryDecisionListResponse =
   ClientOutputMap["Page<DeliveryDecision>"];
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
+export type DeploymentListResponse = ClientOutputMap["Page<Deployment>"];
+export type DeploymentResponse = ClientOutputMap["Deployment"];
 export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
 export type MergeEntryListResponse = ClientOutputMap["Page<MergeEntry>"];
 export type MergeEntryResponse = ClientOutputMap["MergeEntry"];
@@ -2023,6 +2025,20 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MergeEntryResponse>>;
+  readonly listDeployments: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DeploymentListResponse>>;
+  readonly rollbackDeployment: (options: {
+    readonly organizationId: string;
+    readonly deploymentId: string;
+    readonly reason: string;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DeploymentResponse>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -6591,6 +6607,40 @@ export function createBakeryApiClient({
             mergeMethod: options.mergeMethod,
           },
           { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listDeployments(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["deployments.list"](
+          {
+            runId: options.runId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async rollbackDeployment(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["deployments.rollback"](
+          { id: options.deploymentId, reason: options.reason },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
         return { ok: true, data };
       } catch (error) {

@@ -332,6 +332,8 @@ function fakeApi(
     listRunDeliveryDecisions: rejecting,
     listPullRequests: rejecting,
     listMergeAttempts: rejecting,
+    listDeployments: rejecting,
+    rollbackDeployment: rejecting,
     listMergeEntries: rejecting,
     createMergeEntry: rejecting,
     mergePullRequest: rejecting,
