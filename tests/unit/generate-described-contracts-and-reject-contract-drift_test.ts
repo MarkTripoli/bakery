@@ -884,15 +884,20 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "7f539aaf305c1d7b004abd7113c8c9ab7f694c58",
+    "c81df5445",
   ];
+  // The base the approval it displaced was bound to. That approval is history
+  // now, so its own base must not pass either.
+  const displacedBase = "7f539aaf305c1d7b004abd7113c8c9ab7f694c58";
   const approvedDigest =
     "sha256:efdefddd74d7df9cb0173f66b12b36a00ddffd017d8b85a5f0872c21c7195c1b";
   // The approval this one displaced, at the head of the chain. It is history:
   // it may not pass again, or a digest nobody reviewed would silently
-  // re-authorise a delta.
+  // re-authorise a delta. A rebind that changes no contract keeps the same
+  // digest, so the displaced approval is told apart by its base, not by a
+  // different digest.
   const rejectedPriorDigests = [
-    "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee",
+    "sha256:efdefddd74d7df9cb0173f66b12b36a00ddffd017d8b85a5f0872c21c7195c1b",
   ];
   const options = {
     baseRef: approvedBases[0],
@@ -928,15 +933,29 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     }),
     false,
   );
+  // A prior approval's digest is history, and so is its base: neither passes,
+  // and a rebind that changes no contract keeps the same digest, so the base is
+  // what tells the two apart.
   for (const compatibilityDigest of rejectedPriorDigests) {
     assertEquals(
       isApprovedCompatibilityMigration(migration, {
-        ...options,
+        baseRef: displacedBase,
+        resolvedBaseRef: displacedBase,
         compatibilityDigest,
       }),
       false,
     );
   }
+  // A prior approval's base is not this approval's base, whatever digest is
+  // offered with it.
+  assertEquals(
+    isApprovedCompatibilityMigration(migration, {
+      baseRef: displacedBase,
+      resolvedBaseRef: displacedBase,
+      compatibilityDigest: approvedDigest,
+    }),
+    false,
+  );
   assertEquals(
     isApprovedCompatibilityMigration(migration, {
       ...options,
