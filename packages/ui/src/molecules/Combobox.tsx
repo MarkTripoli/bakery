@@ -23,7 +23,6 @@ export type ComboboxProps =
     /** `short` keeps a field that holds a short choice to 320px instead of the whole column. */
     width?: "default" | "short";
     label: string;
-    /** Keeps `label` as the accessible name and draws no visible label, for a field a heading above already names. */
     labelHidden?: boolean;
     /** What is wrong with the choice, in the field's error style under the control. */
     error?: ReactNode;
