@@ -14,10 +14,10 @@ BIN = os.environ["KEYED_BIN"]
 PAY = "/tmp/serve/pay"
 HOME = os.environ["HOME"]
 APP_VERSION = os.environ.get("APP_VERSION") or json.load(open("/app/src-tauri/tauri.conf.json"))["version"]
-ARCH = subprocess.check_output(["uname", "-m"], text=True).strip()  # x86_64 or aarch64, as the app reports it
+ARCH = subprocess.check_output(["uname", "-m"], text=True).strip()
 
 results = []
-LOG = []  # (monotonic seconds, method, path, query, authorization)
+LOG = []
 MODE = {"feed": "204", "handoff_delay": 0.0, "compat": 1, "download": "normal"}
 
 def check(name, ok, detail=""):
