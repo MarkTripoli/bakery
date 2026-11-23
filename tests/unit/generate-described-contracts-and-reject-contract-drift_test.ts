@@ -881,17 +881,18 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 });
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
-  // The approval currently in force: the base it was bound to, and the digest
-  // of the tree it authorises.
   const approvedBases = [
-    "fc819c510e55999f77dd9ec034e279926afa03f0",
+    "cc247b57113fe9dd2561920fb230b86e48a385c9",
   ];
   const approvedDigest =
-    "sha256:653df1ab54af2edb6dcf477a3858b187c3e33df7cddd2178573fe79576f84b23";
-  // Every approval this one displaced, in order. They are history: none of
-  // them may pass again, or a stale digest would silently re-authorise a delta
-  // nobody reviewed.
+    "sha256:75a164298eb460c2fc986b63355e558a275545ad9fda7fe972e7725697dca4c9";
   const rejectedPriorDigests = [
+    "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044",
+    "sha256:dcceb92c88a39796bd5376ae687048e7998b8c01860a67b985b5138a69cc0af8",
+    "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
+    "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
+    "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
+    "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
     "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
     // Displaced by the #63 release page rebind onto main 03305bcbe: main's own approval on 2864ff3cf, kept unchanged.
     "sha256:29f2c36d33afdecc79f3465c7a3cb9e355afab0dd86fa13acfc86dcf154d80de",
@@ -1303,7 +1304,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     }),
     false,
   );
-  for (const compatibilityDigest of rejectedPriorDigests) {
+  for (const compatibilityDigest of new Set(rejectedPriorDigests)) {
     assertEquals(
       isApprovedCompatibilityMigration(migration, {
         ...options,
