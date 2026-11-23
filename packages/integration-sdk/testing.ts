@@ -310,7 +310,6 @@ export function testServerImpl(
   return { ...base, ...overrides } as ServerImpl<ProviderManifest>;
 }
 
-/** A file the in-memory storage port holds. */
 type MemoryStorageFile = {
   bytes: Uint8Array;
   mediaType: string;
@@ -318,24 +317,14 @@ type MemoryStorageFile = {
   modifiedAt: string;
 };
 
-/** The in-memory storage port and the counters a test asserts on. */
 export type MemoryStorage = {
   port: StoragePort;
-  /** Puts a file as if someone changed it outside Bakery; returns its new revision. */
   put(path: string, content: string | Uint8Array, mediaType?: string): string;
-  /** Removes a file as if someone deleted it outside Bakery. */
   remove(path: string): void;
-  /** How many times each member was called, so a test can prove reads are lazy. */
   readonly calls: Readonly<Record<keyof StoragePort, number>>;
-  /** The bytes a path holds now, or undefined. */
   bytesOf(path: string): Uint8Array | undefined;
 };
 
-/**
- * An in-process storage provider for tests: a flat map of paths to bytes with
- * folders implied by the paths, revisions that change on every write, a change
- * feed, and writes that land once per idempotency key. Never production.
- */
 export function createMemoryStorage(): MemoryStorage {
   const files = new Map<string, MemoryStorageFile>();
   const events: StorageChangeEvent[] = [];

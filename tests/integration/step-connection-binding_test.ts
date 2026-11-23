@@ -1,12 +1,3 @@
-/**
- * #452: a step that binds storage connections (chapter 25 section 17.6, O44).
- * An agent session claimed for the step reads /connections through the real
- * session gateway for exactly the bound connection; an unbound connection of
- * the same organization is refused by name; and a binding to another
- * organization's connection is refused at admission. The provider is the
- * local-disk one, deployed from BAKERY_STORAGE_LOCAL_ROOT.
- */
-
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
@@ -40,7 +31,6 @@ import {
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
 
-/** Seeds an enabled local-disk connection with one file and mounts it. */
 async function localConnection(
   admin: PgDatabase,
   runtime: PgDatabase,
@@ -75,7 +65,6 @@ async function localConnection(
   );
 }
 
-/** Pins a one-step plan whose files section the claim mints from. */
 async function pinPlanStep(
   fixture: Fixture,
   job: Awaited<ReturnType<typeof seedEligibleJob>>,
@@ -113,7 +102,6 @@ async function pinPlanStep(
   );
 }
 
-/** A claimed session for a step that binds the given connection. */
 async function boundSession(fixture: Fixture, connectionId: string) {
   const worker = await registeredWorker(fixture, {
     name: "agent-452-bound",
@@ -270,7 +258,6 @@ Deno.test("a binding to another organization's connection is refused at admissio
           "storage_connection_not_bindable",
         );
       }
-      // A disabled connection of the organization is refused too.
       await fixture.pgDatabase.query(
         "update bakery.integration_connections set status = 'disabled'" +
           " where id = $1",

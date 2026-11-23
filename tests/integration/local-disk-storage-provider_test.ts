@@ -1,10 +1,3 @@
-/**
- * #452: the local-disk storage provider through the real storage connection
- * path. A connection whose provider is local-disk, deployed from an operator
- * root, is mounted, listed, stat'd, range-read, ingested, synced and exported
- * against a temporary folder, with no in-memory stand-in.
- */
-
 import { assert, assertEquals } from "@std/assert";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
@@ -82,7 +75,6 @@ Deno.test("a local-disk connection mounts, reads, ingests, syncs and exports on 
       await writeFile(folder + "/docs/b.txt", "bravo");
       await writeFile(folder + "/docs/deep/c.txt", "charlie");
 
-      // The deployed providers, configured as the server configures them.
       const deps = defaultStorageConnections({ storageLocalRoot: root });
       const as = <T>(
         work: (context: ActionContext, tx: PgTransactionClient) => Promise<T>,

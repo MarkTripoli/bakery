@@ -1,11 +1,3 @@
-/**
- * #452: run admission checks every storage connection a step binds (chapter
- * 25 section 17.6, O44), through the real `POST /v1/tasks/:id/runs`. A binding
- * to a connection that is not mounted, is disabled, or belongs to another
- * organization is refused and writes no run; a binding to a mounted, live
- * connection of the organization starts.
- */
-
 import { assertEquals } from "@std/assert";
 import {
   type CoordinationFixture,
@@ -19,13 +11,10 @@ import {
   mountStorageConnection,
 } from "../../apps/server/src/modules/knowledge/storage-connections.ts";
 
-// Binding needs no bytes: the provider is deployed but its folders are never
-// read here, so the root need not exist.
 const deps = defaultStorageConnections({
   storageLocalRoot: "/nonexistent/bakery-452-admission",
 });
 
-/** Seeds an enabled local-disk connection, mounted unless told otherwise. */
 async function connection(
   fx: CoordinationFixture,
   organizationId: string,
@@ -57,7 +46,6 @@ async function connection(
   return connectionId;
 }
 
-/** A one-step plan whose step binds the given connection. */
 function boundSpec(connectionId: string) {
   return {
     apiVersion: "bakery.dev/v1",

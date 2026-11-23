@@ -8,11 +8,6 @@ import { StorageImplementedAction } from "../../packages/contracts/src/implement
 import { createArtifactActions } from "../../apps/server/src/modules/knowledge/resource-routes.ts";
 import type { PgDatabase } from "../../apps/server/src/platform/database.ts";
 
-/**
- * #452: the storage connection operations (chapter 25 section 17.4, O38) are
- * catalog actions with described schemas, registered with catalog parity.
- */
-
 const expected = {
   "storageConnections.mount": [
     "POST",
@@ -129,8 +124,6 @@ Deno.test("the catalog declares every storage connection operation", () => {
 });
 
 Deno.test("the server registers the storage connection actions with catalog parity", () => {
-  // Registration asserts method, path, schemas, access and organization
-  // context against the catalog, so building the registry is the check.
   const { registry } = createArtifactActions({
     database: {} as PgDatabase,
     publicBaseUrl: "https://bakery.test",

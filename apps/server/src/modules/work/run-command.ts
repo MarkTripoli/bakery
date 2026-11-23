@@ -1022,8 +1022,6 @@ export async function createRunCommand(
   if (preset && input.inputPaths !== undefined) {
     throw unprocessable(["inputPaths"], "input_paths_not_allowed_with_preset");
   }
-  // A path under /connections is ingested on use (#452) when the host binds
-  // storage providers, and the run pins the version the file became.
   const storageConnections = options.storageConnections;
   const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
     transaction,
@@ -1115,9 +1113,6 @@ export async function createRunCommand(
     },
   );
 
-  // A step that binds storage connections (O44, #452) reads them through its
-  // agent's session; each must be this organization's, live, and readable by
-  // the person starting the run, or nothing is admitted.
   await assertConnectionsBindable(context, transaction, { isAdmin: false }, {
     organizationId,
     principalId,

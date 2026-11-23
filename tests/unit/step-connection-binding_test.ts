@@ -1,11 +1,3 @@
-/**
- * #452: a workflow step binds storage connections (chapter 25 section 17.6,
- * O44). The binding is part of the step's files section; the compiler
- * normalizes it, the SDK writes it, the claim mints one scope per bound
- * connection, and the read guard opens /connections only under a bound
- * mount.
- */
-
 import { assert, assertEquals } from "@std/assert";
 import {
   boundStepConnections,
@@ -85,7 +77,6 @@ Deno.test("compiler: a binding without a connections read, a repeat or a non-id 
       JSON.stringify(result.diagnostics),
     );
   }
-  // A sealed step cannot bind: it reads only its inputs.
   const sealed = await compileWorkflowDocument(
     workflow([{
       id: "aa",
@@ -126,7 +117,6 @@ Deno.test("claim: a bound step mints the connections read and one scope per boun
   assert(scopes.includes("files.read:connections"), JSON.stringify(scopes));
   assert(scopes.includes(boundConnectionScope(BOUND)));
   assertEquals(boundConnectionsOf(scopes), [BOUND]);
-  // A section that does not read connections mints no binding scope.
   assertEquals(
     boundConnectionsOf(
       stepFileScopes({ read: ["project"], write: [], connections: [BOUND] }),
@@ -159,7 +149,6 @@ Deno.test("guard: /connections opens under a bound mount and nowhere else", () =
     agentReadAreaRefusal({ ...base, boundConnection: false }),
     AgentFileRefusal.ConnectionNotBound,
   );
-  // A binding without the declared area opens nothing.
   assertEquals(
     agentReadAreaRefusal({ ...base, declared: [], boundConnection: true }),
     AgentFileRefusal.ConnectionNotBound,

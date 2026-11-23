@@ -298,15 +298,9 @@ export type AgentFileReadScope = Readonly<{
    * authority still decide.
    */
   reviewedOutput?: boolean;
-  /** The storage connections the step binds (O44), from its scopes. */
   boundConnections?: readonly string[];
 }>;
 
-/**
- * Whether an entry under /connections is open to a step through its
- * bindings: /connections itself, to find the mounts, or anything under the
- * mount of a connection the step binds.
- */
 function underBoundConnection(
   entries: readonly ChainEntry[],
   bound: readonly string[],

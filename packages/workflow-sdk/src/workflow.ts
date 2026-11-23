@@ -98,20 +98,12 @@ export type ForEachOptions = {
   readonly needs?: readonly { readonly id: string }[];
 };
 
-/**
- * A step's files section (chapter 25 section 17.6): the storage areas its
- * agent reads and writes, and the storage connections it binds. A definition
- * only narrows the defaults; `connections` opens /connections/<connection>
- * for exactly the connections named, and needs `connections` in `read`.
- */
 export type StepFiles = {
   readonly read?: readonly string[];
   readonly write?: readonly string[];
-  /** Ids of the organization's storage connections the step's agent reads. */
   readonly connections?: readonly string[];
 };
 
-/** Options of one action step. */
 export type ActionStepOptions = {
   readonly needs?: readonly { readonly id: string }[];
   readonly files?: StepFiles;
@@ -274,7 +266,6 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-/** A plain copy of a files section, keeping only the axes it names. */
 function copyFiles(files: StepFiles): StepFiles {
   return {
     ...(files.read === undefined ? {} : { read: [...files.read] }),

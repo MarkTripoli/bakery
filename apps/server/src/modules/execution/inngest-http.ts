@@ -142,7 +142,6 @@ export function createDefaultInngestFunctions(options: {
   coordinatorExecutor?: CoordinatorTurnExecutor;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
-  /** The operator's local-disk storage root, from `RuntimeConfig`; absent, no local-disk connection binds. */
   storageLocalRoot?: string;
 }): readonly unknown[] {
   const coordinatorExecutor = options.coordinatorExecutor ??
@@ -238,9 +237,6 @@ export function createDefaultInngestFunctions(options: {
           client: options.client,
           database: options.database,
         }),
-        // The deployed storage providers (#452): local disk when the
-        // operator set its root; a sync or export of any other provider
-        // counts as failed.
         createStorageConnectionSyncWorkflow({
           client: options.client,
           database: options.database,

@@ -462,8 +462,6 @@ export function createFolderLister(secret: string) {
       organizationId,
       page.map((row) => row.id),
     );
-    // An agent listing /connections sees only the mounts its step binds
-    // (O44); another connection's folder is not named to it.
     const bound = context.agentSession === undefined ||
         folder.system_key !== "connections"
       ? null

@@ -68,7 +68,6 @@ export type TicketsFor<M extends ProviderManifest> = "tickets" extends
 export type CodeFor<M extends ProviderManifest> = "code" extends
   M["families"][number] ? CodePort : never;
 
-/** The storage port when the family is claimed, and `never` when it is not. */
 export type StorageFor<M extends ProviderManifest> = "storage" extends
   M["families"][number] ? StoragePort : never;
 
@@ -147,12 +146,10 @@ export type ServerImpl<M extends ProviderManifest> =
         CodePort;
     })
   & (ExcludesFamilies<M, "storage"> extends true ? {
-      /** Forbidden: the manifest excludes the storage family. */ storage?:
-        never;
+      storage?: never;
     }
     : {
-      /** Serves the storage family; required because the manifest may claim it. */ storage:
-        StoragePort;
+      storage: StoragePort;
     });
 
 /**

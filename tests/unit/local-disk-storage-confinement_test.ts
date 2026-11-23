@@ -1,11 +1,3 @@
-/**
- * #452: the local-disk storage provider (chapter 25 section 17.4, O38). A
- * connection reads and writes only <root>/<organization>/<connection>; a
- * remote path cannot climb out with .., name an absolute host path, or follow
- * a symbolic link that leaves the folder. The root comes from
- * BAKERY_STORAGE_LOCAL_ROOT through RuntimeConfig.
- */
-
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import {
@@ -118,7 +110,6 @@ Deno.test("a symbolic link that leaves the folder is neither listed nor followed
       await port.list({ path: "/docs/linkdir", cursor: null, limit: 10, ctx }),
       { items: [], nextCursor: null },
     );
-    // A write through a link that leaves the folder lands nowhere.
     const written = await port.write({
       path: "/out/planted.txt",
       mediaType: "text/plain",
@@ -134,7 +125,6 @@ Deno.test("a symbolic link that leaves the folder is neither listed nor followed
     );
     const feed = await port.changes({ since: null, limit: 50, ctx });
     assertEquals(feed.events.map((event) => event.path), ["/docs/a.txt"]);
-    // The connection folder itself swapped for a link out reads as missing.
     const swapped = createLocalDiskStoragePort(folder, ["docs", "linkdir"]);
     assertEquals(await swapped.stat({ path: "/secret.txt", ctx }), null);
   }));
@@ -192,7 +182,6 @@ Deno.test("list, stat, range read, write and changes answer inside the folder", 
     });
     assert(created.kind === "written");
     assertEquals(await readFile(folder + "/out/new/report.txt", "utf8"), "one");
-    // The same bytes again settle as written; other bytes conflict.
     const repeated = await port.write({
       path: "/out/new/report.txt",
       mediaType: "text/plain",
@@ -228,7 +217,6 @@ Deno.test("list, stat, range read, write and changes answer inside the folder", 
       ctx,
     });
     assertEquals(stale.kind, "stale");
-    // Staging files never show.
     const out = await port.list({
       path: "/out/new",
       cursor: null,
@@ -270,7 +258,6 @@ Deno.test("the provider binds each connection to its own folder under the root",
         ?.sizeBytes,
       4,
     );
-    // Another connection of the same organization sees none of it.
     const other = entry.bind({
       id: crypto.randomUUID(),
       organizationId,
@@ -280,7 +267,6 @@ Deno.test("the provider binds each connection to its own folder under the root",
       await other.port.stat({ path: "/mine.txt", ctx: other.ctx }),
       null,
     );
-    // A link planted in place of an organization folder is not followed.
     const planted = crypto.randomUUID();
     const plantedConnection = crypto.randomUUID();
     await mkdir(outside + "/" + plantedConnection);
@@ -295,7 +281,6 @@ Deno.test("the provider binds each connection to its own folder under the root",
       await leak.port.stat({ path: "/secret.txt", ctx: leak.ctx }),
       null,
     );
-    // An id that is not a UUID cannot name a path.
     assertEquals(
       entry.bind({
         id: "../..",
@@ -318,7 +303,6 @@ Deno.test("the provider binds each connection to its own folder under the root",
       "STORAGE_LOCAL_ROOT_INVALID",
     );
 
-    // Deployed only when the operator set a root.
     assertEquals(deployedStorageProviders().length, 0);
     assertEquals(
       deployedStorageProviders({ storageLocalRoot: root }).map((p) =>

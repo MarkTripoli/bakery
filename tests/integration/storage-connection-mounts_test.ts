@@ -1,12 +1,3 @@
-/**
- * #452: the storage family in the tree (chapter 25 section 17.4, O38). A
- * storage connection mounts under /connections and is read through its port
- * with nothing copied; a run that uses an outside file ingests it into an
- * artifact version (once per mount, path and remote revision) and pins it;
- * one-way sync is a workflow over the same ingest; writing out is a keyed
- * external effect. Another organization cannot see or read the mount.
- */
-
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
@@ -58,7 +49,6 @@ import {
 const reader = { isAdmin: false } as const;
 const decoder = new TextDecoder();
 
-/** A person's request context over one transaction, as the routes build it. */
 function personContext(
   tx: PgTransactionClient,
   organizationId: string,
@@ -88,10 +78,6 @@ type Rig = {
   runId: string;
 };
 
-/**
- * Seeds an enabled connection, binds it to an in-memory storage provider and
- * mounts it. The run gives a real work item and run for ingest and pins.
- */
 async function rig(fixture: WorkerFixture): Promise<Rig> {
   const db = fixture.runtimePgDatabase;
   const connectionId = crypto.randomUUID();
@@ -171,7 +157,6 @@ Deno.test("a mounted connection is read through its port and nothing is copied",
   withWorkerFixture(async (fixture) => {
     const r = await rig(fixture);
     assertEquals(r.mount.path.startsWith("/connections/"), true);
-    // Mounting twice is the same mount.
     const again = await withPgTransaction(
       r.db,
       (tx) =>
@@ -232,7 +217,6 @@ Deno.test("a mounted connection is read through its port and nothing is copied",
     );
     assertEquals(decoder.decode(range.bytes), "rav");
 
-    // Reading through copied nothing: no ingest, no artifact, no file entry.
     assertEquals(await ingestedCount(r), 0);
     const copied = await r.db.query<{ n: number }>(
       `select count(*)::int as n from bakery.artifacts
@@ -240,7 +224,6 @@ Deno.test("a mounted connection is read through its port and nothing is copied",
       [r.organizationId],
     );
     assertEquals(copied.rows[0].n, 0);
-    // The mount folder sits under /connections, which the roots now show.
     const top = await r.db.query<{ system_key: string }>(
       `select top.system_key from bakery.storage_entries mount
          join bakery.storage_entries top
@@ -251,7 +234,6 @@ Deno.test("a mounted connection is read through its port and nothing is copied",
     );
     assertEquals(top.rows[0].system_key, "connections");
 
-    // A missing path is 404; a disabled connection is refused.
     assertEquals(
       await code(
         as(r, (context) =>
@@ -316,7 +298,6 @@ Deno.test("a run that uses an outside file ingests it once per revision and pins
     assertEquals(pin.rows.length, 1);
     assertEquals(decoder.decode(pin.rows[0].content), "alpha");
 
-    // The same revision again: the same version, no second read or row.
     const replay = await as(
       r,
       (context, tx) =>
@@ -331,7 +312,6 @@ Deno.test("a run that uses an outside file ingests it once per revision and pins
     assertEquals(r.storage.calls.read, readsBefore + 1);
     assertEquals(await ingestedCount(r), 1);
 
-    // The file appears at its path in the tree and pins like any other file.
     const byPath = await withPgTransaction(
       r.db,
       (tx) =>
@@ -342,7 +322,6 @@ Deno.test("a run that uses an outside file ingests it once per revision and pins
     );
     assertEquals(byPath?.versionId, versionId);
 
-    // A new remote revision is a new version of the same artifact.
     r.storage.put("/docs/a.txt", "alpha two");
     const next = await as(
       r,
@@ -411,7 +390,6 @@ Deno.test("another organization cannot see or read a connection's mount", () =>
         ),
         "RESOURCE_NOT_FOUND",
       );
-      // Mounting another organization's connection is 404 too.
       assertEquals(
         await code(
           withPgTransaction(r.db, (tx) =>
@@ -484,9 +462,7 @@ Deno.test("one-way sync ingests a remote folder into a work item and resumes fro
       "/docs/deep/c.txt",
       "/docs/new.txt",
     ]);
-    // One way: nothing was ever written to the provider.
     assertEquals(r.storage.calls.write, 0);
-    // A file is not a folder to sync.
     assertEquals(
       await code(
         as(r, (context) =>
@@ -505,8 +481,6 @@ Deno.test("writing out is a keyed external effect that lands once", () =>
     try {
       await exportScenario(r);
     } finally {
-      // The ledger keeps an effect's argument version (NO ACTION), so the
-      // effects go before the organization's versions do.
       await fixture.pgDatabase.query(
         "delete from bakery.external_effects where organization_id = $1",
         [r.organizationId],
@@ -546,7 +520,6 @@ async function exportScenario(r: Rig): Promise<void> {
         }));
     const first = await prepare(source.versionId, "export-1");
     assertEquals([first.status, first.replayed], ["prepared", false]);
-    // Preparing writes nothing out.
     assertEquals(r.storage.calls.write, 0);
     const replay = await prepare(source.versionId, "export-1");
     assertEquals(replay, { ...first, replayed: true });
@@ -582,8 +555,6 @@ async function exportScenario(r: Rig): Promise<void> {
       status: "confirmed",
     }]);
 
-    // A second export of a different file under If-Match null onto the now
-    // existing path is refused by the provider and the effect fails.
     const clash = await prepare(other.versionId, "export-2");
     const refused = await runStorageExport(r.db, r.deps, {
       organizationId: r.organizationId,
@@ -595,9 +566,6 @@ async function exportScenario(r: Rig): Promise<void> {
   }
 }
 
-// --- Routes ------------------------------------------------------------------
-
-/** One request through the app as the fixture's admin, as the browser sends it. */
 async function call(
   fixture: WorkerFixture,
   method: string,
@@ -631,8 +599,6 @@ const q = (path: string) => encodeURIComponent(path);
 
 Deno.test("routes answer a typed error when no provider serves the connection", () =>
   withWorkerFixture(async (fixture) => {
-    // The app runs with the deployed storage providers, which is none: the
-    // mount made here through a test provider has nothing to read through.
     const r = await rig(fixture);
     const docs = r.mount.path + "/docs";
     const refusals = [
@@ -674,7 +640,6 @@ Deno.test("routes answer a typed error when no provider serves the connection", 
         JSON.stringify(refusal.body),
       );
     }
-    // Nothing was read through the provider the app does not know.
     assertEquals(r.storage.calls.list + r.storage.calls.read, 0);
   }));
 
@@ -691,7 +656,6 @@ Deno.test("routes refuse another organization and list and pause syncs", () =>
     );
     const other = await createWorkerScope(fixture, "storage-452", fixture);
     try {
-      // The same person acting in another organization sees no mount there.
       for (
         const path of [
           "/v1/storage/connection-paths?path=" + q(r.mount.path),
@@ -732,7 +696,6 @@ Deno.test("routes refuse another organization and list and pause syncs", () =>
       );
       assertEquals(paused.status, 201, JSON.stringify(paused.body));
       assert(typeof paused.body.pausedAt === "string");
-      // A paused sync is not run by the workflow sweep.
       const sweep = await runDueConnectionSyncs(r.db, r.deps);
       assertEquals(sweep, { ran: 0, failed: 0 });
     } finally {

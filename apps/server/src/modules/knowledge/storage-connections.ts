@@ -50,76 +50,33 @@ import {
   storageQueryOf,
 } from "./storage-tree.ts";
 
-/**
- * Outside storage in the tree (chapter 25 section 17.4, O38, slice F9, #452).
- *
- * A connection whose provider serves the storage family is mounted as a folder
- * under `/connections`. Everything below that folder is read through the
- * provider's port on demand: listing, stat and range reads copy nothing. A file
- * is copied only when it is used, and then it becomes an artifact version
- * (keyed by mount, remote path and remote revision, so a repeated use returns
- * the same version) projected at the same path, which is what a run pins.
- * One-way sync is a workflow over the same ingest; writing out is a keyed
- * external effect in `bakery.external_effects`, never an inline call. There is
- * no two-way sync.
- *
- * Access, three layers, every one of them an existing rule:
- * - the connection's permission: the routes declare
- *   `integrationConnection:read` for reading through a mount and
- *   `integrationConnection:invoke` for syncing and exporting, the same
- *   permissions the integrations module checks for reading and invoking a
- *   connection; mounting needs `integrationConnection:manage`;
- * - the tree's read rule on the mount folder: organization scope, and for an
- *   agent a live folder grant on /connections (O44);
- * - a live connection: enabled and not archived.
- * Per-connection `integration_grants` rows are not consulted: they grant an
- * exact provider action on one resource, and a storage connection has
- * neither. Same as the tree otherwise.
- */
-
-/** The port and driver context the host binds for one storage connection. */
 export type StorageConnectionBinding = Readonly<{
   port: StoragePort;
   ctx: DriverContext;
-  /** Provider and version that serve the port, written on an export effect. */
   adapterVersion: string;
 }>;
 
-/** The connection facts a resolver needs to pick the provider's port. */
 export type StorageConnectionFacts = Readonly<{
   id: string;
   organizationId: string;
   provider: string;
 }>;
 
-/**
- * Binds a connection to its storage port, or answers undefined when its
- * provider serves no storage family. Production deploys the local-disk
- * provider when the operator sets its root; tests may bind an in-process one.
- */
 export type StorageProviderResolver = (
   connection: StorageConnectionFacts,
 ) => StorageConnectionBinding | undefined;
 
-/** The resolver for an installation with no storage providers deployed. */
 export const noStorageProviders: StorageProviderResolver = () => undefined;
 
-/** What the storage connection functions need besides a transaction. */
 export type StorageConnectionDeps = Readonly<{
   resolver: StorageProviderResolver;
-  /** Where ingested bytes go; absent, they are stored inline. */
   blobStore?: OrganizationBlobStore;
 }>;
 
-/** The artifact type an ingested file is recorded under. */
 export const CONNECTION_FILE_ARTIFACT_TYPE = "connection_file";
-/** The operation a write to outside storage is recorded under. */
 export const STORAGE_EXPORT_OPERATION = "storage.file.export";
-/** The version of the export operation's argument shape. */
 export const STORAGE_EXPORT_VERSION = 1;
-/** Seconds one export dispatch holds its lease. */
 const EXPORT_LEASE_SECONDS = 60;
-/** Seconds before a thrown export write is tried again under the same key. */
 const EXPORT_RETRY_SECONDS = 30;
 const CONNECTIONS_PREFIX = "/connections/";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -143,16 +100,10 @@ function providerAnswerInvalid(cause: unknown): never {
   throw new StandardError({ code: "INTERNAL", cause });
 }
 
-/** The system key of a connection's mount folder under /connections. */
 export function mountSystemKey(connectionId: string): string {
   return connectionMountKey(connectionId);
 }
 
-/**
- * Splits a tree path under /connections into the mount folder's name and the
- * remote path inside it; undefined for anything else. The remote path keeps
- * the caller's exact segments, because a provider's names are its own.
- */
 export function splitConnectionPath(
   path: string,
 ): { mountName: string; remotePath: string } | undefined {
@@ -204,14 +155,11 @@ function bindingFor(
     provider: connection.provider,
   });
   if (!binding) {
-    // Typed, so a caller can tell "nothing serves this connection's files
-    // here" from a missing path or a refused read.
     throw new StandardError({ code: "STORAGE_PROVIDER_UNAVAILABLE" });
   }
   return binding;
 }
 
-/** A mounted connection, as the mount table and its folder record it. */
 export type StorageMount = Readonly<{
   mountId: string;
   entryId: string;
@@ -220,12 +168,6 @@ export type StorageMount = Readonly<{
   path: string;
 }>;
 
-/**
- * Mounts a storage connection under /connections, or returns its mount.
- * Idempotent per connection. The folder takes the connection's label (made
- * unique by the tree when another mount holds it) and is a record area: files
- * appear in it only by ingest, and nothing writes into it by path.
- */
 export async function mountStorageConnection(
   tx: PgTransactionClient,
   deps: StorageConnectionDeps,
@@ -281,19 +223,12 @@ export async function mountStorageConnection(
   };
 }
 
-/** A path under a mount the caller may read, with its live binding. */
 export type OpenedMount = Readonly<{
   mount: StorageMount;
   binding: StorageConnectionBinding;
   remotePath: string;
 }>;
 
-/**
- * Resolves a tree path under /connections to its mount, checking that the
- * caller may read the mount folder (organization, area and agent grants, the
- * same rule every tree read uses) and that the connection is live. Another
- * organization's mount, or one the caller may not read, is 404.
- */
 export async function openConnectionPath(
   context: Pick<ActionContext, "agentSession" | "sessionScopes">,
   tx: PgTransactionClient,
@@ -354,14 +289,6 @@ export async function openConnectionPath(
   };
 }
 
-/**
- * Refuses a run whose steps bind a storage connection (O44) the starter may
- * not use: one that is not mounted in this organization (another
- * organization's included), whose mount folder the starter cannot read, or
- * that is disabled or archived. The provider is not consulted: a binding
- * names a connection, and a provider that is missing at read time answers
- * STORAGE_PROVIDER_UNAVAILABLE then.
- */
 export async function assertConnectionsBindable(
   context: Pick<ActionContext, "agentSession" | "sessionScopes">,
   tx: PgTransactionClient,
@@ -413,11 +340,9 @@ export async function assertConnectionsBindable(
   }
 }
 
-/** One child of a mounted folder, as the tree shows it. */
 export type ConnectionListedItem =
   & StorageObject
   & Readonly<{
-    /** The item's path in the tree, under its mount. */
     treePath: string;
   }>;
 
@@ -432,10 +357,6 @@ function parsedObject(value: unknown): StorageObject | null {
   return parsed.data;
 }
 
-/**
- * One page of a mounted folder, read through the port: nothing is copied.
- * Keyset paged by the provider's cursor.
- */
 export async function listConnectionFolder(
   context: ActionContext,
   reader: StorageReader,
@@ -473,7 +394,6 @@ export async function listConnectionFolder(
   };
 }
 
-/** A mounted file or folder's facts, read through the port; 404 when absent. */
 export async function statConnectionPath(
   context: ActionContext,
   reader: StorageReader,
@@ -497,7 +417,6 @@ export async function statConnectionPath(
   return { ...object, treePath: treePathOf(opened.mount, object.path) };
 }
 
-/** A byte range of a mounted file, read through the port and not kept. */
 export async function readConnectionRange(
   context: ActionContext,
   reader: StorageReader,
@@ -531,7 +450,6 @@ export async function readConnectionRange(
   return { object, bytes: read.bytes };
 }
 
-/** What one ingest produced: the artifact version a remote revision became. */
 export type ConnectionIngest = Readonly<{
   artifactId: string;
   versionId: string;
@@ -540,7 +458,6 @@ export type ConnectionIngest = Readonly<{
   sizeBytes: number;
   remotePath: string;
   remoteRevision: string;
-  /** True when an earlier use already ingested this revision. */
   replayed: boolean;
 }>;
 
@@ -570,10 +487,6 @@ async function ingestRow(
   return found.rows[0];
 }
 
-/**
- * The file entry an ingested artifact has under its mount, at the remote
- * path; made (with the folders above it) on the first ingest of the path.
- */
 async function mountFileEntry(
   tx: PgTransactionClient,
   organizationId: string,
@@ -613,15 +526,6 @@ async function mountFileEntry(
   return id;
 }
 
-/**
- * Ingests one remote file revision into an artifact version, or returns the
- * version an earlier use made of the same mount, path and revision. The first
- * ingest of a path makes its artifact on `taskId` (artifacts are task-scoped,
- * O36) and projects it at the same path under the mount; a later revision is a
- * new version of the same artifact, and identical bytes reuse the current one.
- * Large files are refused for now: a remote file larger than one range read is
- * deferred to resumable ingest.
- */
 export async function ingestConnectionFile(
   tx: PgTransactionClient,
   deps: StorageConnectionDeps,
@@ -683,7 +587,6 @@ export async function ingestConnectionFile(
   const content = read.bytes;
   const sha256 = await sha256Bytes(content);
 
-  // The artifact a path already has, else a new one on the using work item.
   const prior = await tx.query<{ artifact_id: string }>(
     `select artifact_id from bakery.storage_connection_ingests
       where organization_id = $1 and mount_id = $2 and remote_path = $3
@@ -738,7 +641,6 @@ export async function ingestConnectionFile(
   if (
     artifact.current_version_id !== null && artifact.current_sha256 === sha256
   ) {
-    // The provider moved the revision but the bytes are the same version.
     versionId = artifact.current_version_id;
   } else {
     const scope = await tx.query<{
@@ -767,8 +669,6 @@ export async function ingestConnectionFile(
         currentVersionId: artifact.current_version_id,
       },
       version: {
-        // The artifact row is locked above, so its current version is the
-        // parent; the store takes it in If-Match form.
         parentVersionId: artifact.current_version_id === null
           ? null
           : '"' + artifact.current_version_id + '"',
@@ -825,11 +725,6 @@ export async function ingestConnectionFile(
   return done(raced, entryId, true);
 }
 
-/**
- * Ingest on use: a run that names a path under /connections as an input
- * pins the artifact version the file's current remote revision became. The
- * caller's right to read the mount is checked first, as for any tree read.
- */
 export async function ingestConnectionInput(
   context: Pick<ActionContext, "agentSession" | "sessionScopes">,
   tx: PgTransactionClient,
@@ -860,15 +755,8 @@ export async function ingestConnectionInput(
   };
 }
 
-// --- One-way sync --------------------------------------------------------
-
-/** Remote files one sync run visits at most; the next run continues. */
 export const MAX_SYNC_FILES_PER_RUN = 500;
 
-/**
- * Records a one-way sync of a mounted folder into a work item. The caller
- * must be able to read the mount; the sync workflow then runs it.
- */
 export async function createConnectionSync(
   context: ActionContext,
   reader: StorageReader,
@@ -911,13 +799,10 @@ export async function createConnectionSync(
   return { syncId: made.rows[0].id };
 }
 
-/** What one sync run did. */
 export type ConnectionSyncResult = Readonly<{
-  /** True when the change feed showed nothing new since the last run. */
   unchanged: boolean;
   ingested: number;
   replayed: number;
-  /** Remote files that could not be ingested, such as one too large. */
   skipped: number;
 }>;
 
@@ -933,14 +818,6 @@ type SyncRow = {
   created_by: string;
 };
 
-/**
- * Runs one sync: ingests every file under its remote folder into its work
- * item, one transaction per file, so a failure keeps what came before. The
- * change feed decides whether anything is to do: a sync that has run before
- * and sees no event since its position records the run and stops. One way
- * only: a remote deletion leaves the ingested versions in place, and nothing
- * Bakery holds is ever written back.
- */
 export async function runConnectionSync(
   database: PgDatabase,
   deps: StorageConnectionDeps,
@@ -980,7 +857,6 @@ export async function runConnectionSync(
     path: CONNECTIONS_PREFIX + row.mount_name,
   };
 
-  // Drain the change feed first: its end is the position this run reaches.
   let position = row.change_position;
   let changed = row.change_position === null;
   for (;;) {
@@ -1063,14 +939,8 @@ export async function runConnectionSync(
   return result;
 }
 
-/** Syncs one workflow run takes at most, least recently run first. */
 export const MAX_SYNCS_PER_SWEEP = 50;
 
-/**
- * Runs the syncs least recently run first. A sync whose connection is gone,
- * or whose provider is not deployed, is counted and skipped; one failure
- * never stops the rest.
- */
 export async function runDueConnectionSyncs(
   database: PgDatabase,
   deps: StorageConnectionDeps,
@@ -1102,11 +972,6 @@ export async function runDueConnectionSyncs(
 const STORAGE_CONNECTION_SYNC_FUNCTION_ID =
   "bakery-knowledge-storage-connection-sync";
 
-/**
- * The built-in one-way sync workflow: every hour, at minute 53, runs the
- * syncs least recently run first. Not minute 41 (the retention reaper) or 23
- * (the upload reaper), so storage sweeps do not start together.
- */
 export function createStorageConnectionSyncWorkflow(
   options: Readonly<{
     database: PgDatabase;
@@ -1129,16 +994,6 @@ export function createStorageConnectionSyncWorkflow(
   );
 }
 
-// --- Export as a keyed effect --------------------------------------------
-//
-// The write goes through the external effect ledger (bakery.external_effects:
-// idempotency key, request digest, prepared -> submitted claim, fenced
-// outcome) but not through the integration-action executor. That executor
-// runs a gate-registered provider action built from request templates and a
-// selected integration resource; a storage port is a typed family call with
-// neither, so the ledger is the shared part and this is its dispatcher.
-
-/** The arguments an export effect records; replayed to the write. */
 type ExportArguments = Readonly<{
   mountId: string;
   remotePath: string;
@@ -1153,12 +1008,6 @@ function exportTarget(connectionId: string, remotePath: string): string {
   return "storage-connection:" + connectionId + ":" + remotePath;
 }
 
-/**
- * Records the intent to write an artifact version out to a mounted path, as
- * a keyed external effect: the same key with the same request returns the
- * same effect, a different request under the key is refused. Nothing is
- * written here; `runStorageExport` dispatches it.
- */
 export async function prepareStorageExport(
   context: ActionContext,
   reader: StorageReader,
@@ -1255,11 +1104,9 @@ export async function prepareStorageExport(
   return replay(winner);
 }
 
-/** How one export run ended. */
 export type StorageExportResult = Readonly<{
   outcome: "confirmed" | "failed" | "retry_scheduled" | "in_flight";
   effect: ExternalEffectRow;
-  /** True only when this call sent the write. */
   dispatched: boolean;
 }>;
 
@@ -1303,15 +1150,6 @@ async function exportBytes(
   );
 }
 
-/**
- * Drives one export effect toward a proven outcome. The write runs only after
- * the claim committed `prepared -> submitted` with a new generation; it is
- * keyed by the effect id, so a provider lands it once however often it is
- * sent. A written file confirms the effect with the remote revision as its
- * remote id; a refused `If-Match` fails it; a thrown write goes back to
- * prepared to be sent again under the same key. A submitted effect whose
- * lease lapsed is sent again at its generation for the same reason.
- */
 export async function runStorageExport(
   database: PgDatabase,
   deps: StorageConnectionDeps,
@@ -1401,22 +1239,13 @@ export async function runStorageExport(
   return settledExport(current, true);
 }
 
-// --- Provider registry -----------------------------------------------------
-
-/** A storage provider the host can bind a connection to, by provider slug. */
 export type StorageProviderEntry = Readonly<{
-  /** The integration_connections.provider value this entry serves. */
   provider: string;
-  /** The connection's binding, or undefined when this entry cannot serve it. */
   bind(
     connection: StorageConnectionFacts,
   ): StorageConnectionBinding | undefined;
 }>;
 
-/**
- * The resolver over the storage providers an installation deploys: a
- * connection binds to the entry its provider names, and to nothing else.
- */
 export function createStorageProviderRegistry(
   entries: readonly StorageProviderEntry[],
 ): StorageProviderResolver {
@@ -1427,23 +1256,11 @@ export function createStorageProviderRegistry(
   return (connection) => byProvider.get(connection.provider)?.bind(connection);
 }
 
-/** What the deployed storage providers are configured from. */
 export type DeployedStorageOptions = Readonly<{
-  /** Where completed ingests put their bytes; absent, they are stored inline. */
   blobStore?: OrganizationBlobStore;
-  /**
-   * The operator's local-disk root (`BAKERY_STORAGE_LOCAL_ROOT` through
-   * `RuntimeConfig`); absent, the local-disk provider is not deployed.
-   */
   storageLocalRoot?: string;
 }>;
 
-/**
- * The storage providers this installation deploys: the local-disk provider
- * when the operator set its root, and nothing else yet. A connection whose
- * provider is not deployed answers STORAGE_PROVIDER_UNAVAILABLE rather than
- * failing silently.
- */
 export function deployedStorageProviders(
   options: DeployedStorageOptions = {},
 ): readonly StorageProviderEntry[] {
@@ -1452,7 +1269,6 @@ export function deployedStorageProviders(
     : [createLocalDiskStorageProvider(options.storageLocalRoot)];
 }
 
-/** The storage connection dependencies the server runs with. */
 export function defaultStorageConnections(
   options: DeployedStorageOptions = {},
 ): StorageConnectionDeps {
@@ -1464,9 +1280,6 @@ export function defaultStorageConnections(
   };
 }
 
-// --- Route handlers --------------------------------------------------------
-
-/** Mounts the connection the route names under /connections. */
 export async function mountConnectionAction(
   context: ActionContext,
   deps: StorageConnectionDeps,
@@ -1513,12 +1326,6 @@ type PathCursorScope = Readonly<{
   path: string;
 }>;
 
-/**
- * Wraps the provider's own cursor so the page token is signed and bound to
- * this operation, caller, organization and folder, like every other list
- * cursor; the provider's cursor is opaque text the shared row cursor cannot
- * carry.
- */
 async function signPathCursor(
   secret: string,
   scope: PathCursorScope,
@@ -1581,7 +1388,6 @@ async function openPathCursor(
   return record.c as string;
 }
 
-/** storageConnectionPaths.list: one page of a mounted folder. */
 export function createConnectionPathLister(
   secret: string,
   deps: StorageConnectionDeps,
@@ -1608,7 +1414,6 @@ export function createConnectionPathLister(
   };
 }
 
-/** storageConnectionPaths.stat: one mounted path as the provider reports it. */
 export async function statConnectionPathAction(
   context: ActionContext,
   reader: StorageReader,
@@ -1618,7 +1423,6 @@ export async function statConnectionPathAction(
   return itemOutput(await statConnectionPath(context, reader, deps, input));
 }
 
-/** storageConnectionPaths.read: a byte range, base64 encoded, not kept. */
 export async function readConnectionPathAction(
   context: ActionContext,
   reader: StorageReader,
@@ -1697,7 +1501,6 @@ async function syncRowById(
   return found.rows[0];
 }
 
-/** storageConnectionSyncs.create: records a sync and returns it. */
 export async function createConnectionSyncAction(
   context: ActionContext,
   reader: StorageReader,
@@ -1711,7 +1514,6 @@ export async function createConnectionSyncAction(
   return syncOutput(row);
 }
 
-/** storageConnectionSyncs.list: the organization's syncs, oldest first. */
 export function createConnectionSyncLister(secret: string) {
   return async (
     context: ActionContext,
@@ -1759,11 +1561,6 @@ export function createConnectionSyncLister(secret: string) {
   };
 }
 
-/**
- * storageConnectionSyncs.pause: stops the workflow from running a sync.
- * Pausing twice keeps the first moment. The caller must be able to read the
- * sync's mount, the same rule its reads follow; no provider is needed.
- */
 export async function pauseConnectionSyncAction(
   context: ActionContext,
   reader: StorageReader,
@@ -1792,10 +1589,6 @@ export async function pauseConnectionSyncAction(
   return syncOutput(paused);
 }
 
-/**
- * storageConnectionExports.create: records the export effect under the
- * request's Idempotency-Key. The storage export workflow sends it.
- */
 export async function createConnectionExportAction(
   context: ActionContext,
   reader: StorageReader,
@@ -1816,13 +1609,8 @@ export async function createConnectionExportAction(
   });
 }
 
-/** Export effects one workflow run sends at most. */
 export const MAX_EXPORTS_PER_SWEEP = 50;
 
-/**
- * Sends the export effects that are due: prepared ones whose retry delay has
- * passed, and submitted ones whose dispatch lease lapsed.
- */
 export async function runDueStorageExports(
   database: PgDatabase,
   deps: StorageConnectionDeps,
@@ -1857,7 +1645,6 @@ export async function runDueStorageExports(
 const STORAGE_EXPORT_FUNCTION_ID =
   "bakery-knowledge-storage-connection-exports";
 
-/** Every minute, sends the export effects that are due. */
 export function createStorageExportWorkflow(
   options: Readonly<{
     database: PgDatabase;

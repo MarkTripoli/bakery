@@ -20,12 +20,6 @@ import {
   testServerImpl,
 } from "../../packages/integration-sdk/testing.ts";
 
-/**
- * #452: the storage family on the integration SDK (chapter 25 section 17.4,
- * O38). The port lists, stats, reads by range, writes and pages through
- * changes; a provider that claims the family must supply it.
- */
-
 const { ctx } = fakeDriverContext();
 const decoder = new TextDecoder();
 

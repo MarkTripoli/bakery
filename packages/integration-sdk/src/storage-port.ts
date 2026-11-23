@@ -1,34 +1,11 @@
 import { z } from "zod";
 import type { DriverContext } from "./ports.ts";
 
-/**
- * The storage family port (chapter 25 section 17.4, O38).
- *
- * Outside storage (a drive, a bucket, a share) is one more family a provider can
- * serve. The engine asks five questions of it, in its own words: list a folder,
- * stat a path, read a byte range, write a file, and page through what changed.
- * Bakery mounts a connection under `/connections/<connection>` and reads through
- * this port; nothing is copied until a run uses a file, which ingests it into an
- * artifact version. Writing out goes through a keyed external effect, never an
- * inline call. There is no two-way sync in the first version.
- *
- * The shapes are Zod schemas rather than bare types because they cross the
- * provider boundary at runtime: the host parses every answer a provider gives.
- */
-
-/** Longest remote path the port accepts, in characters. */
 export const MAX_STORAGE_PATH_LENGTH = 1024;
-/** Most entries one list page carries. */
 export const MAX_STORAGE_PAGE_SIZE = 100;
-/** Largest byte range one read returns. */
 export const MAX_STORAGE_READ_BYTES = 8 * 1024 * 1024;
-/** Most change events one page carries. */
 export const MAX_STORAGE_CHANGES_PAGE = 200;
 
-/**
- * True when a remote path is absolute, POSIX-style and free of empty, `.` and
- * `..` segments and control characters. The root is `/`.
- */
 export function isStoragePath(path: string): boolean {
   if (path.length === 0 || path.length > MAX_STORAGE_PATH_LENGTH) return false;
   if (!path.startsWith("/")) return false;
@@ -202,16 +179,11 @@ export type StorageChangeEvent = z.infer<typeof StorageChangeEventSchema>;
 export type StorageChangesInput = z.infer<typeof StorageChangesInputSchema>;
 export type StorageChangesPage = z.infer<typeof StorageChangesPageSchema>;
 
-/** What a read answers: the bytes of the asked revision, or why there are none. */
 export type StorageReadResult =
   | { kind: "bytes"; object: StorageObject; bytes: Uint8Array }
   | { kind: "missing" }
   | { kind: "stale"; current: StorageObject };
 
-/**
- * The storage family. Every member takes the driver context the host builds, so
- * a provider reaches the network only through the host's request port.
- */
 export type StoragePort = {
   list(input: StorageListInput & { ctx: DriverContext }): Promise<
     StorageListPage
@@ -230,7 +202,6 @@ export type StoragePort = {
   >;
 };
 
-/** The parent folder of a remote path; the root's parent is the root. */
 export function storageParentPath(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut <= 0 ? "/" : path.slice(0, cut);

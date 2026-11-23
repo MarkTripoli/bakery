@@ -104,10 +104,6 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "storageFileVersions.list": "files.read",
     "storageFileUses.list": "files.read",
     "storageFiles.byVersion": "files.read",
-    // Outside storage read through a mount (O44, #452): listing, stat and a
-    // range read under /connections/<connection>. The guard opens only the
-    // connections the step's files section binds (or a person's grant), and
-    // reading copies nothing; ingest, sync and export stay with people.
     "storageConnectionPaths.list": "files.read",
     "storageConnectionPaths.stat": "files.read",
     "storageConnectionPaths.read": "files.read",

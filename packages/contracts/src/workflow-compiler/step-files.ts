@@ -68,14 +68,11 @@ export const WorkflowFileWriteAreaSchema = z.enum(WORKFLOW_FILE_WRITE_AREAS)
     "One area a step's agent may write: its declared outputs, its workspace, its own run folder under the work item, the work item's attachments, or the project's assets and workspaces.",
   );
 
-/** Most storage connections one step may bind. */
 export const MAX_STEP_BOUND_CONNECTIONS = 16;
 
-/** A bound connection id as the normalized section carries it: a lower-case UUID. */
 const BOUND_CONNECTION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** True for a connection id the normalized section can carry. */
 export function isBoundConnectionId(value: unknown): value is string {
   return typeof value === "string" && BOUND_CONNECTION_ID.test(value);
 }
@@ -164,10 +161,6 @@ export function sealedByDefault(action: string): boolean {
         .effectPolicy === "evaluation_write";
 }
 
-/**
- * The storage connections a resolved files section binds: empty when the
- * section names none or does not read the connections area.
- */
 export function boundStepConnections(
   files:
     | Readonly<{

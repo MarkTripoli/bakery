@@ -252,14 +252,6 @@ export async function insertPreparedEffect(
   return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);
 }
 
-/**
- * Columns a host effect writes: an effect Bakery performs itself through a
- * family port (writing a file out to a storage connection, #452) rather than
- * through an integration action. It carries no integration resource, grant or
- * manifest, so its target never takes the integration prefix and the
- * integration invariant does not apply; the ledger, key and state machine are
- * the same.
- */
 export type HostEffectInsert = Readonly<{
   id: string;
   organizationId: string;
@@ -276,10 +268,6 @@ export type HostEffectInsert = Readonly<{
   adapterVersion: string;
 }>;
 
-/**
- * Inserts a prepared host effect. Returns the new row, or null when the
- * idempotency key already names a row (the caller reads it and compares).
- */
 export async function insertPreparedHostEffect(
   tx: PgTransactionClient,
   row: HostEffectInsert,

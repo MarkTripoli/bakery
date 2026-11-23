@@ -1,23 +1,3 @@
-/**
- * The local-disk storage provider (chapter 25 section 17.4, O38, #452).
- *
- * An operator sets one root (`BAKERY_STORAGE_LOCAL_ROOT`, read through
- * `RuntimeConfig`). Each connection whose provider is {@link LOCAL_DISK_PROVIDER}
- * reads and writes only its own folder, `<root>/<organization>/<connection>`,
- * so two organizations never share a byte. The port answers the same five
- * questions a hosted provider does.
- *
- * Confinement: a remote path is checked with {@link isStoragePath} (absolute,
- * no empty, `.` or `..` segment), then resolved with `realpath`, and any
- * answer outside the connection folder reads as missing. Listing and the change
- * feed skip symbolic links entirely. A read opens the resolved file with
- * `O_NOFOLLOW` and checks the opened file is the one that was resolved, so a
- * link swapped in between is refused rather than followed.
- *
- * Nothing here is created on bind: a connection whose folder does not exist
- * lists nothing and stats as missing, as a remote provider would.
- */
-
 import { Buffer } from "node:buffer";
 import { createHash, randomUUID } from "node:crypto";
 import { type BigIntStats, constants, type Dirent } from "node:fs";
@@ -45,13 +25,9 @@ import {
 } from "@bakery/integration-sdk/provider";
 import type { StorageProviderEntry } from "./storage-connections.ts";
 
-/** The integration_connections.provider value the local-disk provider serves. */
 export const LOCAL_DISK_PROVIDER = "local-disk";
-/** Written on an export effect as the adapter that served it. */
 export const LOCAL_DISK_ADAPTER_VERSION = "local-disk@1";
-/** Most entries one change-feed walk visits; the rest wait for the next page. */
 export const MAX_LOCAL_DISK_WALK = 10_000;
-/** Prefix of the temporary file a write stages beside its target. */
 const STAGING_PREFIX = ".bakery-write-";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -78,7 +54,6 @@ function isMissing(error: unknown): boolean {
   return code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP";
 }
 
-/** A child name the port can report: one valid, non-staging path segment. */
 function reportableName(name: string): boolean {
   return name.length <= 255 && !name.startsWith(STAGING_PREFIX) &&
     isStoragePath("/" + name);
@@ -119,7 +94,6 @@ function objectOf(path: string, stats: BigIntStats): StorageObject {
   };
 }
 
-/** The change-feed position of a file: modification time, then path digest. */
 function positionOf(path: string, stats: BigIntStats): string {
   return stats.mtimeNs.toString().padStart(24, "0") + ":" +
     createHash("sha256").update(path).digest("hex");
@@ -133,19 +107,10 @@ function decodeCursor(cursor: string): string {
   return Buffer.from(cursor, "base64url").toString("utf8");
 }
 
-/**
- * The storage port over one connection folder, `<root>/<segments...>`. Every
- * remote path is confined to it; see the module comment for how.
- */
 export function createLocalDiskStoragePort(
   root: string,
   segments: readonly string[] = [],
 ): StoragePort {
-  /**
-   * The real path of the connection folder, or null when it is missing. The
-   * operator's root may itself be a link; every folder below it must be a
-   * real folder, so a link planted in place of one cannot move the base.
-   */
   async function realBase(): Promise<string | null> {
     try {
       let base = await realpath(root);
@@ -165,7 +130,6 @@ export function createLocalDiskStoragePort(
     return real === base || real.startsWith(base + "/");
   }
 
-  /** The real path a remote path names, or null when missing or outside. */
   async function resolve(path: string): Promise<string | null> {
     if (!isStoragePath(path)) return null;
     const base = await realBase();
@@ -187,7 +151,6 @@ export function createLocalDiskStoragePort(
     return objectOf(path, stats);
   }
 
-  /** The reportable children of a real folder, sorted by name. */
   async function children(real: string): Promise<Dirent[]> {
     let entries: Dirent[];
     try {
@@ -241,11 +204,6 @@ export function createLocalDiskStoragePort(
     }
   }
 
-  /**
-   * The real path of a write's parent folder, created when absent. Each
-   * missing folder is made one segment at a time under a folder already
-   * proven inside the connection, so a link cannot redirect the creation.
-   */
   async function writableParent(path: string): Promise<string | null> {
     const base = await realBase();
     if (base === null) return null;
@@ -334,8 +292,6 @@ export function createLocalDiskStoragePort(
         ? current === null
         : current?.revision === input.ifMatch;
       if (!matches) {
-        // A repeated write whose bytes already landed answers written, so a
-        // retried export settles once.
         if (current !== null && await sameBytes(target, input.bytes)) {
           return { kind: "written", object: current };
         }
@@ -355,7 +311,6 @@ export function createLocalDiskStoragePort(
       }
       try {
         if (input.ifMatch === null) {
-          // link refuses an existing target, so a racing create conflicts.
           try {
             await link(staging, target);
           } catch (error) {
@@ -418,7 +373,6 @@ export function createLocalDiskStoragePort(
   };
 }
 
-/** A driver context for a provider that reaches no network. */
 function localDriverContext(): DriverContext {
   const origin = new URL("file:///");
   return {
@@ -433,11 +387,6 @@ function localDriverContext(): DriverContext {
   };
 }
 
-/**
- * The local-disk provider entry over an operator-set root. A connection binds
- * to `<root>/<organization>/<connection>`; ids that are not UUIDs bind
- * nothing, so no id can name a path.
- */
 export function createLocalDiskStorageProvider(
   root: string,
 ): StorageProviderEntry {

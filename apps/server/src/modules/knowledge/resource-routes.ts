@@ -143,12 +143,7 @@ export type ArtifactResourceRouteOptions = {
   secret: string;
   /** Validated `BAKERY_ARTIFACT_PREVIEW_ORIGIN`; absent fails previews closed. */
   artifactPreviewOrigin?: string;
-  /**
-   * The storage providers connections bind to (#452); absent, the deployed
-   * ones, which is none until a hosted storage provider ships.
-   */
   storageConnections?: StorageConnectionDeps;
-  /** The operator's local-disk storage root, from `RuntimeConfig`. */
   storageLocalRoot?: string;
   /** A registry already built for MCP; omitted, the routes build their own. */
   artifactActions?: ArtifactActions;
@@ -816,12 +811,6 @@ export function createArtifactActions(
   return { registry, authority, handlers };
 }
 
-/**
- * Outside storage under /connections (#452): reading through a mount, one-way
- * syncs and exports. The catalog's permissions (integrationConnection:read,
- * :invoke and :manage) gate each action; the tree's read rule on the mount
- * folder and a live connection are checked inside.
- */
 function registerStorageConnectionActions(
   registry: ActionRegistry,
   secret: string,

@@ -27,7 +27,6 @@ export function createWorkTaskHandlers(
   options: {
     budget?: BudgetRuntimeConfig;
     agentSpawn?: AgentSpawnConfig;
-    /** The operator's local-disk storage root, from `RuntimeConfig`. */
     storageLocalRoot?: string;
   } = {},
 ) {
@@ -40,8 +39,6 @@ export function createWorkTaskHandlers(
     update: updateTaskCommand,
     createDependency: createTaskDependencyCommand,
     deleteDependency: deleteTaskDependencyCommand,
-    // A run input under /connections is ingested on use (#452) through the
-    // deployed storage providers.
     runsCreate: withAgentSpawnChecks(
       (
         context: Parameters<typeof createRunCommand>[0],

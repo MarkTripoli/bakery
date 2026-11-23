@@ -514,7 +514,6 @@ function readStepFiles(
     [...path, "connections"],
   );
   if (connections === null) return null;
-  // A binding opens /connections only for a step that reads that area.
   if (!read.includes("connections")) {
     report(context, [...path, "connections"], "action_files_invalid");
     return null;
@@ -522,11 +521,6 @@ function readStepFiles(
   return { read, write, connections };
 }
 
-/**
- * Reads the storage connections a files section binds: one to
- * MAX_STEP_BOUND_CONNECTIONS UUIDs, each once, returned lower-cased and
- * sorted so two documents binding the same connections share a digest.
- */
 function readBoundConnections(
   context: Context,
   raw: unknown,

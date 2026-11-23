@@ -7,11 +7,6 @@ import {
   storageQueryOf,
 } from "../knowledge/storage-tree.ts";
 
-/**
- * Ingest on use (#452): pins a path under /connections by ingesting the
- * outside file's current revision into an artifact version. Absent, such a
- * path pins only what an earlier use already ingested.
- */
 export type ConnectionInputIngest = (path: string) => Promise<StoragePin>;
 
 /**

@@ -317,11 +317,6 @@ export type StorageLocalRootConfig = z.infer<
   typeof StorageLocalRootConfigSchema
 >;
 
-/**
- * The local-disk storage root (`BAKERY_STORAGE_LOCAL_ROOT`), which is never
- * created here: a connection whose folder is missing reads as empty-handed
- * (not found), the same answer a remote provider gives for a missing path.
- */
 export function readStorageLocalRootConfig(
   value: string | undefined,
 ): StorageLocalRootConfig | undefined {
@@ -463,10 +458,6 @@ export type RuntimeConfig = {
    * reported `sandbox-unavailable` rather than described by other means.
    */
   probeSpoolDir?: ProbeSpoolDirConfig;
-  /**
-   * Root of the local-disk storage provider (`BAKERY_STORAGE_LOCAL_ROOT`);
-   * server only. Absent means no local-disk connection binds.
-   */
   storageLocalRoot?: StorageLocalRootConfig;
   /** The local deployment target of the delivery steps (`BAKERY_DELIVERY_*`); server only. Absent means delivery steps fail with a stable code. */
   deliveryTarget?: DeliveryTargetConfig;
