@@ -6467,5 +6467,6 @@
   "issues.reason.predecessor_open_unnamed": "⟪Depends on an issue that is still open.⟫",
   "issues.reason.closed_unmerged_unnamed": "⟪An issue this depends on was closed without merged work, so this cannot rely on it.⟫",
   "issues.reason.label_missing_unnamed": "⟪Missing a required label.⟫",
-  "issues.reason.label_withdrawn_unnamed": "⟪A required label was removed.⟫"
+  "issues.reason.label_withdrawn_unnamed": "⟪A required label was removed.⟫",
+  "issues.work.stop.changed": "⟪This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.⟫"
 }

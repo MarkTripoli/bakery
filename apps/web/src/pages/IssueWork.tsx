@@ -385,6 +385,9 @@ export function IssueWork(
     { readonly requestId: string; readonly at: number } | null
   >(null);
   const [confirming, setConfirming] = useState(false);
+  // The request changed before the stop reached it (a run began, or its version
+  // moved): the stop did not happen, and the row alone would not say so.
+  const [outran, setOutran] = useState(false);
   const requests = useQuery({
     ...ticketRequestsQueryOptions(api, scope, issueId),
     refetchInterval: (query) => {
@@ -458,6 +461,7 @@ export function IssueWork(
       if (outcome === "asked") {
         setStopped({ requestId: target.requestId, at: Date.now() });
       }
+      setOutran(outcome === "moved");
     },
     onSettled: () =>
       void queryClient.invalidateQueries({ queryKey: ["protected"] }),
@@ -532,6 +536,7 @@ export function IssueWork(
       data-testid="issue-stop-work"
       onClick={() => {
         stop.reset();
+        setOutran(false);
         setConfirming(true);
       }}
     >
@@ -668,6 +673,13 @@ export function IssueWork(
               )
               : mayStop && !stopping && phone
               ? stopButton
+              : null}
+            {outran && mayStop && !stopping && !workFinished(request.progress)
+              ? (
+                <UI.InlineNotice tone="warning">
+                  {translate("issues.work.stop.changed" as never)}
+                </UI.InlineNotice>
+              )
               : null}
             {stop.isError && !stopping
               ? (

@@ -278,6 +278,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
     }[],
     /** Set once the stop met a run that had begun meanwhile. */
     runBegan: false,
+    /** Set once the stop met work that had already ended: the request now reads as ended. */
+    requestFinished: false,
     /** Retries of Bakery's note on the issue. */
     resyncs: 0,
     /** Every stop the person confirmed: its idempotency key and body. */
@@ -535,7 +537,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
   const cancelOk = () =>
     seen.cancels.length > 0 && (work?.cancel ?? "accepted") === "accepted";
   const stoppedNow = () =>
-    (seen.stops.length > 0 && seen.stopEnded) || cancelOk();
+    (seen.stops.length > 0 && seen.stopEnded) || cancelOk() ||
+    seen.requestFinished;
   // The work is read from the server only once it exists: from the start, or after the refused start.
   const exists = () => options.work !== undefined || seen.running.size > 0;
   const stamp = "2026-01-01T00:00:00.000Z";
@@ -720,6 +723,7 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         return refuse(409, "STATE_CONFLICT", "ticket_request_has_run");
       }
       if (answer === "finished") {
+        seen.requestFinished = true;
         return refuse(409, "STATE_CONFLICT", "ticket_request_finished");
       }
       // The request changed while the question was open: the version no longer matches.

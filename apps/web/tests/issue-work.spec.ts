@@ -777,6 +777,12 @@ for (
         .toHaveCount(0);
       expect(seen.cancels).toHaveLength(1);
       await expect(stopButton(page)).toBeVisible();
+      // The run began first, so the stop did not happen, and the page says so.
+      await expect(
+        work.getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toBeVisible();
     });
 
     test("work that ended while the question was open is not reported as a failure", async ({ page }) => {
@@ -788,6 +794,12 @@ for (
       await expect(page.getByRole("alertdialog")).toHaveCount(0);
       await expect(section(page).getByText("Work could not be stopped."))
         .toHaveCount(0);
+      // The ended row says it; no second sentence.
+      await expect(
+        section(page).getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toHaveCount(0);
     });
 
     test("a request that changed while the question was open is read again, not reported as a failure", async ({ page }) => {
@@ -800,6 +812,22 @@ for (
       await expect(section(page).getByText("Work could not be stopped."))
         .toHaveCount(0);
       expect(seen.cancels).toHaveLength(1);
+      // The request changed first: the row reads as before, so the page says the stop did not happen.
+      await expect(
+        section(page).getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toBeVisible();
+      await expect(stopButton(page)).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-changed");
+      // Pressing Stop work again clears the notice.
+      await stopButton(page).click();
+      await expect(
+        section(page).getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toHaveCount(0);
     });
 
     test("a stop of a request with no run that fails says so and leaves the row", async ({ page }) => {
