@@ -705,6 +705,12 @@ export const WorkflowSemanticDocumentSchema = z.object({
   cancel: z.enum(["stop-started-actions"]).optional().describe(
     "Cancellation policy for started actions.",
   ),
+  outputs: z.record(
+    nameSchema,
+    referenceNodeSchema,
+  ).optional().describe(
+    "Named outputs a calling workflow may read, each a reference to a step output; absent when none are declared, which leaves every existing digest unchanged.",
+  ),
   steps: z.array(
     described(z.lazy(() => WorkflowNodeSchema), "Top-level workflow node."),
   ).max(200).describe(

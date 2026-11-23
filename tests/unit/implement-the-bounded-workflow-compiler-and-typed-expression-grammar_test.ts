@@ -4530,6 +4530,26 @@ Deno.test("every closed diagnostic code is exercised by this suite", () => {
   for (const diagnostic of collector.list()) {
     exercisedCodes.add(diagnostic.code);
   }
+  // The call codes need published child versions to trigger, which this
+  // suite's helpers do not offer; compile-a-workflow-call_test.ts exercises
+  // each of them through the compiler.
+  const callCodes = createDiagnosticCollector(16);
+  for (
+    const code of [
+      "call_shape_invalid",
+      "call_version_unavailable",
+      "call_child_invalid",
+      "call_input_unknown",
+      "call_input_missing",
+      "call_input_unusable",
+      "call_depth_exceeded",
+      "call_output_unknown",
+      "workflow_outputs_invalid",
+    ] as const
+  ) callCodes.add("/call", code);
+  for (const diagnostic of callCodes.list()) {
+    exercisedCodes.add(diagnostic.code);
+  }
   assertEquals(
     [...exercisedCodes].sort(),
     [...WORKFLOW_COMPILER_DIAGNOSTIC_CODES].sort(),
