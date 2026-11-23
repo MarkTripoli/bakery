@@ -102,7 +102,6 @@ Deno.test("only an Admin may register an organization connection; a developer ma
 Deno.test("a connection to a remote server carries no worker host, no integration connection and no tools yet", async () => {
   const create = createMcpConnectionCreator(dependencies);
   const cases: [string, Record<string, unknown>, string][] = [
-    ["a worker host", { workerHostId: SERVER }, "worker_host_not_for_remote"],
     [
       "an integration connection",
       { integrationConnectionId: SERVER },
@@ -213,4 +212,94 @@ Deno.test("a config schema is enforced when it can be, and refused when it canno
     compileConfigSchema({ type: "object", $ref: "http://x.example/s" }),
     null,
   );
+});
+
+function placementStand(
+  server: { transport: string; required_capabilities: string[] },
+  host: { capabilities: string[] } | null,
+) {
+  const { context } = stand({ role: "admin" });
+  const statements: { sql: string; values: unknown[] }[] = [];
+  (context as unknown as { transaction: unknown }).transaction = {
+    query: (sql: string, values: unknown[] = []) => {
+      statements.push({ sql, values });
+      if (sql.includes("from bakery.mcp_servers")) {
+        return Promise.resolve({
+          rows: [{
+            enabled: true,
+            config_schema: { type: "object" },
+            ...server,
+          }],
+          rowCount: 1,
+        });
+      }
+      if (sql.includes("from bakery.worker_hosts")) {
+        return Promise.resolve({
+          rows: host ? [host] : [],
+          rowCount: host ? 1 : 0,
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    },
+  };
+  return { context, statements };
+}
+
+Deno.test("a local stdio connection is placed on one host of the organization that meets the server's needs (#441)", async () => {
+  const create = createMcpConnectionCreator(dependencies);
+  const HOST = "55555555-5555-4555-8555-555555555555";
+  const stdio = { transport: "stdio", required_capabilities: ["mcp-files"] };
+  const cases: [
+    string,
+    { transport: string; required_capabilities: string[] },
+    { capabilities: string[] } | null,
+    Record<string, unknown>,
+    string,
+  ][] = [
+    [
+      "a remote server with a host",
+      { transport: "streamable_http", required_capabilities: [] },
+      null,
+      { workerHostId: HOST },
+      "worker_host_not_for_remote",
+    ],
+    ["a stdio server with no host", stdio, null, {}, "worker_host_required"],
+    [
+      "a host of another organization",
+      stdio,
+      null,
+      { workerHostId: HOST },
+      "worker_host_unknown",
+    ],
+    [
+      "a host without the capability",
+      stdio,
+      { capabilities: ["git"] },
+      { workerHostId: HOST },
+      "worker_host_lacks_capabilities",
+    ],
+  ];
+  for (const [name, server, host, extra, reason] of cases) {
+    const { context, statements } = placementStand(server, host);
+    await refusedWith(
+      () => create(context, { ...valid, ...extra } as never),
+      "UNPROCESSABLE",
+      reason,
+    );
+    assertEquals(
+      statements.filter((s) => s.sql.includes("insert into")).length,
+      0,
+      name,
+    );
+  }
+  const { context, statements } = placementStand(stdio, {
+    capabilities: ["git", "mcp-files"],
+  });
+  await create(context, { ...valid, workerHostId: HOST } as never).catch(
+    () => undefined,
+  );
+  const insert = statements.find((s) =>
+    s.sql.includes("insert into bakery.mcp_connections")
+  );
+  assertEquals(insert?.values.at(-1), HOST);
 });

@@ -687,7 +687,7 @@ export async function workerRequest(
   let requestBody = body;
   const mutationPath = path === "/v1/worker/claims" ||
     path === "/v1/worker/heartbeat" ||
-    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|handoff-manifests|result|effective-tools|tool-invocations)$/
+    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|handoff-manifests|result|session-tools|session-call|effective-tools|tool-invocations|local-tool-calls|local-tool-calls\/[^/]+\/outcome)$/
       .test(path);
   if (mutationPath) {
     const host = await fixture.pgDatabase.query<{
