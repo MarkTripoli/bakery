@@ -15298,6 +15298,72 @@
       ],
       "transport": "query",
       "description": "The desktop app's own target, architecture and version, sent when it asks the connected server whether a newer signed build exists."
+    },
+    "PackageExport": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Display name of the package, at most 120 characters, written into the package and shown wherever an import of it is listed."
+        },
+        {
+          "name": "workflowIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Workflow definitions to export, at most 50 across all four lists. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots."
+        },
+        {
+          "name": "artifactKindKeys",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Keys of the artifact kinds to export, at most 50 across all four lists. The latest published version of each kind travels."
+        },
+        {
+          "name": "skillIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Organization skills to export, at most 50 across all four lists. Each must have a published active version; its manifest and files travel. A personal or global skill is refused: neither belongs to the organization's library."
+        },
+        {
+          "name": "agentIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Agents to export, at most 50 across all four lists. Each must have an active version. Billing never travels, and every skill an agent binds must be in skillIds."
+        }
+      ],
+      "description": "Names the workflows, artifact kinds, skills and agents to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
+    },
+    "PackageImport": {
+      "fields": [
+        {
+          "name": "package",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 5000000
+          },
+          "description": "A BakeryPackage exactly as an export wrote it. Every item digest and the package digest are checked, every workflow slug must be free in this organization, and every definition is validated before anything is written; the import then happens whole or not at all."
+        }
+      ],
+      "configSchema": "package: { formatVersion: 1, name: <=120, items: [{ kind: workflow|artifactKind, key, digest: sha256, data }] 1..50, packageDigest: sha256 }. The strict BakeryPackageSchema in @bakery/contracts/library-packages enforces it; unknown members are refused.",
+      "description": "Imports a T0 package into this organization as ordinary drafts (workflows) and new kind versions (artifact kinds), and records where each came from. Nothing is switched on: starts stay off until someone uses a version."
     }
   },
   "projections": {
@@ -38470,6 +38536,52 @@
         "url": "HTTPS address the app downloads the build from.",
         "signature": "Minisign signature text the app checks against its built-in release key before installing.",
         "notes": "Optional release notes for the offered build."
+      }
+    },
+    "BakeryPackage": {
+      "fields": [
+        "formatVersion",
+        "name",
+        "items",
+        "packageDigest"
+      ],
+      "fieldTypes": {
+        "formatVersion": "integer",
+        "name": "string",
+        "items": "json[]",
+        "packageDigest": "sha256"
+      },
+      "bounds": {
+        "itemsMaxItems": 50
+      },
+      "description": "A T0 package: validated data addressed by digest, free of grants, credentials, connections, repository bindings, run history and active starts.",
+      "fieldDescriptions": {
+        "formatVersion": "The package format version; an importer refuses a version it does not know.",
+        "name": "Display name of the package.",
+        "items": "The exported items, each with its kind, key, digest and data.",
+        "packageDigest": "SHA-256 of the canonical JSON of the item digests, in order."
+      }
+    },
+    "PackageImportResult": {
+      "fields": [
+        "packageDigest",
+        "imported",
+        "openBindings"
+      ],
+      "fieldTypes": {
+        "packageDigest": "sha256",
+        "imported": "json[]",
+        "openBindings": "json[]"
+      },
+      "bounds": {
+        "importedMaxItems": 50,
+        "openBindingsMaxItems": 512
+      },
+      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of what it became, plus the bindings still left to make.",
+      "fieldDescriptions": {
+        "packageDigest": "The digest of the imported package, which the lineage rows record.",
+        "imported": "One entry per imported item, in package order.",
+        "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
       }
     }
   },
