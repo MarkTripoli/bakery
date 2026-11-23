@@ -39,6 +39,7 @@ const RUN_VERSION = 4;
 const DOC_OPEN = uuid(81);
 const DOC_HIDDEN = uuid(82);
 const DOC_PLAIN = uuid(83);
+const DOC_ENDLESS = uuid(88);
 const SESSION = uuid(41);
 
 const run = {
@@ -152,6 +153,11 @@ function storedManifest(over: Record<string, unknown> = {}) {
         { artifactId: uuid(93), versionId: DOC_HIDDEN, sha256: "c".repeat(64) },
         { artifactId: uuid(94), versionId: DOC_PLAIN, sha256: "d".repeat(64) },
         { artifactId: uuid(95), versionId: uuid(84), sha256: "e".repeat(64) },
+        {
+          artifactId: uuid(96),
+          versionId: DOC_ENDLESS,
+          sha256: "g".repeat(64),
+        },
         { artifactId: uuid(94), versionId: uuid(87), sha256: "f".repeat(64) },
       ],
     },
@@ -329,7 +335,7 @@ async function open(page: Page, w: World) {
   await page.route(/\/v1\/artifacts\/[^/?]+$/, (r) => {
     const id = new URL(r.request().url()).pathname.split("/").pop()!;
     if (id === uuid(95)) return problemReply(r, 500, "INTERNAL_ERROR");
-    if (id !== uuid(94)) {
+    if (id !== uuid(94) && id !== uuid(96)) {
       return problemReply(r, 404, "RESOURCE_NOT_FOUND");
     }
     return r.fulfill({
@@ -372,6 +378,14 @@ async function open(page: Page, w: World) {
       refusedRuleType: null,
       refusedReason: null,
     });
+    const artifactId = url.pathname.split("/").at(-2);
+    if (artifactId === uuid(96)) {
+      const cursor = url.searchParams.get("cursor");
+      const next = cursor === null ? 1 : Number(cursor) + 1;
+      return r.fulfill({
+        json: { items: [item(uuid(100 + next), next)], nextCursor: `${next}` },
+      });
+    }
     return r.fulfill({
       json: url.searchParams.get("cursor") === "page-2"
         ? { items: [item(DOC_PLAIN, 2)], nextCursor: null }
@@ -496,7 +510,7 @@ test.describe("hand over a running step to a new session", () => {
       given.getByRole("link", { name: "refund-plan.pdf, version 2" }),
     ).toHaveAttribute("href", `/files/versions/${DOC_PLAIN}`);
     await expect(page.getByTestId("handover-documents-unchecked")).toHaveText(
-      "1 could not be checked right now.",
+      "2 could not be checked right now.",
     );
     await expect(page.getByTestId("handover-documents-gone")).toHaveText(
       "1 is no longer available.",
@@ -723,6 +737,34 @@ test.describe("hand over a running step to a new session", () => {
     await page.getByTestId("handover-retry").click();
     await expect(page.getByTestId("handover-way")).toBeVisible();
     await expect(page.locator("#handover-heading")).toBeFocused();
+  });
+
+  test("Try again keeps the notice and buttons, shows the button loading, and keeps focus on it after a second failure", async ({ page }) => {
+    const w = world();
+    await open(page, w);
+    let calls = 0;
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(`**/v1/handoff-manifests/${manifestId}`, async (r) => {
+      calls += 1;
+      if (calls === 2) await held;
+      return problemReply(r, 500, "INTERNAL_ERROR");
+    });
+    await button(page).click();
+    await expect(page.getByTestId("handover-read-failed")).toBeVisible();
+    const retry = page.getByTestId("handover-retry");
+    await retry.click();
+    await expect(retry).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByTestId("handover-read-failed")).toBeVisible();
+    await expect(page.getByTestId("handover-keep")).toBeEnabled();
+    await expect(card(page).getByText("Reading the saved point")).toHaveCount(
+      0,
+    );
+    await expect(page.locator("#handover-heading")).toBeVisible();
+    release();
+    await expect(retry).not.toHaveAttribute("aria-busy", "true");
+    await expect(page.getByTestId("handover-read-failed")).toBeVisible();
+    await expect(retry).toBeFocused();
   });
 
   test("a dropped connection says so after the automatic retry", async ({ page }) => {

@@ -124,7 +124,7 @@ export function HandOver(
   };
 
   const view = manifest.data ? viewManifest(manifest.data.manifest) : null;
-  const readState: ReadState = manifest.data !== undefined
+  const settledState: ReadState = manifest.data !== undefined
     ? manifest.data.status !== "pending"
       ? "gone"
       : view === null
@@ -135,6 +135,10 @@ export function HandOver(
     : manifest.fetchStatus === "paused"
     ? "offline"
     : "ok";
+  const held = useRef<ReadState>("ok");
+  const rereading = manifest.isPending && tries > 0;
+  if (!rereading) held.current = settledState;
+  const readState = rereading ? held.current : settledState;
   const way: CarryOn | null = manifest.data && view
     ? carryOn(manifest.data, view)
     : null;
@@ -221,7 +225,7 @@ export function HandOver(
                   key={step.id}
                   stepName={stepTitle(t, step.stepKey)}
                   loading={manifest.isPending &&
-                    manifest.fetchStatus !== "paused"}
+                    manifest.fetchStatus !== "paused" && tries === 0}
                   readState={readState}
                   tries={tries}
                   retrying={manifest.isFetching}
@@ -303,6 +307,16 @@ function Card(
 ) {
   const { translate: t, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
+  const wasRetrying = useRef(false);
+  useEffect(() => {
+    if (wasRetrying.current && !retrying) {
+      const focused = document.activeElement;
+      if (focused === null || focused === document.body) {
+        document.getElementById("handover-retry")?.focus();
+      }
+    }
+    wasRetrying.current = retrying;
+  }, [retrying]);
   const opened = useRef(true);
   useEffect(() => {
     const heading = document.getElementById("handover-heading");
@@ -364,6 +378,7 @@ function Card(
           {phone && readState === "failed"
             ? (
               <UI.Button
+                id="handover-retry"
                 data-testid="handover-retry"
                 variant="primary"
                 loading={retrying}
@@ -383,6 +398,7 @@ function Card(
           {!phone && readState === "failed"
             ? (
               <UI.Button
+                id="handover-retry"
                 data-testid="handover-retry"
                 variant="primary"
                 loading={retrying}
