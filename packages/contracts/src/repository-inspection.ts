@@ -176,6 +176,33 @@ export const RepositoryExecutionRequirementsSchema = z.object({
 export type RepositoryExecutionRequirements = z.infer<
   typeof RepositoryExecutionRequirementsSchema
 >;
+/**
+ * Where a run's work may execute, recorded as data on the run (chapter 25,
+ * section 8). `requirements` joins every job's own gates and can only add to
+ * them; `affinityKey` names the group of attempts that should land together.
+ * Host affinity in v1 is this recorded constraint, not an assumption in the
+ * harness.
+ */
+export const RunPlacementSchema = z.object({
+  requirements: z.object({
+    capabilities: z.array(
+      z.string().min(1).max(100).describe("One capability name."),
+    ).max(100)
+      .default([])
+      .describe("Capabilities every job of the run must find on its host."),
+    platform: z.string().min(1).max(100).optional().describe(
+      "Native OS every job of the run must run on.",
+    ),
+  }).default({ capabilities: [] }).describe(
+    "Gates added to every job of the run.",
+  ),
+  affinityKey: z.string().min(1).max(200).optional().describe(
+    "Opaque key; attempts of one run that share it should run together.",
+  ),
+}).describe(
+  "A run's placement constraint, stored on the run and merged into job requirements.",
+);
+export type RunPlacement = z.infer<typeof RunPlacementSchema>;
 export const RepositoryInspectionSourceIdentitySchema = z.object({
   mappingRevision: z.string().min(1).max(128).refine((value) =>
     new TextEncoder().encode(value).length <= 128 &&
