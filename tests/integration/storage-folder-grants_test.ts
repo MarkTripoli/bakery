@@ -555,6 +555,26 @@ async function aFolderTakesAtMostTwoHundredGrants(
   assertEquals(listed.length, 200);
 }
 
+async function aRestrictedRootIsHiddenFromTheRootsList(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const bob: Member = await addMember(fixture as never, seed, "bob");
+  const rootNames = async (cookie: string) =>
+    ((await ok(await call(fixture, cookie, "GET", "/v1/storage/roots")))
+      .items as Json[]).map((root) => String(root.name));
+  const shared =
+    (await ok(await call(fixture, admin, "GET", "/v1/storage/roots")))
+      .items as Json[];
+  const sharedId = shared.find((root) => root.name === "shared")!.id as string;
+  await ok(await restrict(fixture, admin, sharedId, true));
+  assertEquals((await rootNames(bob.cookie)).includes("shared"), false);
+  assertEquals((await rootNames(admin)).includes("shared"), true);
+  await ok(await grant(fixture, admin, sharedId, bob.principalId, "view"), 201);
+  assertEquals((await rootNames(bob.cookie)).includes("shared"), true);
+}
+
 Deno.test("folder grants and restricted folders", async () => {
   try {
     await withWorkerFixture(async (fixture) => {
@@ -566,6 +586,7 @@ Deno.test("folder grants and restricted folders", async () => {
       await onlyAManagerRevokesAGrant(fixture);
       await searchHidesFilesInARestrictedFolder(fixture);
       await aFolderTakesAtMostTwoHundredGrants(fixture);
+      await aRestrictedRootIsHiddenFromTheRootsList(fixture);
     });
   } finally {
     await resetDatabase();

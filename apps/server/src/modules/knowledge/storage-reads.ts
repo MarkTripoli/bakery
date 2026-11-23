@@ -348,6 +348,14 @@ export async function readStorageFileByVersion(
 }
 
 /** The top-level folders the caller sees (one page, never continued). */
+const rootIsVisible = (
+  tx: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  rootId: string,
+  reader: StorageReader,
+) => mayViewAt(tx, organizationId, principalId, rootId, reader.isAdmin);
+
 export async function listStorageRoots(
   context: ActionContext,
   reader: StorageReader,
@@ -384,17 +392,14 @@ export async function listStorageRoots(
   for (const key of keys) {
     const row = byKey.get(key);
     if (!row) continue;
-    if (
-      !(await mayViewAt(
-        tx,
-        organizationId,
-        principalId,
-        row.id,
-        reader.isAdmin,
-      ))
-    ) {
-      continue;
-    }
+    const visible = await rootIsVisible(
+      tx,
+      organizationId,
+      principalId,
+      row.id,
+      reader,
+    );
+    if (visible === false) continue;
     const path = key === "user:" + principalId
       ? "/users/" + row.name
       : "/" + row.name;
