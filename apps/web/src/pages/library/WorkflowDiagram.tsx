@@ -25,11 +25,6 @@ import type { GroupLabel, Tree, TreeNode, TreeStep } from "./workflow-tree.ts";
  * the step picker. A group the definition states in code (a branch arm, lanes,
  * a repeat, a wait) is drawn as a group and says so; slice 1 cannot change it.
  * A phone shows the same tree as an outline — one model, two renderings.
- *
- * Nothing is left out (design-ux's ruling, comment 6917906748): a step only
- * changeable in code says "Edited in code", a step Bakery cannot read is a card
- * that needs setup, and a group holds its place even when it is empty. A
- * definition whose list of steps cannot be read at all draws a notice instead.
  */
 
 export { PICKER_STEPS };
@@ -44,13 +39,6 @@ export type DiagramProps = {
   readonly canManage: boolean;
   /** Whether slice 1 can add, move and remove steps here. */
   readonly editable: boolean;
-  /**
-   * Whether this is a read-only page (the workflow page or a built-in), where
-   * nothing can be edited at all. "Edited in code" tells a person where to go
-   * and change something, so it is shown in the editor and not here (#67 UX
-   * ruling 6932934119 fix 14).
-   */
-  readonly readOnlyPage?: boolean;
   /** Open the picker after the step with this id, or at the start when null. */
   readonly onAdd: (afterId: string | null) => void;
   readonly onSelect: (id: string) => void;
@@ -88,19 +76,12 @@ export function WorkflowDiagram(
     onViewAsCode,
     pickerAt,
     problems,
-    readOnlyPage = false,
     selectedId,
     tree,
   }: DiagramProps,
 ) {
   const { translate } = useI18n();
   const phone = useShellViewport() === "phone";
-  // Fix 14 of the #67 UX ruling: "Edited in code" tells a person where to go and
-  // change something, so it belongs in the editor. On a read-only page nothing
-  // is editable there, so the label would only add noise.
-  const editedInCode = readOnlyPage
-    ? undefined
-    : translate("library.editor.group.codeOnly" as never);
   const title = (uses: string): string => {
     const key = ACTION_TITLES[uses];
     return key === undefined ? uses : translate(key as never);
@@ -274,16 +255,8 @@ export function WorkflowDiagram(
     // belongs to the panel and the problem list (#67 UX ruling 6932934119
     // fixes 2 and 3).
     const drawing = node.problem !== undefined || problemLine !== undefined;
-    const codeOnly = node.codeOnly === true && !drawing;
     const glyph = drawing ? "info" : stepGlyph(node);
-    // On a read-only page a known step shows its usual line, not "Edited in
-    // code": nothing can be edited there, so the label would only add noise
-    // (#67 UX ruling 6932934119 fix 14).
-    const summary = drawing
-      ? undefined
-      : codeOnly && editedInCode !== undefined
-      ? editedInCode
-      : stepLine(node, translate);
+    const summary = drawing ? undefined : stepLine(node, translate);
     const extra = drawing ? undefined : detail?.(node.uses, id);
     return (
       <div data-card={id}>
@@ -311,10 +284,6 @@ export function WorkflowDiagram(
     );
   };
 
-  // A group is a container with an edge, not a loose label above cards: its
-  // label, its "edited in code" line and its cards sit inside one border, and
-  // the path line runs into the top and out of the bottom (#67 UX ruling
-  // 6932934119 fix 10). "Yes" and "Otherwise" are the two arms of one If.
   const groupBody = (
     node: Extract<TreeNode, { kind: "group" }>,
   ): ReactNode => (
@@ -345,7 +314,6 @@ export function WorkflowDiagram(
       )
       : <UI.Text>{translate(GROUP_LABEL[node.label] as never)}</UI.Text>;
 
-  /** A group's own label: its word, and "Edited in code" once for the group. */
   const groupLabel = (
     node: Extract<TreeNode, { kind: "group" }>,
   ): ReactNode => (
@@ -360,16 +328,9 @@ export function WorkflowDiagram(
             })}
           </UI.Text>
         )}
-      {editedInCode === undefined
-        ? null
-        : <UI.Text variant="caption">{editedInCode}</UI.Text>}
     </div>
   );
 
-  /**
-   * An arm inside an If container: only its word, because the container says
-   * "Edited in code" once for both arms (#67 UX ruling 6934081003 fix 5).
-   */
   const armLabel = (
     node: Extract<TreeNode, { kind: "group" }>,
   ): ReactNode => <div data-group-label={node.id}>{groupWord(node)}</div>;
@@ -398,9 +359,6 @@ export function WorkflowDiagram(
         <UI.Text variant="strong">
           {translate("library.editor.group.if" as never)}
         </UI.Text>
-        {editedInCode === undefined
-          ? null
-          : <UI.Text variant="caption">{editedInCode}</UI.Text>}
       </div>
       <div data-group-arms="true">
         {held.map((arm) => (

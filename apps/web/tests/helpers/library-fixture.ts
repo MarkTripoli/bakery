@@ -76,7 +76,7 @@ export type Options = {
   /** Every workflow versions page says there is another, two versions to a page. */
   endlessVersions?: boolean;
   /** What the checker says about a definition: fine (default), with problems, with only warnings, or it cannot answer. */
-  validation?: "ok" | "errors" | "named" | "warnings" | "fail";
+  validation?: "ok" | "errors" | "named" | "warnings" | "unbound" | "fail";
   /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
   copy?:
     | "workflow-fails"
@@ -623,6 +623,12 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         ]
         : [];
       const warnings = options.validation === "warnings"
+        ? [{
+          path: "/steps/0/uses",
+          code: "action_not_executable",
+          message: "The step's action cannot run yet.",
+        }]
+        : options.validation === "unbound"
         ? [{
           path: "/steps/0/uses",
           code: "model_agent_unbound",

@@ -398,8 +398,8 @@ test("still: the New task panel", async ({ page }) => {
   await still(page, "new-task-panel");
 });
 
-test("a setup-required preset names every missing requirement and blocks submit", async ({ page }) => {
-  await mockComposer(page, {
+test("a setup-required preset names every missing requirement and a press sends nothing", async ({ page }) => {
+  const seen = await mockComposer(page, {
     availability: {
       status: "setup_required",
       reasons: Object.keys(REASON_COPY),
@@ -420,10 +420,15 @@ test("a setup-required preset names every missing requirement and blocks submit"
       : copy;
     await expect(form(page).getByText(text, { exact: true })).toBeVisible();
   }
-  await expect(field.start(page)).toBeDisabled();
+  await expect(field.start(page)).toBeEnabled();
   await expect(field.start(page)).toHaveAccessibleDescription(
     /This workflow cannot start here yet/,
   );
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  expect(seen.tasks).toHaveLength(0);
+  expect(seen.runs).toHaveLength(0);
+  await still(page, "composer-not-ready-pressed");
   // The rule it names is a link to the page where it is changed.
   await expect(form(page).getByRole("link", { name: "Repository rules" }))
     .toHaveAttribute("href", "/settings/organization/repository-rules");
@@ -451,7 +456,7 @@ test("Start is disabled for a budget below the reservation", async ({ page }) =>
   await fill(page);
   await expect(field.start(page)).toBeEnabled();
   await field.budget(page).fill("0.5");
-  await expect(field.start(page)).toBeDisabled();
+  await expect(field.start(page)).toBeEnabled();
   await expect(form(page)).toHaveAttribute(
     "data-reasons",
     /budget_below_reservation/,
@@ -480,7 +485,7 @@ test("the default-budget server reason clears when the user raises the budget", 
   });
   await page.goto("/tasks/new");
   await fill(page);
-  await expect(field.start(page)).toBeDisabled();
+  await expect(field.start(page)).toBeEnabled();
   await field.budget(page).fill("6");
   await expect(field.start(page)).toBeEnabled();
 });

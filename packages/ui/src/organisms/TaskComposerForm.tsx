@@ -1,5 +1,5 @@
 import type { ClientOutputMap } from "@bakery/contracts/client";
-import { type FormEvent, type ReactNode, useId } from "react";
+import { type FormEvent, type ReactNode, useId, useRef } from "react";
 import { Button } from "../atoms/Button.tsx";
 import { Checkbox } from "../atoms/Checkbox.tsx";
 import { Text } from "../atoms/Text.tsx";
@@ -163,6 +163,7 @@ export function TaskComposerForm(
   const headingId = `${id}-heading`;
   const setupId = `${id}-setup`;
   const noticeId = `${id}-notice`;
+  const setupRef = useRef<HTMLDivElement>(null);
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
   const planning = planFirst?.checked === true;
   const chosen = presets.find((preset) => preset.id === values.presetId);
@@ -179,11 +180,16 @@ export function TaskComposerForm(
       setupReasons[0] in labels.setupRequired ? setupReasons[0] : "unknown"
     }`
     : "idle";
-  const canSubmit = view === "ready" && submitState === "idle" && !setup &&
+  const canSubmit = view === "ready" && submitState === "idle" &&
     values.repositoryId !== "" && values.title.trim() !== "";
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (canSubmit) onSubmit();
+    if (!canSubmit) return;
+    if (setup) {
+      setupRef.current?.focus();
+      return;
+    }
+    onSubmit();
   };
   const notice = view === "loading"
     ? { tone: "neutral", text: labels.loading }
@@ -322,7 +328,12 @@ export function TaskComposerForm(
         : null}
       {setup
         ? (
-          <div className="ui-task-composer__setup" id={setupId}>
+          <div
+            className="ui-task-composer__setup"
+            id={setupId}
+            ref={setupRef}
+            tabIndex={-1}
+          >
             <p>{labels.setupHeading}</p>
             <ul>
               {setupReasons.map((reason) => (

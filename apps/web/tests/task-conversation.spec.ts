@@ -2751,6 +2751,41 @@ test("still: the people with an unnamed teammate, and a disabled Send answer", a
   await still(page, "task-page-people-and-answer");
 });
 
+async function openStartRun(
+  page: Page,
+  availability: { status: string; reasons: string[] },
+): Promise<Locator> {
+  const state = world();
+  await mockWorld(page, state);
+  await page.route("**/v1/workflow-presets*", (route) =>
+    route.fulfill({
+      json: page_([{
+        id: "fixed-coding",
+        revision: 1,
+        digest: "a".repeat(64),
+        nameKey: "workflowPresets.fixedCoding.name",
+        steps: [{ id: "implement", uses: "harness.implement" }],
+        defaultBudgetLimitUsd: "5.00",
+        availability: { minimumBudgetLimitUsd: null, ...availability },
+      }].map(presetRead)),
+    }));
+  await firstRender(
+    () => page.goto(`/tasks/${taskId}`),
+    (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+  );
+  await showPlan(page);
+  await approve(page, 3).click();
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
+  const sheet = page.locator('[data-ui-region="plan-sheet"]');
+  if (await sheet.isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  }
+  const start = page.getByRole("button", { name: "Start run", exact: true });
+  await expect(start).toBeVisible();
+  return start;
+}
+
 for (
   const [name, availability] of [
     ["enabled", { status: "ready", reasons: [] }],
@@ -2762,34 +2797,13 @@ for (
 ) {
   test(`still: Start run ${name}`, async ({ page }) => {
     test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
-    const state = world();
-    await mockWorld(page, state);
-    await page.route("**/v1/workflow-presets*", (route) =>
-      route.fulfill({
-        json: page_([{
-          id: "fixed-coding",
-          revision: 1,
-          digest: "a".repeat(64),
-          nameKey: "workflowPresets.fixedCoding.name",
-          steps: [{ id: "implement", uses: "harness.implement" }],
-          defaultBudgetLimitUsd: "5.00",
-          availability: { minimumBudgetLimitUsd: null, ...availability },
-        }].map(presetRead)),
-      }));
-    await firstRender(
-      () => page.goto(`/tasks/${taskId}`),
-      (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
-    );
-    await showPlan(page);
-    await approve(page, 3).click();
-    await expect(page.getByText("You approved plan, version 3")).toBeVisible();
-    const sheet = page.locator('[data-ui-region="plan-sheet"]');
-    if (await sheet.isVisible()) {
-      await page.keyboard.press("Escape");
-      await expect(sheet).toBeHidden();
-    }
-    const start = page.getByRole("button", { name: "Start run", exact: true });
-    await expect(start).toBeVisible();
+    const start = await openStartRun(page, {
+      status: availability.status,
+      reasons: [...availability.reasons],
+    });
+    await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+      label: "Fixed coding",
+    });
     await expect(start)[name === "enabled" ? "toBeEnabled" : "toBeDisabled"]();
     await expect(start).toHaveAttribute(
       "data-variant",
@@ -2798,6 +2812,34 @@ for (
     await still(page, `task-page-start-run-${name}`);
   });
 }
+
+test("still: Start run with no workflow chosen", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  const start = await openStartRun(page, { status: "ready", reasons: [] });
+  await expect(page.getByRole("combobox", { name: /^Workflow/ })).toHaveValue(
+    "",
+  );
+  await expect(start).toBeEnabled();
+  await still(page, "task-page-start-run-none");
+});
+
+test("still: Start run with a workflow chosen", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  const start = await openStartRun(page, { status: "ready", reasons: [] });
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  await expect(start).toBeEnabled();
+  await still(page, "task-page-start-run-chosen");
+});
+
+test("still: Start run pressed with no workflow chosen", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  const start = await openStartRun(page, { status: "ready", reasons: [] });
+  await start.click();
+  await expect(page.getByText("Choose a workflow first.")).toBeVisible();
+  await still(page, "task-page-start-run-pressed");
+});
 
 // ---- what a blocked run says (design-ux, #57 item 13): the reason and the
 // tasks the server sends, said plainly, and unknown said as unknown.

@@ -3504,7 +3504,6 @@
   "library.editor.group.together": "⟦Àŧ ŧĥë šàɱë ŧïɱë ŧëš⟧",
   "library.editor.group.repeat": "⟦Ŕëþëàŧ…⟧",
   "library.editor.group.wait": "⟦Ŵàïŧ⟧",
-  "library.editor.group.codeOnly": "⟦Ëðïŧëð ïñ çôðë ŧë⟧",
   "library.editor.group.noSteps": "⟦Ñô šŧëþš…⟧",
   "library.editor.panel.codeOnly": "⟦Ŧĥïš þàŕŧ ôƒ ŧĥë ŵôŕķƒļôŵ ïš ŵŕïŧŧëñ ïñ çôðë. Ÿôû çàññôŧ çĥàñĝë ïŧ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.editor.unreadable.title": "⟦Ɓàķëŕÿ çàññôŧ ðŕàŵ ŧĥïš ŵôŕķƒļôŵ'š šŧëþš ŧëšŧ çôþÿ ŧ⟧",
@@ -6608,5 +6607,6 @@
   "library.workflow.action.humanApproval": "⟦Ŵàïŧ ƒôŕ àþþŕôṽàļ ŧëš⟧",
   "library.workflow.action.workflowStop": "⟦Ëñð ŧĥë ŕûñ ŧ⟧",
   "library.workflow.actionLine.humanApproval": "⟦Ŵàïŧš ƒôŕ à þëŕšôñ ŧô àþþŕôṽë ôñ ŧĥë ŧàšķ þàĝë. ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "library.workflow.actionLine.workflowStop": "⟦Ŧĥë ŕûñ ëñðš ĥëŕë. ŧëšŧ⟧"
+  "library.workflow.actionLine.workflowStop": "⟦Ŧĥë ŕûñ ëñðš ĥëŕë. ŧëšŧ⟧",
+  "library.editor.panel.agentFromSetup": "⟦Ûšëš ŧĥë àĝëñŧ çĥôšëñ ïñ ŧĥë ŕëþôšïŧôŕÿ'š šëŧûþ. ŧëšŧ çôþÿ ŧëšŧ⟧"
 }
