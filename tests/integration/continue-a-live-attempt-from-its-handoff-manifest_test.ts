@@ -404,6 +404,105 @@ Deno.test("history that is no longer authorized is not reused: a purged cited ve
   }));
 
 /** Runs the continuation of a fresh exact candidate after `revoke` has changed its history. */
+function readManifest(
+  fixture: WorkerFixture,
+  manifestId: string,
+  scope: WorkerScope = fixture,
+) {
+  return adminRequest(
+    fixture,
+    "/v1/handoff-manifests/" + manifestId,
+    undefined,
+    {
+      method: "GET",
+      scope,
+    },
+  );
+}
+
+// #72: the read says what a continuation would get now, from the same decision
+// the admit makes, so the page is right before the click.
+
+Deno.test("the manifest read says an exact resume will be tried, and the admit then does it; once continued the read says nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "read-exact");
+    const record = await exactCandidate(fixture, live);
+    // The worker's own write makes no decision.
+    assertEquals(record.decisionMode, null);
+    assertEquals(record.freshReason, null);
+    const before = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(before.decisionMode, "exact_harness_resume");
+    assertEquals(before.freshReason, null);
+    // A read admits nothing and moves nothing.
+    assertEquals((await state(fixture, live)).attempt, "leased");
+    const response = await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    );
+    const exact = await body(response);
+    assertEquals(exact.mode, before.decisionMode);
+    assertEquals(exact.freshReason, null);
+    const after = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(after.status, "continued");
+    assertEquals(after.decisionMode, null);
+    assertEquals(after.freshReason, null);
+  }));
+
+Deno.test("the manifest read gives the reason a continuation would start fresh, the one the admit then records", () =>
+  withWorkerFixture(async (fixture) => {
+    const mismatched = await liveAttempt(fixture, "read-mismatch");
+    const record = await exactCandidate(fixture, mismatched, {
+      worktreeRevision: "c".repeat(40),
+    });
+    const read = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(read.decisionMode, "fresh_session");
+    assertEquals(read.freshReason, "native_evidence_mismatch");
+    const continuation = await body(
+      await continueManifest(
+        fixture,
+        String(record.id),
+        await runVersion(fixture, mismatched.job.runId),
+      ),
+    );
+    assertEquals(continuation.mode, "fresh_session");
+    assertEquals(
+      (await auditDetails(fixture, String(continuation.id))).reason,
+      read.freshReason,
+    );
+    // The reason is kept on the continuation and returned, so a page can say it
+    // after the fact; an exact resume keeps none.
+    assertEquals(continuation.freshReason, read.freshReason);
+    const kept = await fixture.pgDatabase.query<
+      { fresh_reason: string | null }
+    >(
+      "select fresh_reason from bakery.handoff_continuations where id = $1",
+      [continuation.id],
+    );
+    assertEquals(kept.rows[0].fresh_reason, "native_evidence_mismatch");
+  }));
+
+Deno.test("a manifest that never asked for an exact resume reads as fresh for that reason, and another organization reads nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "read-fresh-only");
+    const record = await stored(fixture, live);
+    const read = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(read.decisionMode, "fresh_session");
+    assertEquals(read.freshReason, "exact_resume_not_requested");
+    const other = await createWorkerScope(
+      fixture,
+      "handoff-read",
+      fixture,
+    );
+    try {
+      const foreign = await readManifest(fixture, String(record.id), other);
+      assertEquals(foreign.status, 404);
+      await foreign.body?.cancel();
+    } finally {
+      await closeWorkerOrganization(fixture.pgDatabase, other.organizationId);
+    }
+  }));
+
 async function revokedHistory(
   name: string,
   revoke: (fixture: WorkerFixture, live: Live) => Promise<void>,

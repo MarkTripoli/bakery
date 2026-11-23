@@ -74119,6 +74119,45 @@ export const clientManifest = {
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the manifest was stored."
+        },
+        "decisionMode": {
+          "description": "HandoffManifestRecord.decisionMode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "fresh_session",
+                "exact_harness_resume"
+              ],
+              "description": "How a continuation would carry on if it were admitted now, decided from the server's own rows and never from the manifest's claim. Null when the manifest is not pending, or on the worker's own write, where no decision is made."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "freshReason": {
+          "description": "HandoffManifestRecord.freshReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "exact_resume_not_requested",
+                "boundary_unsafe",
+                "effects_unresolved",
+                "session_changed",
+                "no_native_evidence",
+                "native_evidence_mismatch",
+                "history_revoked"
+              ],
+              "description": "Why a continuation would start fresh instead of resuming exactly; set only when decisionMode is fresh_session, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -74314,6 +74353,28 @@ export const clientManifest = {
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the continuation was admitted."
+        },
+        "freshReason": {
+          "description": "HandoffContinuation.freshReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "exact_resume_not_requested",
+                "boundary_unsafe",
+                "effects_unresolved",
+                "session_changed",
+                "no_native_evidence",
+                "native_evidence_mismatch",
+                "history_revoked"
+              ],
+              "description": "Why the continuation starts fresh instead of resuming exactly; set only when mode is fresh_session, otherwise null. Continuations admitted before this was recorded read null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [

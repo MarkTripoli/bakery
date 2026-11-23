@@ -17,6 +17,10 @@ import {
   workerTransaction,
 } from "./shared.ts";
 import {
+  decideManifestResume,
+  type ResumeDecision,
+} from "./handoff-eligibility.ts";
+import {
   HANDOFF_MANIFEST_MAX_BYTES,
   type HandoffManifest,
   HandoffManifestSchema,
@@ -82,7 +86,10 @@ function iso(value: Date | string): string {
 
 export type HandoffManifestRecord = ReturnType<typeof toRecord>;
 
-function toRecord(row: ManifestRow) {
+function toRecord(
+  row: ManifestRow,
+  decision: ResumeDecision | null = null,
+) {
   return {
     id: row.id,
     taskId: row.task_id,
@@ -96,6 +103,8 @@ function toRecord(row: ManifestRow) {
     status: row.status,
     manifest: row.manifest,
     createdAt: iso(row.created_at),
+    decisionMode: decision?.mode ?? null,
+    freshReason: decision?.mode === "fresh_session" ? decision.reason : null,
   };
 }
 
@@ -364,7 +373,13 @@ export async function createHandoffManifest(
   return { kind: "replayed", record: toRecord(row) };
 }
 
-/** `GET /v1/handoff-manifests/{id}`: one stored manifest, in the caller's organization. */
+/**
+ * `GET /v1/handoff-manifests/{id}`: one stored manifest, in the caller's
+ * organization, with the decision a continuation would get now. The decision is
+ * the one `handoffManifests.continue` makes (`decideManifestResume`), computed
+ * without admitting anything; it is null when the manifest is no longer
+ * pending or no longer parses.
+ */
 export async function getHandoffManifest(
   context: ActionContext,
 ): Promise<HandoffManifestRecord> {
@@ -379,7 +394,24 @@ export async function getHandoffManifest(
   );
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return toRecord(row);
+  if (row.status !== "pending") return toRecord(row);
+  const stored = HandoffManifestSchema.safeParse(row.manifest);
+  if (!stored.success) return toRecord(row);
+  const host = await transaction.query<{ worker_host_id: string | null }>(
+    `select worker_host_id from bakery.job_attempts
+      where organization_id = $1 and id = $2`,
+    [organizationId, row.source_attempt_id],
+  );
+  const { decision } = await decideManifestResume(transaction, {
+    organizationId,
+    runId: row.run_id,
+    runStepId: row.run_step_id,
+    manifestId: row.id,
+    manifestDigest: row.digest,
+    manifest: stored.data,
+    sourceHostId: host.rows[0]?.worker_host_id ?? "",
+  });
+  return toRecord(row, decision);
 }
 
 /**
