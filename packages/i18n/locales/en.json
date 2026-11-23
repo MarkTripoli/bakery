@@ -1090,6 +1090,7 @@
   "tasks.run.handover.documentVersion": "{name}, version {version}",
   "tasks.run.handover.documentsHidden": "{count, plural, one {# more that you do not have access to.} other {# more that you do not have access to.}}",
   "tasks.run.handover.documentsUnchecked": "{count, plural, one {# could not be checked right now.} other {# could not be checked right now.}}",
+  "tasks.run.handover.documentsGone": "{count, plural, one {# is no longer available.} other {# are no longer available.}}",
   "tasks.run.handover.documentsNone": "No documents.",
   "tasks.run.handover.code": "Code",
   "tasks.run.handover.codeCommit": "Commit {sha}",

@@ -6610,5 +6610,6 @@
   "tasks.run.handover.refused.budget": "⟦Ŧĥïš šŧëþ ĥàš ûšëð àļļ ïŧš ŧŕïëš. Šŧàŕŧ ŧĥë ŕûñ àĝàïñ ŧô çôñŧïñûë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "tasks.run.handover.refused.capture": "⟦Ŧĥë šëššïôñ'š çĥàñĝëš àŕë ñôŧ ƒûļļÿ šàṽëð ÿëŧ. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "tasks.run.handover.refused.other": "⟦Ñôŧ ĥàñðëð ôṽëŕ. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëš⟧",
-  "tasks.run.handover.documentsUnchecked": "⟦{count, plural, one {# could not be checked right now.} other {# could not be checked right now.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
+  "tasks.run.handover.documentsUnchecked": "⟦{count, plural, one {# could not be checked right now.} other {# could not be checked right now.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "tasks.run.handover.documentsGone": "⟦{count, plural, one {# is no longer available.} other {# are no longer available.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

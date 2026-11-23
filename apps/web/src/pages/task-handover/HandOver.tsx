@@ -11,6 +11,7 @@ import {
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { useShellViewport } from "../../app/responsive.ts";
 import { stepTitle } from "../task-timeline.ts";
 import {
   type CarryOn,
@@ -301,6 +302,7 @@ function Card(
   },
 ) {
   const { translate: t, locale, timeZone } = useI18n();
+  const phone = useShellViewport() === "phone";
   // The card opens in place; focus goes to its heading so a keyboard or screen
   // reader user lands on what opened.
   useEffect(() => {
@@ -343,6 +345,27 @@ function Card(
     : view.capturePaused
     ? t("tasks.run.handover.capturePaused")
     : null;
+  const actions = (
+    <>
+      <UI.Button
+        data-testid="handover-keep"
+        disabled={working}
+        variant="secondary"
+        onClick={onKeep}
+      >
+        {t("tasks.run.handover.keep")}
+      </UI.Button>
+      <UI.Button
+        data-testid="handover-confirm"
+        disabled={blockedReason !== null}
+        loading={working}
+        variant="primary"
+        onClick={onConfirm}
+      >
+        {t("tasks.run.handover.confirm")}
+      </UI.Button>
+    </>
+  );
   return (
     <UI.Stack gap="standard" data-testid="handover-card">
       <UI.Heading level="subsection" rank={3} id="handover-heading">
@@ -408,28 +431,21 @@ function Card(
             {blockedReason}
           </UI.Text>
         )}
-      <UI.Inline variant="between" gap="compact">
-        <UI.Text variant="caption">{t("tasks.run.handover.same")}</UI.Text>
-        <UI.Inline variant="actions" gap="compact">
-          <UI.Button
-            data-testid="handover-keep"
-            disabled={working}
-            variant="secondary"
-            onClick={onKeep}
-          >
-            {t("tasks.run.handover.keep")}
-          </UI.Button>
-          <UI.Button
-            data-testid="handover-confirm"
-            disabled={blockedReason !== null}
-            loading={working}
-            variant="primary"
-            onClick={onConfirm}
-          >
-            {t("tasks.run.handover.confirm")}
-          </UI.Button>
-        </UI.Inline>
-      </UI.Inline>
+      {phone
+        ? (
+          <>
+            <UI.Inline variant="actions" gap="compact">{actions}</UI.Inline>
+            <UI.Text variant="caption">{t("tasks.run.handover.same")}</UI.Text>
+          </>
+        )
+        : (
+          // On a wide screen the buttons keep their own width, at the right,
+          // with the caption on the left of the same row.
+          <UI.Inline variant="between" gap="compact">
+            <UI.Text variant="caption">{t("tasks.run.handover.same")}</UI.Text>
+            <UI.Inline gap="compact">{actions}</UI.Inline>
+          </UI.Inline>
+        )}
     </UI.Stack>
   );
 }
@@ -496,8 +512,8 @@ function Given(
           description={
             <UI.Stack gap="tight">
               {view.checks.map((check, index) => (
-                <UI.Inline variant="between" gap="compact" key={index}>
-                  <UI.DataText variant="code">{check.command}</UI.DataText>
+                <UI.Inline gap="compact" key={index}>
+                  <UI.DataText fit variant="code">{check.command}</UI.DataText>
                   <UI.Inline gap="compact">
                     <UI.Badge
                       tone={check.result === "passed"
@@ -611,11 +627,15 @@ function Documents(
   };
   const hidden = refs.filter((_, index) => {
     if (!files[index]?.isError) return false;
-    if (noAccess(artifacts[index]?.error)) return true;
-    // The artifact reads, but the version is not in its list: it is gone.
-    return artifacts[index]?.data !== undefined &&
-      versions[index]?.isSuccess === true && versions[index]?.data === null;
+    return noAccess(artifacts[index]?.error);
   }).length;
+  // The artifact reads, but the version is not in its list: it is gone, which
+  // is not the same as a document this reader may not open.
+  const gone = refs.filter((_, index) =>
+    files[index]?.isError === true &&
+    artifacts[index]?.data !== undefined &&
+    versions[index]?.isSuccess === true && versions[index]?.data === null
+  ).length;
   const unchecked = refs.filter((_, index) => {
     if (!files[index]?.isError) return false;
     const artifactError = artifacts[index]?.error;
@@ -660,6 +680,13 @@ function Documents(
                 })}
               </UI.Text>
             )}
+            {gone === 0
+              ? null
+              : (
+                <UI.Text variant="muted" data-testid="handover-documents-gone">
+                  {t("tasks.run.handover.documentsGone", { count: gone })}
+                </UI.Text>
+              )}
             {hidden === 0 ? null : (
               <UI.Text
                 variant="muted"

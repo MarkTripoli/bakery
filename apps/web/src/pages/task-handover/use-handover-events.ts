@@ -53,6 +53,11 @@ export function useHandoverEvents(
       id: `handover:${read.data.id}`,
       scope: "control",
       time: recorded.at,
+      timeLabel: formatDate(new Date(recorded.at), locale, {
+        timeZone,
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
       title: `${
         formatDate(new Date(recorded.at), locale, {
           timeZone,

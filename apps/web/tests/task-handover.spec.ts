@@ -23,7 +23,7 @@ const SCHEME = process.env.BAKERY_EVIDENCE_SCHEME === "dark"
  * A still of the page tall enough to hold the card: it sits in the scrolling
  * conversation pane, so a one-screen capture would cut it off.
  */
-async function still(page: Page, name: string) {
+async function still(page: Page, name: string, needsCard = true) {
   if (!EVIDENCE) return;
   if (SCHEME) await page.emulateMedia({ colorScheme: SCHEME });
   const phone = test.info().project.name === "mobile";
@@ -31,7 +31,7 @@ async function still(page: Page, name: string) {
   await page.setViewportSize(
     phone ? { width: 390, height: 2400 } : { width: 1440, height: 1800 },
   );
-  await expect(card(page)).toBeVisible();
+  if (needsCard) await expect(card(page)).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE}/${name}--${phone ? "mobile" : "desktop"}.png`,
     animations: "disabled",
@@ -164,6 +164,7 @@ function storedManifest(over: Record<string, unknown> = {}) {
         { artifactId: uuid(93), versionId: DOC_HIDDEN, sha256: "c".repeat(64) },
         { artifactId: uuid(94), versionId: DOC_PLAIN, sha256: "d".repeat(64) },
         { artifactId: uuid(95), versionId: uuid(84), sha256: "e".repeat(64) },
+        { artifactId: uuid(94), versionId: uuid(87), sha256: "f".repeat(64) },
       ],
     },
     tests: [
@@ -404,8 +405,8 @@ async function open(page: Page, w: World) {
           runStepId: stepId,
           conversationId: task.conversationId,
           agentVersionId: uuid(42),
-          harness: "claude",
-          status: "running",
+          harness: "claude_code",
+          status: "finished",
           resumeRef: null,
           parentSessionId: null,
           createdAt: "2026-01-01T00:00:00.000Z",
@@ -418,9 +419,20 @@ async function open(page: Page, w: World) {
     }));
   await page.route(
     (url) => url.pathname.endsWith(`/v1/sessions/${SESSION}/feed`),
-    (r) => r.fulfill({ json: { items: [], nextCursor: null } }),
+    (r) =>
+      r.fulfill({
+        json: { items: [], nextCursor: null },
+      }),
   );
   await page.route(`**/v1/sessions/${SESSION}/feed/stream`, () => {});
+  // The live events socket opens and says nothing.
+  await page.routeWebSocket("**/v1/events?*", () => {});
+  // The step's raw output: nothing yet, which is a normal state, not an error.
+  await page.route(
+    "**/v1/output-streams?*",
+    (r) =>
+      r.fulfill({ json: { items: [], nextCursor: null, encodedBytes: 0 } }),
+  );
   const empty = (route: Route) => route.fulfill({ json: page_([]) });
   for (
     const pattern of [
@@ -511,6 +523,10 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByTestId("handover-documents-unchecked")).toHaveText(
       "1 could not be checked right now.",
     );
+    // A version that is gone is not "no access".
+    await expect(page.getByTestId("handover-documents-gone")).toHaveText(
+      "1 is no longer available.",
+    );
     await expect(page.getByTestId("handover-documents-hidden")).toHaveText(
       "1 more that you do not have access to.",
     );
@@ -531,6 +547,7 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByText(
       "Ana Silva handed this step to a new session. It picked up exactly where it stopped.",
     )).toBeVisible();
+    await still(page, "timeline-exact", false);
   });
 
   test("a fresh start says why before the click, and again on the timeline after it", async ({ page }) => {
@@ -553,6 +570,7 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByText(
       "Ana Silva handed this step to a new session. It started fresh from a summary: The saved session does not match the code, the agent version or the machine it stopped on.",
     )).toBeVisible();
+    await still(page, "timeline-fresh", false);
   });
 
   test("outside actions not yet confirmed are counted, and make the card say fresh with that reason", async ({ page }) => {
@@ -581,6 +599,7 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByTestId("handover-notice")).toContainText(
       "Handed over. The old session has stopped. The new one starts when Bakery knows whether 2 outside actions happened.",
     );
+    await still(page, "handed-over-waiting", false);
   });
 
   test("a later reader sees who the server recorded, not their own name", async ({ page }) => {
@@ -641,6 +660,26 @@ test.describe("hand over a running step to a new session", () => {
     )
       .toBeVisible();
     await expect(button(page)).toHaveCount(0);
+    await still(page, "member-no-button", false);
+  });
+
+  test("more than five decisions show five and a Show all", async ({ page }) => {
+    const decisions = Array.from(
+      { length: 8 },
+      (_, index) => `Keep decision number ${index + 1}`,
+    );
+    await open(
+      page,
+      world({ manifest: storedManifest({ decisions }) }),
+    );
+    await button(page).click();
+    const given = page.getByTestId("handover-given");
+    await expect(given).toContainText("Decisions it must keep · 8");
+    await expect(given).toContainText("Keep decision number 5");
+    await expect(given).not.toContainText("Keep decision number 6");
+    await still(page, "decisions-show-all");
+    await given.getByRole("button", { name: "Show all 8" }).click();
+    await expect(given).toContainText("Keep decision number 8");
   });
 
   test("a saved point already used is not offered again", async ({ page }) => {
@@ -670,6 +709,7 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByTestId("handover-blocked")).toHaveText(
       "Its changes are still being saved.",
     );
+    await still(page, "saving-blocked");
   });
 
   test("a saved point that cannot be read says there is none yet", async ({ page }) => {
@@ -740,6 +780,9 @@ test.describe("hand over a running step to a new session", () => {
         await page.getByTestId("handover-confirm").click();
         await expect(page.getByTestId("handover-notice")).toContainText(text);
         await expect(card(page)).toHaveCount(0);
+        if (reason === "already_continued") {
+          await still(page, "someone-already", false);
+        }
       });
     }
 
