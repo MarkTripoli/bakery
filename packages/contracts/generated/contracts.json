@@ -21108,6 +21108,7 @@
                   "quality.check",
                   "review.independent",
                   "tool.call",
+                  "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -73772,6 +73773,180 @@
             }
           ]
         },
+        "SplitInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "lanes": {
+              "description": "The plan's lanes, as the coordination plan spec defines them: each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs (a published workflow and its inputs) so the engine starts it. Validated as a plan before anything is created. SplitInput.lanes must contain at most 262144 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SplitInput____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/SplitInput____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 262144
+            },
+            "maxConcurrency": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16,
+              "description": "Most lanes running at once; the engine starts a ready lane only while fewer than this many of the plan's lane children have a live run. SplitInput.maxConcurrency must be at least 1. SplitInput.maxConcurrency must be at most 16."
+            },
+            "budgetLimitUsd": {
+              "description": "Shared ceiling in USD across every child run of the plan; omit for no plan-scoped ceiling.",
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
+            }
+          },
+          "required": [
+            "lanes",
+            "maxConcurrency"
+          ],
+          "additionalProperties": false,
+          "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
+        },
+        "SplitInput____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SplitInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/SplitInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SplitInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/SplitInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
         "IntegrationEffectQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -77368,6 +77543,7 @@
                 "quality.check",
                 "review.independent",
                 "tool.call",
+                "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -182189,6 +182365,7 @@
                 "quality.check",
                 "review.independent",
                 "tool.call",
+                "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -182352,6 +182529,7 @@
                       "quality.check",
                       "review.independent",
                       "tool.call",
+                      "coordination.split",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
                       "delivery.merge",
@@ -182568,6 +182746,7 @@
                 "quality.check",
                 "review.independent",
                 "tool.call",
+                "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -182843,6 +183022,7 @@
                       "quality.check",
                       "review.independent",
                       "tool.call",
+                      "coordination.split",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
                       "delivery.merge",
@@ -290693,6 +290873,43 @@
           "additionalProperties": false,
           "description": "HumanApprovalOutput is the pinned worker action output contract."
         },
+        "SplitOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "planId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The coordination plan the step created: one child work item per lane, joined by typed artifacts."
+            },
+            "status": {
+              "type": "string",
+              "maxLength": 32,
+              "description": "The plan's terminal projection when the step completed: completed. A plan that ends any other way fails the step. The plan's terminal projection when the step completed: completed. A plan that ends any other way fails the step. SplitOutput.status must contain at most 32 characters."
+            },
+            "lanes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32,
+              "description": "How many lanes the plan has. How many lanes the plan has. SplitOutput.lanes must be at least 1. SplitOutput.lanes must be at most 32."
+            },
+            "completedLanes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 32,
+              "description": "How many of them completed. How many of them completed. SplitOutput.completedLanes must be at least 0. SplitOutput.completedLanes must be at most 32."
+            }
+          },
+          "required": [
+            "planId",
+            "status",
+            "lanes",
+            "completedLanes"
+          ],
+          "additionalProperties": false,
+          "description": "SplitOutput is the pinned worker action output contract."
+        },
         "WorkflowStopOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -290916,7 +291133,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9ba52f015e8e7e9129e1a9aee9aed8bbb7eca2d9c0cc686ab0a6f8810e4acf7e",
+  "compatibilityDigest": "sha256:9175f009e423db0c5928c7f5ff7808ed77ad3ac8058115eb79f9cba912a8c84f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -312332,6 +312549,182 @@
         }
       }
     },
+    "SplitInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "lanes": {
+          "description": "The plan's lanes, as the coordination plan spec defines them: each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs (a published workflow and its inputs) so the engine starts it. Validated as a plan before anything is created. SplitInput.lanes must contain at most 262144 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 262144
+        },
+        "maxConcurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "description": "Most lanes running at once; the engine starts a ready lane only while fewer than this many of the plan's lane children have a live run. SplitInput.maxConcurrency must be at least 1. SplitInput.maxConcurrency must be at most 16."
+        },
+        "budgetLimitUsd": {
+          "description": "Shared ceiling in USD across every child run of the plan; omit for no plan-scoped ceiling.",
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
+        }
+      },
+      "required": [
+        "lanes",
+        "maxConcurrency"
+      ],
+      "additionalProperties": false,
+      "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "IntegrationEffectQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -315946,6 +316339,7 @@
             "quality.check",
             "review.independent",
             "tool.call",
+            "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -421079,6 +421473,7 @@
             "quality.check",
             "review.independent",
             "tool.call",
+            "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -421242,6 +421637,7 @@
                   "quality.check",
                   "review.independent",
                   "tool.call",
+                  "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -421458,6 +421854,7 @@
             "quality.check",
             "review.independent",
             "tool.call",
+            "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -421733,6 +422130,7 @@
                   "quality.check",
                   "review.independent",
                   "tool.call",
+                  "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -529722,6 +530120,43 @@
       ],
       "additionalProperties": false,
       "description": "HumanApprovalOutput is the pinned worker action output contract."
+    },
+    "SplitOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "planId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The coordination plan the step created: one child work item per lane, joined by typed artifacts."
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "The plan's terminal projection when the step completed: completed. A plan that ends any other way fails the step. The plan's terminal projection when the step completed: completed. A plan that ends any other way fails the step. SplitOutput.status must contain at most 32 characters."
+        },
+        "lanes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "description": "How many lanes the plan has. How many lanes the plan has. SplitOutput.lanes must be at least 1. SplitOutput.lanes must be at most 32."
+        },
+        "completedLanes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32,
+          "description": "How many of them completed. How many of them completed. SplitOutput.completedLanes must be at least 0. SplitOutput.completedLanes must be at most 32."
+        }
+      },
+      "required": [
+        "planId",
+        "status",
+        "lanes",
+        "completedLanes"
+      ],
+      "additionalProperties": false,
+      "description": "SplitOutput is the pinned worker action output contract."
     },
     "WorkflowStopOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

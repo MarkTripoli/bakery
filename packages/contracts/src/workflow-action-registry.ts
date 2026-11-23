@@ -10,6 +10,7 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "quality.check",
     "review.independent",
     "tool.call",
+    "coordination.split",
     "delivery.candidate_evidence",
     "delivery.prepare",
     "delivery.merge",
@@ -177,6 +178,20 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
         faults: ["DEPENDENCY_UNAVAILABLE"],
       },
       effectPolicy: "external_effect_keyed_reconcile",
+    }),
+    // The parent run's own step owns a plan of child work items: it creates the
+    // plan and waits for the plan's terminal projection (chapter 25 section 5).
+    "coordination.split": metadata({
+      input: "SplitInput",
+      output: "SplitOutput",
+      capabilities: [],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 1,
+        backoff: "0s",
+        faults: [],
+      },
+      effectPolicy: "none",
     }),
     "delivery.candidate_evidence": metadata({
       input: "CandidateEvidence",
