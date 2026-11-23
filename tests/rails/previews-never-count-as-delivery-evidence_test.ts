@@ -11,8 +11,9 @@ const root = new URL("../..", import.meta.url).pathname;
 const deliveryRoot = "apps/server/src/modules/delivery";
 const FORBIDDEN = [
   /\bbakery\.previews\b/,
-  /\bpreview_(?:grants|sessions|access)\b/,
-  /knowledge\/previews/,
+  // No leading \b: `artifact_preview_grants` must match too.
+  /preview_(?:grants|sessions|access)\b/,
+  /(?:knowledge|execution)\/previews(?:\/|\.ts|")/,
 ];
 
 export function previewReads(path: string, source: string): string[] {
@@ -41,10 +42,27 @@ Deno.test("the delivery modules never read a preview to decide health or accepta
   if (checked < 10) throw new Error("the delivery modules were not found");
 });
 
-Deno.test("the rail sees a read of the previews table", () => {
-  assertEquals(
-    previewReads("x.ts", "select 1 from bakery.previews p"),
-    ["x.ts:1"],
-  );
+Deno.test("the rail sees every way a preview could be read", () => {
+  const reads: [string, string][] = [
+    ["the previews table", "select 1 from bakery.previews p"],
+    ["run preview grants", "select 1 from bakery.preview_grants g"],
+    ["run preview sessions", "select 1 from bakery.preview_sessions s"],
+    ["artifact preview grants", "select 1 from bakery.artifact_preview_grants"],
+    [
+      "artifact preview sessions",
+      "select 1 from bakery.artifact_preview_sessions",
+    ],
+    [
+      "the execution previews module",
+      'import { x } from "../execution/previews.ts";',
+    ],
+    [
+      "the knowledge previews module",
+      'import { x } from "../knowledge/previews/store.ts";',
+    ],
+  ];
+  for (const [what, line] of reads) {
+    assertEquals(previewReads("x.ts", line), ["x.ts:1"], what);
+  }
   assertEquals(previewReads("x.ts", "select 1 from bakery.deployments d"), []);
 });

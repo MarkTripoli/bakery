@@ -421,6 +421,8 @@ export async function advanceDeployment(
     expectedVersion: number;
     externalEffectId?: string;
     healthEvidenceId?: string;
+    /** The move ends a rollback in failure; set once and never cleared. */
+    rollbackFailed?: boolean;
   },
 ): Promise<DeploymentRead> {
   if (!canMove(move.from, move.to)) throw conflict("move_not_allowed");
@@ -430,7 +432,8 @@ export async function advanceDeployment(
             external_effect_id = coalesce(d.external_effect_id, $6::uuid),
             health_evidence_id = coalesce(d.health_evidence_id, $7::uuid),
             rollback_failed = d.rollback_failed
-              or (d.status = 'rolling_back' and $4 = 'failed'),
+              or (d.status = 'rolling_back' and $4 = 'failed')
+              or $8::boolean,
             updated_at = now(), version = version + 1
       where d.organization_id = $1 and d.id = $2 and d.status = $3
         and d.version = $5
@@ -443,6 +446,7 @@ export async function advanceDeployment(
       move.expectedVersion,
       move.externalEffectId ?? null,
       move.healthEvidenceId ?? null,
+      move.rollbackFailed ?? false,
     ],
   );
   const row = moved.rows[0];

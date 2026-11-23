@@ -65,6 +65,9 @@ function memoryLedger() {
         status: move.to,
         version: row.version + 1,
         healthEvidenceId: row.healthEvidenceId ?? move.healthEvidenceId ?? null,
+        // As the store: set once, by a rollback that ends failed, never cleared.
+        rollbackFailed: row.rollbackFailed || move.rollbackFailed === true ||
+          (row.status === "rolling_back" && move.to === "failed"),
       };
       rows.set(id, next);
       return Promise.resolve({ ...next });
@@ -292,6 +295,39 @@ Deno.test("a lost answer to rollback stays unknown until a read says the previou
   assertEquals(settled.deployment.status, "rolled_back");
   assertEquals(h.calls.rollback, 1, "settling only reads");
   assertEquals(await h.served(), SHA_A);
+});
+
+Deno.test("a lost answer to rollback that settles failed marks the going-back as failed, and a failed deploy does not (#63)", async () => {
+  const h = await harness({
+    probe: (served) => ({
+      version: served === SHA_B ? SHA_A : (served ?? "none"),
+      state: "ok",
+    }),
+  });
+  const plain = createDeploymentDriver({ ledger: h.ledger, adapter: h.target });
+  const first = await h.queue(SHA_A);
+  await plain.deploy(first.id, { profileRevision: 1 });
+  // The answer to the rollback is lost before it acted: nothing restored it.
+  const adapter = lossy(h.target, h.calls, { rollback: "before" });
+  const driver = createDeploymentDriver({ ledger: h.ledger, adapter });
+  const second = await h.queue(SHA_B, await h.ledger.read(first.id));
+  const outcome = await driver.deploy(second.id, { profileRevision: 1 });
+  assertEquals(outcome.deployment.status, "unknown");
+  assert(outcome.effectKey?.startsWith("rollback:"));
+  assertEquals(outcome.deployment.rollbackFailed, false, "not settled yet");
+  const settled = await driver.settle(second.id, outcome.effectKey!);
+  assertEquals(settled.deployment.status, "failed");
+  assertEquals(settled.deployment.rollbackFailed, true);
+
+  // A deploy that fails, with nothing to go back to, is not a failed going-back.
+  const h2 = await harness({ builds: () => null });
+  const lone = await h2.queue(SHA_A);
+  const failed = await createDeploymentDriver({
+    ledger: h2.ledger,
+    adapter: h2.target,
+  }).deploy(lone.id, { profileRevision: 1 });
+  assertEquals(failed.deployment.status, "failed");
+  assertEquals(failed.deployment.rollbackFailed, false);
 });
 
 Deno.test("a changed artifact, a missing build and a tampered release never reach the environment (#43 AC3)", async () => {

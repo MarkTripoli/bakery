@@ -95,78 +95,152 @@ Deno.test("deployments.list narrows to one run, names the commit each release re
         listDeployments(transaction, organizationId, principal, SECRET, query)
       );
 
-    const one = await release(await merge(1));
-    assertEquals(one.previousCommitSha, null, "it replaced nothing");
-    await settle(one.id);
-    const two = await release(await merge(2));
-    assertEquals(two.previousDeploymentId, one.id);
-    assertEquals(
-      two.previousCommitSha,
-      one.commitSha,
-      "the release before it is named by its commit",
-    );
+    try {
+      const one = await release(await merge(1));
+      assertEquals(one.previousCommitSha, null, "it replaced nothing");
+      await settle(one.id);
+      const two = await release(await merge(2));
+      assertEquals(two.previousDeploymentId, one.id);
+      assertEquals(
+        two.previousCommitSha,
+        one.commitSha,
+        "the release before it is named by its commit",
+      );
 
-    const ofRun = await list({ runId: job.runId });
-    assertEquals(ofRun.items.map((item) => item.id), [two.id, one.id]);
-    assertEquals(ofRun.items[0]?.previousCommitSha, one.commitSha);
-    assertEquals(
-      (await list({ runId: crypto.randomUUID() })).items,
-      [],
-      "another run has no releases here",
-    );
+      const ofRun = await list({ runId: job.runId });
+      assertEquals(ofRun.items.map((item) => item.id), [two.id, one.id]);
+      assertEquals(ofRun.items[0]?.previousCommitSha, one.commitSha);
+      assertEquals(
+        (await list({ runId: crypto.randomUUID() })).items,
+        [],
+        "another run has no releases here",
+      );
 
-    const paged = await list({ runId: job.runId, limit: 1 });
-    assert(paged.nextCursor !== null);
-    assertEquals(
-      (await list({ runId: job.runId, limit: 1, cursor: paged.nextCursor }))
-        .items.map((item) => item.id),
-      [one.id],
-    );
-    await assertRejects(
-      () =>
-        list({
-          runId: crypto.randomUUID(),
-          limit: 1,
-          cursor: paged.nextCursor ?? undefined,
-        }),
-      StandardError,
-      undefined,
-      "a cursor from one run's list is refused for another's",
-    );
+      const paged = await list({ runId: job.runId, limit: 1 });
+      assert(paged.nextCursor !== null);
+      assertEquals(
+        (await list({ runId: job.runId, limit: 1, cursor: paged.nextCursor }))
+          .items.map((item) => item.id),
+        [one.id],
+      );
+      await assertRejects(
+        () =>
+          list({
+            runId: crypto.randomUUID(),
+            limit: 1,
+            cursor: paged.nextCursor ?? undefined,
+          }),
+        StandardError,
+        undefined,
+        "a cursor from one run's list is refused for another's",
+      );
 
-    // A rollback that ends in failed is told apart from a deploy that failed.
-    assertEquals(two.rollbackFailed, false);
-    await settle(two.id);
-    const rolling = await run((transaction) =>
-      rollbackDeployment(transaction, organizationId, principal, two.id, {
-        requestId: `request-${crypto.randomUUID()}`,
-        traceId: TRACE,
-        reason: "the release is unhealthy",
-      })
-    );
-    assertEquals(rolling.status, "rolling_back");
-    assertEquals(rolling.rollbackFailed, false, "not failed yet");
-    const failed = await run((transaction) =>
-      advanceDeployment(transaction, organizationId, two.id, {
-        from: "rolling_back",
-        to: "failed",
-        expectedVersion: rolling.version,
-      })
-    );
-    assertEquals(failed.status, "failed");
-    assertEquals(failed.rollbackFailed, true);
-    const after = await list({ runId: job.runId });
-    assertEquals(
-      after.items.map((item) => [item.id, item.rollbackFailed]),
-      [[two.id, true], [one.id, false]],
-    );
+      // A rollback that ends in failed is told apart from a deploy that failed.
+      assertEquals(two.rollbackFailed, false);
+      await settle(two.id);
+      const rolling = await run((transaction) =>
+        rollbackDeployment(transaction, organizationId, principal, two.id, {
+          requestId: `request-${crypto.randomUUID()}`,
+          traceId: TRACE,
+          reason: "the release is unhealthy",
+        })
+      );
+      assertEquals(rolling.status, "rolling_back");
+      assertEquals(rolling.rollbackFailed, false, "not failed yet");
+      const failed = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, two.id, {
+          from: "rolling_back",
+          to: "failed",
+          expectedVersion: rolling.version,
+        })
+      );
+      assertEquals(failed.status, "failed");
+      assertEquals(failed.rollbackFailed, true);
+      const after = await list({ runId: job.runId });
+      assertEquals(
+        after.items.map((item) => [item.id, item.rollbackFailed]),
+        [[two.id, true], [one.id, false]],
+      );
 
-    await database.query(
-      `delete from bakery.deployments where organization_id = $1`,
-      [organizationId],
-    );
-    await database.query(
-      `delete from bakery.pull_requests where organization_id = $1 and run_id = $2`,
-      [organizationId, job.runId],
-    );
+      // A deploy that fails is not a failed going-back.
+      const third = await release(await merge(3));
+      const deployFailed = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, third.id, {
+          from: "queued",
+          to: "deploying",
+          expectedVersion: 1,
+        })
+      );
+      const deployEnded = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, third.id, {
+          from: "deploying",
+          to: "failed",
+          expectedVersion: deployFailed.version,
+        })
+      );
+      assertEquals(deployEnded.status, "failed");
+      assertEquals(deployEnded.rollbackFailed, false, "a failed deploy");
+
+      // A going-back whose answer was lost ends rolling_back, unknown, failed:
+      // the move that settles it says it was a rollback.
+      const fourth = await release(await merge(4));
+      await settle(fourth.id);
+      const back = await run((transaction) =>
+        rollbackDeployment(transaction, organizationId, principal, fourth.id, {
+          requestId: `request-${crypto.randomUUID()}`,
+          traceId: TRACE,
+          reason: "the release is unhealthy",
+        })
+      );
+      const lost = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, fourth.id, {
+          from: "rolling_back",
+          to: "unknown",
+          expectedVersion: back.version,
+        })
+      );
+      assertEquals(lost.rollbackFailed, false, "not settled yet");
+      const settled = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, fourth.id, {
+          from: "unknown",
+          to: "failed",
+          expectedVersion: lost.version,
+          rollbackFailed: true,
+        })
+      );
+      assertEquals(settled.rollbackFailed, true);
+      // A deploy whose answer was lost and settles failed is not one.
+      const fifth = await release(await merge(5));
+      const sending = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, fifth.id, {
+          from: "queued",
+          to: "deploying",
+          expectedVersion: 1,
+        })
+      );
+      const unsure = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, fifth.id, {
+          from: "deploying",
+          to: "unknown",
+          expectedVersion: sending.version,
+        })
+      );
+      const unsureFailed = await run((transaction) =>
+        advanceDeployment(transaction, organizationId, fifth.id, {
+          from: "unknown",
+          to: "failed",
+          expectedVersion: unsure.version,
+        })
+      );
+      assertEquals(unsureFailed.rollbackFailed, false);
+    } finally {
+      await database.query(
+        `delete from bakery.deployments where organization_id = $1`,
+        [organizationId],
+      );
+      await database.query(
+        `delete from bakery.pull_requests where organization_id = $1 and run_id = $2`,
+        [organizationId, job.runId],
+      );
+    }
   }));
