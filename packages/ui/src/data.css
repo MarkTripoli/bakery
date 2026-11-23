@@ -1387,6 +1387,13 @@
 .ui-data-table--ruled td {
   padding: var(--space-3-5) var(--space-2);
 }
+/* A row with a choice in it (a radio) is as tall as the radio's touch target,
+   which is more than a line of text: centre its cells on one line and let the
+   target, not extra padding, set the height. */
+.ui-data-table--ruled tbody tr:has(.ui-radio) td {
+  padding-block: var(--space-1);
+  vertical-align: middle;
+}
 .ui-data-table--ruled th:first-child,
 .ui-data-table--ruled td:first-child {
   padding-inline-start: var(--space-3);

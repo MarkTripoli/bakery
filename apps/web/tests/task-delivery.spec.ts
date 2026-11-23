@@ -9,6 +9,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
+import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
 
 registerPageHealth(test);
 
@@ -35,6 +36,8 @@ const run = {
   workspaceBaseSha: null,
   requestedBy: uuid(1),
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: "running",
   budgetLimitUsd: "10.00",
   startedAt: "2026-01-01T00:00:01.000Z",
@@ -622,6 +625,9 @@ const openLink = async (section: Locator, testId: string) => {
 test("a clean run says nothing is waiting, offers no buttons and lists nothing that needs attention", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, CLEAN);
+  // The side panel loads (nothing to show) rather than reporting an error, so
+  // the stills show no banner that has nothing to do with the card.
+  await stubSidePanel(page);
   await page.goto(`/tasks/${id}`);
   const section = page.getByTestId("delivery-section");
   await expect(section.getByRole("heading", { name: "Delivery", level: 2 }))
@@ -650,6 +656,61 @@ test("a clean run says nothing is waiting, offers no buttons and lists nothing t
   await expect(details).not.toHaveAttribute("open");
   await openLink(section, "delivery-details");
   await expect(details).toContainText("Commit 91d0aa3 on top of a7254e7");
+  // The commit in the sentence is a reference: keyboard focus opens its card
+  // with the whole id.
+  const head = details.locator(
+    '[data-ui-component="reference"][data-kind="commit"]',
+    { hasText: "91d0aa3" },
+  ).first();
+  await page.keyboard.press("Shift");
+  await head.locator(".ui-reference__plain").focus();
+  await expect(head.getByRole("group", { name: "Commit" })).toContainText(NEW);
+  const refCard = head.getByRole("group", { name: "Commit" });
+  await expectReferenceCardUsable(refCard);
+  const onPhone = (page.viewportSize()?.width ?? 1440) <= 743;
+  // Close is drawn only where the card is the phone sheet.
+  await expect(refCard.getByRole("button", { name: "Close" })).toHaveCount(
+    onPhone ? 1 : 0,
+  );
+  if (onPhone) {
+    // On a phone the card is the sheet: it rests on the bottom of the window.
+    const box = await refCard.boundingBox();
+    const height = page.viewportSize()?.height ?? 0;
+    expect(box).not.toBeNull();
+    expect(height - ((box?.y ?? 0) + (box?.height ?? 0))).toBeLessThanOrEqual(
+      24,
+    );
+  }
+  if (STILLS !== undefined) {
+    const phone = (page.viewportSize()?.width ?? 1440) <= 743;
+    // The whole window, not a crop: on a phone the card is a sheet fixed to the
+    // window's bottom, which a crop of the Details block would not contain.
+    await page.screenshot({
+      path: `${STILLS}/delivery-reference-card-${
+        phone ? "phone" : "desktop"
+      }-light.png`,
+    });
+  }
+  if (onPhone) {
+    // Close puts the sheet away, and the message box takes a tap again.
+    await refCard.getByRole("button", { name: "Close" }).click();
+    await expect(refCard).toHaveCount(0);
+    const composer = page.getByPlaceholder("Message this task…");
+    await composer.click();
+    await expect(composer).toBeFocused();
+    // A tap outside the reference also closes the sheet. Focus stays on the id
+    // (on iOS a tap on plain text does not blur it), so only the outside-tap
+    // handler can close the sheet here.
+    await head.locator(".ui-reference__plain").click();
+    await expect(refCard).toBeVisible();
+    await expect(head.locator(".ui-reference__plain")).toBeFocused();
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      )
+    );
+    await expect(refCard).toHaveCount(0);
+  }
   await expect(details.getByTestId("delivery-checks-rows")).toContainText(
     "tests",
   );
@@ -1497,9 +1558,9 @@ test("before approval no pull request line and no merge sentence are drawn", asy
 
 test("an approved run with a pull request open links to it from the settled line", async ({ page }) => {
   await openApproved(page, { pullRequests: [pullRequestRow(482)] });
-  const link = pullRequestLine(page).getByRole("link", {
-    name: /Pull request #482/,
-  });
+  // The line reads "Pull request #482" and the number is the reference link.
+  await expect(pullRequestLine(page)).toContainText("Pull request #482");
+  const link = pullRequestLine(page).getByRole("link", { name: /#482/ });
   await expect(link).toHaveAttribute("href", "https://github.com/o/r/pull/482");
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(mergeStep(page)).toContainText("Not merged yet.");
@@ -2409,7 +2470,7 @@ const MERGE_STILLS = [
  * The stills show one consistent state: a finished run on an approved change,
  * and a side panel that loads (nothing to show) instead of reporting an error.
  */
-async function stubStillsPage(page: Page) {
+async function stubSidePanel(page: Page) {
   const empty = (route: Route) => route.fulfill({ json: page_([]) });
   for (
     const pattern of [
@@ -2421,6 +2482,10 @@ async function stubStillsPage(page: Page) {
       "**/v1/coordination-plans*",
     ]
   ) await page.route(pattern, empty);
+}
+
+async function stubStillsPage(page: Page) {
+  await stubSidePanel(page);
   await page.route(
     `**/v1/runs/${runId}`,
     (route) =>

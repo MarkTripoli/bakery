@@ -86,6 +86,11 @@ function fakeDatabase(options: {
   const statements: Statement[] = [];
   const database = {
     statements,
+    // The runner stores, settles and clears in one transaction; the seam lends
+    // itself as the transaction's client so every statement is still recorded.
+    connect() {
+      return Promise.resolve({ query: this.query, release: () => {} });
+    },
     query: (text: string, values: unknown[] = []) => {
       statements.push({ text, values });
       if (text.includes("from bakery.blobs")) {
@@ -380,6 +385,11 @@ Deno.test("an inline artifact version is its own subject, from backfill to store
     // it under artifact_version_id, and the claim hands it back the same way.
     const database = {
       statements,
+      // The runner stores, settles and clears in one transaction; the seam lends
+      // itself as the transaction's client so every statement is still recorded.
+      connect() {
+        return Promise.resolve({ query: this.query, release: () => {} });
+      },
       query: (text: string, values: unknown[] = []) => {
         statements.push({ text, values });
         // The page is matched before the content reader: both name the same
@@ -613,6 +623,11 @@ Deno.test("with no store, the blob subject waits and the inline one is answered"
   // tick that stopped at the first unreadable row would answer nothing at all.
   const database = {
     statements,
+    // The runner stores, settles and clears in one transaction; the seam lends
+    // itself as the transaction's client so every statement is still recorded.
+    connect() {
+      return Promise.resolve({ query: this.query, release: () => {} });
+    },
     query: (text: string, values: unknown[] = []) => {
       statements.push({ text, values });
       if (text.includes("from bakery.blob_probes")) {

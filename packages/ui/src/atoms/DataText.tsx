@@ -15,6 +15,12 @@ export type DataTextProps =
      */
     fit?: boolean;
     variant?: "identifier" | "timestamp" | "metric" | "code";
+    /**
+     * Opt-in: punctuation that follows the value in a sentence, such as a full
+     * stop. It keeps the sentence's own type and never wraps away from the
+     * value onto a line of its own.
+     */
+    trailing?: string;
   };
 
 export function DataText(
@@ -23,10 +29,11 @@ export function DataText(
     state = "default",
     truncate = false,
     variant = "identifier",
+    trailing,
     ...props
   }: DataTextProps,
 ) {
-  return (
+  const value = (
     <span
       className={[
         "ui-data-text",
@@ -43,5 +50,12 @@ export function DataText(
       data-ui-component="dataText"
       data-variant={variant}
     />
+  );
+  if (trailing === undefined || trailing === "") return value;
+  return (
+    <span className="ui-data-text-keep" data-trailing={trailing}>
+      {value}
+      {trailing}
+    </span>
   );
 }

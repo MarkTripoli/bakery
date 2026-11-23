@@ -2,7 +2,11 @@ import type { MouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
-import { installationRestoreQueryOptions } from "../api/query.ts";
+import {
+  installationRestoreQueryOptions,
+  installationUpdateStatusQueryOptions,
+} from "../api/query.ts";
+import { isForbiddenFailure } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import type { ShellViewport } from "../app/responsive.ts";
@@ -29,6 +33,11 @@ export function InstallationSettingsNavigation(
   // restore exists, and wears a mark only while it still holds Bakery.
   const restore = useQuery(installationRestoreQueryOptions(api, scope)).data ??
     null;
+  // Updates is for installation administrators only: for anyone else the read
+  // is refused and the item is not in the list.
+  const updates = useQuery(installationUpdateStatusQueryOptions(api, scope));
+  const updatesRefused = updates.isError &&
+    isForbiddenFailure(updates.error as never);
   return (
     <UI.SectionNavigation
       heading={viewport === "desktop"
@@ -57,6 +66,11 @@ export function InstallationSettingsNavigation(
                 : null}
             </UI.Inline>
           ),
+        }]),
+        ...(updatesRefused ? [] : [{
+          id: "installation-updates",
+          href: "/installation/updates",
+          label: translate("installation.updates.title"),
         }]),
         {
           id: "installation-monitoring",
