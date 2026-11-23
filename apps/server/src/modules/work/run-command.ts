@@ -78,7 +78,8 @@ import {
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
-  presetBriefInputs,
+  presetDeclaresGates,
+  presetRunInputs,
 } from "./workflow-presets.ts";
 
 type RunCreateInput = z.output<typeof contractSchemas.RunCreate>;
@@ -962,6 +963,13 @@ export async function createRunCommand(
   if (preset && input.inputs !== undefined) {
     throw unprocessable(["inputs"], "inputs_not_allowed_with_preset");
   }
+  // The plan sign-off switch is the one input a preset run's request carries,
+  // and only for a preset whose definition declares it.
+  if (
+    input.gates !== undefined && (!preset || !presetDeclaresGates(preset))
+  ) {
+    throw unprocessable(["gates"], "gates_not_accepted");
+  }
   const workflowVersionId = preset
     ? await ensurePresetWorkflowVersion(
       transaction,
@@ -990,7 +998,7 @@ export async function createRunCommand(
     input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,
   );
   const suppliedInputs = preset
-    ? presetBriefInputs(task, approvedPlan)
+    ? presetRunInputs(preset, task, approvedPlan, input.gates)
     : input.inputs === undefined
     ? null
     : input.inputs;

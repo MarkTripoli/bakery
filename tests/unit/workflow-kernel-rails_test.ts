@@ -257,10 +257,10 @@ const TICKET_ALLOWED: readonly Allowed[] = Object.freeze([
     issue: "#407",
   })),
   ...[
-    'import { WORKFLOW_PRESET_IDS } from "./workflow-presets.ts";',
-    "const policyPresetSchema = z.enum(WORKFLOW_PRESET_IDS).describe(",
+    'import { TICKET_PRESET_IDS } from "./workflow-presets.ts";',
+    "const policyPresetSchema = z.enum(TICKET_PRESET_IDS).describe(",
     '"Built-in workflow every admission of this source runs unless a person\'s Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",',
-    "id: z.enum(WORKFLOW_PRESET_IDS).describe(",
+    "id: z.enum(TICKET_PRESET_IDS).describe(",
   ].map((line) => ({
     file: "packages/contracts/src/ticket-admission.ts",
     line,

@@ -44,6 +44,30 @@ export function presetCopy(t: Translator, id: string) {
         description: t("tasks.preset.fixedCodingReviewed.description"),
         line: t("tasks.preset.fixedCodingReviewed.line"),
       };
+    case "deliver-oneshot":
+      return {
+        title: t("tasks.preset.deliverOneshot.title"),
+        description: t("tasks.preset.deliverOneshot.description"),
+        line: t("tasks.preset.deliverOneshot.line"),
+      };
+    case "deliver-lean":
+      return {
+        title: t("tasks.preset.deliverLean.title"),
+        description: t("tasks.preset.deliverLean.description"),
+        line: t("tasks.preset.deliverLean.line"),
+      };
+    case "deliver-full":
+      return {
+        title: t("tasks.preset.deliverFull.title"),
+        description: t("tasks.preset.deliverFull.description"),
+        line: t("tasks.preset.deliverFull.line"),
+      };
+    case "deliver-prd":
+      return {
+        title: t("tasks.preset.deliverPrd.title"),
+        description: t("tasks.preset.deliverPrd.description"),
+        line: t("tasks.preset.deliverPrd.line"),
+      };
     default:
       return { title: id, description: undefined, line: undefined };
   }

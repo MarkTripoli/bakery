@@ -75,10 +75,14 @@ async function availability(
     ),
     200,
   );
-  // fixed-coding stays first; the reviewed preset is appended after it.
+  // fixed-coding stays first; the reviewed preset and the Deliver templates follow.
   assertEquals(page.items.map((item) => item.id), [
     "fixed-coding",
     "fixed-coding-reviewed",
+    "deliver-oneshot",
+    "deliver-lean",
+    "deliver-full",
+    "deliver-prd",
   ]);
   assert(page.items[0].availability);
   return page.items[0].availability;
@@ -551,8 +555,15 @@ Deno.test("availability names every failing admission rule from its real cause",
     assertEquals(list.items.map((item) => item.id), [
       "fixed-coding",
       "fixed-coding-reviewed",
+      "deliver-oneshot",
+      "deliver-lean",
+      "deliver-full",
+      "deliver-prd",
     ]);
-    assertEquals(list.items.map((item) => item.availability), [null, null]);
+    assertEquals(
+      list.items.map((item) => item.availability),
+      list.items.map(() => null),
+    );
     assertEquals(list.items[0].digest, FIXED_CODING_PRESET.digest);
     assertEquals(list.items[1].digest, FIXED_CODING_REVIEWED_PRESET.digest);
     assertEquals(list.nextCursor, null);

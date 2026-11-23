@@ -368,15 +368,17 @@ export function registerPresetCases(): void {
 }
 
 function registerPresetShapeCases(): void {
-  Deno.test("the reviewed preset is appended after fixed-coding, which stays untouched", async () => {
-    assertEquals([...WORKFLOW_PRESET_IDS], [
+  Deno.test("the reviewed preset is appended after fixed-coding, which stays untouched, and the Deliver templates follow", async () => {
+    const ids = [
       "fixed-coding",
       "fixed-coding-reviewed",
-    ]);
-    assertEquals(WORKFLOW_PRESETS.map((preset) => preset.id), [
-      "fixed-coding",
-      "fixed-coding-reviewed",
-    ]);
+      "deliver-oneshot",
+      "deliver-lean",
+      "deliver-full",
+      "deliver-prd",
+    ];
+    assertEquals([...WORKFLOW_PRESET_IDS], ids);
+    assertEquals(WORKFLOW_PRESETS.map((preset) => preset.id), ids);
     assertEquals(workflowPresetById("fixed-coding-reviewed"), PRESET);
     assertEquals(workflowPresetById("fixed-coding"), FIXED_CODING_PRESET);
     // fixed-coding keeps its exact digest, revision, budget and steps.
@@ -489,6 +491,8 @@ function registerPresetShapeCases(): void {
       steps: [{ id: "brief", uses: "task.brief" }],
       defaultBudgetLimitUsd: "12.00",
       availability: null,
+      definition: {},
+      startableFromComposer: true,
     };
     for (const id of WORKFLOW_PRESET_IDS) {
       assert(contractSchemas.WorkflowPreset.safeParse({ ...base, id }).success);

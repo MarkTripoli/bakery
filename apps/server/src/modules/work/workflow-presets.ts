@@ -81,6 +81,9 @@ const uniformAgentReasons = (reason: AvailabilityReason): AgentReasons =>
 const AGENT_REASONS_BY_ACTION: Readonly<Record<string, AgentReasons>> = Object
   .freeze({
     "harness.implement": CODING_AGENT_REASONS,
+    // The writers and reviewers of a Deliver template's documents run on the
+    // generic agent step; they need an agent bound for it like the coding step.
+    "agent.freeform": CODING_AGENT_REASONS,
     "harness.repair": uniformAgentReasons("repair_agent_unavailable"),
     "review.independent": uniformAgentReasons("review_agent_unavailable"),
   });
@@ -525,6 +528,9 @@ export function presetOutput(
   availability: AvailabilityOutput | null,
 ): WorkflowPresetOutput {
   return {
+    // The frozen spec is plain JSON; the output type only lacks the proof.
+    definition: preset.spec as unknown as WorkflowPresetOutput["definition"],
+    startableFromComposer: presetStartableFromComposer(preset),
     id: preset.id,
     revision: preset.revision,
     digest: preset.digest,
@@ -539,6 +545,65 @@ export function presetOutput(
     defaultBudgetLimitUsd: preset.defaultBudgetLimitUsd,
     availability,
   };
+}
+
+/** The inputs a preset's definition declares, by name; a flat preset declares none. */
+function declaredInputs(
+  preset: WorkflowPresetDefinition,
+): Readonly<Record<string, Readonly<{ required: boolean }>>> {
+  return isPresetDocument(preset.spec) ? preset.spec.inputs : {};
+}
+
+/** The inputs the server builds from the task, plus the one the run request may carry. */
+const COMPOSER_INPUTS: readonly string[] = Object.freeze([
+  "repositoryId",
+  "brief",
+  "instructions",
+  "gates",
+]);
+
+/**
+ * Whether a run of the preset can start from the new-task composer: every input
+ * its definition requires is built from the task or carried by the run request.
+ */
+export function presetStartableFromComposer(
+  preset: WorkflowPresetDefinition,
+): boolean {
+  return Object.entries(declaredInputs(preset)).every(([name, input]) =>
+    !input.required || COMPOSER_INPUTS.includes(name)
+  );
+}
+
+/** Whether the preset's definition declares a `gates` input, the plan sign-off switch. */
+export function presetDeclaresGates(
+  preset: WorkflowPresetDefinition,
+): boolean {
+  return Object.hasOwn(declaredInputs(preset), "gates");
+}
+
+/**
+ * The run inputs of a preset run: the brief the server builds from the task,
+ * and for a preset that declares `gates` the sign-off switch the run request
+ * chose, which defaults to pausing for the plan's approval.
+ */
+export function presetRunInputs(
+  preset: WorkflowPresetDefinition,
+  task: Parameters<typeof presetBriefInputs>[0],
+  approvedPlan: ApprovedPlanForInstructions | null | undefined,
+  gates: "plan" | "none" | undefined,
+): ReturnType<typeof presetBriefInputs> & { gates?: "plan" | "none" } {
+  const inputs = presetBriefInputs(task, approvedPlan);
+  // A run takes only the inputs its definition declares: an input the plan does
+  // not name is refused at admission (`input_unknown`). The fixed coding presets
+  // declare all three; a Deliver template reads the brief and writes its own
+  // instructions.
+  const declared = declaredInputs(preset);
+  const carried = Object.fromEntries(
+    Object.entries(inputs).filter(([name]) => Object.hasOwn(declared, name)),
+  ) as typeof inputs;
+  return presetDeclaresGates(preset)
+    ? { ...carried, gates: gates ?? "plan" }
+    : carried;
 }
 
 /** Run inputs cap is 100000 bytes; the brief plan keeps this much headroom. */
