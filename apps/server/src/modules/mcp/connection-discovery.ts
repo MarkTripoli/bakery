@@ -183,13 +183,20 @@ export function createMcpDiscoverer(dependencies: McpDiscoveryDependencies) {
     }
     const server = (await transaction.query<{
       enabled: boolean;
+      transport: string;
       endpoint_template: string | null;
     }>(
-      `select enabled, endpoint_template from bakery.mcp_servers
+      `select enabled, transport, endpoint_template from bakery.mcp_servers
         where organization_id = $1 and id = $2`,
       [organizationId, connection.server_id],
     )).rows[0];
     if (!server) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    if (server.transport === "stdio") {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "mcp_stdio_discovered_by_worker" },
+      });
+    }
     if (!server.enabled || server.endpoint_template === null) {
       throw new StandardError({
         code: "STATE_CONFLICT",
@@ -219,61 +226,100 @@ export function createMcpDiscoverer(dependencies: McpDiscoveryDependencies) {
     }
 
     // Write under the connection's lock, so two discoveries cannot both pin.
-    const locked = await loadVisible(transaction, actor, id, { lock: true });
-    const latest = (await transaction.query<SnapshotRow>(
-      `select ${SNAPSHOT_COLUMNS} from bakery.mcp_capability_snapshots
-        where organization_id = $1 and connection_id = $2
-        order by observed_at desc, id desc limit 1`,
-      [organizationId, id],
-    )).rows[0];
-    const unchanged = latest !== undefined && latest.digest === found.digest;
-    let snapshot: SnapshotRow;
-    if (unchanged) {
-      snapshot = latest;
-    } else {
-      snapshot = (await transaction.query<SnapshotRow>(
-        `insert into bakery.mcp_capability_snapshots
-           (organization_id, connection_id, observed_at, protocol_version,
-            manifest, digest)
-         values ($1, $2, now(), $3, $4::jsonb, $5)
-         returning ${SNAPSHOT_COLUMNS}`,
-        [
-          organizationId,
-          id,
-          found.protocolVersion,
-          JSON.stringify(found.manifest),
-          found.digest,
-        ],
-      )).rows[0]!;
-    }
-    if (locked.current_snapshot_id !== snapshot.id) {
-      await transaction.query(
-        `update bakery.mcp_connections
-            set current_snapshot_id = $3, updated_at = now(), version = version + 1
-          where organization_id = $1 and id = $2`,
-        [organizationId, id, snapshot.id],
-      );
-    }
-    const changes = manifestChanges(latest?.manifest ?? null, found.manifest);
-    await appendAudit(transaction, {
+    await loadVisible(transaction, actor, id, { lock: true });
+    const snapshot = await pinDiscoveredSnapshot(transaction, {
       organizationId,
       principalId,
-      operation: "mcpConnections.discover",
-      resourceType: "mcp_connection",
-      resourceId: id,
+      connectionId: id,
+      found,
       requestId: context.requestId,
       traceId: context.traceId,
-      details: {
-        digest: found.digest,
-        previousDigest: latest?.digest ?? null,
-        unchanged,
-        toolCount: found.manifest.tools.length,
-        // Names only, bounded: what changed, never a schema or a description.
-        added: changes.added.slice(0, 50),
-        removed: changes.removed.slice(0, 50),
-        changed: changes.changed.slice(0, 50),
-      },
+      reportedBy: "server",
     });
     return toSnapshot(snapshot);
   };
+}
+
+export async function pinDiscoveredSnapshot(
+  transaction: PgTransactionClient,
+  input: Readonly<{
+    organizationId: string;
+    principalId: string;
+    connectionId: string;
+    found: Readonly<{
+      protocolVersion: string;
+      manifest: { tools: DiscoveredTool[] };
+      digest: string;
+    }>;
+    requestId: string;
+    traceId: string;
+    reportedBy: "server" | "worker";
+  }>,
+): Promise<SnapshotRow> {
+  const { organizationId, principalId, found } = input;
+  const id = input.connectionId;
+  const current =
+    (await transaction.query<{ current_snapshot_id: string | null }>(
+      `select current_snapshot_id from bakery.mcp_connections
+      where organization_id = $1 and id = $2 for update`,
+      [organizationId, id],
+    )).rows[0];
+  if (current === undefined) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  const latest = (await transaction.query<SnapshotRow>(
+    `select ${SNAPSHOT_COLUMNS} from bakery.mcp_capability_snapshots
+      where organization_id = $1 and connection_id = $2
+      order by observed_at desc, id desc limit 1`,
+    [organizationId, id],
+  )).rows[0];
+  const unchanged = latest !== undefined && latest.digest === found.digest;
+  let snapshot: SnapshotRow;
+  if (unchanged) {
+    snapshot = latest;
+  } else {
+    snapshot = (await transaction.query<SnapshotRow>(
+      `insert into bakery.mcp_capability_snapshots
+         (organization_id, connection_id, observed_at, protocol_version,
+          manifest, digest)
+       values ($1, $2, now(), $3, $4::jsonb, $5)
+       returning ${SNAPSHOT_COLUMNS}`,
+      [
+        organizationId,
+        id,
+        found.protocolVersion,
+        JSON.stringify(found.manifest),
+        found.digest,
+      ],
+    )).rows[0]!;
+  }
+  if (current.current_snapshot_id !== snapshot.id) {
+    await transaction.query(
+      `update bakery.mcp_connections
+          set current_snapshot_id = $3, updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2`,
+      [organizationId, id, snapshot.id],
+    );
+  }
+  const changes = manifestChanges(latest?.manifest ?? null, found.manifest);
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "mcpConnections.discover",
+    resourceType: "mcp_connection",
+    resourceId: id,
+    requestId: input.requestId,
+    traceId: input.traceId,
+    details: {
+      digest: found.digest,
+      previousDigest: latest?.digest ?? null,
+      unchanged,
+      reportedBy: input.reportedBy,
+      toolCount: found.manifest.tools.length,
+      added: changes.added.slice(0, 50),
+      removed: changes.removed.slice(0, 50),
+      changed: changes.changed.slice(0, 50),
+    },
+  });
+  return snapshot;
 }

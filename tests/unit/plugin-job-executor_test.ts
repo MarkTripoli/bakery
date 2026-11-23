@@ -11,20 +11,19 @@ import type {
 } from "../../apps/worker/src/plugin-job-runtime.ts";
 import type { JobAssignment } from "../../apps/worker/src/types.ts";
 
-/**
- * One plugin.job attempt (#29, B14.02), with the runtime and the server faked:
- * how every way a job can end becomes the attempt's outcome, that a job the
- * worker cannot contain never runs, and that its code never outlives it.
- */
-
 const INSTALL = crypto.randomUUID();
+const VERSION = crypto.randomUUID();
 const assignment = (over: Record<string, unknown> = {}) =>
   ({
     jobId: crypto.randomUUID(),
     attemptId: crypto.randomUUID(),
     fence: "1",
     action: "plugin.job",
-    input: { installId: INSTALL, entry: "jobs/nightly.js" },
+    input: {
+      installId: INSTALL,
+      entry: "jobs/nightly.js",
+      versionId: VERSION,
+    },
     ...over,
   }) as unknown as JobAssignment;
 
@@ -370,6 +369,7 @@ Deno.test("context the server attaches beside the input is ignored; a missing fi
         input: {
           installId: INSTALL,
           entry: "jobs/nightly.js",
+          versionId: VERSION,
           repositoryProfile: { id: crypto.randomUUID() },
           somethingElse: true,
         },

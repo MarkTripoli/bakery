@@ -18927,7 +18927,7 @@ export const clientManifest = {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
+              "description": "The worker host a stdio server runs on: required for a stdio server and must be a host of this organization that advertises every capability the server requires; a call to the connection is dispatched only there. Must be null for a streamable_http server."
             },
             {
               "type": "null",
@@ -19013,7 +19013,7 @@ export const clientManifest = {
         "enabledCapabilities"
       ],
       "additionalProperties": false,
-      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres.",
+      "description": "Registers a connection between the organization, or one member, and an MCP server definition: a remote one, or a local stdio one placed on a named worker host. The credential is sent once as a write-only secret and sealed in Postgres.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -19355,7 +19355,7 @@ export const clientManifest = {
           "description": "McpServerCreate.launchSpec may be null in this transport value.",
           "anyOf": [
             {
-              "description": "Allowlisted, pinned command and arguments used to launch a stdio server's subprocess; required for stdio transport and never built from unvalidated shell interpolation. McpServerCreate.launchSpec must contain at most 32000 UTF-8 bytes.",
+              "description": "Pinned launch of a stdio server's subprocess: an absolute command path, its arguments and the command file's SHA-256 (artifactDigest). Required for stdio and null for streamable_http; never run through a shell, and a command file with another digest is refused. McpServerCreate.launchSpec must contain at most 32000 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
