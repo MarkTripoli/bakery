@@ -1,5 +1,5 @@
 {
-  "revision": "27b637aa2830d34a839f87b6f0081f2ba8a7366b854246bea62eb1bce57aadfa",
+  "revision": "5c9e27ac4fda3acfa0afd814618431885725a056914eaa416cb1543158089bdb",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -6866,6 +6866,123 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.spinner",
+      "name": "Spinner",
+      "description": "A small turning ring beside a line that says what is being waited for; it stays still under reduced motion and is hidden from screen readers.",
+      "level": "atom",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Atoms/Spinner",
+      "usage": {
+        "whenToUse": "Mark a wait with no known end beside a line of text that says what is awaited.",
+        "whenNotToUse": "Do not use it alone, for a wait with a known length, or to reserve the layout of content that is loading (use Skeleton).",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The wait reserves layout for content to come",
+            "use": "ui.skeleton"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "atom",
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "accessibleName": "none",
+        "keyboard": []
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg-muted",
+        "--duration-transition",
+        "--space-3-5"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "loading"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented Spinner states across required contexts.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "loading"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.spinner.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.spinner.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.spinner.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {
+          "pointer:coarse": "Spinner renders no interactive target, so coarse-pointer hit-area behavior does not apply."
+        },
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #70 UX design revision 2 (comment 7087868212); no Paper frame names it."
     },
     {
       "id": "ui.emptyState",
