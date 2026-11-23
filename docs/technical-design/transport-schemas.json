@@ -7359,23 +7359,13 @@
     "SplitInput": {
       "fields": [
         {
-          "name": "lanes",
+          "name": "split",
           "type": "json",
           "required": true,
           "bounds": {
             "maxBytes": 262144
           },
-          "description": "The plan's lanes, as the coordination plan spec defines them: each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs (a published workflow and its inputs) so the engine starts it. Validated as a plan before anything is created."
-        },
-        {
-          "name": "maxConcurrency",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 16
-          },
-          "description": "Most lanes running at once; the engine starts a ready lane only while fewer than this many of the plan's lane children have a live run."
+          "description": "The split to run, a fact of the bakery.split kind: the lanes (each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs so the engine starts it), the most lanes running at once, and the join and failure policy. An agent's split decision and an author's lanes are this one structure. Validated as a plan before anything is created."
         },
         {
           "name": "budgetLimitUsd",

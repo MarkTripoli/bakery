@@ -62,6 +62,33 @@ export const CoordinationLaneRunSpecSchema = z.object({
   "What a lane runs: a published workflow and the inputs it starts with. A lane that names it is started by the engine once its prerequisites are done and the plan has room; a lane that does not leaves its child task for someone to start.",
 );
 
+const MAX_AUTHORED_STEPS_BYTES = 32_768;
+const MAX_AUTHORED_EXPORTS_BYTES = 8_192;
+const jsonBytes = (value: unknown) =>
+  new TextEncoder().encode(JSON.stringify(value)).length;
+
+export const CoordinationLaneAuthoredSchema = z.object({
+  id: z.string().min(1).max(64).describe(
+    "Identifier of the lane as the author wrote it in the workflow, before it was normalized into the lane key; raising the split back to a workflow gives the lane this identifier.",
+  ),
+  steps: z.array(z.unknown().describe("One authored workflow step node."))
+    .max(200).refine((value) => jsonBytes(value) <= MAX_AUTHORED_STEPS_BYTES, {
+      message: "authored lane steps must be at most 32 KiB",
+    }).describe(
+      "The lane's steps exactly as the compiled workflow holds them, in authored order, so lowering a parallel node loses nothing the instructions leave out.",
+    ),
+  exports: z.record(
+    z.string().min(1).max(64).describe("Export name as the author wrote it."),
+    z.unknown().describe("Exported value node, verbatim."),
+  ).refine((value) => jsonBytes(value) <= MAX_AUTHORED_EXPORTS_BYTES, {
+    message: "authored lane exports must be at most 8 KiB",
+  }).optional().describe(
+    "The lane's typed exports as the author wrote them, keyed by export name; absent when the workflow declares none for this lane.",
+  ),
+}).strict().describe(
+  "What an author wrote for a lane of a workflow's parallel node, kept verbatim next to the plan's own fields so a plan lowered from a workflow can be raised back to the same node. A lane an agent or a person composed directly carries none.",
+);
+
 export const CoordinationLaneSpecSchema = z.object({
   key: keySchema.describe("Unique key of this lane within the plan."),
   repositoryAlias: keySchema.describe(
@@ -72,6 +99,9 @@ export const CoordinationLaneSpecSchema = z.object({
   ),
   instructions: z.string().max(20000).describe(
     "Instructions for the agent working this lane, copied onto the child task description; they stay the child's brief when the lane also names what it runs.",
+  ),
+  authored: CoordinationLaneAuthoredSchema.optional().describe(
+    "The lane as a workflow author wrote it, when the plan was lowered from a parallel node; the plan's behaviour never reads it.",
   ),
   run: CoordinationLaneRunSpecSchema.optional().describe(
     "What the lane runs, when the engine should start it; absent keeps the child task a draft for someone to start.",
@@ -107,6 +137,17 @@ export const CoordinationPlanSpecSchema = z.object({
 );
 
 export type CoordinationPlanSpec = z.output<typeof CoordinationPlanSpecSchema>;
+
+/**
+ * The kind of the split fact (docs/technical-design/25-one-engine.md section 5,
+ * change 5): the plan spec IS its fact schema, so an agent's split decision, an
+ * author's parallel lanes lowered from a workflow, and the input of a
+ * `coordination.split` step are one structure with one validator. A platform
+ * kind: no customer defines or changes it.
+ */
+export const SPLIT_FACT_KIND = "bakery.split";
+export const SplitFactSchema = CoordinationPlanSpecSchema;
+export type SplitFact = CoordinationPlanSpec;
 
 const originReferenceSchema = z.string().trim().min(1).max(200).describe(
   "Provider-side reference of the ticket, such as an issue key or number, as the caller claims it; the server does not verify it.",

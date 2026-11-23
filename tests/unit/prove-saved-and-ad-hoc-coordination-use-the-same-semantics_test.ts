@@ -1,4 +1,5 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/compile.ts";
 import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 import {
@@ -6,6 +7,8 @@ import {
   CoordinationPlanOriginSchema,
   CoordinationPlanSpecSchema,
   projectLaneStatuses,
+  SPLIT_FACT_KIND,
+  SplitFactSchema,
   validateCoordinationStructure,
 } from "../../apps/server/src/modules/work/coordination-plan.ts";
 import {
@@ -18,7 +21,8 @@ import {
 } from "../../apps/server/src/modules/work/coordination-stale.ts";
 import {
   findParallelNode,
-  mapParallelNodeToPlanSpec,
+  lowerParallelNode,
+  raiseToParallelNode,
   WorkflowMappingError,
 } from "../../apps/server/src/modules/work/coordination-workflow.ts";
 import {
@@ -38,13 +42,131 @@ const node = async () => {
   return findParallelNode(result.document, "delivery");
 };
 
-Deno.test("the mapper turns a parallel node into the spec an ad hoc request would send", async () => {
-  const mapped = mapParallelNodeToPlanSpec(await node());
-  assertEquals(mapped, fourLaneSpec());
+/** The lanes without what only a workflow author writes, as an ad hoc request sends them. */
+const withoutAuthored = (spec: ReturnType<typeof lowerParallelNode>) => ({
+  ...spec,
+  lanes: spec.lanes.map(({ authored: _authored, ...lane }) => lane),
+});
+
+Deno.test("the lowering turns a parallel node into the spec an ad hoc request would send, plus what the author wrote", async () => {
+  const mapped = lowerParallelNode(await node());
+  assertEquals(withoutAuthored(mapped), fourLaneSpec());
+  assertEquals(mapped.lanes.map((lane) => lane.authored?.id), [
+    "contract",
+    "web",
+    "mobile",
+    "integration",
+  ]);
   assertEquals(
     validateCoordinationStructure(CoordinationPlanSpecSchema.parse(mapped)),
     [],
   );
+});
+
+Deno.test("raising a lowered node gives back the node the author wrote (#422)", async () => {
+  const original = await node();
+  const lowered = lowerParallelNode(original);
+  const raised = raiseToParallelNode(lowered, original.id);
+  const owned = (n: typeof original) => ({
+    kind: n.kind,
+    id: n.id,
+    maxConcurrency: n.maxConcurrency,
+    join: n.join,
+    failurePolicy: n.failurePolicy,
+    lanes: n.lanes.map((lane) => ({
+      id: lane.id,
+      needs: lane.needs,
+      repository: lane.repository,
+      steps: lane.steps,
+    })),
+    outputs: n.outputs,
+  });
+  assertEquals(owned(raised), owned(original));
+  // Lowering again is the same split: nothing was lost on the way back.
+  assertEquals(lowerParallelNode(raised), lowered);
+});
+
+Deno.test("an author's lanes, an ad hoc request and a split step input are one bakery.split fact (#422)", async () => {
+  assertEquals(SPLIT_FACT_KIND, "bakery.split");
+  assert(SplitFactSchema === CoordinationPlanSpecSchema);
+  const lowered = lowerParallelNode(await node());
+  assert(SplitFactSchema.safeParse(lowered).success);
+  assert(SplitFactSchema.safeParse(fourLaneSpec()).success);
+  // The step carries the fact whole: what goes in is what the plan is made from.
+  const input = contractSchemas.SplitInput.parse({ split: lowered });
+  assertEquals(SplitFactSchema.parse(input.split), lowered);
+  // A fact that is not a plan is not a split.
+  assert(!SplitFactSchema.safeParse({ lanes: [], maxConcurrency: 1 }).success);
+});
+
+Deno.test("an authored id and export name that normalization changes survive the round trip", () => {
+  const original = findParallelNode({
+    steps: [{
+      kind: "parallel",
+      id: "p",
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      lanes: [
+        { id: "Build_Api", needs: [], repository: "api", steps: [] },
+        {
+          id: "web_app",
+          needs: ["Build_Api"],
+          repository: "web",
+          steps: [{ kind: "action", id: "go", action: "workflow.noop" }],
+        },
+      ],
+      outputs: { Build_Api: { Out_Name: { kind: "literal", value: 1 } } },
+    }],
+  }, "p");
+  const lowered = lowerParallelNode(original);
+  assertEquals(lowered.lanes.map((lane) => lane.key), ["build-api", "web-app"]);
+  const raised = raiseToParallelNode(lowered, "p");
+  assertEquals(raised.lanes.map((lane) => lane.id), ["Build_Api", "web_app"]);
+  assertEquals(raised.lanes[1].needs, ["Build_Api"]);
+  assertEquals(raised.outputs, original.outputs);
+  assertEquals(raised.lanes[1].steps, original.lanes[1].steps);
+});
+
+Deno.test("a split composed without a workflow raises to a node with its keys for ids", () => {
+  const raised = raiseToParallelNode(
+    CoordinationPlanSpecSchema.parse(fourLaneSpec()),
+    "split",
+  );
+  assertEquals(raised.lanes.map((lane) => lane.id), [
+    "contract",
+    "web",
+    "mobile",
+    "integration",
+  ]);
+  assertEquals(raised.lanes[3].needs, ["mobile", "web"]);
+  assertEquals(raised.lanes[0].steps, []);
+  assertEquals(Object.keys(raised.outputs), ["contract", "web", "mobile"]);
+});
+
+Deno.test("a lane whose authored steps are over the bound is refused, never cut", () => {
+  const big = [{
+    kind: "action",
+    id: "x",
+    action: "workflow.noop",
+    pad: "a".repeat(33_000),
+  }];
+  const huge = findParallelNode({
+    steps: [{
+      kind: "parallel",
+      id: "p",
+      maxConcurrency: 1,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      lanes: [{ id: "a", needs: [], repository: "api", steps: big }],
+      outputs: {},
+    }],
+  }, "p");
+  const error = assertThrows(
+    () => lowerParallelNode(huge),
+    WorkflowMappingError,
+  );
+  assertEquals(error.code, "workflow_node_exceeds_coordination_limits");
 });
 
 Deno.test("the mapper normalizes ids and export names and refuses what it cannot map", () => {
@@ -77,7 +199,7 @@ Deno.test("the mapper normalizes ids and export names and refuses what it cannot
     throw new Error("expected a mapping error");
   };
 
-  const mapped = mapParallelNodeToPlanSpec(withLanes(
+  const mapped = lowerParallelNode(withLanes(
     [
       lane("Build_Api"),
       lane("web_app", { needs: ["Build_Api"], repository: "web" }),
@@ -97,19 +219,17 @@ Deno.test("the mapper normalizes ids and export names and refuses what it cannot
   );
 
   assertEquals(
-    code(() => mapParallelNodeToPlanSpec(withLanes([lane("1bad")]))),
+    code(() => lowerParallelNode(withLanes([lane("1bad")]))),
     "workflow_lane_key_unmappable",
   );
   assertEquals(
-    code(() =>
-      mapParallelNodeToPlanSpec(withLanes([lane("a_b"), lane("a-b")]))
-    ),
+    code(() => lowerParallelNode(withLanes([lane("a_b"), lane("a-b")]))),
     "workflow_lane_key_unmappable",
     "two ids that normalize to one key collide",
   );
   assertEquals(
     code(() =>
-      mapParallelNodeToPlanSpec(
+      lowerParallelNode(
         withLanes([lane("a", { repository: "my_repo" })]),
       )
     ),
@@ -118,7 +238,7 @@ Deno.test("the mapper normalizes ids and export names and refuses what it cannot
   );
   assertEquals(
     code(() =>
-      mapParallelNodeToPlanSpec(
+      lowerParallelNode(
         withLanes([lane("a", { repository: "my.repo" })]),
       )
     ),
@@ -128,9 +248,7 @@ Deno.test("the mapper normalizes ids and export names and refuses what it cannot
     Array.from({ length: 17 }, (_, i) => [`out${i}`, {}]),
   );
   assertEquals(
-    code(() =>
-      mapParallelNodeToPlanSpec(withLanes([lane("a")], { a: manyOutputs }))
-    ),
+    code(() => lowerParallelNode(withLanes([lane("a")], { a: manyOutputs }))),
     "workflow_node_exceeds_coordination_limits",
   );
   const fan = Object.fromEntries(
@@ -146,7 +264,7 @@ Deno.test("the mapper normalizes ids and export names and refuses what it cannot
     ),
   );
   assertEquals(
-    code(() => mapParallelNodeToPlanSpec(consumers)),
+    code(() => lowerParallelNode(consumers)),
     "workflow_node_exceeds_coordination_limits",
     "5 lanes x 8 outputs is 40 inputs, over the 32 limit",
   );
@@ -164,7 +282,7 @@ Deno.test("a node that is missing or not parallel is refused with a typed error"
 });
 
 Deno.test("the lane instructions render step ids and action names in authored order", () => {
-  const mapped = mapParallelNodeToPlanSpec(findParallelNode({
+  const mapped = lowerParallelNode(findParallelNode({
     steps: [{
       kind: "parallel",
       id: "p",

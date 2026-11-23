@@ -73364,8 +73364,8 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "lanes": {
-              "description": "The plan's lanes, as the coordination plan spec defines them: each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs (a published workflow and its inputs) so the engine starts it. Validated as a plan before anything is created. SplitInput.lanes must contain at most 262144 UTF-8 bytes.",
+            "split": {
+              "description": "The split to run, a fact of the bakery.split kind: the lanes (each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs so the engine starts it), the most lanes running at once, and the join and failure policy. An agent's split decision and an author's lanes are this one structure. Validated as a plan before anything is created. SplitInput.split must contain at most 262144 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -73404,12 +73404,6 @@
               ],
               "x-utf8-max-bytes": 262144
             },
-            "maxConcurrency": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 16,
-              "description": "Most lanes running at once; the engine starts a ready lane only while fewer than this many of the plan's lane children have a live run. SplitInput.maxConcurrency must be at least 1. SplitInput.maxConcurrency must be at most 16."
-            },
             "budgetLimitUsd": {
               "description": "Shared ceiling in USD across every child run of the plan; omit for no plan-scoped ceiling.",
               "type": "string",
@@ -73417,8 +73411,7 @@
             }
           },
           "required": [
-            "lanes",
-            "maxConcurrency"
+            "split"
           ],
           "additionalProperties": false,
           "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
@@ -289627,7 +289620,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:50bd4986e65d0f5743e6a4003c3d852476e80f7f49c2d2e299eccff238cdc6af",
+  "compatibilityDigest": "sha256:be8eadf296573db4011cead543cdb6fdce3a9b102848cf516703596f26b93f82",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -310959,8 +310952,8 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "lanes": {
-          "description": "The plan's lanes, as the coordination plan spec defines them: each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs (a published workflow and its inputs) so the engine starts it. Validated as a plan before anything is created. SplitInput.lanes must contain at most 262144 UTF-8 bytes.",
+        "split": {
+          "description": "The split to run, a fact of the bakery.split kind: the lanes (each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs so the engine starts it), the most lanes running at once, and the join and failure policy. An agent's split decision and an author's lanes are this one structure. Validated as a plan before anything is created. SplitInput.split must contain at most 262144 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -310999,12 +310992,6 @@
           ],
           "x-utf8-max-bytes": 262144
         },
-        "maxConcurrency": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 16,
-          "description": "Most lanes running at once; the engine starts a ready lane only while fewer than this many of the plan's lane children have a live run. SplitInput.maxConcurrency must be at least 1. SplitInput.maxConcurrency must be at most 16."
-        },
         "budgetLimitUsd": {
           "description": "Shared ceiling in USD across every child run of the plan; omit for no plan-scoped ceiling.",
           "type": "string",
@@ -311012,8 +310999,7 @@
         }
       },
       "required": [
-        "lanes",
-        "maxConcurrency"
+        "split"
       ],
       "additionalProperties": false,
       "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows.",

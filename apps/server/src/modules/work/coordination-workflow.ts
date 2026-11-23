@@ -6,9 +6,12 @@ import {
   MAX_COORDINATION_LANES,
 } from "./coordination-plan.ts";
 
-// Pure mapper from a published workflow version's `parallel` node to a
-// coordination plan spec. The saved-workflow entry hands the result to the same
-// create command ad hoc and ticket plans use; no second engine exists.
+// Pure lowering between a published workflow version's `parallel` node and a
+// split (a coordination plan spec), in both directions. The saved-workflow entry
+// hands the lowered spec to the same create command ad hoc and ticket plans use;
+// no second engine exists. The lowering keeps every lane's authored id, steps and
+// exports next to the plan's own fields, so raising a lowered node gives back the
+// node the author wrote (#422); the lane instructions are only the child's brief.
 
 export type WorkflowMappingCode =
   | "workflow_node_not_parallel"
@@ -145,12 +148,12 @@ const MAX_INPUTS_PER_LANE = 32;
 const MAX_INSTRUCTIONS = 20000;
 
 /**
- * Maps a parallel node to a plan spec. Lane ids and export names become
+ * Lowers a parallel node to a split. Lane ids and export names become
  * lowercase hyphenated keys (`_` to `-`); a key that still fails the
  * coordination pattern or collides is refused, never renamed further. A lane
  * over the coordination limits is refused, never truncated.
  */
-export function mapParallelNodeToPlanSpec(
+export function lowerParallelNode(
   node: ParallelNode,
 ): CoordinationPlanSpec {
   if (
@@ -221,6 +224,14 @@ export function mapParallelNodeToPlanSpec(
     }
     const lines: string[] = [`Workflow lane ${lane.id}, steps in order:`];
     renderSteps(lane.steps, lines, 0);
+    const authoredSteps = JSON.stringify(lane.steps).length;
+    const authoredExports = JSON.stringify(node.outputs[lane.id] ?? {}).length;
+    if (authoredSteps > 32_768 || authoredExports > 8_192) {
+      throw new WorkflowMappingError(
+        "workflow_node_exceeds_coordination_limits",
+        ["lanes", index, authoredSteps > 32_768 ? "steps" : "outputs"],
+      );
+    }
     const instructions = lines.join("\n");
     if (instructions.length > MAX_INSTRUCTIONS) {
       throw new WorkflowMappingError(
@@ -233,6 +244,13 @@ export function mapParallelNodeToPlanSpec(
       repositoryAlias: lane.repository,
       title: lane.id,
       instructions,
+      authored: {
+        id: lane.id,
+        steps: lane.steps,
+        ...(node.outputs[lane.id] === undefined
+          ? {}
+          : { exports: node.outputs[lane.id] }),
+      },
       prerequisites,
       outputs: (outputsByLane.get(lane.id) ?? []).map((key) => ({
         key,
@@ -247,5 +265,48 @@ export function mapParallelNodeToPlanSpec(
     maxConcurrency: node.maxConcurrency,
     join: node.join,
     failurePolicy: node.failurePolicy,
+  };
+}
+
+/**
+ * Raises a split to the parallel node it lowers from: the inverse of
+ * `lowerParallelNode` for everything the split owns (lanes, their order,
+ * prerequisites, repositories, steps, exports, concurrency, join and failure
+ * policy). A lane without an authored record, one an agent or a person composed
+ * directly, takes its key for its id, no steps, and an empty export for each
+ * declared output. Node-level wiring (`needs`, `if`) belongs to the parent run's
+ * graph, not to the split, so it is not here.
+ */
+export function raiseToParallelNode(
+  spec: CoordinationPlanSpec,
+  nodeId: string,
+): ParallelNode {
+  const idByKey = new Map(
+    spec.lanes.map((lane) => [lane.key, lane.authored?.id ?? lane.key]),
+  );
+  const outputs: Record<string, Record<string, unknown>> = {};
+  for (const lane of spec.lanes) {
+    const id = idByKey.get(lane.key) as string;
+    if (lane.authored !== undefined) {
+      if (lane.authored.exports !== undefined) {
+        outputs[id] = { ...lane.authored.exports };
+      }
+    } else if (lane.outputs.length > 0) {
+      outputs[id] = Object.fromEntries(lane.outputs.map((o) => [o.key, {}]));
+    }
+  }
+  return {
+    kind: "parallel",
+    id: nodeId,
+    maxConcurrency: spec.maxConcurrency,
+    join: spec.join,
+    failurePolicy: spec.failurePolicy,
+    lanes: spec.lanes.map((lane) => ({
+      id: idByKey.get(lane.key) as string,
+      needs: lane.prerequisites.map((key) => idByKey.get(key) as string),
+      repository: lane.repositoryAlias,
+      steps: lane.authored?.steps ?? [],
+    })),
+    outputs,
   };
 }
