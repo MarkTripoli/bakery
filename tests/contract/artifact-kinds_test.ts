@@ -166,7 +166,16 @@ Deno.test("a definition carries declarations only and refuses anything else", ()
 Deno.test("the platform rule types are the whole closed set", () => {
   assertEquals(
     [...PLATFORM_RULE_TYPES],
-    ["maxLength", "nonEmpty", "mediaType", "maxBytes", "linesAtMost"],
+    [
+      "maxLength",
+      "nonEmpty",
+      "mediaType",
+      "maxBytes",
+      "linesAtMost",
+      "probedMediaType",
+      "maxPixels",
+      "maxDurationSeconds",
+    ],
   );
   assertEquals(
     [...FACT_TYPES],
