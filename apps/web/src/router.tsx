@@ -98,6 +98,7 @@ import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
 import { InstallationRestorePage } from "./pages/InstallationRestorePage.tsx";
+import { InstallationUpdatesPage } from "./pages/InstallationUpdatesPage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
 import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
@@ -776,6 +777,14 @@ export const routeCoverage = [
       "error",
       "forbidden",
     ],
+  },
+  {
+    id: "installation-updates",
+    path: "/installation/updates",
+    classification: "production",
+    // `empty` is an installation with no update history yet; `forbidden` is
+    // the app's no-access page for anyone who is not an administrator.
+    states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
     id: "installation-audit",
@@ -1979,6 +1988,19 @@ const installationRestoreRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const installationUpdatesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/updates",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.updates.title">
+      <InstallationUpdatesPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const installationAuditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/audit",
@@ -2844,6 +2866,7 @@ const routeTree = rootRoute.addChildren([
   installationMonitoringDestinationRoute,
   installationUsageRoute,
   installationRestoreRoute,
+  installationUpdatesRoute,
   deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,

@@ -25,6 +25,11 @@ const BaseContract: StoryObj = {
         description="There is nothing left to review."
         variant="complete"
       />
+      <EmptyState
+        title="No updates yet"
+        description="This card spans the whole column instead of stopping at the content width."
+        span="column"
+      />
     </Stack>
   ),
 };
@@ -39,12 +44,14 @@ const CenteredStory: StoryObj = {
   ),
 };
 
-const FillStory: StoryObj = {
+const StartAlignedStory: StoryObj = {
   render: () => (
     <EmptyState
-      width="fill"
-      title="No models yet"
-      description="A model is added for a coding agent that is signed in on this machine."
+      layout="centered"
+      align="start"
+      titleStyle="heading"
+      title="This page was not found"
+      description="It may not exist, or you may not have access to it."
     />
   ),
 };
@@ -54,7 +61,7 @@ export const Contract: StoryObj = {
     <>
       {BaseContract.render?.(args, context)}
       {CenteredStory.render?.(args, context)}
-      {FillStory.render?.(args, context)}
+      {StartAlignedStory.render?.(args, context)}
     </>
   ),
 };

@@ -161,7 +161,7 @@ export function MachineModelNewPage(
     : !isAdmin
     ? (
       <UI.EmptyState
-        width="fill"
+        span="column"
         title={say("machines.models.new.forbidden")}
         description=""
         action={

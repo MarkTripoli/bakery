@@ -11,28 +11,31 @@ export type EmptyStateProps =
     icon?: ReactNode;
     /** `page` insets a block layout by the 32px page inset (p-18-0). */
     inset?: "none" | "page";
+    /** `start` lines a centered layout up with the start edge of its column. */
+    align?: "center" | "start";
+    /** `column` stretches a block card across its whole column; `content` stops it at the readable content width. */
+    span?: "content" | "column";
     /** `centered` fills its container with a quiet centered message. */
     layout?: "block" | "centered";
     /** `heading` makes the centered title a headline; `quiet` is the default. */
     titleStyle?: "quiet" | "heading";
     title: ReactNode;
     variant?: "firstUse" | "filtered" | "complete";
-    /** `fill` runs the card the whole width of its column; `content` keeps the readable content width. */
-    width?: "content" | "fill";
   };
 
 /** Explains why a bounded collection has no content. */
 export function EmptyState(
   {
     action,
+    align = "center",
     description,
     icon,
     inset = "none",
     layout = "block",
+    span = "content",
     title,
     titleStyle = "quiet",
     variant = "firstUse",
-    width = "content",
     ...props
   }: EmptyStateProps,
 ) {
@@ -42,10 +45,11 @@ export function EmptyState(
         "ui-empty-state",
         `ui-empty-state--${variant}`,
         layout === "centered" ? "ui-empty-state--centered" : "",
-        width === "fill" ? "ui-empty-state--fill" : "",
       ].filter(Boolean).join(" ")}
       {...props}
+      data-align={align === "start" ? "start" : undefined}
       data-inset={inset === "page" ? "page" : undefined}
+      data-span={span === "column" ? "column" : undefined}
       data-state="default"
       data-title-style={titleStyle}
       data-ui-component="emptyState"

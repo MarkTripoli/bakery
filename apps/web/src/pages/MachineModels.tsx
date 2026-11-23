@@ -244,7 +244,7 @@ export function MachineModels(
       {empty === "none"
         ? (
           <UI.EmptyState
-            width="fill"
+            span="column"
             title={say("machines.models.empty.title")}
             description={say("machines.models.empty.body")}
             action={
@@ -257,7 +257,7 @@ export function MachineModels(
         : empty === "signInFirst"
         ? (
           <UI.EmptyState
-            width="fill"
+            span="column"
             title={say("machines.models.signInFirst.title")}
             description={say("machines.models.signInFirst.body")}
             action={

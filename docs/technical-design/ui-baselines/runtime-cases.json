@@ -878,6 +878,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.reference.contract.desktop-light-fine",
+      "catalogId": "ui.reference",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-reference--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.usageMeter.contract.desktop-light-fine",
       "catalogId": "ui.usageMeter",
       "requiredCaseId": "contract",

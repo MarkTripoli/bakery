@@ -7,6 +7,11 @@ export type InlineNoticeProps =
   & SemanticNativeProps<HTMLAttributes<HTMLDivElement>>
   & {
     action?: ReactNode;
+    /**
+     * Opt-in: `below` lets the notice wrap on a phone so `action` takes its
+     * own full-width row under the text. Wider screens are unchanged.
+     */
+    actionLayout?: "end" | "below";
     children: ReactNode;
     /** Glyph that replaces the tone glyph, for example a clock for a wait. */
     icon?: IconGlyphName;
@@ -31,6 +36,7 @@ const TONE_GLYPH = {
 export function InlineNotice(
   {
     action,
+    actionLayout = "end",
     children,
     icon,
     inset = "none",
@@ -65,6 +71,7 @@ export function InlineNotice(
       ].filter(Boolean).join(" ")}
       role={tone === "error" ? "alert" : "status"}
       {...props}
+      data-action-layout={actionLayout === "below" ? "below" : undefined}
       data-inset={inset === "page" ? "page" : undefined}
       data-state={state}
       data-ui-component="inlineNotice"

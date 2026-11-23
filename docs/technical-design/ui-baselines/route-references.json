@@ -5285,6 +5285,13 @@
       "frames": []
     },
     {
+      "routeId": "installation-updates",
+      "path": "/installation/updates",
+      "status": "no-mock",
+      "rationale": "The Updates page (#59 slice 4) is designed by design-ux on #59 (revisions 3 and 4, mock at pr-evidence design-59/v3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "installation-restore",
       "path": "/installation/restore",
       "status": "no-mock",

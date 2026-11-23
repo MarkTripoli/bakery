@@ -25,6 +25,7 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useConnectivity } from "../app/connectivity.ts";
 import { formatDate } from "@bakery/i18n";
 import { RouterLink } from "../app/router-link.tsx";
+import { knownCommits, ReferenceText } from "../app/ReferenceText.tsx";
 import { TaskRunRevision } from "./TaskRunRevision.tsx";
 import { TaskRunOutput } from "./TaskRunOutput.tsx";
 import { TaskRunControls } from "./TaskRunControls.tsx";
@@ -637,10 +638,17 @@ export function TaskRunSection(
               // The commit the run started from: it used to show only inside
               // the Changes box, which is not drawn when nothing is recorded.
               <UI.Text>
-                {t("tasks.run.startedFrom", {
-                  sha: (run.data.workspaceBaseSha ?? run.data.baseSha)!
-                    .slice(0, 7),
-                })}
+                <ReferenceText
+                  known={knownCommits([
+                    run.data.workspaceBaseSha ?? run.data.baseSha,
+                  ])}
+                  text={t("tasks.run.startedFrom", {
+                    sha: UI.shortReference(
+                      "commit",
+                      (run.data.workspaceBaseSha ?? run.data.baseSha)!,
+                    ),
+                  })}
+                />
               </UI.Text>
             )}
             <RunRulesDetails
