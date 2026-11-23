@@ -22,9 +22,11 @@ import {
 } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
+import { SkillToast, useSkillActions } from "./library/SkillActions.tsx";
 import {
   copiedWords,
   fileSize,
@@ -632,6 +634,41 @@ function SkillBody({ skill }: { readonly skill: SkillResponse }) {
   );
 }
 
+/** The skill's name, who it belongs to, and what a person may do with it. */
+function SkillHeader({ skill }: { readonly skill: SkillResponse }) {
+  const { translate } = useI18n();
+  const words = (entry: Words) => translate(entry.key, entry.values);
+  const { actions, below } = useSkillActions(skill);
+  const phone = useShellViewport() === "phone";
+  return (
+    <>
+      {!phone ? <ShellSlot name="actions">{actions}</ShellSlot> : null}
+      <UI.PageHeader
+        variant="list"
+        flush
+        title={skill.name}
+        actions={phone ? actions : null}
+        subtitle={
+          <UI.Stack gap="compact">
+            {skill.description === null || skill.description === ""
+              ? null
+              : <UI.Text variant="muted">{skill.description}</UI.Text>}
+            <UI.Inline gap="compact">
+              <UI.Badge>{words(scopeWords(skill.scope))}</UI.Badge>
+              {skill.enabled ? null : (
+                <UI.Badge tone="warning">
+                  {translate("library.skills.badge.turnedOff")}
+                </UI.Badge>
+              )}
+            </UI.Inline>
+          </UI.Stack>
+        }
+      />
+      {below}
+    </>
+  );
+}
+
 /**
  * One skill (design-ux #74, revision 3, slice 1), read only: its files as the
  * version in use lists them, its versions, what uses it, who may use a private
@@ -645,7 +682,6 @@ export function SkillPage({ skillId }: { readonly skillId: string }) {
   useRestoreOrganizationScope();
   const read = useQuery(skillQueryOptions(api, scope, skillId));
   const skill = read.data;
-  const words = (entry: Words) => translate(entry.key, entry.values);
 
   const breadcrumbs = (
     <ShellSlot name="breadcrumbs">
@@ -741,26 +777,8 @@ export function SkillPage({ skillId }: { readonly skillId: string }) {
     <>
       {breadcrumbs}
       <UI.SettingsContent data-testid="skill-page" variant="wide">
-        <UI.PageHeader
-          variant="list"
-          flush
-          title={skill.name}
-          subtitle={
-            <UI.Stack gap="compact">
-              {skill.description === null || skill.description === ""
-                ? null
-                : <UI.Text variant="muted">{skill.description}</UI.Text>}
-              <UI.Inline gap="compact">
-                <UI.Badge>{words(scopeWords(skill.scope))}</UI.Badge>
-                {skill.enabled ? null : (
-                  <UI.Badge tone="warning">
-                    {translate("library.skills.badge.turnedOff")}
-                  </UI.Badge>
-                )}
-              </UI.Inline>
-            </UI.Stack>
-          }
-        />
+        <SkillToast />
+        <SkillHeader skill={skill} />
         <SkillBody key={skill.id} skill={skill} />
       </UI.SettingsContent>
     </>

@@ -566,3 +566,215 @@ for (
     });
   });
 }
+
+/** What a person may do with a skill (#74 slice 2, UX revisions 2 and 3): copy, rename, turn off and on. */
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: skill actions`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    const writes = (seen: readonly Seen[]) =>
+      seen.filter((entry) => entry.method !== "GET");
+    const menu = (page: Page) =>
+      page.getByRole("dialog", { name: /More actions for/ });
+    const menuItem = (page: Page, name: string) =>
+      menu(page).getByRole("button", { name });
+    const more = (page: Page) =>
+      page.getByTestId("skill-actions").getByRole("button");
+
+    test("a skill shared by Bakery can only be copied, and says why", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.writingGuide));
+      await expect(page.getByTestId("skill-shared-note")).toHaveText(
+        "Skills shared by Bakery cannot be changed. Make a copy to edit it.",
+      );
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: /More/ })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "skill-shared-actions");
+      expect(writes(seen)).toEqual([]);
+    });
+
+    test("a copy is for the reader alone unless they manage the Library, and opens the new skill", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByText("Who is the copy for?")).toBeVisible();
+      await expect(dialog.getByRole("radio", { name: "Organization" }))
+        .toBeDisabled();
+      await expect(
+        dialog.getByText(
+          "Only people who manage the Library can add organization skills.",
+        ),
+      ).toBeVisible();
+      await expect(dialog.getByRole("radio", { name: "Private" }))
+        .toBeChecked();
+      await expect(dialog.getByLabel("Name")).toHaveValue(/^Writing guide \(/);
+      await page.mouse.move(700, 700);
+      await still(page, "skill-copy-dialog");
+      await dialog.getByLabel("Name").fill("Writing guide for me");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(page).toHaveURL(
+        /\/library\/skills\/00000000-0000-4000-8000-000000000\d+$/,
+      );
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "Copied as Writing guide for me.",
+      );
+      await expect(
+        page.getByRole("heading", { name: "Writing guide for me" }),
+      ).toBeVisible();
+      const copied = writes(seen);
+      expect(copied).toHaveLength(1);
+      expect(copied[0].method).toBe("POST");
+      expect(copied[0].path).toBe(`/v1/skills/${IDS.writingGuide}/copy`);
+      expect(copied[0].body).toMatchObject({
+        name: "Writing guide for me",
+        scope: "personal",
+      });
+      await page.mouse.move(700, 700);
+      await still(page, "skill-copied");
+    });
+
+    test("an administrator's copy defaults to the organization", async ({ page }) => {
+      const { seen } = await skillsFixture(page, { role: "admin" });
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByRole("radio", { name: "Organization" }))
+        .toBeChecked();
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(page.getByTestId("skill-toast")).toBeVisible();
+      expect(writes(seen)[0].body?.scope).toBe("organization");
+    });
+
+    test("a copy with a name that is taken says so and keeps the dialog", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByLabel("Name").fill("Release notes");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(
+        dialog.getByText(
+          "A skill with this name already exists. Choose another name.",
+        ),
+      ).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`${IDS.writingGuide}$`));
+      await dialog.getByLabel("Name").fill("");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(dialog.getByText("Give it a name.")).toBeVisible();
+      expect(writes(seen)).toHaveLength(1);
+    });
+
+    test("a copy that fails says nothing changed and can be tried again", async ({ page }) => {
+      await skillsFixture(page, { copyStatus: 500 });
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "That did not work and nothing changed. Try again in a moment.",
+      );
+      await expect(dialog.getByRole("button", { name: "Make a copy" }))
+        .toBeEnabled();
+    });
+
+    test("the owner of a private skill renames it with its version, and a taken name is refused", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toHaveCount(0);
+      await more(page).click();
+      await menuItem(page, "Rename").click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByLabel("Name")).toHaveValue("House style");
+      await page.mouse.move(700, 700);
+      await still(page, "skill-rename-dialog");
+      await dialog.getByLabel("Name").fill("Release notes");
+      await dialog.getByRole("button", { name: "Rename" }).click();
+      await expect(
+        dialog.getByText(
+          "A skill with this name already exists. Choose another name.",
+        ),
+      ).toBeVisible();
+      await dialog.getByLabel("Name").fill("Company style");
+      await dialog.getByRole("button", { name: "Rename" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Company style" }))
+        .toBeVisible();
+      const patches = writes(seen).filter((entry) => entry.method === "PATCH");
+      expect(patches).toHaveLength(2);
+      expect(patches[1].path).toBe(`/v1/skills/${IDS.houseStyle}`);
+      expect(patches[1].body).toMatchObject({ name: "Company style" });
+      expect(patches[1].ifMatch).toContain("1");
+    });
+
+    test("turning a skill off asks first, then offers Turn on", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await more(page).click();
+      await menuItem(page, "Turn off").click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByText("Turn off House style?")).toBeVisible();
+      await expect(dialog.getByText(/keep working with the version they have/))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "skill-turn-off-dialog");
+      await dialog.getByRole("button", { name: "Turn off" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByText("Turned off", { exact: true })).toBeVisible();
+      expect(writes(seen).at(-1)?.body).toMatchObject({ enabled: false });
+      await more(page).click();
+      await expect(menuItem(page, "Turn off"))
+        .toHaveCount(0);
+      await menuItem(page, "Turn on").click();
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "House style is turned on.",
+      );
+      await expect(page.getByText("Turned off", { exact: true })).toHaveCount(
+        0,
+      );
+      expect(writes(seen).at(-1)?.body).toMatchObject({ enabled: true });
+    });
+
+    test("a change the server refuses says nothing changed", async ({ page }) => {
+      await skillsFixture(page, { updateStatus: 403 });
+      await page.goto(skillPage(IDS.houseStyle));
+      await more(page).click();
+      await menuItem(page, "Turn off").click();
+      const dialog = page.getByRole("alertdialog");
+      await dialog.getByRole("button", { name: "Turn off" }).click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "You cannot change House style.",
+      );
+      await expect(page.getByText("Turned off", { exact: true })).toHaveCount(
+        0,
+      );
+    });
+
+    test("an organization skill is changed by an administrator and copied by anyone else", async ({ page }) => {
+      await skillsFixture(page);
+      await page.goto(skillPage(IDS.releaseNotes));
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: /More/ })).toHaveCount(0);
+      await skillsFixture(page, { role: "admin" });
+      await page.reload();
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toHaveCount(0);
+      await more(page).click();
+      await expect(menu(page).getByRole("button")).toHaveText([
+        "Rename",
+        "Make a copy",
+        "Turn off",
+      ]);
+    });
+  });
+}

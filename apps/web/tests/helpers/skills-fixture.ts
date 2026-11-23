@@ -178,12 +178,22 @@ export type SkillsOptions = {
   readonly ownLicenses?: Readonly<Record<string, string>>;
   /** The licence the source of Writing guide declares; MIT unless this says otherwise. */
   readonly sourceLicense?: string | null;
+  /** What the reader may do in the organization; developer unless this says admin. */
+  readonly role?: "admin" | "developer";
+  /** Renaming or turning a skill on or off answers with this status instead of succeeding. */
+  readonly updateStatus?: number;
+  /** Making a copy answers with this status instead of succeeding. */
+  readonly copyStatus?: number;
 };
 
 export type Seen = {
   readonly method: string;
   readonly path: string;
   readonly search: string;
+  /** The If-Match header of a write. */
+  readonly ifMatch?: string | null;
+  /** The JSON body of a write. */
+  readonly body?: Record<string, unknown> | null;
 };
 
 export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
@@ -198,7 +208,7 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         contentType: "application/json",
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
-          role: "developer",
+          role: options.role ?? "developer",
           capabilities: [],
         }),
       }),
@@ -250,10 +260,15 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
   const record = (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
+    const method = request.method();
     seen.push({
-      method: request.method(),
+      method,
       path: url.pathname,
       search: url.search,
+      ...(method === "GET" ? {} : {
+        ifMatch: request.headers()["if-match"] ?? null,
+        body: request.postDataJSON() as Record<string, unknown> | null,
+      }),
     });
     return url;
   };
@@ -301,10 +316,69 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
     (url) => url.pathname.startsWith("/v1/skill"),
     (route) => {
       const url = record(route);
-      if (route.request().method() !== "GET") {
+      const method = route.request().method();
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (method !== "GET") {
+        const target = parts[1] === "skills" ? find(parts[2]) : undefined;
+        const body = route.request().postDataJSON() as
+          | { name?: string; enabled?: boolean; scope?: Skill["scope"] }
+          | null;
+        if (method === "PATCH" && parts.length === 3 && target) {
+          if (options.updateStatus !== undefined) {
+            return problem(
+              route,
+              options.updateStatus,
+              statusOf(options.updateStatus),
+            );
+          }
+          if (
+            body?.name !== undefined &&
+            all.some((other) =>
+              other.id !== target.id && other.name === body.name
+            )
+          ) {
+            return problem(route, 409, "STATE_CONFLICT");
+          }
+          Object.assign(target, {
+            ...(body?.name === undefined ? {} : { name: body.name }),
+            ...(body?.enabled === undefined ? {} : { enabled: body.enabled }),
+            version: target.version + 1,
+            updatedAt: NOW,
+          });
+          return json(route, target);
+        }
+        if (method === "POST" && parts[3] === "copy" && target) {
+          if (options.copyStatus !== undefined) {
+            return problem(
+              route,
+              options.copyStatus,
+              statusOf(options.copyStatus),
+            );
+          }
+          if (all.some((other) => other.name === body?.name)) {
+            return problem(route, 409, "STATE_CONFLICT");
+          }
+          const made = skill(
+            uuid(900 + all.length),
+            body?.name ?? "Copy",
+            body?.scope ?? "personal",
+            target.activeRevision,
+            0,
+            {
+              copiedFromSkillId: target.id,
+              copiedFromVersionId: target.activeVersionId,
+            },
+          );
+          all.push(made);
+          skills.push(made);
+          return route.fulfill({
+            status: 201,
+            contentType: "application/json",
+            body: JSON.stringify(made),
+          });
+        }
         return problem(route, 405, "MALFORMED_REQUEST");
       }
-      const parts = url.pathname.split("/").filter(Boolean);
       if (parts[1] === "skill-sources" && parts.length === 3) {
         return parts[2] === IDS.source
           ? json(route, {
