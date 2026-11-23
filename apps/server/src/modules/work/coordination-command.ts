@@ -452,6 +452,24 @@ export async function createCoordinationPlanFromWorkflowCommand(
   });
 }
 
+/**
+ * The plan a parent run's own step owns (`coordination.split`): created through
+ * the same boundary as every other origin, with the step as its origin so a step
+ * looked at again is the same request and replays its plan. Only the engine's
+ * step runner calls it; a caller cannot claim this origin on a request.
+ */
+export async function createStepPlanCommand(
+  context: ActionContext,
+  input: {
+    parentTaskId: string;
+    spec: unknown;
+    budgetLimitUsd: string | undefined;
+    origin: Extract<CoordinationPlanOrigin, { kind: "saved_workflow" }>;
+  },
+) {
+  return await createPlan(context, input);
+}
+
 async function createPlan(
   context: ActionContext,
   input: {

@@ -1880,6 +1880,27 @@ const actionSpecs: Record<
         "The approval record the decision was made on, referenced by the decisions ledger and the inbox.",
     },
   },
+  SplitOutput: {
+    fields: {
+      planId: "uuid",
+      status: "string",
+      lanes: "integer",
+      completedLanes: "integer",
+    },
+    bounds: {
+      status: { maxLength: 32 },
+      lanes: { min: 1, max: 32 },
+      completedLanes: { min: 0, max: 32 },
+    },
+    meanings: {
+      planId:
+        "The coordination plan the step created: one child work item per lane, joined by typed artifacts.",
+      status:
+        "The plan's terminal projection when the step completed: completed. A plan that ends any other way fails the step.",
+      lanes: "How many lanes the plan has.",
+      completedLanes: "How many of them completed.",
+    },
+  },
   WorkflowStopOutput: {
     fields: {
       outcome: "string",

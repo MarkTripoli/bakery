@@ -1203,6 +1203,7 @@ export type ContractInputName =
   | "SlackCommand"
   | "SlackEvent"
   | "SlackInteraction"
+  | "SplitInput"
   | "SteeringMessage"
   | "StorageEntryDestination"
   | "StorageFileContentQuery"
