@@ -91,6 +91,7 @@ import type {
   PluginVersionListResponse,
   PreviewAvailabilityResponse,
   PrincipalPage,
+  ProviderRouteListResponse,
   PullRequestListResponse,
   QuestionListResponse,
   RepositoryEffectiveRulesResponse,
@@ -103,6 +104,7 @@ import type {
   ReviewFindingListResponse,
   RoleBindingListResponse,
   RouteContinuationOffersResponse,
+  RouteHealthResponse,
   RunControlCapabilities,
   RunListResponse,
   RunPreviewResponse,
@@ -715,6 +717,62 @@ export function dispatchBlockersQueryOptions(
     enabled: Boolean(scope.organizationId && workerId),
     retry: retryNetworkOnce,
     refetchInterval: 15_000,
+  });
+}
+
+/** Every model the organization has, read a page at a time. A machine's own are picked from them by the page. */
+export function providerRoutesListQueryOptions(
+  client: Pick<BakeryApiClient, "providerRoutes">,
+  scope: ApiScope,
+) {
+  return queryOptions<ProviderRouteListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "providerRoutes.list", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const first = unwrap(
+        await client.providerRoutes.list({
+          organizationId: scope.organizationId,
+          limit: 100,
+          signal,
+        }),
+      );
+      return collectMachinePages(first, async (cursor) =>
+        unwrap(
+          await client.providerRoutes.list({
+            organizationId: scope.organizationId as string,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        ));
+    },
+    enabled: Boolean(scope.organizationId),
+  });
+}
+
+/** Why one model is in trouble, and since when. */
+export function providerRouteHealthQueryOptions(
+  client: Pick<BakeryApiClient, "providerRoutes">,
+  scope: ApiScope,
+  routeId: string,
+) {
+  return queryOptions<RouteHealthResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "providerRoutes.health", { routeId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.providerRoutes.health({
+          organizationId: scope.organizationId,
+          id: routeId,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
   });
 }
 

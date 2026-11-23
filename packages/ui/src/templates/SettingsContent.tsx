@@ -23,7 +23,13 @@ export type SettingsContentProps =
      * destination (Machines): the same gaps and 44px targets, no measure, so the
      * page takes the frame's full width.
      */
-    variant?: "default" | "personal" | "preferences" | "access" | "wide";
+    variant?:
+      | "default"
+      | "personal"
+      | "preferences"
+      | "access"
+      | "wide"
+      | "form";
   };
 
 /**

@@ -7995,7 +7995,7 @@
       "access": "Developer",
       "permission": "deployment:read",
       "organizationContext": "required_authenticated_context",
-      "input": "RepositoryQuery",
+      "input": "DeploymentQuery",
       "output": "Page<Deployment>",
       "event": "",
       "mcp": "bakery_deployments_list",
