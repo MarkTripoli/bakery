@@ -415,6 +415,8 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
                 id: uuid(701),
                 skillId: entry.id,
                 skillVersionId: versionId(entry.id, 2),
+                // Required since #912: the revision of the granted version.
+                revision: 2,
                 workflowId: uuid(702),
                 workflowName: "Weekly digest",
                 stepPath: "Draft the digest",

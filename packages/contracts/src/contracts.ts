@@ -1900,12 +1900,12 @@ const actionSpecs: Record<
 const actionOutputTypes = new Set(Object.keys(actionSpecs));
 /**
  * Action output names that are another contract under the action's own name:
- * doc 06 defines `IntegrationActionOutput = ActionResult (read or confirmed
- * write)`, so the action resolves to the one result shape the connection
- * routes already return instead of a second copy that could drift.
+ * doc 06 defines `ToolCallOutput = ActionResult (read or confirmed write)`, so
+ * the action resolves to the one result shape the connection routes already
+ * return instead of a second copy that could drift.
  */
 const actionOutputAliases: Readonly<Record<string, string>> = {
-  IntegrationActionOutput: "ActionResult",
+  ToolCallOutput: "ActionResult",
 };
 
 function actionOutput(name: string): Schema {
