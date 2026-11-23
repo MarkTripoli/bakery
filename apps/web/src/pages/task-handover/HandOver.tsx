@@ -87,6 +87,7 @@ export function HandOver(
 
   const closeCard = () => {
     setOpenStep(null);
+    setTries(0);
     setProblem(null);
     pending.current = null;
     const button = opener.current;
@@ -210,6 +211,7 @@ export function HandOver(
                     return;
                   }
                   opener.current = event.currentTarget;
+                  setTries(0);
                   setProblem(null);
                   setNotice(null);
                   pending.current = null;

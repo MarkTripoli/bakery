@@ -34,6 +34,8 @@ const taskId = uuid(12);
 const runId = uuid(20);
 const stepId = uuid(21);
 const manifestId = uuid(70);
+const secondStepId = uuid(23);
+const secondManifestId = uuid(74);
 const SHA = "a7254e7".padEnd(40, "c");
 const RUN_VERSION = 4;
 const DOC_OPEN = uuid(81);
@@ -186,6 +188,7 @@ type World = {
   continuedBy: string | null;
   reply?: (route: Route) => Promise<void>;
   reads: number;
+  secondStep?: boolean;
 };
 
 function world(over: Partial<World> = {}): World {
@@ -203,13 +206,36 @@ function world(over: Partial<World> = {}): World {
   };
 }
 
+function secondStep() {
+  return {
+    id: secondStepId,
+    runId,
+    stepKey: "review",
+    iteration: 1,
+    status: "running",
+    input: {},
+    output: null,
+    error: null,
+    startedAt: "2026-01-01T00:00:02.000Z",
+    finishedAt: null,
+    createdAt: "2026-01-01T00:00:02.000Z",
+    updatedAt: "2026-01-01T00:00:03.000Z",
+    version: 1,
+    handoffManifest: {
+      id: secondManifestId,
+      status: "pending",
+      savedAt: "2026-01-01T00:00:30.000Z",
+    },
+  };
+}
+
 async function open(page: Page, w: World) {
   await mockAuthenticatedSession(page);
   await page.route(`**/v1/tasks/${taskId}`, (r) => r.fulfill({ json: task }));
   await page.route(`**/v1/runs/${runId}`, (r) => r.fulfill({ json: run }));
   await page.route(`**/v1/runs/${runId}/steps*`, (r) =>
     r.fulfill({
-      json: page_([{
+      json: page_([...(w.secondStep ? [secondStep()] : []), {
         id: stepId,
         runId,
         stepKey: "implement",
@@ -765,6 +791,56 @@ test.describe("hand over a running step to a new session", () => {
     await expect(retry).not.toHaveAttribute("aria-busy", "true");
     await expect(page.getByTestId("handover-read-failed")).toBeVisible();
     await expect(retry).toBeFocused();
+  });
+
+  test("after Try again, another step's card shows loading, not the failed read", async ({ page }) => {
+    const w = world({ secondStep: true });
+    await open(page, w);
+    await page.route(
+      `**/v1/handoff-manifests/${manifestId}`,
+      (r) => problemReply(r, 500, "INTERNAL_ERROR"),
+    );
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(
+      `**/v1/handoff-manifests/${secondManifestId}`,
+      async (r) => {
+        await held;
+        return r.fulfill({
+          json: {
+            id: secondManifestId,
+            taskId,
+            runId,
+            runStepId: secondStepId,
+            sourceAttemptId: uuid(71),
+            sourceFence: "1",
+            mode: "exact_harness_resume",
+            digest: "e".repeat(64),
+            safeBoundary: true,
+            status: "pending",
+            manifest: w.manifest,
+            createdAt: "2026-01-01T00:00:30.000Z",
+            machineName: "build-box-01",
+            decisionMode: "exact_harness_resume",
+            freshReason: null,
+            continuedMode: null,
+            continuedFreshReason: null,
+            continuedByName: null,
+            continuedAt: null,
+          },
+        });
+      },
+    );
+    await page.locator('[data-step-key="implement"]').click();
+    await expect(page.getByTestId("handover-read-failed")).toBeVisible();
+    await page.getByTestId("handover-retry").click();
+    await expect(page.getByTestId("handover-read-failed")).toBeVisible();
+    await page.getByTestId("handover-keep").click();
+    await page.locator('[data-step-key="review"]').click();
+    await expect(page.getByText("Reading the saved point")).toBeVisible();
+    await expect(page.getByTestId("handover-read-failed")).toHaveCount(0);
+    release();
+    await expect(page.getByTestId("handover-way")).toBeVisible();
   });
 
   test("a dropped connection says so after the automatic retry", async ({ page }) => {
