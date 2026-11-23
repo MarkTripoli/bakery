@@ -7737,7 +7737,7 @@ export const clientManifest = {
       "action": "deployments.list",
       "access": "Developer",
       "permission": "deployment:read",
-      "input": "RepositoryQuery",
+      "input": "DeploymentQuery",
       "output": "Page<Deployment>",
       "event": "",
       "mcp": "bakery_deployments_list",
@@ -21380,19 +21380,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "repositoryId": {
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+          "description": "Restrict results to this repository's evaluation cases.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "environment": {
-          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
-          "type": "string",
-          "enum": [
-            "preview",
-            "staging",
-            "production"
-          ]
         },
         "cursor": {
           "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
@@ -21408,7 +21399,48 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+      "description": "Filters for listing evaluation cases scoped to a repository."
+    },
+    "DeploymentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to this repository's deployments.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to the deployments of this workflow run, so a run's release can be read without paging the repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "environment": {
+          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
+          "type": "string",
+          "enum": [
+            "preview",
+            "staging",
+            "production"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. DeploymentQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. DeploymentQuery.limit must be at least 1. DeploymentQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing deployments: by repository, run and environment, with cursor pagination."
     },
     "PullRequestQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -56531,6 +56563,20 @@ export const clientManifest = {
                 ],
                 "description": "Deployment.previousDeploymentId may be null in this transport value."
               },
+              "previousCommitSha": {
+                "description": "Deployment.previousCommitSha may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Commit SHA of the release this one replaced, the one a rollback restores; null when it replaced nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
               "status": {
                 "type": "string",
                 "enum": [
@@ -56575,6 +56621,10 @@ export const clientManifest = {
                   }
                 ],
                 "description": "Deployment.healthEvidenceId may be null in this transport value."
+              },
+              "rollbackFailed": {
+                "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+                "type": "boolean"
               },
               "createdAt": {
                 "type": "string",
@@ -76063,6 +76113,20 @@ export const clientManifest = {
           ],
           "description": "Deployment.previousDeploymentId may be null in this transport value."
         },
+        "previousCommitSha": {
+          "description": "Deployment.previousCommitSha may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Commit SHA of the release this one replaced, the one a rollback restores; null when it replaced nothing."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "status": {
           "type": "string",
           "enum": [
@@ -76107,6 +76171,10 @@ export const clientManifest = {
             }
           ],
           "description": "Deployment.healthEvidenceId may be null in this transport value."
+        },
+        "rollbackFailed": {
+          "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+          "type": "boolean"
         },
         "createdAt": {
           "type": "string",
