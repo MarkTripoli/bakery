@@ -35,6 +35,10 @@ const AUTH_RESOURCE_NAMES = new Set([
 /** Resource keys that contain a stem but are not access control. */
 const NOT_AUTH_RESOURCES = new Map([
   ["projectrole", "project roles configure agent workflow, not who may act"],
+  [
+    "capabilitybinding",
+    "capability bindings say which tools an agent session may call, not who may act; their audit rows are proved in tests/integration/tool-gateway-invokes-effective-tools_test.ts",
+  ],
 ]);
 
 type CatalogEntry = {

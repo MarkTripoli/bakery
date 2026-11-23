@@ -2,6 +2,8 @@ import { assert, assertEquals } from "@std/assert";
 import type { McpTransport } from "../../apps/server/src/modules/mcp/discovery-transport.ts";
 import {
   adminRequest,
+  closeWorkerScope,
+  createWorkerScope,
   problemCode,
   registeredWorker,
   type WorkerFixture,
@@ -96,6 +98,8 @@ type Session = {
   assignment: WorkerAssignment;
   credential: string;
   versionId: string;
+  workflowId: string;
+  runId: string;
   connectionId: string;
   snapshotId: string;
 };
@@ -153,6 +157,8 @@ async function session(
     assignment,
     credential: worker.credential,
     versionId: seed.workflowVersionId,
+    workflowId: seed.workflowId,
+    runId: seed.runId,
     connectionId,
     snapshotId,
   };
@@ -163,33 +169,113 @@ async function bind(
   s: Session,
   owner: { stepKey?: string; seatKey?: string },
   tools: string[],
-): Promise<void> {
-  await fixture.pgDatabase.query(
+  options: {
+    connectionId?: string;
+    snapshotId?: string;
+    actorRef?: string;
+  } = {},
+): Promise<string> {
+  const bound = await fixture.pgDatabase.query<{ id: string }>(
     `insert into bakery.capability_bindings (organization_id, workflow_version_id, step_key, seat_key, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, allowed_operations, required)
-     values ($1, $2, $3, $4, $5, $6, $7, null, $8::jsonb, false)`,
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, false)
+     returning id`,
     [
       fixture.organizationId,
       s.versionId,
       owner.stepKey ?? null,
       owner.seatKey ?? null,
-      s.connectionId,
-      s.snapshotId,
+      options.connectionId ?? s.connectionId,
+      options.snapshotId ?? s.snapshotId,
       DIGEST,
+      options.actorRef ?? null,
       JSON.stringify(tools),
     ],
+  );
+  return bound.rows[0]!.id;
+}
+
+/** Another snapshot of a connection, with the same digest unless given one. */
+async function snapshot(
+  fixture: WorkerFixture,
+  connectionId: string,
+  tools: unknown[],
+  options: { digest?: string; observedAt?: string } = {},
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.mcp_capability_snapshots (id, organization_id, connection_id, observed_at, protocol_version, manifest, digest)
+     values ($1, $2, $3, $6::timestamptz, '2026-07-28', $4::jsonb, $5)`,
+    [
+      id,
+      fixture.organizationId,
+      connectionId,
+      JSON.stringify({ tools }),
+      options.digest ?? DIGEST,
+      options.observedAt ?? new Date().toISOString(),
+    ],
+  );
+  return id;
+}
+
+/** A second enabled connection to the same server, with its own snapshot. */
+async function secondConnection(
+  fixture: WorkerFixture,
+  s: Session,
+  options: { ownerPrincipalId?: string } = {},
+): Promise<{ connectionId: string; snapshotId: string }> {
+  const db = fixture.pgDatabase;
+  const connectionId = crypto.randomUUID();
+  await db.query(
+    `insert into bakery.mcp_connections (id, organization_id, server_id, label, config, enabled_capabilities, status, version, owner_principal_id)
+     select $1, organization_id, server_id, 'Docs two', '{}'::jsonb, '["search","create_note"]'::jsonb, 'enabled', 1, $4
+       from bakery.mcp_connections where organization_id = $2 and id = $3`,
+    [
+      connectionId,
+      fixture.organizationId,
+      s.connectionId,
+      options.ownerPrincipalId ?? null,
+    ],
+  );
+  const snapshotId = await snapshot(fixture, connectionId, [
+    SEARCH,
+    CREATE_NOTE,
+  ]);
+  return { connectionId, snapshotId };
+}
+
+async function gatewayCalls(fixture: WorkerFixture, s: Session) {
+  return (await fixture.pgDatabase.query<{ tool_name: string }>(
+    `select tool_name from bakery.tool_gateway_calls
+      where organization_id = $1 and attempt_id = $2`,
+    [fixture.organizationId, s.assignment.attemptId],
+  )).rows;
+}
+
+type Proof = { leaseToken?: string; fence?: string };
+
+function listTools(fixture: WorkerFixture, s: Session, proof: Proof = {}) {
+  return workerRequest(
+    fixture,
+    s.credential,
+    `/v1/worker/attempts/${s.assignment.attemptId}/effective-tools`,
+    {
+      leaseToken: proof.leaseToken ?? s.assignment.leaseToken,
+      fence: proof.fence ?? s.assignment.fence,
+    },
   );
 }
 
 async function effectiveTools(fixture: WorkerFixture, s: Session) {
-  const response = await workerRequest(
-    fixture,
-    s.credential,
-    `/v1/worker/attempts/${s.assignment.attemptId}/effective-tools`,
-    { leaseToken: s.assignment.leaseToken, fence: s.assignment.fence },
-  );
-  assertEquals(response.status, 200);
+  const response = await listTools(fixture, s);
+  assertEquals(response.status, 200, await response.clone().text());
   return await response.json() as {
-    tools: { name: string; toolName: string; readOnly: boolean }[];
+    tools: {
+      name: string;
+      toolName: string;
+      readOnly: boolean;
+      connectionId: string;
+      description: string;
+    }[];
     unavailable: { toolName: string; connectionId: string; reason: string }[];
   };
 }
@@ -200,15 +286,16 @@ function invoke(
   toolName: string,
   args: Record<string, unknown>,
   idempotencyKey: string = crypto.randomUUID(),
+  options: Proof & { connectionId?: string } = {},
 ) {
   return workerRequest(
     fixture,
     s.credential,
     `/v1/worker/attempts/${s.assignment.attemptId}/tool-invocations`,
     {
-      mcpConnectionId: s.connectionId,
-      leaseToken: s.assignment.leaseToken,
-      fence: s.assignment.fence,
+      mcpConnectionId: options.connectionId ?? s.connectionId,
+      leaseToken: options.leaseToken ?? s.assignment.leaseToken,
+      fence: options.fence ?? s.assignment.fence,
       toolName,
       arguments: args,
     },
@@ -452,6 +539,14 @@ Deno.test("an Admin binds an agent version to exact tools, lists and withdraws i
       allowedOperations: string[];
     };
     assertEquals(binding.allowedOperations, ["search"]);
+    const audited = async (operation: string) =>
+      (await fixture.pgDatabase.query<{ resource_id: string }>(
+        `select resource_id from bakery.audit_events
+          where organization_id = $1 and operation = $2`,
+        [fixture.organizationId, operation],
+      )).rows.map((row) => row.resource_id);
+    // The refused wildcard left no row; the binding left exactly one.
+    assertEquals(await audited("capabilityBindings.create"), [binding.id]);
 
     const listed = await adminRequest(
       fixture,
@@ -477,6 +572,7 @@ Deno.test("an Admin binds an agent version to exact tools, lists and withdraws i
       { method: "GET" },
     );
     assertEquals((await after.json() as { items: unknown[] }).items, []);
+    assertEquals(await audited("capabilityBindings.delete"), [binding.id]);
 
     await bind(fixture, s, { stepKey: "worker" }, ["search"]);
     const pin = await fixture.pgDatabase.query<{ id: string }>(
@@ -491,4 +587,349 @@ Deno.test("an Admin binds an agent version to exact tools, lists and withdraws i
       { method: "DELETE" },
     );
     assertEquals(await problemCode(kept), "STATE_CONFLICT");
+    // A refused withdrawal is not audited.
+    assertEquals(await audited("capabilityBindings.delete"), [binding.id]);
+  }));
+
+/**
+ * Each way a lease proof can be wrong, on both gateway routes. For the stale
+ * worker session the attempt was claimed under an older generation than the
+ * host's current one: the host check passes and only the attempt's own
+ * session check refuses it.
+ */
+const BAD_PROOFS: readonly (readonly [
+  string,
+  (fixture: WorkerFixture, s: Session) => Promise<Proof>,
+])[] = [
+  [
+    "a wrong lease token",
+    () => Promise.resolve({ leaseToken: "not-the-lease" }),
+  ],
+  [
+    "a wrong fence",
+    (_fixture, s) =>
+      Promise.resolve({ fence: String(BigInt(s.assignment.fence) + 1n) }),
+  ],
+  [
+    "a stale worker session generation",
+    async (fixture, s) => {
+      await fixture.pgDatabase.query(
+        `update bakery.job_attempts
+            set worker_session_generation = worker_session_generation - 1
+          where id = $1`,
+        [s.assignment.attemptId],
+      );
+      return {};
+    },
+  ],
+];
+
+for (const [name, spoil] of BAD_PROOFS) {
+  Deno.test(`${name} is refused on effective-tools and tool-invocations, and nothing is sent (#436)`, () =>
+    withGateway(async (fixture, server) => {
+      const s = await session(fixture);
+      await bind(fixture, s, { stepKey: "worker" }, ["search"]);
+      // The same session reaches its tool with the right proof first.
+      assertEquals((await effectiveTools(fixture, s)).tools.length, 1);
+      const proof = await spoil(fixture, s);
+      const listed = await listTools(fixture, s, proof);
+      assert(
+        listed.status >= 400 && listed.status < 500,
+        `listing served with ${name}: ${listed.status} ${await listed.text()}`,
+      );
+      const called = await invoke(
+        fixture,
+        s,
+        "search",
+        { query: "bakery" },
+        crypto.randomUUID(),
+        proof,
+      );
+      assert(
+        called.status >= 400 && called.status < 500,
+        `call served with ${name}: ${called.status} ${await called.text()}`,
+      );
+      assertEquals(server.calls.length, 0);
+      assertEquals(await gatewayCalls(fixture, s), []);
+    }));
+}
+
+Deno.test("a personal connection serves its owner, or a workflow it granted, and no one else (#436, O27)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    // A real second person, a member of this organization, owns the other
+    // connection.
+    const db = fixture.pgDatabase;
+    const providerUserId = crypto.randomUUID();
+    await db.query(
+      `insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+       values ($1, 'Issue 436 owner', $2, true, now(), now())`,
+      [providerUserId, `issue436-owner-${providerUserId}@example.test`],
+    );
+    const other = { principalId: crypto.randomUUID() };
+    await db.query(
+      `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+       values ($1, $2, 'Issue 436 owner', 'human')`,
+      [other.principalId, providerUserId],
+    );
+    await db.query(
+      `insert into bakery.organization_memberships (id, organization_id, principal_id, role, status, joined_at, created_at, updated_at, version)
+       values ($1, $2, $3, 'developer', 'active', now(), now(), now(), 1)`,
+      [crypto.randomUUID(), fixture.organizationId, other.principalId],
+    );
+    try {
+      const mine = await secondConnection(fixture, s, {
+        ownerPrincipalId: fixture.principalId,
+      });
+      const theirs = await secondConnection(fixture, s, {
+        ownerPrincipalId: other.principalId,
+      });
+      await bind(fixture, s, { stepKey: "worker" }, ["search"], mine);
+      await bind(fixture, s, { stepKey: "worker" }, ["create_note"], theirs);
+
+      // The run's starter owns "mine": usable. "theirs" is someone else's.
+      let listed = await effectiveTools(fixture, s);
+      assertEquals(
+        listed.tools.map((tool) => [tool.name, tool.connectionId]),
+        [["search", mine.connectionId]],
+      );
+      assertEquals(listed.unavailable, [{
+        toolName: "create_note",
+        connectionId: theirs.connectionId,
+        reason: "personal_not_usable",
+      }]);
+      const refused = await invoke(
+        fixture,
+        s,
+        "create_note",
+        { text: "x" },
+        crypto.randomUUID(),
+        { connectionId: theirs.connectionId },
+      );
+      assertEquals(await problemCode(refused), "AUTH_FORBIDDEN");
+      assertEquals(server.calls.length, 0);
+
+      // The owner grants this workflow the connection: now usable.
+      const grant = await fixture.pgDatabase.query<{ id: string }>(
+        `insert into bakery.mcp_use_grants (organization_id, connection_id, workflow_id, granted_by)
+         values ($1, $2, $3, $4) returning id`,
+        [
+          fixture.organizationId,
+          theirs.connectionId,
+          s.workflowId,
+          other.principalId,
+        ],
+      );
+      listed = await effectiveTools(fixture, s);
+      assertEquals(
+        listed.tools.map((tool) => tool.name).sort(),
+        ["create_note", "search"],
+      );
+      assertEquals(listed.unavailable, []);
+      const granted = await invoke(
+        fixture,
+        s,
+        "create_note",
+        { text: "x" },
+        crypto.randomUUID(),
+        { connectionId: theirs.connectionId },
+      );
+      assertEquals(granted.status, 200, await granted.clone().text());
+      assertEquals(server.calls.length, 1);
+
+      // A revoked grant is no grant.
+      await fixture.pgDatabase.query(
+        `update bakery.mcp_use_grants set revoked_at = now(), revoked_by = $2
+          where id = $1`,
+        [grant.rows[0]!.id, other.principalId],
+      );
+      listed = await effectiveTools(fixture, s);
+      assertEquals(listed.unavailable.map((tool) => tool.reason), [
+        "personal_not_usable",
+      ]);
+    } finally {
+      await fixture.pgDatabase.query(
+        `delete from bakery.mcp_use_grants where organization_id = $1`,
+        [fixture.organizationId],
+      );
+      await fixture.pgDatabase.query(
+        `delete from bakery.mcp_connections where organization_id = $1 and owner_principal_id = $2`,
+        [fixture.organizationId, other.principalId],
+      );
+      await db.query(
+        `delete from bakery.organization_memberships where principal_id = $1`,
+        [other.principalId],
+      );
+      await db.query(`delete from bakery.principals where id = $1`, [
+        other.principalId,
+      ]);
+      await db.query(`delete from public."user" where id = $1`, [
+        providerUserId,
+      ]);
+    }
+  }));
+
+Deno.test("a reviewer session gets the bound read and not the bound write (#436)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture, { role: "reviewer" });
+    await bind(fixture, s, { seatKey: "reviewer" }, ["search", "create_note"]);
+    const listed = await effectiveTools(fixture, s);
+    assertEquals(listed.tools.map((tool) => tool.name), ["search"]);
+    assertEquals(listed.unavailable, [{
+      toolName: "create_note",
+      connectionId: s.connectionId,
+      reason: "reviewer_read_only",
+    }]);
+    const refused = await invoke(fixture, s, "create_note", { text: "x" });
+    assertEquals(await problemCode(refused), "AUTH_FORBIDDEN");
+    assertEquals(server.calls.length, 0);
+  }));
+
+Deno.test("an offline run, or a disabled connection, lists nothing callable and calls nothing (#436)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    await bind(fixture, s, { stepKey: "worker" }, ["search"]);
+    assertEquals((await effectiveTools(fixture, s)).tools.length, 1);
+
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs set environment = 'offline'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, s.runId],
+    );
+    let listed = await effectiveTools(fixture, s);
+    assertEquals(listed.tools, []);
+    assertEquals(listed.unavailable.map((tool) => tool.reason), ["offline"]);
+    let refused = await invoke(fixture, s, "search", { query: "bakery" });
+    assertEquals(await problemCode(refused), "AUTH_FORBIDDEN");
+
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs set environment = 'live'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, s.runId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.mcp_connections set status = 'disabled'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, s.connectionId],
+    );
+    listed = await effectiveTools(fixture, s);
+    assertEquals(listed.tools, []);
+    assertEquals(listed.unavailable.map((tool) => tool.reason), [
+      "connection_off",
+    ]);
+    refused = await invoke(fixture, s, "search", { query: "bakery" });
+    assertEquals(await problemCode(refused), "AUTH_FORBIDDEN");
+    assertEquals(server.calls.length, 0);
+  }));
+
+Deno.test("a call naming a connection the tool is not bound on is refused, even with the same snapshot (#436)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    await bind(fixture, s, { stepKey: "worker" }, ["search"]);
+    // Enabled, same server, same snapshot digest, tool enabled; never bound.
+    const unbound = await secondConnection(fixture, s);
+    const refused = await invoke(
+      fixture,
+      s,
+      "search",
+      { query: "bakery" },
+      crypto.randomUUID(),
+      { connectionId: unbound.connectionId },
+    );
+    assertEquals(await problemCode(refused), "AUTH_FORBIDDEN");
+    assertEquals(server.calls.length, 0);
+    assertEquals(await gatewayCalls(fixture, s), []);
+  }));
+
+Deno.test("a revoked binding and a binding for one actor grant this session nothing (#436)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    const revoked = await bind(fixture, s, { stepKey: "worker" }, ["search"]);
+    await fixture.pgDatabase.query(
+      `insert into bakery.capability_binding_revocations (organization_id, binding_id, revoked_by)
+       values ($1, $2, $3)`,
+      [fixture.organizationId, revoked, fixture.principalId],
+    );
+    await bind(fixture, s, { stepKey: "worker" }, ["create_note"], {
+      actorRef: `principal:${fixture.principalId}`,
+    });
+    const listed = await effectiveTools(fixture, s);
+    assertEquals(listed.tools, []);
+    assertEquals(listed.unavailable, []);
+    for (
+      const [tool, args] of [["search", { query: "b" }], ["create_note", {
+        text: "x",
+      }]] as const
+    ) {
+      const refused = await invoke(fixture, s, tool, args);
+      assertEquals(await problemCode(refused), "AUTH_FORBIDDEN", tool);
+    }
+    assertEquals(server.calls.length, 0);
+  }));
+
+Deno.test("the most specific binding wins whichever was made first (#436)", () =>
+  withGateway(async (fixture) => {
+    const s = await session(fixture, { role: "designer" });
+    // A later observation with the same digest: the step pins it, the seat
+    // pins the first. What the session sees tells which binding won.
+    const later = await snapshot(fixture, s.connectionId, [
+      { ...SEARCH, description: "search docs, step pin" },
+      { ...CREATE_NOTE, description: "create a note, step pin" },
+    ], { observedAt: new Date(Date.now() + 1000).toISOString() });
+    await bind(fixture, s, { seatKey: "designer" }, ["search"]);
+    await bind(fixture, s, { stepKey: "worker" }, ["search", "create_note"], {
+      snapshotId: later,
+    });
+    await bind(fixture, s, { seatKey: "designer" }, ["create_note"]);
+    const listed = await effectiveTools(fixture, s);
+    assertEquals(
+      listed.tools.map((tool) => [tool.name, tool.description]),
+      [
+        ["create_note", "create a note, step pin"],
+        ["search", "search docs, step pin"],
+      ],
+    );
+  }));
+
+Deno.test("an Admin of another organization cannot settle this organization's call (#436)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    await bind(fixture, s, { stepKey: "worker" }, ["create_note"]);
+    server.answerWith(() => null);
+    const first = await invoke(fixture, s, "create_note", { text: "x" });
+    assertEquals(await problemCode(first), "STATE_CONFLICT");
+    const sent = await fixture.pgDatabase.query<{ id: string }>(
+      `select id from bakery.tool_gateway_calls
+        where organization_id = $1 and attempt_id = $2 and status = 'sent'`,
+      [fixture.organizationId, s.assignment.attemptId],
+    );
+    const callId = sent.rows[0]!.id;
+    // A real second organization; its Admin acts there.
+    const other = await createWorkerScope(fixture, "issue436-settle", {
+      email: fixture.email,
+      principalId: fixture.principalId,
+      adminCookie: fixture.adminCookie,
+    });
+    try {
+      const foreign = await adminRequest(
+        fixture,
+        `/v1/tool-gateway-calls/${callId}/settlement`,
+        { status: "completed" },
+        { idempotencyKey: crypto.randomUUID(), scope: other },
+      );
+      assertEquals(await problemCode(foreign), "RESOURCE_NOT_FOUND");
+    } finally {
+      await closeWorkerScope(fixture, other);
+    }
+    const still = await fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.tool_gateway_calls where id = $1`,
+      [callId],
+    );
+    assertEquals(still.rows.map((row) => row.status), ["sent"]);
+    const audit = await fixture.pgDatabase.query(
+      `select 1 from bakery.audit_events
+        where operation = 'toolGatewayCalls.settle' and resource_id = $1`,
+      [callId],
+    );
+    assertEquals(audit.rows.length, 0);
   }));
