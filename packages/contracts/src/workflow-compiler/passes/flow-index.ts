@@ -48,6 +48,8 @@ export type FlowNode = {
   candidate: ValueType | undefined;
   /** Item type of a forEach's list (what `$each.<as>` reads); undefined when unknown. */
   eachItem: ValueType | undefined;
+  /** Type of the value a forEach collects from each iteration; undefined when it collects nothing or is unknown. */
+  collected: ValueType | undefined;
   /** Branch output name to type; a missing entry or undefined means unknown. */
   branchExports: Map<string, ValueType | undefined>;
   /** Lane identifier to export name to type. */
@@ -123,6 +125,7 @@ export function buildFlowIndex(
         guardsBusy: false,
         candidate: undefined,
         eachItem: undefined,
+        collected: undefined,
         branchExports: new Map(),
         laneExports: new Map(),
       };

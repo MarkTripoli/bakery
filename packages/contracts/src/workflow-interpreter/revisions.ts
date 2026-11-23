@@ -4,6 +4,7 @@ import { WorkflowInterpreterError } from "./errors.ts";
 import {
   type NextStep,
   nextStep,
+  nextStepWithFanOut,
   nextStepWithGroups,
   nextStepWithLoopBounds,
   nextStepWithLoops,
@@ -24,7 +25,8 @@ export type InterpreterRevision = (
  * new entry. Revision 1's behavior is held in place by a conformance test;
  * revision 2 is revision 1 plus parallel groups; revision 3 is revision 2 plus
  * bounded sequential forEach loops; revision 4 is revision 3 plus a repeat's
- * `min` and `allow`.
+ * `min` and `allow`; revision 5 is revision 4 plus a forEach's
+ * `maxConcurrency` and `collect`.
  */
 export const INTERPRETER_REVISIONS: Readonly<
   Record<string, InterpreterRevision>
@@ -33,14 +35,16 @@ export const INTERPRETER_REVISIONS: Readonly<
   "2": nextStepWithGroups,
   "3": nextStepWithLoops,
   "4": nextStepWithLoopBounds,
+  "5": nextStepWithFanOut,
 });
 
 /**
- * The revision a run admitted now is pinned to: revision 4 (loop bounds), which
- * gives revision 3's answers for a plan whose repeats name no `min` or `allow`.
- * Runs already pinned to an earlier revision resume on it.
+ * The revision a run admitted now is pinned to: revision 5 (forEach fan-out and
+ * collect), which gives revision 4's answers for a plan whose loops name no
+ * `maxConcurrency` or `collect`. Runs already pinned to an earlier revision
+ * resume on it.
  */
-export const CURRENT_INTERPRETER_REVISION = "4";
+export const CURRENT_INTERPRETER_REVISION = "5";
 
 /**
  * What a run freezes at admission so a later deploy cannot change how it runs:

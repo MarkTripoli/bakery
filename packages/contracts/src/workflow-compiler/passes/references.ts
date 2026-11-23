@@ -387,6 +387,17 @@ function resolveStep(
       }
       case "forEach": {
         if (segment === undefined) return fieldUnknown;
+        if (
+          segment === "results" && flow.node.kind === "forEach" &&
+          flow.node.collect !== undefined
+        ) {
+          const failure = flowCheck(reader, flow, undefined);
+          if (failure) return { ok: false, code: failure };
+          return finishWalk(
+            { kind: "list", item: flow.collected ?? { kind: "json" } },
+            path.slice(position + 1),
+          );
+        }
         if (segment === "iterations" || segment === "outcome") {
           const failure = flowCheck(reader, flow, undefined);
           if (failure) return { ok: false, code: failure };

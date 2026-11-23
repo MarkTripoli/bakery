@@ -61,6 +61,27 @@ w.action("report", "workflow.noop", { ran: cases.iterations() });
 
 A failed iteration stops the loop; `cases.outcome()` says how it ended.
 
+Two options arrive with interpreter revision 5. `maxConcurrency` lets that many
+iterations run at once (the worst case in time shrinks; steps, attempts and cost
+still count every iteration). Iterations that run together may not write a
+shared area, so the compiler refuses a body with a git or shell step, or an
+agent step whose `files` section writes beyond `outputs`. A body that returns
+`{ collect }` has that value read from each completed iteration, after its last
+step, and gathered in item order as `cases.results()`:
+
+```ts
+const cases = w.forEach(
+  "cases",
+  prepare.output("cases"),
+  { max: 6, as: "case", maxConcurrency: 3 },
+  (steps, item) => {
+    const check = steps.action("check", checkCase, { id: item.field("id") });
+    return { collect: { id: item.field("id"), ok: check.output("ok") } };
+  },
+);
+w.action("report", "workflow.noop", { all: cases.results() });
+```
+
 ## What is checked, and where
 
 - **At compile time** (for an action declared with `defineAction`): a binding

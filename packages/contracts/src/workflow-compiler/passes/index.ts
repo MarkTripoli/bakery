@@ -13,6 +13,12 @@ import type { NodeLocations } from "./shape.ts";
 
 const IDENTIFIER = /^[a-z][a-z0-9_]{1,63}$/;
 const REPEAT_RESERVED: ReadonlySet<string> = new Set(["iterations", "outcome"]);
+/** A loop that collects also answers `results`, so no step of it may take that name. */
+const COLLECTING_RESERVED: ReadonlySet<string> = new Set([
+  "iterations",
+  "outcome",
+  "results",
+]);
 
 type Walk = {
   readonly collector: DiagnosticCollector;
@@ -109,7 +115,12 @@ function walkNode(walk: Walk, node: WorkflowNode, depth: number): void {
       return;
     }
     case "forEach":
-      walkNodes(walk, node.steps, depth + 1, REPEAT_RESERVED);
+      walkNodes(
+        walk,
+        node.steps,
+        depth + 1,
+        node.collect === undefined ? REPEAT_RESERVED : COLLECTING_RESERVED,
+      );
       return;
     case "parallel": {
       const laneIds = checkScope(walk, node.lanes, undefined);

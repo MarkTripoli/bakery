@@ -160,6 +160,8 @@ type Scope = Readonly<
 type ForEachResult = {
   iterations: number;
   outcome: "completed" | "canceled" | "failed" | "timed_out";
+  /** What `collect` read from each completed iteration, in item order (revision 5). */
+  results: JsonValue[];
 };
 
 type RepeatResult = {
@@ -226,6 +228,11 @@ class Run {
     private readonly loops: boolean = false,
     /** Revision 4: a repeat's `min` and `allow` are honored. Earlier ones ignore them. */
     private readonly loopBounds: boolean = false,
+    /**
+     * Revision 5: a forEach's `maxConcurrency` and `collect` are honored.
+     * Earlier ones run every loop one iteration at a time and collect nothing.
+     */
+    private readonly fanOut: boolean = false,
   ) {}
 
   next(): NextStep {
@@ -375,7 +382,10 @@ class Run {
             throw new WorkflowInterpreterError("for_each_unsupported");
           }
           const name = rest[0];
-          if (name === "iterations" || name === "outcome") {
+          if (
+            name === "iterations" || name === "outcome" ||
+            (name === "results" && this.fanOut && node.collect !== undefined)
+          ) {
             const result = this.forEachResults.get(keyOf(segments, node.id));
             if (!result) {
               throw new WorkflowInterpreterError("reference_unresolved");
@@ -804,24 +814,135 @@ class Run {
     if (list.length > node.max) {
       return { t: "halt", outcome: "failed", key };
     }
+    const bodyOf = (at: number): Scope => ({
+      segments: [...scope.segments, { id: node.id, iteration: at + 1 }],
+      frames: scope.frames,
+      each: [...scope.each, { node, iteration: at + 1, item: list[at]! }],
+    });
+    // Revision 5 reads what the loop collects and may run iterations together.
+    const concurrency = this.fanOut ? node.maxConcurrency ?? 1 : 1;
+    const collecting = this.fanOut && node.collect !== undefined;
+    const readCollected = (at: number): JsonValue =>
+      evaluateValue(node.collect!, this.reader(bodyOf(at)));
+    if (concurrency > 1) {
+      return this.walkForEachTogether(
+        node,
+        key,
+        list.length,
+        concurrency,
+        bodyOf,
+        collecting ? readCollected : undefined,
+      );
+    }
     let iterations = 0;
     let outcome: ForEachResult["outcome"] = "completed";
+    const results: JsonValue[] = [];
     for (let at = 0; at < list.length; at += 1) {
       const number = at + 1;
-      const body: Scope = {
-        segments: [...scope.segments, { id: node.id, iteration: number }],
-        frames: scope.frames,
-        each: [...scope.each, { node, iteration: number, item: list[at]! }],
-      };
-      const walk = this.walkList(node.steps, body);
-      if (walk.t === "pending" || walk.t === "pending_many") return walk;
+      const walk = this.walkList(node.steps, bodyOf(at));
+      if (
+        walk.t === "pending" || walk.t === "pending_many" ||
+        walk.t === "pause"
+      ) return walk;
       if (walk.t === "halt") {
         outcome = walk.outcome;
         break;
       }
       iterations = number;
+      if (collecting) results.push(readCollected(at));
     }
-    this.forEachResults.set(key, { iterations, outcome });
+    this.forEachResults.set(key, { iterations, outcome, results });
+    return { t: "done" };
+  }
+
+  /**
+   * A forEach whose iterations run together (revision 5, `maxConcurrency`).
+   * Every iteration is independent: it reads its own item and its own steps, and
+   * the compiler refuses a body that writes a shared area. At most
+   * `concurrency` iterations are in flight; an iteration that has started keeps
+   * its place however the others finish, and free places go to the first
+   * iterations, in item order, that have not started. An iteration that fails,
+   * is canceled or times out starts nothing new, lets the ones already
+   * running finish, and then becomes the loop's outcome (the first such
+   * iteration in item order), as it does in a sequential loop. `iterations`
+   * counts the iterations that completed and `results` holds what `collect`
+   * read from each of them, in item order.
+   */
+  private walkForEachTogether(
+    node: WorkflowForEachNode,
+    key: string,
+    length: number,
+    concurrency: number,
+    bodyOf: (at: number) => Scope,
+    readCollected: ((at: number) => JsonValue) | undefined,
+  ): Walk {
+    const started = (at: number): boolean => {
+      const prefix = `${key}@${at + 1}.`;
+      for (const recorded of this.state.steps.keys()) {
+        if (recorded.startsWith(prefix)) return true;
+      }
+      for (const flying of this.state.inFlight ?? []) {
+        if (flying.startsWith(prefix)) return true;
+      }
+      return false;
+    };
+    const done = new Set<number>();
+    const halts = new Map<number, Extract<Walk, { t: "halt" }>>();
+    const running = new Map<
+      number,
+      readonly (ActionDispatch | WaitDispatch)[]
+    >();
+    const paused: Extract<Walk, { t: "pause" }>[] = [];
+    const look = (at: number): void => {
+      const walk = this.walkList(node.steps, bodyOf(at));
+      switch (walk.t) {
+        case "done":
+          done.add(at);
+          return;
+        case "halt":
+          halts.set(at, walk);
+          return;
+        case "pause":
+          paused.push(walk);
+          return;
+        case "pending":
+          running.set(at, [walk.step]);
+          return;
+        case "pending_many":
+          running.set(at, walk.steps);
+          return;
+      }
+    };
+    // First the iterations that already started, then, while there is room and
+    // nothing has failed, the next ones in item order.
+    for (let at = 0; at < length; at += 1) if (started(at)) look(at);
+    const inFlight = running.size + paused.length;
+    let room = Math.max(0, concurrency - inFlight);
+    for (let at = 0; at < length && halts.size === 0 && room > 0; at += 1) {
+      if (started(at) || done.has(at)) continue;
+      const before = running.size;
+      look(at);
+      if (running.size > before) room -= 1;
+    }
+    if (running.size > 0) {
+      const steps = [...running.entries()]
+        .sort(([left], [right]) => left - right)
+        .flatMap(([, pending]) => pending);
+      return { t: "pending_many", steps };
+    }
+    if (halts.size === 0 && paused.length > 0) return paused[0]!;
+    const failed = [...halts.keys()].sort((left, right) => left - right)[0];
+    if (failed === undefined && done.size < length) {
+      // Nothing runs, nothing failed and some iteration is still unreached:
+      // only a document the compiler would have refused gets here.
+      throw new WorkflowInterpreterError("document_invalid");
+    }
+    const finished = [...done].sort((left, right) => left - right);
+    this.forEachResults.set(key, {
+      iterations: finished.length,
+      outcome: failed === undefined ? "completed" : halts.get(failed)!.outcome,
+      results: readCollected === undefined ? [] : finished.map(readCollected),
+    });
     return { t: "done" };
   }
 }
@@ -897,5 +1018,21 @@ export function nextStepWithLoopBounds(
 ): NextStep {
   return cloneJson(
     new Run(document, state, true, true, true).next(),
+  ) as NextStep;
+}
+
+/**
+ * Interpreter revision 5: revision 4 plus a forEach's `maxConcurrency` (that
+ * many iterations in flight at once, answered as `dispatch_many`) and
+ * `collect` (the loop's `results`: one value read from each completed
+ * iteration, in item order). A plan whose loops name neither gets revision 4's
+ * answers, and earlier revisions ignore both fields, so no pinned run changes.
+ */
+export function nextStepWithFanOut(
+  document: WorkflowSemanticDocument,
+  state: RunState,
+): NextStep {
+  return cloneJson(
+    new Run(document, state, true, true, true, true).next(),
   ) as NextStep;
 }

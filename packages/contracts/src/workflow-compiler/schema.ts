@@ -410,6 +410,10 @@ export type WorkflowForEachNode = {
   items: WorkflowValueNode;
   max: number;
   as: string;
+  /** Iterations that may run at once (interpreter revision 5); absent runs them one at a time. */
+  maxConcurrency?: number | undefined;
+  /** Value read from each completed iteration, gathered as `results` (interpreter revision 5). */
+  collect?: WorkflowValueNode | undefined;
   steps: WorkflowNode[];
 };
 export type WorkflowNode =
@@ -630,9 +634,15 @@ const forEachNodeSchema = z.object({
   as: z.string().regex(/^[a-z][A-Za-z0-9]{0,63}$/).describe(
     "Name the body reads the current item by, as $each.<as>; distinct from every enclosing forEach's name.",
   ),
+  maxConcurrency: z.number().int().min(1).max(12).optional().describe(
+    "Most iterations that run at once; absent or 1 runs them one at a time. At most max. Iterations that run together may not write a shared area (git, shell or any file area beyond outputs), so each reads only its own item and step results.",
+  ),
+  collect: z.lazy(() => WorkflowValueNodeSchema).optional().describe(
+    "Value read from each completed iteration, after its last step, in the iteration's own scope. The loop's `results` lists these in item order, one per completed iteration, so it is at most max long.",
+  ),
   steps: stepsSchema(),
 }).strict().describe(
-  "Bounded sequential forEach: runs its steps once per list item, in order, one iteration at a time.",
+  "Bounded forEach: runs its steps once per list item, in order, one at a time unless maxConcurrency lets iterations run together; may collect one value per completed iteration.",
 );
 
 /** Normalized workflow node of any kind. */

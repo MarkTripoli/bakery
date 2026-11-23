@@ -4,7 +4,7 @@ import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { compiled, type Step } from "../helpers/workflow-interpreter.ts";
 
-// #417. A plan run admitted now is pinned to interpreter revision 3, and the
+// #417. A plan run admitted now is pinned to the current interpreter revision (5), and the
 // engine runs a forEach with no code of its own: each iteration's steps are
 // appended as rows keyed `<loop>@n.<step>`, one at a time, their input read
 // from the item; a list longer than the loop's max fails the run before any
@@ -61,7 +61,7 @@ async function seedRun(fixture: WorkerFixture, max: number) {
 const CASE_A = "rev-case-a";
 const CASE_B = "rev-case-b";
 
-Deno.test("a new plan run is pinned to revision 4 and runs each item of a forEach as its own keyed step", () =>
+Deno.test("a new plan run is pinned to revision 5 and runs each item of a forEach as its own keyed step", () =>
   withWorkerFixture(async (fixture) => {
     const { seeded, repo } = await seedRun(fixture, 4);
     const pin = (await fixture.pgDatabase.query<{ revision: string }>(
@@ -69,7 +69,7 @@ Deno.test("a new plan run is pinned to revision 4 and runs each item of a forEac
          from bakery.workflow_runs where id = $1`,
       [seeded.job.runId],
     )).rows[0].revision;
-    assertEquals(pin, "4");
+    assertEquals(pin, "5");
     assertEquals(seeded.firstKey, "prepare");
 
     const next = async () =>
@@ -126,4 +126,70 @@ Deno.test("a list longer than the loop's max fails the run before any iteration 
       ["prepare"],
     );
     assertEquals((await state(fixture, seeded)).run.status, "failed");
+  }));
+
+// #439: with maxConcurrency, iterations are in flight together and the engine
+// answers with the set; collect gathers one value per completed iteration.
+
+const together = (max: number, maxConcurrency: number) =>
+  compiled([
+    check("prepare"),
+    {
+      id: "cases",
+      forEach: {
+        items: "$step.prepare.checkRunIds",
+        max,
+        as: "case",
+        maxConcurrency,
+        collect: { rev: "$each.case" },
+        steps: [
+          // A session step that keeps to its own outputs: the compiler refuses a
+          // body that works in the checkout when iterations run together.
+          {
+            id: "run_case",
+            uses: "rpi.plan",
+            with: { item: "$each.case" },
+            files: { write: ["outputs"] },
+          },
+        ],
+      },
+    },
+    check("after", {
+      needs: ["cases"],
+      with: { repositoryId: "$input.repo", revision: "abc" },
+    }),
+  ], inputs);
+
+Deno.test("iterations that run together are answered as a set, and a finished one makes room for the next", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(fixture, await together(4, 2), {
+      inputs: { repo: "00000000-0000-4000-8000-0000000000a1" },
+    });
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs
+          set snapshot = jsonb_set(snapshot, '{inputs,repo}', to_jsonb(repository_id::text))
+        where id = $1`,
+      [seeded.job.runId],
+    );
+    const set = async () =>
+      (await seeded.repository.findNextSet(seeded.job.runId, seeded.owner))
+        .map((key) => key.stepKey);
+    await setRow(fixture, seeded, "prepare", "completed", {
+      checkRunIds: ["a", "b", "c", "d"],
+    });
+    // Two at a time, in item order; asked again, the same two and no new rows.
+    assertEquals(await set(), ["cases@1.run_case", "cases@2.run_case"]);
+    assertEquals(await set(), ["cases@1.run_case", "cases@2.run_case"]);
+    assertEquals(
+      (await rows(fixture, seeded)).map((row) => row.stepKey),
+      ["prepare", "cases@1.run_case", "cases@2.run_case"],
+    );
+    // The second finishes first: the third takes its place beside the first.
+    await setRow(fixture, seeded, "cases@2.run_case", "completed", {});
+    assertEquals(await set(), ["cases@1.run_case", "cases@3.run_case"]);
+    await setRow(fixture, seeded, "cases@1.run_case", "completed", {});
+    await setRow(fixture, seeded, "cases@3.run_case", "completed", {});
+    assertEquals(await set(), ["cases@4.run_case"]);
+    await setRow(fixture, seeded, "cases@4.run_case", "completed", {});
+    assertEquals(await set(), ["after"]);
   }));

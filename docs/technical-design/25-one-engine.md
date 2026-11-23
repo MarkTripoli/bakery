@@ -106,7 +106,8 @@ coordination lane gate. After convergence there is one.
   on the flat loop, then that code is deleted. No live run is migrated.
 - The **plan interpreter becomes the engine**. Its revisions stay append-only
   and pinned per run: revision 3 adds delivery facts and `forEach`, revision 4
-  adds loop bounds, and a later revision adds `route`.
+  adds loop bounds, revision 5 adds `forEach` fan-out and `collect`, and a
+  later revision adds `route`.
 - The **coordination lane gate becomes the split primitive** (section 5).
 
 The decision is recorded in
@@ -213,6 +214,19 @@ diagram and child items in the run view; the term "coordination plan" goes away.
 
 `forEach` and split stay distinct. `forEach` iterates inside one run. Split
 creates child work items.
+
+A `forEach` runs one item at a time unless it names `maxConcurrency` (interpreter
+revision 5): then that many iterations are in flight at once, started in item
+order, and an iteration that fails starts nothing new while the running ones
+finish. The worst case counts every iteration for steps, attempts and cost, and
+counts `ceil(max / maxConcurrency)` bodies in time. Iterations that run
+together may not write a shared area: the compiler refuses a body with a git or
+shell step, or an agent step whose `files` section writes beyond `outputs` (a
+step with no `files` section writes every default area, so it must narrow it).
+A `forEach` that names `collect` reads that value from each completed iteration,
+after its last step and in the iteration's scope, and exposes them in item order
+as `$step.<loop>.results`, at most `max` long; a step of the loop may not be
+named `results`.
 
 `call` has one contract with two bindings (O10): it is defined by the child-run
 contract (declared inputs and outputs, own limits counted in the parent's worst
@@ -473,15 +487,15 @@ paths.
     to O21, as replaced in section 9).
 11. **Kinds and facts.** The kind definition API for organizations, rule types,
     facts and validation at publication (O6).
-12. **`forEach`, `call` and loop bounds.** Interpreter revisions 3 (`forEach`)
-    and 4 (loop bounds); `call` inlined with workflow outputs; `repeat.min`
-    (O10).
+12. **`forEach`, `call` and loop bounds.** Interpreter revisions 3 (`forEach`),
+    4 (loop bounds) and 5 (`forEach` fan-out and `collect`); `call` inlined with
+    workflow outputs; `repeat.min` (O10).
 13. **Unlisted definitions and proposals.** `origin` and visibility on
     definitions; run a frozen conversation draft; the `definitionProposal`
     coordinator effect; coordinator skills; save as workflow.
 14. **Split: lanes run definitions.** The five changes in section 5, capacity
     keys and the dispatcher (O2).
-15. **Teams.** `route` (revision 4), seats, the handoff kind, guards and
+15. **Teams.** `route` (a later revision), seats, the handoff kind, guards and
     counters, person and workflow seats, stuck signals, seat memory (O4, O5).
 16. **Boards.** Status starts, overlap per work item, event provenance, the
     board view (O9). After V2.
@@ -607,6 +621,19 @@ mapping from port verbs to tools.
 | Local or remote    | Remote servers are called by the server-side broker; local (`stdio`) servers are launched by the worker from a pinned command, as a placement requirement. Third-party local servers run under the T1 sandbox or an operator allowlist                                                                                                                                                                                                                                                                                |
 | Trust              | Results never carry authority, are schema-validated and size-bounded. Tools only first (O31): resources later as read tools; sampling, elicitation and roots stay off                                                                                                                                                                                                                                                                                                                                                 |
 
+A `tool.call` step names its per-call cost ceiling as `limits.maxCostUsd` (the
+same limit a model step has, so the workflow's worst case already counts it for
+every attempt). The engine holds the ceiling on the run's account and on the
+installation's before it sends, keyed by the step's one effect key, and refuses
+the step with `TOOL_CALL_BUDGET_EXCEEDED` when either cannot cover it, with
+nothing sent. A tool reports no cost, so a call that may have run is settled at
+its ceiling and never for less; a call refused before it was sent, or a write
+the server did not take, releases the hold. A step the engine gives up on while
+its outcome is unknown (it waited past its limit, or the run was canceled) is
+charged the ceiling too. A step with no ceiling holds nothing, and a step with a
+ceiling on a server with no budget configured is refused rather than sent
+unguarded.
+
 ### 15.5 Skills, integrations and MCP tools in a workflow
 
 | Building block           | Attaches to                                                                                                          | Pinned by                                      |
@@ -643,7 +670,7 @@ by name, recorded and keyed where it writes, and the person can watch and steer.
 | C     | Tool gateway; bindings on agents, seats and steps; the `tools` section. `paper` on `rpi.design` becomes an ordinary binding, because an agent reaches an MCP tool only through the gateway |
 | D     | Blob-backed artifacts, binary kinds, probes, previews                                                                                                                        |
 | E     | The workspace contract and the `files` kind; neutral names; kernel free of git columns                                                                                       |
-| F     | Asynchronous tools, per-call cost, `forEach` with `collect` and parallel iterations                                                                                          |
+| F     | Asynchronous tools; per-call cost, `forEach` with `collect` and parallel iterations (built, #439)                                                                              |
 | G     | Review loop module split from delivery (with #62)                                                                                                                            |
 | H     | Local stdio servers; third-party local servers under the T1 sandbox                                                                                                          |
 | I     | The non-code proof: a text-only content factory first, then the video factory (O33)                                                                                          |

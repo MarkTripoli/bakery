@@ -15,6 +15,7 @@ export {
   type ActionDispatch,
   type NextStep,
   nextStep,
+  nextStepWithFanOut,
   nextStepWithGroups,
   nextStepWithLoopBounds,
   nextStepWithLoops,

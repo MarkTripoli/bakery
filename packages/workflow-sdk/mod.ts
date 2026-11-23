@@ -4,6 +4,7 @@ export {
   booleanInput,
   defineAction,
   defineWorkflow,
+  type ForEachCollect,
   type ForEachHandle,
   type ForEachOptions,
   type ForEachOutcome,

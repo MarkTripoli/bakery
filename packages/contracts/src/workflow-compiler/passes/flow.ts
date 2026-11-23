@@ -8,12 +8,14 @@ import type {
   WorkflowActionNode,
   WorkflowBranchNode,
   WorkflowForEachNode,
+  WorkflowNode,
   WorkflowParallelNode,
   WorkflowRepeatNode,
   WorkflowSemanticDocument,
 } from "../schema.ts";
 import type { WorkflowJsonValue } from "../json-value.ts";
 import { isSecretName } from "../secrets.ts";
+import { resolveStepFiles } from "../step-files.ts";
 import { isAssignable, literalMatches, type ValueType } from "../types.ts";
 import {
   buildFlowIndex,
@@ -230,6 +232,60 @@ function checkForEach(
     env.collector.add(pointerOf([...base, "as"]), "for_each_as_invalid");
   }
   visitScope(env, flow.bodyScope!);
+  if (node.maxConcurrency !== undefined && node.maxConcurrency > 1) {
+    if (holdsSharedWriter(node.steps)) {
+      env.collector.add(
+        pointerOf([...base, "maxConcurrency"]),
+        "for_each_parallel_writes",
+      );
+    }
+  }
+  // The value is read after the iteration's last step, in the iteration's own
+  // scope, so it may read `$each` and the loop's own steps.
+  if (node.collect !== undefined) {
+    flow.collected = analyzeValue(
+      env,
+      readerEndOf(flow.bodyScope!, flow),
+      node.collect,
+      [...base, "collect"],
+    ).type;
+  }
+}
+
+/**
+ * Whether a step of a body can write somewhere that iterations running
+ * together would share. A step with git or shell works in the run's checkout; a
+ * step with a session (a model or a browser) writes the areas its files section
+ * names, every area when it names none, and only its own outputs are private to
+ * it. A step with no session (a tool call, a delivery action) has no mount.
+ */
+function holdsSharedWriter(nodes: readonly WorkflowNode[]): boolean {
+  return nodes.some((node) => {
+    switch (node.kind) {
+      case "action": {
+        if (node.requires.includes("git") || node.requires.includes("shell")) {
+          return true;
+        }
+        const hasSession = node.requires.includes("model") ||
+          node.requires.includes("browser");
+        return hasSession &&
+          resolveStepFiles(node.files).write.some((area) => area !== "outputs");
+      }
+      case "wait":
+        return false;
+      case "sequence":
+        return holdsSharedWriter(node.steps);
+      case "branch":
+        return holdsSharedWriter(node.then) || holdsSharedWriter(node.else);
+      case "repeat":
+        return holdsSharedWriter(node.steps) ||
+          (node.seed.form === "sequence" && holdsSharedWriter(node.seed.steps));
+      case "forEach":
+        return holdsSharedWriter(node.steps);
+      case "parallel":
+        return node.lanes.some((lane) => holdsSharedWriter(lane.steps));
+    }
+  });
 }
 
 /** Lane identifiers ordered so every lane follows its prerequisites. */

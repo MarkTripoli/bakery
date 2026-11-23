@@ -70,7 +70,15 @@ export type ForEachHandle = {
   iterations(): Ref<number>;
   /** Whether every item ran, or how the iteration that stopped the loop ended. */
   outcome(): Ref<ForEachOutcome>;
+  /**
+   * What the body's `collect` read from each completed iteration, in item
+   * order (interpreter revision 5). Readable only when the body collects.
+   */
+  results(): Ref<readonly unknown[]>;
 };
+
+/** What a forEach body may return: the value to collect from each completed iteration. */
+export type ForEachCollect = { readonly collect: unknown };
 
 /** The current item of a forEach, read inside its body as `$each.<as>`. */
 export type LoopItem<T> = {
@@ -85,6 +93,13 @@ export type ForEachOptions = {
   readonly max: number;
   /** The name the body reads the item by; distinct from any enclosing loop's. */
   readonly as: string;
+  /**
+   * Most iterations that run at once, 1 to `max` (interpreter revision 5).
+   * Iterations that run together may not write a shared area: the compiler
+   * refuses a body with a git or shell step, or an agent step whose files
+   * section writes beyond `outputs`.
+   */
+  readonly maxConcurrency?: number;
   readonly needs?: readonly { readonly id: string }[];
 };
 
@@ -107,13 +122,15 @@ export type StepsBuilder = {
   /**
    * Adds a bounded, sequential forEach: `body` declares the steps that run
    * once per item of `items`, in order. It runs once, here, to build the
-   * document; it is not called per item at run time.
+   * document; it is not called per item at run time. A body that returns
+   * `{ collect }` has that value read from each completed iteration, after its
+   * last step, and gathered as the loop's `results()`.
    */
   forEach<T>(
     id: string,
     items: Ref<readonly T[]> | Ref<readonly T[] | null> | readonly T[],
     options: ForEachOptions,
-    body: (steps: StepsBuilder, item: LoopItem<T>) => void,
+    body: (steps: StepsBuilder, item: LoopItem<T>) => void | ForEachCollect,
   ): ForEachHandle;
 };
 
@@ -214,7 +231,14 @@ type BuiltStep =
   & (
     | { uses: string; with?: Record<string, unknown> }
     | {
-      forEach: { items: unknown; max: number; as: string; steps: BuiltStep[] };
+      forEach: {
+        items: unknown;
+        max: number;
+        as: string;
+        maxConcurrency?: number;
+        collect?: unknown;
+        steps: BuiltStep[];
+      };
     }
   );
 
@@ -351,7 +375,10 @@ export function defineWorkflow<const I extends WorkflowInputs>(
       id: string,
       items: unknown,
       loopOptions: ForEachOptions,
-      body: (steps: StepsBuilder, item: LoopItem<never>) => void,
+      body: (
+        steps: StepsBuilder,
+        item: LoopItem<never>,
+      ) => void | ForEachCollect,
     ): ForEachHandle => {
       current();
       checkStepId(container, id);
@@ -375,15 +402,17 @@ export function defineWorkflow<const I extends WorkflowInputs>(
         needs: wanted,
       };
       open.push(loop);
+      let collected: ForEachCollect | undefined;
       try {
         const item = `$each.${loopOptions.as}`;
-        body(
+        const returned = body(
           builderFor(loop),
           Object.freeze({
             ref: reference<never>(item),
             field: (path: string) => reference<never>(`${item}.${path}`),
           }) as LoopItem<never>,
         );
+        collected = returned === undefined ? undefined : returned;
       } finally {
         open.pop();
       }
@@ -400,13 +429,36 @@ export function defineWorkflow<const I extends WorkflowInputs>(
           steps: loop.steps,
         },
       };
+      if (loopOptions.maxConcurrency !== undefined) {
+        (step as { forEach: { maxConcurrency?: number } }).forEach
+          .maxConcurrency = loopOptions.maxConcurrency;
+      }
+      if (collected !== undefined && collected !== null) {
+        if (!Object.hasOwn(collected, "collect")) {
+          throw new Error(
+            `forEach "${id}" body returned something other than { collect }`,
+          );
+        }
+        readBindings(collected.collect, id, [], "collect");
+        (step as { forEach: { collect?: unknown } }).forEach.collect =
+          collected.collect;
+      }
       if (needs.length > 0) step.needs = needs;
       container.steps.push(step);
       const qualified = [...container.prefix, id].join(".");
+      const collects = collected !== undefined && collected !== null;
       const handle = Object.freeze({
         id,
         iterations: () => reference<number>(`$step.${qualified}.iterations`),
         outcome: () => reference<ForEachOutcome>(`$step.${qualified}.outcome`),
+        results: () => {
+          if (!collects) {
+            throw new Error(
+              `forEach "${id}" collects nothing, so it has no results`,
+            );
+          }
+          return reference<readonly unknown[]>(`$step.${qualified}.results`);
+        },
       });
       handles.add(handle);
       return handle;

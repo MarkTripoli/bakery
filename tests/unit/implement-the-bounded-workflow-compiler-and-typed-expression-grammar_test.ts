@@ -4353,8 +4353,8 @@ Deno.test("every forEach shape and scope code reports its exact path", async () 
       ],
     ],
     [
-      "parallel iterations are not part of the sequential loop",
-      workflow([noop("prepare"), forEachNode({}, { collect: true })]),
+      "a loop field the compiler does not know",
+      workflow([noop("prepare"), forEachNode({}, { parallel: true })]),
       [{ path: loopAt, code: "field_unknown" }],
     ],
     [
@@ -4377,6 +4377,17 @@ Deno.test("every forEach shape and scope code reports its exact path", async () 
       workflow([
         noop("prepare"),
         forEachNode({}, { steps: [noop("iterations")] }),
+      ]),
+      [{ path: `${loopAt}/steps/0/id`, code: "node_id_reserved" }],
+    ],
+    [
+      "a step named results in a loop that collects",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, {
+          collect: { item: "$each.case" },
+          steps: [noop("results")],
+        }),
       ]),
       [{ path: `${loopAt}/steps/0/id`, code: "node_id_reserved" }],
     ],
@@ -4563,6 +4574,197 @@ Deno.test("a forEach's worst case is max times its body and counts against the l
     ], { limits: { maxAttempts: 12 } })),
     [{ path: "/limits", code: "expansion_attempts_exceeded" }],
   );
+});
+
+// ---------------------------------------------------------------------------
+// #439: forEach fan-out and collect (interpreter revision 5).
+// ---------------------------------------------------------------------------
+
+Deno.test("a forEach's maxConcurrency and collect normalize, and a loop without them keeps its shape", async () => {
+  const plain = await accepted(workflow([noop("prepare"), forEachNode()]));
+  const plainLoop = plain.document.steps[1];
+  assert(plainLoop?.kind === "forEach");
+  assertEquals(Object.hasOwn(plainLoop, "maxConcurrency"), false);
+  assertEquals(Object.hasOwn(plainLoop, "collect"), false);
+
+  const together = await accepted(workflow([
+    noop("prepare"),
+    forEachNode({}, {
+      maxConcurrency: 2,
+      collect: { item: "$each.case" },
+    }),
+    { ...noop("after"), with: { all: "$step.cases.results" } },
+  ]));
+  const loop = together.document.steps[1];
+  assert(loop?.kind === "forEach");
+  assertEquals(loop.maxConcurrency, 2);
+  assertEquals(loop.collect?.kind, "object");
+});
+
+Deno.test("iterations that run together shorten the worst case in time only", async () => {
+  const sequential = await accepted(workflow([
+    noop("prepare"),
+    forEachNode({}, { max: 4 }),
+  ]));
+  const together = await accepted(workflow([
+    noop("prepare"),
+    forEachNode({}, { max: 4, maxConcurrency: 2 }),
+  ]));
+  const before = sequential.plan.worstCase;
+  const after = together.plan.worstCase;
+  // Every iteration can still run, so steps, attempts and cost do not change.
+  assertEquals(after.steps, before.steps);
+  assertEquals(after.attempts, before.attempts);
+  assertEquals(after.costUsd, before.costUsd);
+  // Four iterations two at a time are two waves of the body, not four.
+  assertEquals(
+    after.timeMs - 1_800_000,
+    (before.timeMs - 1_800_000) / 2,
+  );
+});
+
+Deno.test("a forEach's maxConcurrency reports its exact path", async () => {
+  const loopAt = "/steps/1/forEach";
+  await runCases([
+    [
+      "zero",
+      workflow([noop("prepare"), forEachNode({}, { maxConcurrency: 0 })]),
+      [{
+        path: `${loopAt}/maxConcurrency`,
+        code: "for_each_concurrency_invalid",
+      }],
+    ],
+    [
+      "above the loop's max",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, { max: 3, maxConcurrency: 4 }),
+      ]),
+      [{
+        path: `${loopAt}/maxConcurrency`,
+        code: "for_each_concurrency_invalid",
+      }],
+    ],
+    [
+      "not a number",
+      workflow([noop("prepare"), forEachNode({}, { maxConcurrency: "2" })]),
+      [{
+        path: `${loopAt}/maxConcurrency`,
+        code: "for_each_concurrency_invalid",
+      }],
+    ],
+  ]);
+});
+
+Deno.test("iterations that run together may not hold a step that writes a shared area", async () => {
+  const loopAt = "/steps/1/forEach/maxConcurrency";
+  const refused = [{ path: loopAt, code: "for_each_parallel_writes" }];
+  const together = (steps: Def[]) =>
+    workflow([
+      noop("prepare"),
+      forEachNode({}, { maxConcurrency: 2, steps }),
+    ], { agents: { "harness.implement": AGENT, "rpi.research": AGENT } });
+  await runCases([
+    [
+      "a step that works in the checkout",
+      together([{
+        id: "build",
+        uses: "harness.implement",
+        with: { repositoryId: "$input.repositoryId", planArtifact: ARTIFACT },
+      }]),
+      refused,
+    ],
+    [
+      "an agent step that names no files section writes every area",
+      together([{ id: "research", uses: "rpi.research" }]),
+      refused,
+    ],
+    [
+      "an agent step that writes a shared area",
+      together([{
+        id: "research",
+        uses: "rpi.research",
+        files: { write: ["outputs", "workspace"] },
+      }]),
+      refused,
+    ],
+    [
+      "a shared writer inside a branch of the body",
+      together([{
+        id: "choose",
+        branch: {
+          when: "true",
+          then: [{ id: "research", uses: "rpi.research" }],
+          else: [],
+          outputs: {},
+        },
+      }]),
+      refused,
+    ],
+  ]);
+  // The same bodies are fine one iteration at a time, and an agent step that
+  // keeps to its own outputs is fine together.
+  await accepted(workflow([
+    noop("prepare"),
+    forEachNode({}, {
+      steps: [{ id: "research", uses: "rpi.research" }],
+    }),
+  ], { agents: { "rpi.research": AGENT } }));
+  await accepted(together([{
+    id: "research",
+    uses: "rpi.research",
+    files: { write: ["outputs"] },
+  }]));
+  await accepted(
+    together([{ ...noop("run_case"), with: { item: "$each.case" } }]),
+  );
+});
+
+Deno.test("a forEach's collect is typed in the iteration's scope and its results read after the loop", async () => {
+  await runCases([
+    [
+      "results read from a loop that collects nothing",
+      workflow([
+        noop("prepare"),
+        forEachNode(),
+        { ...noop("after"), with: { all: "$step.cases.results" } },
+      ]),
+      [{ path: "/steps/2/with", code: "reference_field_unknown" }],
+    ],
+    [
+      "collect reading a step after the loop",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, { collect: { n: "$step.after.x" } }),
+        noop("after"),
+      ]),
+      [{ path: "/steps/1/forEach/collect", code: "reference_future" }],
+    ],
+    [
+      "results read from inside the loop",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, {
+          collect: { item: "$each.case" },
+          steps: [{
+            ...noop("run_case"),
+            with: { all: "$step.cases.results" },
+          }],
+        }),
+      ]),
+      [{
+        path: "/steps/1/forEach/steps/0/with",
+        code: "reference_future",
+      }],
+    ],
+  ]);
+  await accepted(workflow([
+    noop("prepare"),
+    forEachNode({}, {
+      collect: { item: "$each.case", ran: "$step.cases.run_case" },
+    }),
+    { ...noop("after"), with: { all: "$step.cases.results" } },
+  ]));
 });
 
 Deno.test("every closed diagnostic code is exercised by this suite", () => {

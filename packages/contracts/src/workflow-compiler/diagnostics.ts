@@ -107,6 +107,8 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "for_each_max_invalid",
     "for_each_as_invalid",
     "for_each_items_invalid",
+    "for_each_concurrency_invalid",
+    "for_each_parallel_writes",
     "wait_shape_invalid",
     "wait_timeout_required",
     "parallel_lanes_invalid",
@@ -241,6 +243,10 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   for_each_as_invalid:
     "The forEach item name is invalid or repeats an enclosing forEach's name.",
   for_each_items_invalid: "The forEach items must be a list.",
+  for_each_concurrency_invalid:
+    "The forEach maxConcurrency must be a whole number from 1 to its max.",
+  for_each_parallel_writes:
+    "A forEach whose iterations run together may not hold a step that writes a shared area: git, shell, or a files section that writes beyond outputs.",
   wait_shape_invalid: "The wait must declare a duration or an event.",
   wait_timeout_required: "An event wait requires a timeout.",
   parallel_lanes_invalid: "The parallel lanes are invalid.",

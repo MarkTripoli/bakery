@@ -170,6 +170,8 @@ const FOR_EACH_BODY_KEYS: ReadonlySet<string> = new Set([
   "items",
   "max",
   "as",
+  "maxConcurrency",
+  "collect",
   "steps",
 ]);
 const FOR_EACH_AS = /^[a-z][A-Za-z0-9]{0,63}$/;
@@ -1341,6 +1343,29 @@ function shapeForEach(
   } else {
     as = body["as"];
   }
+  // Both are absent unless authored, so a loop without them keeps its digest.
+  let maxConcurrency: number | undefined;
+  if (Object.hasOwn(body, "maxConcurrency")) {
+    if (max > 0 && isInteger(body["maxConcurrency"], 1, max)) {
+      maxConcurrency = body["maxConcurrency"];
+    } else {
+      report(
+        context,
+        [...bodyPath, "maxConcurrency"],
+        "for_each_concurrency_invalid",
+      );
+      failed = true;
+    }
+  }
+  let collect: WorkflowValueNode | undefined;
+  if (Object.hasOwn(body, "collect")) {
+    collect = compileWorkflowValue(
+      body["collect"],
+      [...bodyPath, "collect"],
+      context.collector,
+    );
+    if (!collect) failed = true;
+  }
   let steps: WorkflowNode[] | undefined;
   if (!Object.hasOwn(body, "steps")) {
     report(context, [...bodyPath, "steps"], "field_missing");
@@ -1364,6 +1389,8 @@ function shapeForEach(
     as,
     steps,
   };
+  if (maxConcurrency !== undefined) node.maxConcurrency = maxConcurrency;
+  if (collect) node.collect = collect;
   if (condition) node.if = condition;
   return node;
 }

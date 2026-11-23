@@ -313,6 +313,58 @@ Deno.test("a forEach built by the SDK compiles and survives YAML", async () => {
   assertEquals(imported.value as unknown, built as unknown);
 });
 
+// #439: a forEach may run iterations together and collect one value from each.
+Deno.test("a forEach with maxConcurrency and collect builds, compiles and reads its results", async () => {
+  const w = defineWorkflow({
+    name: "sdk-fan-out",
+    description: "Run each case two at a time and gather what each says.",
+    inputs: { repositoryId: uuidInput() },
+  });
+  const prepare = w.action("prepare", prepareBatch, {
+    repositoryId: w.input("repositoryId"),
+  });
+  const cases = w.forEach(
+    "cases",
+    prepare.output("cases"),
+    { max: 6, as: "case", maxConcurrency: 2 },
+    (steps, item) => {
+      steps.action("check_case", "workflow.noop", { id: item.field("id") });
+      return { collect: { id: item.field("id") } };
+    },
+  );
+  w.action("report", "workflow.noop", { all: cases.results() });
+  const built = w.toJSON();
+  assertEquals(
+    (built.steps[1] as { forEach: Record<string, unknown> }).forEach[
+      "maxConcurrency"
+    ],
+    2,
+  );
+  assertEquals(
+    (built.steps[1] as { forEach: Record<string, unknown> }).forEach[
+      "collect"
+    ],
+    { id: "$each.case.id" },
+  );
+  assertEquals((built.steps[2] as { with: unknown }).with, {
+    all: "$step.cases.results",
+  });
+  const result = await compileWorkflowDocument(built as unknown);
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+});
+
+Deno.test("results are refused at build time for a loop that collects nothing", () => {
+  const w = defineWorkflow({
+    name: "sdk-no-collect",
+    description: "A loop with nothing collected.",
+    inputs: {},
+  });
+  const loop = w.forEach("cases", ["a"], { max: 2, as: "case" }, (steps) => {
+    steps.action("one", "workflow.noop", {});
+  });
+  assertThrows(() => loop.results(), Error, "collects nothing");
+});
+
 Deno.test("a forEach is refused at build time when its body is empty, misplaced or misnamed", () => {
   const w = defineWorkflow({ name: "loops", inputs: {} });
   w.action("prepare", "task.brief", {});
