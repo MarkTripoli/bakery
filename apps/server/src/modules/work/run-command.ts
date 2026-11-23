@@ -10,7 +10,11 @@ import {
   StandardError,
   unprocessable,
 } from "@bakery/contracts/http";
-import { type RepositoryVersionedProfileConfig } from "@bakery/contracts/repository-inspection";
+import {
+  type RepositoryVersionedProfileConfig,
+  type RunPlacement,
+  RunPlacementSchema,
+} from "@bakery/contracts/repository-inspection";
 import {
   admitRepositoryProfile,
   executionJobInputFitsTransport,
@@ -894,6 +898,12 @@ function assertJobInputsFit(
 export async function createRunCommand(
   context: ActionContext,
   input: RunCreateInput,
+  /**
+   * Server-side only: where the run's work may execute (chapter 25 section 8).
+   * No public field carries it yet, so a caller that knows a constraint passes
+   * it here and every other run records the empty one.
+   */
+  options: { placement?: RunPlacement } = {},
 ): Promise<RunOutput> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
@@ -1257,9 +1267,11 @@ export async function createRunCommand(
        repository_profile_id, requested_by, status, snapshot,
        budget_limit_usd, application_id, repository_id,
        repository_profile_revision, repository_profile_digest,
-       observation_id, observation_digest, base_sha, environment, version
+       observation_id, observation_digest, base_sha, environment, placement,
+       version
      ) values (
-       $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17, 1
+       $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+       $18::jsonb, 1
      )
      returning id, kind, task_id, workflow_version_id, skill_source_id,
        repository_profile_id, repository_profile_revision,
@@ -1285,6 +1297,12 @@ export async function createRunCommand(
       profile?.observationDigest ?? null,
       profile?.baseSha ?? null,
       input.environment ?? "live",
+      // An ordinary run records the empty placement, `{}`: no constraint.
+      JSON.stringify(
+        options.placement === undefined
+          ? {}
+          : RunPlacementSchema.parse(options.placement),
+      ),
     ],
   );
   const run = inserted.rows[0];

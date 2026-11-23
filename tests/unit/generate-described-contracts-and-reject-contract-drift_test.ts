@@ -884,14 +884,24 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "86bcb19f90ccaef41757840967d8dbf000214a23",
+    "03305bcbe2fbaabfd28f6220e4fc291506b1c0f3",
   ];
   const approvedDigest =
-    "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee";
+    "sha256:6700942c2ff845fb7c85d61f0ba57386b8b85a179572cd7ec4be37c86de7c19a";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #429 Deliver templates rebind onto main 03305bcbe: main's own #422 PR B approval on 2864ff3cf, kept unchanged.
+    "sha256:29f2c36d33afdecc79f3465c7a3cb9e355afab0dd86fa13acfc86dcf154d80de",
+    // Displaced by the #422 PR B rebind onto main 2864ff3cf: main's own approval on 0a4d1eb16, kept unchanged.
+    "sha256:ccdb73044818cceadc5b2cedb97217d7abce69ddff1583f50487aa5bae49b6f1",
+    // Displaced by the #436 tool gateway rebind onto main 37a0f9585: the earlier #436 approval on c81df5445.
+    "sha256:cffc2bff0b920ddee9258f8aad12988d9b3f7715c4a5d237faa2f4a23f24fbe7",
+    // Displaced by the #436 tool gateway rebind onto main c81df5445: the earlier #436 approval on d800f8e4e.
+    "sha256:0061a57e9f06a2c4fc8f49da6ff2f436815d71e41fa77002285281b6bb07c81f",
+    // Displaced by the #436 tool gateway rebind onto main d800f8e4e: main's own #435 tool.call approval, kept unchanged.
+    "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee",
     // Displaced by the #435 tool.call rebind onto main 86bcb19f9: main's own #74 skill reads approval, kept unchanged.
     "sha256:aba04c851659afd475038e58d642529fc7bf47e8bfa80794a91e89dfeb8e7d4f",
     // Displaced by the #74 skill reads rebind onto main fa5a18a8b: #427 offline runs (slice S1) by dev-server on ...
