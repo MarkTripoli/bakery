@@ -360,7 +360,7 @@ function NoteLine(
  * pull requests and Bakery's note on GitHub. Not shown until there is some work.
  */
 export function IssueWork(
-  { issueId, issueNumber, issueUrl, canWrite, reasonSentence }: {
+  { cardReasons, issueId, issueNumber, issueUrl, canWrite, reasonSentence }: {
     readonly issueId: string;
     /** The issue's number, for the question Stop work asks. */
     readonly issueNumber: number | null;
@@ -369,6 +369,8 @@ export function IssueWork(
     readonly canWrite: boolean;
     /** The sentence for a reason code, in the issue's own words. */
     readonly reasonSentence: (code: string) => string;
+    /** The reasons the issue's own status card gives, so the row does not say one twice. */
+    readonly cardReasons: readonly string[];
   },
 ) {
   const api = useBakeryApi();
@@ -616,7 +618,7 @@ export function IssueWork(
                     )}
                   </UI.Badge>
                 )}
-              {reason !== null && !stopping
+              {reason !== null && !stopping && !cardReasons.includes(reason)
                 ? <UI.Text>{reasonSentence(reason)}</UI.Text>
                 : null}
               <UI.Text variant="muted">

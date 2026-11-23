@@ -357,6 +357,16 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
     ? []
     : checks.filter((entry) => entry.status !== "pass");
   const passing = guarded ? 0 : checks.length - failing.length;
+  // The reason line the card shows when no check names one itself.
+  const cardReasonLine = failing.length === 0 && status !== "canStart" &&
+      status !== "closed" && status !== "waitingToStart" && reason !== null
+    ? reason
+    : null;
+  // Every reason the card already says, so Bakery's work does not say it again.
+  const cardReasons = [
+    ...failing.map((entry) => entry.reason),
+    ...(cardReasonLine === null ? [] : [cardReasonLine]),
+  ];
   const closed = snapshot.state === "closed";
   const checkedAt = issueCheckedAt(row);
   // While GitHub cannot be read the answer is "not checked", so no check age.
@@ -428,10 +438,8 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             />
           </UI.Stack>
         ))}
-        {failing.length === 0 && status !== "canStart" &&
-            status !== "closed" && status !== "waitingToStart" &&
-            reason !== null
-          ? <UI.Text>{reasonSentence(row, reason, translate)}</UI.Text>
+        {cardReasonLine !== null
+          ? <UI.Text>{reasonSentence(row, cardReasonLine, translate)}</UI.Text>
           : null}
       </UI.Stack>
       {offer !== "none"
@@ -469,7 +477,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                 : null}
             </UI.Inline>
             <UI.Text variant="caption">
-              {offer === "startWhenReady"
+              {offer === "startWhenReady" && waitingOn !== ""
                 ? translate("issues.card.startWhenReadyCaption" as never, {
                   dependency: waitingOn,
                 })
@@ -655,6 +663,9 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           issueUrl={row.safeUrl}
           canWrite={access.data?.role === "admin" ||
             access.data?.role === "developer"}
+          // The card above already says why the issue waits; the row says it
+          // only when its own reason differs (#61 revision 8).
+          cardReasons={cardReasons}
           reasonSentence={(code) => reasonSentence(row, code, translate)}
         />
         {description.body !== ""

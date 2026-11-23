@@ -220,6 +220,33 @@ for (
       await shot(page, "issue-waiting");
     });
 
+    test("a waiting issue whose dependency is not known yet never prints a hole in the caption", async ({ page }) => {
+      // The check says it waits on a dependency but names none, and no link is read.
+      const unknown: Seed = {
+        ...WAITING,
+        checks: [
+          ...ready,
+          {
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+          },
+        ],
+        links: {
+          parent: null,
+          subIssuesTotal: 0,
+          blockedBy: [],
+          blockingTotal: 0,
+        },
+      };
+      await open(page, unknown, { open: [unknown] });
+      const side = card(page).first();
+      await expect(side.getByRole("button", { name: "Start when ready" }))
+        .toBeVisible();
+      await expect(side.getByText(/by itself when/)).toHaveCount(0);
+      await expect(side.getByText(/Uses .* in acme\/web\./)).toBeVisible();
+    });
+
     test("an issue that cannot start gives every reason with where to fix it and no button", async ({ page }) => {
       await open(page, REJECTED);
       const side = card(page).first();

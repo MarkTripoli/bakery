@@ -867,7 +867,16 @@ for (
     });
 
     test("issues that had the label before automatic starts say they wait for Start work", async ({ page }) => {
-      await settingsFixture(page, { labeledBeforeWindow: 2 });
+      await settingsFixture(page, {
+        labeledBeforeWindow: 2,
+        saved: {
+          policy: policy({
+            // The server counts these issues only when automatic starts are on.
+            automatic: { enabled: true, since: "2026-11-16T12:00:00.000Z" },
+            delegation: { principalId: uuid(910), externalActorIds: ["4242"] },
+          }),
+        },
+      });
       await openSettings(page);
       await page.getByRole("button", { name: "Preview" }).click();
       await expect(page.getByTestId("issue-settings-before-window"))
@@ -881,7 +890,16 @@ for (
     });
 
     test("one issue that had the label before automatic starts is said in the singular", async ({ page }) => {
-      await settingsFixture(page, { labeledBeforeWindow: 1 });
+      await settingsFixture(page, {
+        labeledBeforeWindow: 1,
+        saved: {
+          policy: policy({
+            // The server counts these issues only when automatic starts are on.
+            automatic: { enabled: true, since: "2026-11-16T12:00:00.000Z" },
+            delegation: { principalId: uuid(910), externalActorIds: ["4242"] },
+          }),
+        },
+      });
       await openSettings(page);
       await page.getByRole("button", { name: "Preview" }).click();
       await expect(page.getByTestId("issue-settings-before-window"))

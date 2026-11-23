@@ -701,6 +701,10 @@ for (
         .toBeVisible();
       await expect(section(page).getByText(/remove the label on GitHub/))
         .toHaveCount(0);
+      // The card says why the issue waits; the row does not say it again.
+      await expect(page.getByText("Depends on #150, which is still open."))
+        .toHaveCount(1);
+      await expect(section(page).getByText(/Depends on/)).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "issue-work-stop-row-no-run");
       await stopButton(page).click();
@@ -720,6 +724,19 @@ for (
         work.getByText(/started by you · .* · stopped by Ana Reyes$/),
       ).toBeVisible();
       await expect(stopButton(page)).toHaveCount(0);
+    });
+
+    test("a row whose reason differs from the card's still says its own", async ({ page }) => {
+      // The card (a ready issue) gives no reason; the request waits for the label.
+      await open(page, {
+        issue: 201,
+        progress: "waiting",
+        reason: "label_missing",
+      });
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText(/Missing the .* label\./))
+        .toBeVisible();
     });
 
     test("a person who may only read cannot stop work that has no run", async ({ page }) => {
