@@ -110,6 +110,8 @@ type SettingsOptions = {
   save?: "ok" | "conflict";
   /** What the preview answers: ok (default), or unavailable. */
   preview?: "ok" | "unavailable";
+  /** Issues the preview says only wait because their label was on before automatic starts; omitted by an older server. */
+  labeledBeforeWindow?: number;
   /** The people the username lookup knows, by login. */
   people?: Record<string, { id: string; canTrigger: boolean }>;
   /** The issues the counts read, as their last verdicts. */
@@ -376,7 +378,15 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
             policyRevision: 1,
             draft: false,
             evaluatedAt: "2026-11-10T12:00:00.000Z",
-            counts: { wouldStart: 1, planOnly: 0, held: 0, blocked: 2 },
+            counts: {
+              wouldStart: 1,
+              planOnly: 0,
+              held: 0,
+              blocked: 2,
+              ...(options.labeledBeforeWindow === undefined
+                ? {}
+                : { labeledBeforeWindow: options.labeledBeforeWindow }),
+            },
             issues: [
               {
                 number: 1,
@@ -796,9 +806,47 @@ for (
       await expect(page.getByText("cannot start")).toBeVisible();
       await expect(page.getByText(/From checks read/)).toBeVisible();
       expect(seen.counts.previews).toBe(1);
+      // An older server's answer carries no such count, so no sentence is made up.
+      await expect(page.getByTestId("issue-settings-before-window"))
+        .toHaveCount(0);
       // The counts are the preview's answer: no read of the issues behind it.
       expect(seen.lists).toHaveLength(0);
       await shot(page, "issue-settings-preview", [], { windowOnly: true });
+    });
+
+    test("issues that had the label before automatic starts say they wait for Start work", async ({ page }) => {
+      await settingsFixture(page, { labeledBeforeWindow: 2 });
+      await openSettings(page);
+      await page.getByRole("button", { name: "Preview" }).click();
+      await expect(page.getByTestId("issue-settings-before-window"))
+        .toHaveText(
+          "2 issues already had the “bakery” label before automatic starts were turned on. They wait for someone to press Start work.",
+        );
+      await shot(page, "issue-settings-preview-before-window", [], {
+        windowOnly: true,
+      });
+    });
+
+    test("one issue that had the label before automatic starts is said in the singular", async ({ page }) => {
+      await settingsFixture(page, { labeledBeforeWindow: 1 });
+      await openSettings(page);
+      await page.getByRole("button", { name: "Preview" }).click();
+      await expect(page.getByTestId("issue-settings-before-window"))
+        .toHaveText(
+          "1 issue already had the “bakery” label before automatic starts were turned on. It waits for someone to press Start work.",
+        );
+    });
+
+    test("saving labels keeps the built-in workflow the repository was set to", async ({ page }) => {
+      const seen = await settingsFixture(page, {
+        saved: { policy: policy({ preset: "fixed-coding-reviewed" }) },
+      });
+      await openSettings(page);
+      await page.getByLabel("Start work").fill("ready");
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText("Settings saved.")).toBeVisible();
+      const sent = seen.patches[0].policy as Record<string, unknown>;
+      expect(sent.preset).toBe("fixed-coding-reviewed");
     });
 
     test("a preview that cannot be made says so and leaves Save alone", async ({ page }) => {

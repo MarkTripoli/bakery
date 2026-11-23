@@ -136,6 +136,19 @@ export function issueStatus(
   return { status: "unknown", reason: "not_checked" };
 }
 
+/**
+ * The word the list's status cell and the row's name use: the issue's status,
+ * except that work under way whose task has an open question reads "needs an
+ * answer", as the issue page's progress badge does. The count is the server's,
+ * for the task of the issue's running request, so the list needs no second read.
+ */
+export function listedStatus(row: IssueRow): IssueStatus | "needsAnswer" {
+  const { status } = issueStatus(row);
+  return status === "inProgress" && (row.openQuestionCount ?? 0) > 0
+    ? "needsAnswer"
+    : status;
+}
+
 /** Whether a row belongs under a filter. */
 export function issueMatchesFilter(
   row: IssueRow,

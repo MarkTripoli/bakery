@@ -125,6 +125,40 @@ for (
         .toBe(true);
     });
 
+    test("work under way whose task has an open question reads Needs an answer, and stays under In progress", async ({ page }) => {
+      await issuesFixture(page, {
+        open: [
+          OPEN[0]!,
+          {
+            ...OPEN[3]!,
+            title: "Fix rounding on order totals",
+            openQuestions: 2,
+          },
+          {
+            number: 206,
+            title: "Tidy the invoice footer",
+            verdict: "ready",
+            checks: ready,
+            request: { disposition: "active" },
+          },
+        ],
+      });
+      await page.goto("/issues");
+      await chooseFilter(page, "In progress");
+      // The question's badge replaces In progress; an issue with no question keeps it.
+      await expect(row(page, 204)).toContainText("Needs an answer");
+      await expect(row(page, 204)).not.toContainText("In progress");
+      await expect(row(page, 206)).toContainText("In progress");
+      await expect(row(page, 206)).not.toContainText("Needs an answer");
+      await expect(row(page, 201)).toHaveCount(0);
+      // The row's accessible name carries the same word.
+      await expect(
+        row(page, 204).getByRole("link", { name: /Needs an answer/ }),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "issues-list-needs-answer", [], { windowOnly: true });
+    });
+
     test("nothing ready says why and offers All open", async ({ page }) => {
       await issuesFixture(page, { open: OPEN.slice(1, 3) });
       await page.goto("/issues");

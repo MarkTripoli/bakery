@@ -25,6 +25,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ageOf } from "./issue-state.ts";
+import { presetCopy } from "./task-composer-labels.ts";
 import {
   currentRequest,
   noteView,
@@ -35,8 +36,8 @@ import {
   type QuestionRowView,
   startedBy,
   STOP_POLL_MS,
-  STOP_SLOW_MS,
   stoppableRunId,
+  stoppableWithoutRun,
   stopsBeforeStart,
   waitsOnAnswer,
   workFinished,
@@ -382,7 +383,6 @@ export function IssueWork(
     { readonly requestId: string; readonly at: number } | null
   >(null);
   const [confirming, setConfirming] = useState(false);
-  const [slow, setSlow] = useState(false);
   const requests = useQuery({
     ...ticketRequestsQueryOptions(api, scope, issueId),
     refetchInterval: (query) => {
@@ -400,6 +400,8 @@ export function IssueWork(
       ?.displayName ?? null;
   const request = currentRequest(requests.data?.items ?? []);
   const runId = request === null ? null : stoppableRunId(request);
+  // A person's request that has no run yet is stopped by the request itself.
+  const withoutRun = request !== null && stoppableWithoutRun(request);
   const stopping = request !== null && stopped?.requestId === request.id &&
     !workFinished(request.progress);
   // Whether this person may stop the run is the run's own read, as on the task page.
@@ -408,38 +410,54 @@ export function IssueWork(
     enabled: scope.organizationId !== null && runId !== null &&
       stopped === null,
   });
-  const mayStop = runId !== null &&
-    (capabilities.data?.actions.some((item) =>
+  // With a run, whether this person may stop it is the run's own read; with
+  // none, it is the right to start work, which stopping is held to.
+  const mayStop = runId !== null
+    ? capabilities.data?.actions.some((item) =>
       item.action === "cancel" && item.canRequest
-    ) ?? false);
+    ) ?? false
+    : withoutRun && canWrite;
   const stop = useMutation({
     mutationKey: ["runs.control", "cancel"],
-    mutationFn: async (target: { requestId: string; runId: string }) => {
-      const result = await api.controlRun({
-        organizationId: scope.organizationId as string,
-        runId: target.runId,
-        input: { action: "cancel" },
-        idempotencyKey: crypto.randomUUID(),
-      });
-      if (!result.ok) throw result.error;
-      return result.data;
+    mutationFn: async (
+      target: {
+        requestId: string;
+        runId: string | null;
+        version: number;
+      },
+    ) => {
+      const result = target.runId === null
+        ? await api.tickets.cancelRequest({
+          organizationId: scope.organizationId as string,
+          requestId: target.requestId,
+          version: target.version,
+          idempotencyKey: crypto.randomUUID(),
+        })
+        : await api.controlRun({
+          organizationId: scope.organizationId as string,
+          runId: target.runId,
+          input: { action: "cancel" },
+          idempotencyKey: crypto.randomUUID(),
+        });
+      if (!result.ok) {
+        // The request moved on while the question was open: a run began, or
+        // the work ended. Reading it again shows what is true now, so this is
+        // not a failure to report.
+        if (target.runId === null && failureStatus(result.error) === 409) {
+          return "moved" as const;
+        }
+        throw result.error;
+      }
+      return "asked" as const;
     },
-    onSuccess: (_run, target) =>
-      setStopped({ requestId: target.requestId, at: Date.now() }),
+    onSuccess: (outcome, target) => {
+      if (outcome === "asked") {
+        setStopped({ requestId: target.requestId, at: Date.now() });
+      }
+    },
     onSettled: () =>
       void queryClient.invalidateQueries({ queryKey: ["protected"] }),
   });
-  const progress = request?.progress ?? null;
-  // A paused request can show "paused" for a while after the run is stopped.
-  useEffect(() => {
-    setSlow(false);
-    if (stopped === null || progress !== "suspended") return;
-    const timer = setTimeout(
-      () => setSlow(true),
-      Math.max(0, STOP_SLOW_MS - (Date.now() - stopped.at)),
-    );
-    return () => clearTimeout(timer);
-  }, [stopped, progress]);
   // The work this person stopped has ended: the issue's own status card reads
   // the same request, so it is read again once, instead of saying "in progress"
   // beside Stopped.
@@ -603,12 +621,30 @@ export function IssueWork(
                 : null}
               <UI.Text variant="muted">
                 {[
+                  // Who stopped it, by the name the server resolved; a run
+                  // canceled without a person says nothing here.
+                  request.progress === "canceled" &&
+                    request.stoppedByName !== null &&
+                    request.stoppedByName !== undefined
+                    ? translate("issues.work.stoppedBy" as never, {
+                      name: request.stoppedByName,
+                    })
+                    : "",
                   translate(`issues.work.by.${byKey(by)}` as never, {
                     label: by.kind === "label" ? by.label ?? "" : "",
                     name: by.kind === "member" || by.kind === "memberAdopted"
                       ? by.name ?? ""
                       : "",
                   }),
+                  // The workflow it runs, for its whole life (a server that
+                  // predates the pin omits it, and nothing is said).
+                  request.presetId === undefined ||
+                    request.presetRevision === undefined
+                    ? ""
+                    : translate("issues.work.workflow" as never, {
+                      name: presetCopy(translate, request.presetId).title,
+                      version: request.presetRevision,
+                    }),
                   ago(request.createdAt, translate),
                 ].filter(Boolean).join(" · ")}
               </UI.Text>
@@ -633,13 +669,6 @@ export function IssueWork(
                 </UI.InlineNotice>
               )
               : null}
-            {stopping && slow
-              ? (
-                <UI.Text variant="caption">
-                  {translate("issues.work.stop.slow" as never)}
-                </UI.Text>
-              )
-              : null}
             {stopsBeforeStart(request)
               ? (
                 <UI.Text variant="caption">
@@ -647,7 +676,7 @@ export function IssueWork(
                 </UI.Text>
               )
               : null}
-            {confirming && runId !== null
+            {confirming && (runId !== null || withoutRun)
               ? (
                 <UI.AlertDialog
                   open
@@ -683,7 +712,11 @@ export function IssueWork(
                       disabled={stop.isPending}
                       loading={stop.isPending}
                       onClick={() =>
-                        stop.mutateAsync({ requestId: request.id, runId }).then(
+                        stop.mutateAsync({
+                          requestId: request.id,
+                          runId,
+                          version: request.version,
+                        }).then(
                           () => {
                             setConfirming(false);
                             focusTestId("issue-work-progress");

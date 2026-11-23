@@ -265,6 +265,8 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
         issues.map((issue) => ({
           latestReadiness: { verdict: issue.verdict, evaluatedAt },
         })),
+        // Omitted by a server that predates the count: none is claimed.
+        result.data.counts.labeledBeforeWindow ?? 0,
       );
     },
     onSuccess: (counts) => {
@@ -823,6 +825,21 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                               .toLocaleString(),
                           })}
                       </UI.Text>
+                      {previewCounts.labeledBeforeWindow > 0
+                        ? (
+                          <UI.Text data-testid="issue-settings-before-window">
+                            {translate(
+                              (previewCounts.labeledBeforeWindow === 1
+                                ? "issues.settings.preview.beforeWindow.one"
+                                : "issues.settings.preview.beforeWindow.many") as never,
+                              {
+                                count: previewCounts.labeledBeforeWindow,
+                                label: shown.start,
+                              },
+                            )}
+                          </UI.Text>
+                        )
+                        : null}
                       <UI.Text variant="muted">
                         {translate("issues.settings.preview.nothingStarts")}
                       </UI.Text>

@@ -315,7 +315,7 @@ for (
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText("Start work on #201?");
       await expect(dialog).toContainText(
-        "Bakery creates a task and runs the standard coding workflow in acme/web. You can follow it in Work.",
+        "Bakery creates a task in acme/web. You can follow it in Work.",
       );
       await page.mouse.move(700, 700);
       await shot(page, "issue-start-dialog", [], { windowOnly: true });
@@ -326,6 +326,63 @@ for (
       expect(seen.starts).toEqual([
         { intent: "start", revision: 1, digest: "0".repeat(64) },
       ]);
+    });
+
+    test("Start work names both built-in workflows, the repository's first, and sends no choice when it is kept", async ({ page }) => {
+      const seen = await open(page, READY);
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      const workflows = dialog.getByRole("group", { name: "Workflow" });
+      await expect(workflows.getByRole("radio")).toHaveCount(2);
+      // The repository's own is chosen, since nothing else was asked for.
+      await expect(workflows.getByRole("radio", { name: "Fixed coding" }))
+        .toBeChecked();
+      await expect(
+        workflows.getByRole("radio", {
+          name: "Coding with independent review",
+        }),
+      ).not.toBeChecked();
+      await expect(dialog).toContainText(
+        "Choosing the other applies to this issue only.",
+      );
+      await page.mouse.move(700, 700);
+      await shot(page, "issue-start-dialog-workflow", [], {
+        windowOnly: true,
+      });
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts).toHaveLength(1);
+      expect(seen.starts[0]!.preset).toBeUndefined();
+    });
+
+    test("choosing the other workflow starts this issue with it", async ({ page }) => {
+      const seen = await open(page, READY);
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await dialog.getByRole("radio", {
+        name: "Coding with independent review",
+      }).check();
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts[0]!.preset).toBe("fixed-coding-reviewed");
+    });
+
+    test("a repository set to the reviewed workflow starts with it, and the standard one can be chosen for one issue", async ({ page }) => {
+      const seen = await open(page, READY, {
+        sourcePreset: "fixed-coding-reviewed",
+      });
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(
+        dialog.getByRole("radio", { name: "Coding with independent review" }),
+      ).toBeChecked();
+      await dialog.getByRole("radio", { name: "Fixed coding" }).check();
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts[0]!.preset).toBe("fixed-coding");
     });
 
     test("Plan first is a visible button beside Start work and changes what the confirmation says", async ({ page }) => {

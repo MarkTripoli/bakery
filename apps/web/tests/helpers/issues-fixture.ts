@@ -28,6 +28,8 @@ export type Seed = {
   verdict?: "ready" | "waiting" | "rejected" | null;
   checks?: Check[];
   request?: { disposition: string; dispositionReason?: string | null } | null;
+  /** Open questions on the task of the issue's running request (the list's "Needs an answer"). */
+  openQuestions?: number;
   body?: string;
   bodyTruncated?: boolean;
   /** Native links of the saved copy. */
@@ -88,6 +90,7 @@ export const ticket = (seed: Seed) => {
         workflowRunId: null,
       }
       : null,
+    openQuestionCount: seed.openQuestions ?? 0,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     version: 1,
@@ -157,6 +160,15 @@ export type WorkSeed = {
    */
   byMe?: boolean | "unlisted";
   triggerLabel?: string | null;
+  /** The built-in workflow the request was pinned to; the standard one at revision 1 by default. */
+  preset?: { id: "fixed-coding" | "fixed-coding-reviewed"; revision: number };
+  /** Who stopped it, by name, once it is stopped; nobody by default. */
+  stoppedBy?: string | null;
+  /**
+   * What stopping a request with no run answers: accepted (default), a run that
+   * began meanwhile (hasRun), work that already ended (finished), or a failure.
+   */
+  cancel?: "accepted" | "hasRun" | "finished" | "failed";
   reason?: string | null;
   pausedReason?:
     | "edited_after_setup"
@@ -216,6 +228,8 @@ export type Options = {
   pageSize?: number;
   /** The person's role in the organization; an administrator by default. */
   role?: "admin" | "developer" | "viewer";
+  /** The built-in workflow acme/web's saved settings run; the standard one when omitted. */
+  sourcePreset?: "fixed-coding" | "fixed-coding-reviewed";
   /** What starting work answers: ok (default), or a refusal. */
   start?:
     | "ok"
@@ -248,7 +262,20 @@ export async function issuesFixture(page: Page, options: Options = {}) {
     checks: 0,
     /** Issues somebody else already started. */
     running: new Set<number>(),
-    starts: [] as { intent: string; revision: number; digest: string }[],
+    starts: [] as {
+      intent: string;
+      revision: number;
+      digest: string;
+      preset: string | undefined;
+    }[],
+    /** Every stop of a request with no run: its key, If-Match and body. */
+    cancels: [] as {
+      key: string | undefined;
+      ifMatch: string | undefined;
+      body: unknown;
+    }[],
+    /** Set once the stop met a run that had begun meanwhile. */
+    runBegan: false,
     /** Retries of Bakery's note on the issue. */
     resyncs: 0,
     /** Every stop the person confirmed: its idempotency key and body. */
@@ -325,7 +352,9 @@ export async function issuesFixture(page: Page, options: Options = {}) {
               repositoryId: uuid(903),
               externalContainerId: "acme/web",
               enabled: true,
-              policy: {},
+              policy: options.sourcePreset === undefined
+                ? {}
+                : { preset: options.sourcePreset },
               policyRevision: 1,
               syncHealth: sourcesMode === "degraded"
                 ? "degraded"
@@ -438,11 +467,13 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         intent: string;
         expectedSourcePolicyRevision: number;
         requirementsDigest: string;
+        preset?: string;
       };
       seen.starts.push({
         intent: body.intent,
         revision: body.expectedSourcePolicyRevision,
         digest: body.requirementsDigest,
+        preset: body.preset,
       });
       const answer = options.start ?? "ok";
       if (answer === "alreadyRunning") {
@@ -499,7 +530,10 @@ export async function issuesFixture(page: Page, options: Options = {}) {
   const work = options.work ?? options.workWhenRunning;
   const RUN_ID = uuid(8900);
   /** The stop was accepted and the test has let the server report it ended. */
-  const stoppedNow = () => seen.stops.length > 0 && seen.stopEnded;
+  const cancelOk = () =>
+    seen.cancels.length > 0 && (work?.cancel ?? "accepted") === "accepted";
+  const stoppedNow = () =>
+    (seen.stops.length > 0 && seen.stopEnded) || cancelOk();
   // The work is read from the server only once it exists: from the start, or after the refused start.
   const exists = () => options.work !== undefined || seen.running.size > 0;
   const stamp = "2026-01-01T00:00:00.000Z";
@@ -609,14 +643,30 @@ export async function issuesFixture(page: Page, options: Options = {}) {
           triggerLabelName: work.triggerLabel ?? null,
           disposition: stoppedNow()
             ? "canceled"
+            : seen.runBegan
+            ? "active"
             : work.progress === "active"
             ? "active"
             : work.progress,
           dispositionReasonCode: work.reason ?? null,
           pausedAt: work.pausedReason ? stamp : null,
           pausedReason: work.pausedReason ?? null,
-          progress: stoppedNow() ? "canceled" : work.progress,
-          workflowRunId: work.run ? RUN_ID : null,
+          progress: stoppedNow()
+            ? "canceled"
+            : seen.runBegan
+            ? "active"
+            : work.progress,
+          workflowRunId: work.run || seen.runBegan ? RUN_ID : null,
+          stoppedByPrincipalId: stoppedNow() || work.progress === "canceled"
+            ? (work.stoppedBy === undefined || work.stoppedBy === null
+              ? null
+              : uuid(8800))
+            : null,
+          stoppedByName: stoppedNow() || work.progress === "canceled"
+            ? work.stoppedBy ?? null
+            : null,
+          presetId: work.preset?.id ?? "fixed-coding",
+          presetRevision: work.preset?.revision ?? 1,
           createdAt: new Date(Date.now() - 12 * 60_000).toISOString(),
           updatedAt: stamp,
           version: 1,
@@ -636,9 +686,49 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       });
     },
   );
+  // Stopping a request that has no run yet.
+  await page.route(
+    (url) => url.pathname === `/v1/ticket-requests/${uuid(8700)}/cancellations`,
+    (route) => {
+      const answer = work?.cancel ?? "accepted";
+      seen.cancels.push({
+        key: route.request().headers()["idempotency-key"],
+        ifMatch: route.request().headers()["if-match"],
+        body: route.request().postDataJSON(),
+      });
+      const refuse = (status: number, code: string, detail: string) =>
+        route.fulfill({
+          status,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Conflict",
+            status,
+            code,
+            detail,
+            requestId: uuid(8901),
+            traceId: uuid(8902),
+            retryable: false,
+          }),
+        });
+      if (answer === "hasRun") {
+        seen.runBegan = true;
+        return refuse(409, "STATE_CONFLICT", "ticket_request_has_run");
+      }
+      if (answer === "finished") {
+        return refuse(409, "STATE_CONFLICT", "ticket_request_finished");
+      }
+      if (answer === "failed") return refuse(500, "INTERNAL_ERROR", "failed");
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "{}",
+      });
+    },
+  );
   // The run the request started: what this person may do to it, and the stop itself.
   await page.route(`**/v1/runs/${RUN_ID}/controls`, (route) => {
-    const run = work?.run;
+    const run = work?.run ?? (seen.runBegan ? {} : undefined);
     if (run === undefined) return route.fulfill({ status: 404, body: "{}" });
     if (route.request().method() === "GET") {
       return route.fulfill({
@@ -693,6 +783,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         workspaceBaseSha: null,
         requestedBy: MOCK_PRINCIPAL_ID,
         inngestRunId: null,
+        // Required since #921: the run's pinned environment.
+        environment: "live",
         status: "running",
         budgetLimitUsd: "10.00",
         startedAt: stamp,

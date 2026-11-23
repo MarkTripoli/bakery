@@ -20,6 +20,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ISSUES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
+import { presetOfPolicy } from "./issue-sources.ts";
 import { reasonSentence } from "./IssuesList.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { IssueWork } from "./IssueWork.tsx";
@@ -769,6 +770,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             intent={dialog}
             row={row}
             policyRevision={policyRevision}
+            sourcePreset={presetOfPolicy(source?.policy)}
             onClose={() => {
               setDialog(null);
               // Cancel or Escape: back to the button that opened it.

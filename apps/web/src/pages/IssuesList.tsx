@@ -9,6 +9,7 @@ import {
   issueSnapshot,
   type IssueStatus,
   issueStatus,
+  listedStatus,
   reasonKey,
   referencedNumber,
 } from "./issue-state.ts";
@@ -22,8 +23,9 @@ const BADGE_TONE = {
   paused: "danger",
   closed: "neutral",
   unknown: "neutral",
+  needsAnswer: "warning",
 } as const satisfies Record<
-  IssueStatus,
+  IssueStatus | "needsAnswer",
   "neutral" | "success" | "warning" | "danger" | "information"
 >;
 
@@ -63,7 +65,7 @@ export function issueLine(row: IssueRow, translate: Translator): string {
 function StatusBadge(
   { row, translate }: { row: IssueRow; translate: Translator },
 ) {
-  const { status } = issueStatus(row);
+  const status = listedStatus(row);
   return (
     <UI.Badge tone={BADGE_TONE[status]}>
       {translate(`issues.status.${status}` as never)}
@@ -110,7 +112,7 @@ function rowName(
   inBatch: boolean,
   translate: Translator,
 ): string {
-  const { status } = issueStatus(row);
+  const status = listedStatus(row);
   const batch = inBatch
     ? `, ${translate("issues.batch.inBatch" as never)}`
     : "";

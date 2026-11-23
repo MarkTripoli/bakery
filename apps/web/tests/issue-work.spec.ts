@@ -112,8 +112,12 @@ for (
       await open(page, ONE_REPOSITORY);
       const work = section(page);
       await expect(work.getByText("Working", { exact: true })).toBeVisible();
-      await expect(work.getByText(/started by you · 12 minutes ago/))
-        .toBeVisible();
+      // Who started it, the workflow it is pinned to, and when.
+      await expect(
+        work.getByText(
+          "started by you · Fixed coding, version 1 · 12 minutes ago",
+        ),
+      ).toBeVisible();
       await expect(work.getByRole("link", { name: "Fix the login redirect" }))
         .toHaveAttribute("href", `/tasks/${uuid(8100)}`);
       await expect(work.getByRole("button", { name: "Open task" }))
@@ -219,6 +223,42 @@ for (
         .toHaveCount(0);
       await expect(page.getByRole("button", { name: "Start work" }))
         .toHaveCount(1);
+    });
+
+    test("a stopped start names who stopped it; a run canceled without a person names nobody", async ({ page }) => {
+      await open(page, {
+        issue: 201,
+        progress: "canceled",
+        stoppedBy: "Ana Reyes",
+      });
+      await expect(section(page).getByText("Stopped", { exact: true }))
+        .toBeVisible();
+      await expect(
+        section(page).getByText(
+          "stopped by Ana Reyes · started by you · Fixed coding, version 1 · 12 minutes ago",
+        ),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stopped-by");
+    });
+
+    test("a run canceled without a person says Stopped and no name", async ({ page }) => {
+      await open(page, { issue: 201, progress: "canceled" });
+      await expect(section(page).getByText("Stopped", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText(/stopped by/)).toHaveCount(0);
+    });
+
+    test("the workflow a request runs is named with its version, as pinned", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        preset: { id: "fixed-coding-reviewed", revision: 2 },
+      });
+      await expect(
+        section(page).getByText(
+          "started by you · Coding with independent review, version 2 · 12 minutes ago",
+        ),
+      ).toBeVisible();
     });
 
     test("work started by a label names the label, not a person", async ({ page }) => {
@@ -495,9 +535,9 @@ for (
       await still(page, "issue-work-stopped");
     });
 
-    test("a paused request still unstopped after 15 seconds says it can take a while", async ({ page }) => {
+    test("a paused request waits for no five-minute line once the run is stopped", async ({ page }) => {
       await page.clock.install();
-      await open(page, {
+      const seen = await open(page, {
         issue: 201,
         progress: "suspended",
         pausedReason: "hold_label_added",
@@ -509,17 +549,16 @@ for (
       }).click();
       const work = section(page);
       await expect(work.getByText("Stopping…", { exact: true })).toBeVisible();
+      // Past the old 15 seconds the page still says nothing about a wait: the
+      // server reports the finished run for a paused request, so the next read
+      // shows Stopped.
+      await page.clock.fastForward(16_000);
       await expect(work.getByText(/It can take up to 5 minutes/)).toHaveCount(
         0,
       );
-      await page.clock.fastForward(16_000);
-      await expect(
-        work.getByText(
-          "Bakery is stopping this. It can take up to 5 minutes to show here.",
-        ),
-      ).toBeVisible();
-      await page.mouse.move(700, 700);
-      await still(page, "issue-work-stopping-slow");
+      seen.stopEnded = true;
+      await page.clock.fastForward(6_000);
+      await expect(work.getByText("Stopped", { exact: true })).toBeVisible();
     });
 
     test(
@@ -618,17 +657,84 @@ for (
       await still(page, "issue-work-label-sentence");
     });
 
-    test("work a person started with no run yet shows no Stop work and no label sentence", async ({ page }) => {
-      await open(page, {
-        issue: 201,
-        progress: "waiting",
-        reason: "predecessor_open",
-      });
+    const NO_RUN: WorkSeed = {
+      issue: 201,
+      progress: "waiting",
+      reason: "predecessor_open",
+    };
+
+    test("work a person started with no run yet is stopped by the request, with its version", async ({ page }) => {
+      const seen = await open(page, { ...NO_RUN, stoppedBy: "Ana Reyes" });
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText(/remove the label on GitHub/))
+        .toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-row-no-run");
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Stopped", { exact: true })).toBeVisible();
+      // One cancellation of the request, with its own key and its version; no run was asked.
+      expect(seen.cancels).toHaveLength(1);
+      expect(seen.cancels[0]!.key).toMatch(/^[0-9a-f-]{36}$/);
+      expect(seen.cancels[0]!.ifMatch).toMatch(/1/);
+      expect(seen.stops).toHaveLength(0);
+      await expect(
+        work.getByText(/stopped by Ana Reyes · started by you/),
+      ).toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Start work" }))
+        .toHaveCount(1);
+    });
+
+    test("a person who may only read cannot stop work that has no run", async ({ page }) => {
+      await open(page, NO_RUN, { role: "viewer" });
       await expect(section(page).getByText("Waiting", { exact: true }))
         .toBeVisible();
       await expect(stopButton(page)).toHaveCount(0);
-      await expect(section(page).getByText(/remove the label on GitHub/))
+    });
+
+    test("a run that began while the question was open shows the row as it is now, not a failure", async ({ page }) => {
+      const seen = await open(page, { ...NO_RUN, cancel: "hasRun" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      // The page read the request again: a run exists, so it is Working and the run's Stop is offered.
+      await expect(work.getByText("Working", { exact: true })).toBeVisible();
+      await expect(work.getByText("Work could not be stopped. Try again."))
         .toHaveCount(0);
+      expect(seen.cancels).toHaveLength(1);
+      await expect(stopButton(page)).toBeVisible();
+    });
+
+    test("work that ended while the question was open is not reported as a failure", async ({ page }) => {
+      await open(page, { ...NO_RUN, cancel: "finished" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(section(page).getByText("Work could not be stopped."))
+        .toHaveCount(0);
+    });
+
+    test("a stop of a request with no run that fails says so and leaves the row", async ({ page }) => {
+      await open(page, { ...NO_RUN, cancel: "failed" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      await expect(
+        section(page).getByText("Work could not be stopped. Try again."),
+      ).toBeVisible();
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(stopButton(page)).toBeVisible();
     });
 
     test("on hold pauses with an information banner", async ({ page }) => {
