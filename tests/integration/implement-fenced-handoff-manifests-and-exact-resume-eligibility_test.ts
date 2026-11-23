@@ -190,3 +190,24 @@ Deno.test("another organization cannot read a manifest", () =>
       await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
     }
   }));
+
+Deno.test("a staged artifact version cannot be handed off; once current it can", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "handoff-staged");
+    const manifest = await manifestFor(fixture, live.job);
+    const ref = ((manifest.context as Json).artifactRefs as Json[])[0];
+    await fixture.pgDatabase.query(
+      "update bakery.artifact_versions set publication_status = 'staged' where id = $1",
+      [ref.versionId],
+    );
+    const staged = await post(fixture, live, manifest);
+    assertEquals(staged.status, 422, await staged.clone().text());
+    await staged.body?.cancel();
+    await fixture.pgDatabase.query(
+      "update bakery.artifact_versions set publication_status = 'current' where id = $1",
+      [ref.versionId],
+    );
+    const current = await post(fixture, live, manifest);
+    assertEquals(current.status, 201, await current.clone().text());
+    await current.body?.cancel();
+  }));

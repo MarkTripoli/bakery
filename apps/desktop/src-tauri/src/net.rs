@@ -111,6 +111,26 @@ impl Client {
         }
     }
 
+    /// Asks for a one-use code that opens `return_to` in the window already signed in (the desktop
+    /// session handoff). `None` when the server refuses or does not answer; the code is a secret and
+    /// is never logged.
+    pub async fn create_handoff(&self, credential: &str, return_to: &str) -> Option<String> {
+        let sent = self
+            .http
+            .post(format!("{}/v1/desktop-handoffs", self.server))
+            .timeout(Duration::from_secs(10))
+            .bearer_auth(credential)
+            .json(&json!({ "returnTo": return_to }))
+            .send()
+            .await
+            .ok()?;
+        if sent.status().as_u16() != 201 {
+            return None;
+        }
+        let body: serde_json::Value = sent.json().await.ok()?;
+        body.get("code")?.as_str().map(str::to_string)
+    }
+
     /// Ends the app's own sign-in on the server. "Already ended" counts as done: the server answers
     /// 401 to a sign-in it no longer knows, and the person wanted it gone. Anything else, including
     /// no answer within five seconds, means the server may still list it.

@@ -115318,6 +115318,58 @@
                   "description": "Null indicates that the value is unavailable."
                 }
               ]
+            },
+            "publicationStatus": {
+              "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+              "type": "string",
+              "enum": [
+                "current",
+                "staged",
+                "refused"
+              ]
+            },
+            "refusedKindVersionId": {
+              "description": "ArtifactVersion.refusedKindVersionId may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "refusedRuleType": {
+              "description": "ArtifactVersion.refusedRuleType may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason)."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "refusedReason": {
+              "description": "ArtifactVersion.refusedReason may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
             }
           },
           "required": [
@@ -149616,6 +149668,58 @@
                         "description": "Null indicates that the value is unavailable."
                       }
                     ]
+                  },
+                  "publicationStatus": {
+                    "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+                    "type": "string",
+                    "enum": [
+                      "current",
+                      "staged",
+                      "refused"
+                    ]
+                  },
+                  "refusedKindVersionId": {
+                    "description": "ArtifactVersionMetadata.refusedKindVersionId may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "refusedRuleType": {
+                    "description": "ArtifactVersionMetadata.refusedRuleType may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason)."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "refusedReason": {
+                    "description": "ArtifactVersionMetadata.refusedReason may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -168675,6 +168779,58 @@
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                   "description": "Collection timestamp, null while content remains retained."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "publicationStatus": {
+              "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+              "type": "string",
+              "enum": [
+                "current",
+                "staged",
+                "refused"
+              ]
+            },
+            "refusedKindVersionId": {
+              "description": "ArtifactVersionMetadata.refusedKindVersionId may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "refusedRuleType": {
+              "description": "ArtifactVersionMetadata.refusedRuleType may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason)."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "refusedReason": {
+              "description": "ArtifactVersionMetadata.refusedReason may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
                 },
                 {
                   "type": "null",
@@ -285005,7 +285161,7 @@
             "bundleDigest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "SHA-256 of the install's pinned bundle archive."
+              "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
             },
             "entry": {
               "type": "string",
@@ -285044,7 +285200,7 @@
             "files"
           ],
           "additionalProperties": false,
-          "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
+          "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
         },
         "Page<InstallationUpdateEvent>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -289627,7 +289783,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:50bd4986e65d0f5743e6a4003c3d852476e80f7f49c2d2e299eccff238cdc6af",
+  "compatibilityDigest": "sha256:1773eb54a98aa29d3a9b8b28d2c75ab33595a300adb70de6203d0b8844d841e1",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -353057,6 +353213,58 @@
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "publicationStatus": {
+          "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+          "type": "string",
+          "enum": [
+            "current",
+            "staged",
+            "refused"
+          ]
+        },
+        "refusedKindVersionId": {
+          "description": "ArtifactVersion.refusedKindVersionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "refusedRuleType": {
+          "description": "ArtifactVersion.refusedRuleType may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "refusedReason": {
+          "description": "ArtifactVersion.refusedReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -387473,6 +387681,58 @@
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "publicationStatus": {
+                "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+                "type": "string",
+                "enum": [
+                  "current",
+                  "staged",
+                  "refused"
+                ]
+              },
+              "refusedKindVersionId": {
+                "description": "ArtifactVersionMetadata.refusedKindVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "refusedRuleType": {
+                "description": "ArtifactVersionMetadata.refusedRuleType may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "refusedReason": {
+                "description": "ArtifactVersionMetadata.refusedReason may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               }
             },
             "required": [
@@ -406584,6 +406844,58 @@
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
               "description": "Collection timestamp, null while content remains retained."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "publicationStatus": {
+          "description": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+          "type": "string",
+          "enum": [
+            "current",
+            "staged",
+            "refused"
+          ]
+        },
+        "refusedKindVersionId": {
+          "description": "ArtifactVersionMetadata.refusedKindVersionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "refusedRuleType": {
+          "description": "ArtifactVersionMetadata.refusedRuleType may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "refusedReason": {
+          "description": "ArtifactVersionMetadata.refusedReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
             },
             {
               "type": "null",
@@ -523054,7 +523366,7 @@
         "bundleDigest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "SHA-256 of the install's pinned bundle archive."
+          "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
         },
         "entry": {
           "type": "string",
@@ -523093,7 +523405,7 @@
         "files"
       ],
       "additionalProperties": false,
-      "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
+      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
     },
     "Page<InstallationUpdateEvent>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

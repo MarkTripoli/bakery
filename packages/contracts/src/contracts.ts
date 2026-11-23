@@ -2052,10 +2052,14 @@ export function registeredWorkerActionInputSchema(action: string): z.ZodType {
   if (record(definition.inputFields)) {
     const shape: Record<string, Schema> = {};
     for (const [field, type] of Object.entries(definition.inputFields)) {
-      shape[field] = eventPrimitive(
-        String(type),
+      // A trailing `?` marks a field the caller may leave out, as in
+      // `versionId: "uuid?"` on plugin.job.
+      const optional = String(type).endsWith("?");
+      const primitive = eventPrimitive(
+        optional ? String(type).slice(0, -1) : String(type),
         `workerActions.${action}.input.${field}`,
       );
+      shape[field] = optional ? primitive.optional() : primitive;
     }
     return described(
       strictObject(shape),

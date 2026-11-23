@@ -125,14 +125,23 @@ export async function pinStepContextInputs(
       sha256: string;
       size_bytes: number | string;
       media_type: string;
+      publication_status: string;
     }>(
-      `select id, artifact_id, sha256, size_bytes, media_type
+      `select id, artifact_id, sha256, size_bytes, media_type, publication_status
          from bakery.artifact_versions
         where organization_id = $1 and id = $2::uuid`,
       [options.organizationId, reference.versionId],
     );
     const version = found.rows[0];
     if (!version) return refuse(slot, "the artifact version does not exist");
+    // A staged version is unvetted and a refused one failed its kind (O29): a
+    // step never pins either.
+    if (version.publication_status !== "current") {
+      return refuse(
+        slot,
+        `artifact version ${version.id} is ${version.publication_status}, not current`,
+      );
+    }
     if (
       reference.artifactId !== undefined &&
       version.artifact_id !== reference.artifactId

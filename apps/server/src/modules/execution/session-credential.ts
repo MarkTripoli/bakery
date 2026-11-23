@@ -97,8 +97,15 @@ export class SessionOperationError extends Error {
        * audit row is worse than a failed claim because it looks like evidence.
        */
       | "SESSION_CREDENTIAL_NO_PRINCIPAL",
+    /**
+     * The cause, when the refusal came from a check with its own reason.
+     *
+     * Kept so a log names what actually failed a host row while the caller still
+     * sees one code for every unusable credential.
+     */
+    options?: ErrorOptions,
   ) {
-    super(code);
+    super(code, options);
     this.name = "SessionOperationError";
   }
 }

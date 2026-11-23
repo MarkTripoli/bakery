@@ -116,6 +116,18 @@ export type InstallationCapabilities =
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
 /** The restore that holds the installation, and how far its ordered re-enable has got (#64 E3). */
 export type InstallationRestore = ClientOutputMap["InstallationRestore"];
+/** Which release runs, the one kept to go back to, and the last update that did not go through (#59). */
+export type InstallationUpdateStatus =
+  ClientOutputMap["InstallationUpdateStatus"];
+/** One event of the installation's update history (#59). */
+export type InstallationUpdateEvent =
+  ClientOutputMap["InstallationUpdateEvent"];
+/** One keyset page of the update history, newest first. */
+export type InstallationUpdateEventPage =
+  ClientOutputMap["Page<InstallationUpdateEvent>"];
+/** The outside actions whose outcome Bakery cannot tell, by kind. */
+export type InstallationUncertainActions =
+  ClientOutputMap["InstallationUncertainActions"];
 /** One step of the ordered re-enable, in the order they are taken. */
 export type InstallationRestoreStep =
   ClientInputMap["InstallationRestoreStep"]["step"];
@@ -1536,6 +1548,30 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<InstallationRestore>>;
+  };
+  readonly installationUpdates: {
+    /** `GET /v1/installation/updates/status`: the running release, the kept one and the last failure; administrators only. */
+    readonly status: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<InstallationUpdateStatus>>;
+    /** `GET /v1/installation/updates`: the update history, newest first, keyset paged. */
+    readonly list: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<InstallationUpdateEventPage>>;
+    /** `POST /v1/installation/updates/{id}/dismiss`: hides the notice for every administrator; the event stays in the history. */
+    readonly dismiss: (options: {
+      readonly id: string;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<InstallationUpdateEvent>>;
+  };
+  readonly installationUncertainActions: {
+    /** `GET /v1/installation/uncertain-actions`: the held outside actions, by kind. */
+    readonly get: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<InstallationUncertainActions>>;
   };
   readonly installationSettings: {
     readonly get: (
@@ -4670,6 +4706,68 @@ export function createBakeryApiClient({
                 idempotencyKey: options.idempotencyKey,
                 signal: options.signal,
               },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    installationUpdates: {
+      async status(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUpdates.status"]({}, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async list(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUpdates.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async dismiss(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUpdates.dismiss"](
+              { id: options.id },
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    installationUncertainActions: {
+      async get(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUncertainActions.get"](
+              {},
+              { signal },
             ),
           };
         } catch (error) {

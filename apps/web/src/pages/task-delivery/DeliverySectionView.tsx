@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
+import { knownCommits, ReferenceText } from "../../app/ReferenceText.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { MessageKey } from "@bakery/i18n";
 import { DeliveryBody } from "./DeliveryBody.tsx";
@@ -468,7 +469,10 @@ function ReadyView(
   const [comment, setComment] = useState("");
   const deciding = decisionPhase === "deciding";
   const copy = nowCopy(t, model.now, { model });
-  const head = model.headSha === null ? "" : model.headSha.slice(0, 7);
+  const head = model.headSha === null
+    ? ""
+    : UI.shortReference("commit", model.headSha);
+  const known = knownCommits(model.commits);
   const note = comment.trim();
   const tooLong = note.length > MAX_NOTE;
   const waiting = model.approval?.state === "waiting";
@@ -737,7 +741,8 @@ function ReadyView(
   // request, else from the pull request as it now is.
   const noticeArgs = {
     branch: mergeTarget?.branch ?? merge?.targetBranch ?? "",
-    head: mergeTarget?.head ?? merge?.headSha.slice(0, 7) ?? "",
+    head: mergeTarget?.head ??
+      (merge === null ? "" : UI.shortReference("commit", merge.headSha)),
   };
   // A lost answer that left no record at all: the card is back to Ready, so the
   // notice goes above it, where it is read first, and says there is no attempt
@@ -755,10 +760,13 @@ function ReadyView(
         tabIndex={-1}
         {...mergeNoticeProps}
       >
-        {t(
-          noRecord ? "tasks.delivery.merge.notice.noRecord" : mergeNotice,
-          noticeArgs,
-        )}
+        <ReferenceText
+          known={known}
+          text={t(
+            noRecord ? "tasks.delivery.merge.notice.noRecord" : mergeNotice,
+            noticeArgs,
+          )}
+        />
       </UI.InlineNotice>
     )
     : null;
@@ -767,7 +775,11 @@ function ReadyView(
       <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
         {copy.title}
       </UI.Heading>
-      {copy.body === "" ? null : <UI.Text>{copy.body}</UI.Text>}
+      {copy.body === "" ? null : (
+        <UI.Text>
+          <ReferenceText known={known} text={copy.body} />
+        </UI.Text>
+      )}
       {offline && (
         <UI.Text>
           {t("tasks.delivery.offline")}
@@ -835,7 +847,10 @@ function ReadyView(
         variant="security"
       >
         <UI.Text>
-          {t("tasks.delivery.approval.approveDialog.body", { head })}
+          <ReferenceText
+            known={known}
+            text={t("tasks.delivery.approval.approveDialog.body", { head })}
+          />
         </UI.Text>
         {dialog === "approve" && dialogNotice}
       </UI.AlertDialog>
@@ -869,14 +884,19 @@ function ReadyView(
       >
         <UI.Stack gap="compact">
           <UI.Text>
-            {t("tasks.delivery.merge.confirm.body", {
-              head: merge === null ? "" : merge.headSha.slice(0, 7),
-              method: t(
-                `tasks.delivery.merge.method.${
-                  merge?.method ?? "squash"
-                }` as MessageKey,
-              ),
-            })}
+            <ReferenceText
+              known={known}
+              text={t("tasks.delivery.merge.confirm.body", {
+                head: merge === null
+                  ? ""
+                  : UI.shortReference("commit", merge.headSha),
+                method: t(
+                  `tasks.delivery.merge.method.${
+                    merge?.method ?? "squash"
+                  }` as MessageKey,
+                ),
+              })}
+            />
           </UI.Text>
           <UI.Text>{t("tasks.delivery.merge.confirm.changed")}</UI.Text>
           <UI.Text>{t("tasks.delivery.merge.confirm.final")}</UI.Text>
