@@ -118,6 +118,7 @@ function taskActionRegistry(): ActionRegistry {
     runsCreate: () => null as never,
     runsList: () => null as never,
     runsGet: () => null as never,
+    runFeed: () => null as never,
     runStepsList: () => null as never,
     workflowPresetsList: () => null as never,
     usageList: () => null as never,

@@ -142,3 +142,62 @@ Deno.test("composed runners hand each action to its owner", async () => {
     "ENGINE_STEP_UNAVAILABLE",
   );
 });
+
+// #435 slice 2d: each call is written to the run's tool feed.
+
+function recording(kind: "integration" | "mcp" | null) {
+  const records: unknown[] = [];
+  const tool = createToolCallStepRunner({
+    database: {} as never,
+    registry: { integrations: [] } as never,
+    providerRequests: {} as never,
+    snapshots: {
+      load: () => Promise.reject(new StandardError({ code: "INTERNAL" })),
+    } as never,
+    connectionKind: () => Promise.resolve(kind),
+    toolCalls: (record) => {
+      records.push(record);
+      return Promise.resolve();
+    },
+  });
+  return { tool, records };
+}
+
+Deno.test("a call that fails is recorded as started, then failed with its fixed code", async () => {
+  const { tool, records } = recording("integration");
+  const result = await tool.run(request(validInput));
+  assertEquals(
+    result.kind === "failed" && result.code,
+    "TOOL_CALL_ARGUMENTS_REFUSED",
+  );
+  const call = {
+    organizationId: "00000000-0000-4000-8000-0000000000a1",
+    runId: "00000000-0000-4000-8000-0000000000b1",
+    stepKey: "notify",
+    iteration: 0,
+    callId: "00000000-0000-4000-8000-0000000000b1:notify:0",
+    connectionId: CONNECTION,
+    toolName: "chat.post",
+  };
+  assertEquals(records, [
+    { ...call, phase: "started" },
+    { ...call, phase: "failed", failureCode: "TOOL_CALL_ARGUMENTS_REFUSED" },
+  ]);
+});
+
+Deno.test("a record never carries the call's arguments", async () => {
+  const { tool, records } = recording("integration");
+  await tool.run(request(validInput));
+  assertEquals(JSON.stringify(records).includes("done"), false);
+});
+
+Deno.test("a step input that is not the contract records nothing", async () => {
+  const { tool, records } = recording("integration");
+  await tool.run(request({}));
+  assertEquals(records, []);
+});
+
+Deno.test("a runner with no recorder still runs the call", async () => {
+  const result = await runner("integration").run(request(validInput));
+  assertEquals(result.kind, "failed");
+});

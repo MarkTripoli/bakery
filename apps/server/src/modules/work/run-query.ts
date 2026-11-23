@@ -16,6 +16,7 @@ import {
   toRun,
 } from "./run-command.ts";
 import { readRunBudgetSummary } from "./budget.ts";
+import { readRunFeed } from "./run-feed.ts";
 import { isTaskStatus, toIso } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import { readRunsWaitingOnModel } from "../execution/route-continuations.ts";
@@ -378,6 +379,24 @@ export function createRunQueryHandlers(secret: string) {
           [run.id],
         )).has(run.id),
       };
+    },
+
+    /** The tool calls of a run's `tool.call` steps (#435), oldest first. */
+    async runFeed(context: ActionContext, input: unknown) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      const runId = context.params.id;
+      if (!runId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      await assertRunVisible(transaction, organizationId, runId);
+      const query = input as CursorQuery;
+      return await readRunFeed(transaction, {
+        secret,
+        organizationId,
+        principalId,
+        runId,
+        cursor: query.cursor,
+        limit: query.limit,
+      });
     },
 
     async runStepsList(context: ActionContext, input: unknown) {

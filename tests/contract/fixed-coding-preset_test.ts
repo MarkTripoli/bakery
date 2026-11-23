@@ -90,6 +90,7 @@ Deno.test("workflowPresets.list is a Developer read route with the generated que
     runsCreate: () => null as never,
     runsList: () => null as never,
     runsGet: () => null as never,
+    runFeed: () => null as never,
     runStepsList: () => null as never,
     usageList: () => null as never,
     sync: () => null as never,

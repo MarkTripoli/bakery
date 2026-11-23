@@ -89,6 +89,7 @@ export const TaskImplementedAction = Object.freeze(
     RunsCreate: "runs.create",
     RunsList: "runs.list",
     RunsGet: "runs.get",
+    RunsFeed: "runs.feed",
     RunStepsList: "runSteps.list",
     WorkflowPresetsList: "workflowPresets.list",
     SyncSnapshot: "sync.snapshot",

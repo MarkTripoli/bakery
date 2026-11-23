@@ -926,6 +926,28 @@
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/runs/{id}/feed",
+      "action": "runs.feed",
+      "access": "Developer",
+      "permission": "run:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "CursorQuery",
+      "output": "RunFeed",
+      "event": "",
+      "mcp": "bakery_runs_feed",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/runs/{id}/steps",
       "action": "runSteps.list",
       "access": "Developer",

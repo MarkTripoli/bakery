@@ -408,6 +408,7 @@ Deno.test("production task action registry selects repeatable read for sync", as
       runsCreate: () => null as never,
       runsList: () => null as never,
       runsGet: () => null as never,
+      runFeed: () => null as never,
       runStepsList: () => null as never,
       workflowPresetsList: () => null as never,
       usageList: () => null as never,

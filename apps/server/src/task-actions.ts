@@ -74,6 +74,12 @@ export type TaskActionHandlers = {
   ) =>
     | z.output<typeof contractSchemas.Run>
     | Promise<z.output<typeof contractSchemas.Run>>;
+  runFeed: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) =>
+    | z.output<typeof contractSchemas.RunFeed>
+    | Promise<z.output<typeof contractSchemas.RunFeed>>;
   runStepsList: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
@@ -208,6 +214,16 @@ export function createTaskActionRegistry(
     output: contractSchemas.Run,
     policy,
     handler: handlers.runsGet,
+  });
+  registry.register({
+    name: TaskImplementedAction.RunsFeed,
+    method: HttpMethod.Get,
+    path: "/v1/runs/:id/feed",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas.RunFeed,
+    policy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.runFeed,
   });
   registry.register({
     name: TaskImplementedAction.RunStepsList,

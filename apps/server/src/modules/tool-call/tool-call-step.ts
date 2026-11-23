@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import { type PgDatabase, withPgTransaction } from "../../platform/database.ts";
@@ -12,6 +13,7 @@ import {
   type EffectExecutorDeps,
 } from "../effects/index.ts";
 import { createMcpEffectPort } from "../mcp/effect-port.ts";
+import type { ToolCallRecorder } from "./tool-call-record.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
 import { McpToolCallError } from "../mcp/tool-transport.ts";
 import { toRunEnvironment } from "../work/run-environment.ts";
@@ -66,6 +68,11 @@ export type ToolCallStepDeps = Readonly<{
    * call. Absent, an MCP connection is refused by name.
    */
   mcp?: McpInvokeDeps;
+  /**
+   * Writes each call to the run's tool feed: once when it first sends, once when
+   * it settles. Absent, nothing is recorded (a test that does not read the feed).
+   */
+  toolCalls?: ToolCallRecorder;
   /** Finds which kind of connection an id names. Defaults to the connection tables. */
   connectionKind?: (
     organizationId: string,
@@ -417,6 +424,33 @@ export function createToolCallStepRunner(
       );
     }
     const input = parsed.data;
+    const record = deps.toolCalls;
+    if (record === undefined) return await dispatch(request, input);
+    const call = {
+      organizationId: request.organizationId,
+      runId: request.runId,
+      stepKey: request.stepKey,
+      iteration: request.iteration,
+      callId: toolCallEffectKey(request),
+      connectionId: input.connectionId,
+      toolName: input.tool,
+    };
+    // A look at a step whose write is unproven finds its started record and
+    // adds none; only a settled call adds its second.
+    await record({ ...call, phase: "started" });
+    const result = await dispatch(request, input);
+    if (result.kind === "completed") {
+      await record({ ...call, phase: "completed" });
+    } else if (result.kind === "failed") {
+      await record({ ...call, phase: "failed", failureCode: result.code });
+    }
+    return result;
+  }
+
+  async function dispatch(
+    request: EngineStepRequest,
+    input: z.output<typeof contractSchemas.ToolCallInput>,
+  ): Promise<EngineStepResult> {
     const kind = await kindOf(request.organizationId, input.connectionId);
     if (kind === null) {
       return failed(

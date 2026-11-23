@@ -924,6 +924,29 @@ export const clientManifest = {
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/runs/{id}/feed",
+      "action": "runs.feed",
+      "access": "Developer",
+      "permission": "run:read",
+      "input": "CursorQuery",
+      "output": "RunFeed",
+      "event": "",
+      "mcp": "bakery_runs_feed",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/runs/{id}/steps",
       "action": "runSteps.list",
       "access": "Developer",
@@ -19571,6 +19594,7 @@ export const clientManifest = {
             "runs.get",
             "handoffManifests.get",
             "handoffManifests.continue",
+            "runs.feed",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -48846,6 +48870,7 @@ export const clientManifest = {
                   "runs.get",
                   "handoffManifests.get",
                   "handoffManifests.continue",
+                  "runs.feed",
                   "runSteps.list",
                   "output.streams.list",
                   "output.streams.read",
@@ -71569,6 +71594,7 @@ export const clientManifest = {
             "runs.get",
             "handoffManifests.get",
             "handoffManifests.continue",
+            "runs.feed",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -102537,6 +102563,160 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
+    },
+    "RunFeed": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the feed item, used as the keyset tie-breaker when two items share a sequence."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the run this item belongs to."
+              },
+              "runStepId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the run step whose tool.call made the call."
+              },
+              "sequence": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]*)$",
+                "description": "Monotonic sequence number; the feed is ordered by sequence ascending, then id, and a client resumes from the last sequence it saw."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "tool"
+                ],
+                "description": "Which typed payload this item carries; today only tool, and the payload field named by kind is always present."
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the call started or settled, never when it was read."
+              },
+              "redacted": {
+                "type": "boolean",
+                "description": "True when material was removed from this item's payload; a tool item carries no arguments or results, so it is false."
+              },
+              "tool": {
+                "type": "object",
+                "properties": {
+                  "callId": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The step's one effect key (run id, step key and iteration); the started item and the item that settles the call share it."
+                  },
+                  "connectionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the connection the tool was called on, an integration connection or an MCP server connection."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name of the tool or integration action that was called."
+                  },
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "started",
+                      "completed",
+                      "failed"
+                    ],
+                    "description": "Which part of the call's life this item records."
+                  },
+                  "ok": {
+                    "anyOf": [
+                      {
+                        "type": "boolean",
+                        "description": "Whether the call succeeded once it has settled; null while the call is still open."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "RunFeedTool.ok may be null in this transport value."
+                  },
+                  "code": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Fixed failure code when the call failed; null otherwise."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "RunFeedTool.code may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "callId",
+                  "connectionId",
+                  "name",
+                  "phase",
+                  "ok",
+                  "code"
+                ],
+                "additionalProperties": false,
+                "description": "The tool call this item records."
+              }
+            },
+            "required": [
+              "id",
+              "runId",
+              "runStepId",
+              "sequence",
+              "kind",
+              "occurredAt",
+              "redacted",
+              "tool"
+            ],
+            "additionalProperties": false,
+            "description": "Feed items in ascending sequence order, at most 100 per page. Each array item follows this format."
+          },
+          "description": "Feed items in ascending sequence order, at most 100 per page."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque cursor to pass back to read the next page; null when the feed has no more items yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunFeed.nextCursor may be null in this transport value."
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "One page of a run's tool feed: what its tool.call steps called and how each call ended, read forward from a sequence cursor."
     },
     "SessionFeed": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

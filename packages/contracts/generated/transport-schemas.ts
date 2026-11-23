@@ -33198,6 +33198,88 @@ const transportSchemas = {
       },
       "description": "A steering input that was delivered into the running session, so a watcher sees steers at the point they took effect."
     },
+    "RunFeed": {
+      "fields": [
+        "items",
+        "nextCursor"
+      ],
+      "fieldTypes": {
+        "items": "RunFeedItem[]",
+        "nextCursor": "string|null"
+      },
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "fieldDescriptions": {
+        "items": "Feed items in ascending sequence order, at most 100 per page.",
+        "nextCursor": "Opaque cursor to pass back to read the next page; null when the feed has no more items yet."
+      },
+      "description": "One page of a run's tool feed: what its tool.call steps called and how each call ended, read forward from a sequence cursor."
+    },
+    "RunFeedItem": {
+      "fields": [
+        "id",
+        "runId",
+        "runStepId",
+        "sequence",
+        "kind",
+        "occurredAt",
+        "redacted",
+        "tool"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "sequence": "decimalString",
+        "kind": "enum(tool)",
+        "occurredAt": "timestamp",
+        "redacted": "boolean",
+        "tool": "RunFeedTool"
+      },
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the feed item, used as the keyset tie-breaker when two items share a sequence.",
+        "runId": "Stable UUID of the run this item belongs to.",
+        "runStepId": "Stable UUID of the run step whose tool.call made the call.",
+        "sequence": "Monotonic sequence number; the feed is ordered by sequence ascending, then id, and a client resumes from the last sequence it saw.",
+        "kind": "Which typed payload this item carries; today only tool, and the payload field named by kind is always present.",
+        "occurredAt": "UTC timestamp when the call started or settled, never when it was read.",
+        "redacted": "True when material was removed from this item's payload; a tool item carries no arguments or results, so it is false.",
+        "tool": "The tool call this item records."
+      },
+      "description": "One tool.call event on a run: a call started or a call settled."
+    },
+    "RunFeedTool": {
+      "fields": [
+        "callId",
+        "connectionId",
+        "name",
+        "phase",
+        "ok",
+        "code"
+      ],
+      "fieldTypes": {
+        "callId": "string",
+        "connectionId": "uuid",
+        "name": "string",
+        "phase": "enum(started|completed|failed)",
+        "ok": "boolean|null",
+        "code": "string|null"
+      },
+      "nullableFields": [
+        "ok",
+        "code"
+      ],
+      "fieldDescriptions": {
+        "callId": "The step's one effect key (run id, step key and iteration); the started item and the item that settles the call share it.",
+        "connectionId": "Stable UUID of the connection the tool was called on, an integration connection or an MCP server connection.",
+        "name": "Name of the tool or integration action that was called.",
+        "phase": "Which part of the call's life this item records.",
+        "ok": "Whether the call succeeded once it has settled; null while the call is still open.",
+        "code": "Fixed failure code when the call failed; null otherwise."
+      },
+      "description": "A tool.call start or settlement. Arguments and results are never carried here."
+    },
     "SessionFeed": {
       "fields": [
         "items",
