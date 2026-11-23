@@ -310,3 +310,33 @@ Deno.test("editing step A saves step B and the top-level keys byte-for-byte", ()
     assertEquals(JSON.stringify(savedTop), JSON.stringify(top));
   }
 });
+
+Deno.test("a branch, a repeat and a group the editor holds untouched are saved exactly as authored, with no uses added (#429)", () => {
+  const spec = {
+    steps: [
+      { id: "brief", uses: "task.brief" },
+      {
+        id: "signoff",
+        needs: ["brief"],
+        branch: {
+          when: '$input.gates == "plan"',
+          then: [{ id: "approve", uses: "human.approval" }],
+          else: [],
+        },
+      },
+      { id: "build", steps: [{ id: "implement", uses: "harness.implement" }] },
+      {
+        id: "loop",
+        repeat: { max: 3, steps: [{ id: "fix", uses: "harness.repair" }] },
+      },
+    ],
+  };
+  // The editor holds every top-level node by id, with "" for one that runs no action.
+  const held = spec.steps.map((node) => ({
+    id: node.id,
+    uses: "uses" in node ? (node.uses as string) : "",
+    agentVersionId: null,
+    skills: [],
+  }));
+  assertEquals(JSON.stringify(definitionOf(spec, held)), JSON.stringify(spec));
+});
