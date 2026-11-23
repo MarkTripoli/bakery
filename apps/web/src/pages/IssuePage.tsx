@@ -384,6 +384,11 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
       .map((dependency) => `${dependency.repository}#${dependency.number}`)
       .join(", ");
   })();
+  // A dependency known by name is said once, by the line above ("Bakery will
+  // start this when … is done" or the Start when ready note), not again as
+  // "Depends on #n" (#61 revision 9).
+  const dependsOnSaid = (code: string) =>
+    code === "predecessor_open" && waitingOn !== "";
   const hasRelations = links.dependencies.length > 0 || links.parent !== null ||
     links.subIssues > 0;
 
@@ -426,7 +431,11 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           : null}
         {failing.map((entry) => (
           <UI.Stack gap="compact" key={entry.id}>
-            <UI.Text>{reasonSentence(row, entry.reason, translate)}</UI.Text>
+            {dependsOnSaid(entry.reason) ? null : (
+              <UI.Text>
+                {reasonSentence(row, entry.reason, translate)}
+              </UI.Text>
+            )}
             <ReasonNext
               code={entry.reason}
               row={row}
@@ -438,7 +447,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             />
           </UI.Stack>
         ))}
-        {cardReasonLine !== null
+        {cardReasonLine !== null && !dependsOnSaid(cardReasonLine)
           ? <UI.Text>{reasonSentence(row, cardReasonLine, translate)}</UI.Text>
           : null}
       </UI.Stack>

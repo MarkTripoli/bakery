@@ -191,8 +191,8 @@ for (
       await open(page, WAITING);
       const side = card(page).first();
       await expect(side.getByText("Waiting", { exact: true })).toBeVisible();
-      await expect(side.getByText("Depends on #201, which is still open."))
-        .toBeVisible();
+      // The dependency is said once, by the caption below; not again as "Depends on".
+      await expect(side.getByText(/Depends on #201/)).toHaveCount(0);
       await expect(side.getByRole("button", { name: "Start when ready" }))
         .toBeVisible();
       // Nothing is promised before the press.

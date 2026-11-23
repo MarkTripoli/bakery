@@ -694,6 +694,16 @@ for (
             reason: "predecessor_open",
             evidence: ["blocker:acme/web#150"],
           }],
+          links: {
+            parent: null,
+            subIssuesTotal: 0,
+            blockedBy: [{
+              id: "d",
+              repositoryFullName: "acme/web",
+              number: 150,
+            }],
+            blockingTotal: 0,
+          },
           request: { disposition: "waiting" },
         }],
       });
@@ -701,10 +711,11 @@ for (
         .toBeVisible();
       await expect(section(page).getByText(/remove the label on GitHub/))
         .toHaveCount(0);
-      // The card says why the issue waits; the row does not say it again.
-      await expect(page.getByText("Depends on #150, which is still open."))
-        .toHaveCount(1);
-      await expect(section(page).getByText(/Depends on/)).toHaveCount(0);
+      // The card names what it waits for once; neither it nor the row says "Depends on".
+      await expect(
+        page.getByText("Bakery will start this when acme/web#150 is done."),
+      ).toHaveCount(1);
+      await expect(page.getByText(/Depends on #150/)).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "issue-work-stop-row-no-run");
       await stopButton(page).click();
@@ -715,6 +726,13 @@ for (
       await expect(work.getByText("Stopped", { exact: true })).toBeVisible();
       // The server's answer is accepted: nothing says the stop failed.
       await expect(work.getByText("Work could not be stopped.")).toHaveCount(0);
+      // Stopped, the card offers Start when ready and names the dependency once.
+      await expect(
+        page.getByText(
+          "Bakery will start this by itself when acme/web#150 is done.",
+        ),
+      ).toHaveCount(1);
+      await expect(page.getByText(/Depends on #150/)).toHaveCount(0);
       // One cancellation of the request, with its own key and its version; no run was asked.
       expect(seen.cancels).toHaveLength(1);
       expect(seen.cancels[0]!.key).toMatch(/^[0-9a-f-]{36}$/);
