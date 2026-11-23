@@ -98,6 +98,7 @@ function memoryLedger() {
       commitSha,
       artifactDigest: await digestOf(buildBytes(commitSha)),
       previousDeploymentId: previous?.id ?? null,
+      previousCommitSha: previous?.commitSha ?? null,
       status: "queued",
       externalEffectId: null,
       healthEvidenceId: null,
