@@ -186,6 +186,59 @@ for (const [reason, statement] of STALE_STATES) {
     }));
 }
 
+/**
+ * A host row that the worker routes would refuse is refused here as well.
+ *
+ * The session route loads the host by id from the attempt's own row rather than
+ * from a presented bearer, so the check `workerTransaction` runs on that row has
+ * to run here too. Without it a session could act under a host record that every
+ * worker route rejects — the machine's own credential path would be safe and this
+ * one would not.
+ *
+ * Each corruption is one field. The digest case is the one that pins this check:
+ * with `assertHostRowIntegrity` removed, it is the case that fails, because
+ * nothing else in the path looks at the hash. The generation case is refused by
+ * the session check as well, so it would pass with or without this line; it stays
+ * because a corrupt row must not serve either way.
+ */
+const CORRUPT_HOSTS: readonly (readonly [string, string])[] = [
+  [
+    "the host's credential hash is not a digest",
+    `update bakery.worker_hosts set credential_hash = 'not-a-digest'
+      where id = (select worker_host_id from bakery.job_attempts where id = $1)`,
+  ],
+  [
+    "the host has a session but no generation",
+    `update bakery.worker_hosts
+        set worker_session_id = gen_random_uuid(), worker_session_generation = 0
+      where id = (select worker_host_id from bakery.job_attempts where id = $1)`,
+  ],
+];
+
+for (const [condition, statement] of CORRUPT_HOSTS) {
+  Deno.test(`a session is refused when ${condition}`, () =>
+    withWorkerFixture(async (fixture) => {
+      const session = await openSession(fixture);
+      const before = await answer(listTools(fixture, session.token));
+      assertEquals(before.status, 200, `baseline: ${await shown(before)}`);
+      await fixture.pgDatabase.query(statement, [session.attemptId]);
+      const listed = await answer(listTools(fixture, session.token));
+      const called = await answer(callTool(fixture, session.token));
+      assert(
+        listed.status >= 400 && listed.status !== 500,
+        `tools served on a corrupt host row (${condition}): ${await shown(
+          listed,
+        )}`,
+      );
+      assert(
+        called.status >= 400 && called.status !== 500,
+        `call served on a corrupt host row (${condition}): ${await shown(
+          called,
+        )}`,
+      );
+    }));
+}
+
 Deno.test("the attempt-id session routes are gone", () =>
   withWorkerFixture(async (fixture) => {
     const session = await openSession(fixture);
