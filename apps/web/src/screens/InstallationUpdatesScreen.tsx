@@ -686,7 +686,11 @@ function History(
         ? (
           <UI.InlineNotice
             action={
-              <UI.Button onClick={props.onLoadMore} variant="secondary">
+              <UI.Button
+                data-paged-retry="updates"
+                onClick={props.onLoadMore}
+                variant="secondary"
+              >
                 {translate("core.actions.retry")}
               </UI.Button>
             }
@@ -698,14 +702,12 @@ function History(
           </UI.InlineNotice>
         )
         : null}
-      {history.hasMore
+      {history.hasMore &&
+          !(history.state === "error" && history.rows.length > 0)
         ? (
           <UI.Inline>
             <UI.Button
               data-paged-more="updates"
-              data-paged-retry={history.state === "error"
-                ? "updates"
-                : undefined}
               loading={history.loadingMore}
               onClick={props.onLoadMore}
               type="button"

@@ -748,6 +748,10 @@ for (
         timeout: 20_000,
       });
       await expect(rows).toHaveCount(25);
+      // Try again is the one control while the error shows: Load more would
+      // run the same load a second way.
+      await expect(page.getByRole("button", { name: "Load more" }))
+        .toHaveCount(0);
       await page.mouse.move(5, 5);
       await still(page, "updates-history-more-failed");
       fixture.stop.more();
