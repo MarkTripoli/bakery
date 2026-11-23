@@ -7,6 +7,7 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
+import { signSessionCookie } from "../helpers/auth.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 import { releaseReconciledHandoffs } from "../../apps/server/src/modules/execution/handoff-release.ts";
 import {
@@ -403,7 +404,7 @@ Deno.test("history that is no longer authorized is not reused: a purged cited ve
     );
   }));
 
-/** Runs the continuation of a fresh exact candidate after `revoke` has changed its history. */
+/** Reads a handoff manifest as an Admin of the given scope. */
 function readManifest(
   fixture: WorkerFixture,
   manifestId: string,
@@ -473,6 +474,98 @@ Deno.test("the manifest read says an exact resume will be tried, and the admit t
     assertEquals(after.machineName, host.rows[0].name);
   }));
 
+/** A second, different person who is a developer in the fixture's organization. */
+async function addSecondReader(fixture: WorkerFixture) {
+  const db = fixture.pgDatabase;
+  const providerUserId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const token = `member-${crypto.randomUUID()}`;
+  const now = new Date();
+  const displayName = "Second Reader";
+  await db.query(
+    `insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+     values ($1, $2, $3, true, $4, $4)`,
+    [providerUserId, displayName, `second-${providerUserId}@example.test`, now],
+  );
+  await db.query(
+    `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+     values ($1, $2, $3, 'human')`,
+    [principalId, providerUserId, displayName],
+  );
+  await db.query(
+    `insert into bakery.organization_memberships (
+       id, organization_id, principal_id, role, status, joined_at, created_at, updated_at, version
+     ) values ($1, $2, $3, 'developer', 'active', $4, $4, $4, 1)`,
+    [crypto.randomUUID(), fixture.organizationId, principalId, now],
+  );
+  await db.query(
+    `insert into public.session (id, token, "userId", "expiresAt", "createdAt", "updatedAt")
+     values ($1, $2, $3, $4, $5, $5)`,
+    [
+      crypto.randomUUID(),
+      token,
+      providerUserId,
+      new Date(now.getTime() + 3_600_000),
+      now,
+    ],
+  );
+  return {
+    principalId,
+    displayName,
+    cookie: await signSessionCookie(token, fixture.config.auth!.secret),
+  };
+}
+
+Deno.test("a second member reading a continued manifest sees who admitted it, not their own name", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "read-second-member");
+    const record = await exactCandidate(fixture, live);
+    await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    ).then((response) => response.body?.cancel());
+    const admitter = await fixture.pgDatabase.query<{ display_name: string }>(
+      `select p.display_name from bakery.handoff_continuations c
+         join bakery.principals p on p.id = c.admitted_by_principal_id
+        where c.manifest_id = $1`,
+      [record.id],
+    );
+    const admitterName = admitter.rows[0].display_name;
+    const reader = await addSecondReader(fixture);
+    try {
+      const read = await readManifest(fixture, String(record.id), {
+        ...fixture,
+        adminCookie: reader.cookie,
+      });
+      assertEquals(read.status, 200);
+      const seen = await body(read);
+      assertEquals(seen.status, "continued");
+      // The reader is a different person with a different name.
+      assert(reader.displayName !== admitterName);
+      assertEquals(seen.continuedByName, admitterName);
+    } finally {
+      // Seeded users would make the next fixture refuse the database.
+      const db = fixture.pgDatabase;
+      await db.query(
+        `delete from public.session where "userId" in (
+           select provider_user_id from bakery.principals where id = $1)`,
+        [reader.principalId],
+      );
+      await db.query(
+        `delete from bakery.organization_memberships where principal_id = $1`,
+        [reader.principalId],
+      );
+      const principal = await db.query<{ provider_user_id: string }>(
+        `delete from bakery.principals where id = $1 returning provider_user_id`,
+        [reader.principalId],
+      );
+      await db.query(`delete from public."user" where id = $1`, [
+        principal.rows[0].provider_user_id,
+      ]);
+    }
+  }));
+
 Deno.test("the manifest read gives the reason a continuation would start fresh, the one the admit then records", () =>
   withWorkerFixture(async (fixture) => {
     const mismatched = await liveAttempt(fixture, "read-mismatch");
@@ -527,6 +620,7 @@ Deno.test("a manifest that never asked for an exact resume reads as fresh for th
     }
   }));
 
+/** Runs the continuation of a fresh exact candidate after `revoke` has changed its history. */
 async function revokedHistory(
   name: string,
   revoke: (fixture: WorkerFixture, live: Live) => Promise<void>,

@@ -50,6 +50,7 @@ const RUN_VERSION = 4;
 const DOC_OPEN = uuid(81);
 const DOC_HIDDEN = uuid(82);
 const DOC_PLAIN = uuid(83);
+const SESSION = uuid(41);
 
 const run = {
   id: runId,
@@ -162,6 +163,7 @@ function storedManifest(over: Record<string, unknown> = {}) {
         { artifactId: uuid(92), versionId: DOC_OPEN, sha256: "b".repeat(64) },
         { artifactId: uuid(93), versionId: DOC_HIDDEN, sha256: "c".repeat(64) },
         { artifactId: uuid(94), versionId: DOC_PLAIN, sha256: "d".repeat(64) },
+        { artifactId: uuid(95), versionId: uuid(84), sha256: "e".repeat(64) },
       ],
     },
     tests: [
@@ -341,6 +343,7 @@ async function open(page: Page, w: World) {
   // version reads; one with no artifact access is not readable at all.
   await page.route(/\/v1\/artifacts\/[^/?]+$/, (r) => {
     const id = new URL(r.request().url()).pathname.split("/").pop()!;
+    if (id === uuid(95)) return problemReply(r, 500, "INTERNAL_ERROR");
     if (id !== uuid(94)) {
       return problemReply(r, 404, "RESOURCE_NOT_FOUND");
     }
@@ -359,35 +362,65 @@ async function open(page: Page, w: World) {
       },
     });
   });
-  await page.route(
-    /\/v1\/artifacts\/[^/]+\/versions(\?.*)?$/,
-    (r) =>
-      r.fulfill({
-        json: page_([{
-          id: DOC_PLAIN,
-          artifactId: uuid(94),
-          revision: 2,
-          runStepId: null,
-          authorId: uuid(5),
-          mediaType: "application/pdf",
-          sizeBytes: 10,
-          sha256: "d".repeat(64),
-          subjectHeadSha: null,
-          subjectBaseSha: null,
-          metadata: {},
+  // The pinned version is not on the first page: it is found by paging on.
+  await page.route(/\/v1\/artifacts\/[^/]+\/versions(\?.*)?$/, (r) => {
+    const url = new URL(r.request().url());
+    const item = (id: string, revision: number) => ({
+      id,
+      artifactId: uuid(94),
+      revision,
+      runStepId: null,
+      authorId: uuid(5),
+      mediaType: "application/pdf",
+      sizeBytes: 10,
+      sha256: "d".repeat(64),
+      subjectHeadSha: null,
+      subjectBaseSha: null,
+      metadata: {},
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      version: 1,
+      retentionClass: "evidence",
+      expiresAt: null,
+      purgedAt: null,
+      publicationStatus: "current",
+      refusedKindVersionId: null,
+      refusedRuleType: null,
+      refusedReason: null,
+    });
+    return r.fulfill({
+      json: url.searchParams.get("cursor") === "page-2"
+        ? { items: [item(DOC_PLAIN, 2)], nextCursor: null }
+        : { items: [item(uuid(86), 5)], nextCursor: "page-2" },
+    });
+  });
+  // The step has a session, as a running step does, so the timeline and the
+  // card speak of the same one.
+  await page.route("**/v1/sessions?*", (r) =>
+    r.fulfill({
+      json: {
+        items: [{
+          id: SESSION,
+          runStepId: stepId,
+          conversationId: task.conversationId,
+          agentVersionId: uuid(42),
+          harness: "claude",
+          status: "running",
+          resumeRef: null,
+          parentSessionId: null,
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
           version: 1,
-          retentionClass: "evidence",
-          expiresAt: null,
-          purgedAt: null,
-          publicationStatus: "current",
-          refusedKindVersionId: null,
-          refusedRuleType: null,
-          refusedReason: null,
-        }]),
-      }),
+          adapterCapabilities: {},
+        }],
+        nextCursor: null,
+      },
+    }));
+  await page.route(
+    (url) => url.pathname.endsWith(`/v1/sessions/${SESSION}/feed`),
+    (r) => r.fulfill({ json: { items: [], nextCursor: null } }),
   );
+  await page.route(`**/v1/sessions/${SESSION}/feed/stream`, () => {});
   const empty = (route: Route) => route.fulfill({ json: page_([]) });
   for (
     const pattern of [
@@ -474,6 +507,10 @@ test.describe("hand over a running step to a new session", () => {
     await expect(
       given.getByRole("link", { name: "refund-plan.pdf, version 2" }),
     ).toHaveAttribute("href", `/files/versions/${DOC_PLAIN}`);
+    // A document that could not be read is said so, never dropped.
+    await expect(page.getByTestId("handover-documents-unchecked")).toHaveText(
+      "1 could not be checked right now.",
+    );
     await expect(page.getByTestId("handover-documents-hidden")).toHaveText(
       "1 more that you do not have access to.",
     );

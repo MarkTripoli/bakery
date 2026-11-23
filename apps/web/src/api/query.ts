@@ -1606,6 +1606,56 @@ export function artifactVersionsQueryOptions(
   });
 }
 
+/**
+ * One version of an artifact, found by paging its version list until it turns
+ * up: a pinned older version is not on the first page. Null when the list ends
+ * without it, so a version that is gone is told apart from a failed read.
+ */
+export function artifactVersionAmongQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactVersions">,
+  scope: ApiScope,
+  artifactId: string,
+  versionId: string,
+) {
+  return queryOptions<
+    ArtifactVersionListResponse["items"][number] | null,
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "artifactVersions.among", {
+      artifactId,
+      versionId,
+    }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      let cursor: string | undefined;
+      // A bound, so a runaway list cannot keep this reading for ever.
+      for (let page = 0; page < 40; page++) {
+        const read = unwrap(
+          await client.listArtifactVersions({
+            organizationId: scope.organizationId,
+            artifactId,
+            limit: 100,
+            ...(cursor === undefined ? {} : { cursor }),
+            signal,
+          }),
+        );
+        const found = read.items.find((item) => item.id === versionId);
+        if (found) {
+          return (found.publicationStatus ?? "current") === "current"
+            ? found
+            : null;
+        }
+        if (!read.nextCursor) return null;
+        cursor = read.nextCursor;
+      }
+      return null;
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
 export function artifactExtractionQueryOptions(
   client: Pick<BakeryApiClient, "extractArtifactVersion">,
   scope: ApiScope,

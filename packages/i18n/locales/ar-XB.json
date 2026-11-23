@@ -6609,5 +6609,6 @@
   "tasks.run.handover.refused.reconciling": "⟪This step is already waiting for Bakery to confirm an outside action.⟫",
   "tasks.run.handover.refused.budget": "⟪This step has used all its tries. Start the run again to continue.⟫",
   "tasks.run.handover.refused.capture": "⟪The session's changes are not fully saved yet. Try again in a moment.⟫",
-  "tasks.run.handover.refused.other": "⟪Not handed over. Nothing changed. Try again.⟫"
+  "tasks.run.handover.refused.other": "⟪Not handed over. Nothing changed. Try again.⟫",
+  "tasks.run.handover.documentsUnchecked": "⟪{count, plural, one {# could not be checked right now.} other {# could not be checked right now.}}⟫"
 }

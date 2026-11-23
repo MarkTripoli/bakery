@@ -5,7 +5,7 @@ import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
   artifactQueryOptions,
-  artifactVersionsQueryOptions,
+  artifactVersionAmongQueryOptions,
   handoffManifestQueryOptions,
   storageFileAtVersionQueryOptions,
 } from "../../api/query.ts";
@@ -389,7 +389,11 @@ function Card(
             )}
         </UI.Stack>
       </UI.InlineNotice>
-      <Given view={view} />
+      <Given
+        view={view}
+        reasonIsOutside={way.kind === "fresh" &&
+          way.reason === "effects_unresolved"}
+      />
       {problem === null
         ? null
         : (
@@ -404,39 +408,46 @@ function Card(
             {blockedReason}
           </UI.Text>
         )}
-      <UI.Inline variant="actions" gap="compact">
-        <UI.Button
-          data-testid="handover-keep"
-          disabled={working}
-          variant="secondary"
-          onClick={onKeep}
-        >
-          {t("tasks.run.handover.keep")}
-        </UI.Button>
-        <UI.Button
-          data-testid="handover-confirm"
-          disabled={blockedReason !== null}
-          loading={working}
-          variant="primary"
-          onClick={onConfirm}
-        >
-          {t("tasks.run.handover.confirm")}
-        </UI.Button>
+      <UI.Inline variant="between" gap="compact">
+        <UI.Text variant="caption">{t("tasks.run.handover.same")}</UI.Text>
+        <UI.Inline variant="actions" gap="compact">
+          <UI.Button
+            data-testid="handover-keep"
+            disabled={working}
+            variant="secondary"
+            onClick={onKeep}
+          >
+            {t("tasks.run.handover.keep")}
+          </UI.Button>
+          <UI.Button
+            data-testid="handover-confirm"
+            disabled={blockedReason !== null}
+            loading={working}
+            variant="primary"
+            onClick={onConfirm}
+          >
+            {t("tasks.run.handover.confirm")}
+          </UI.Button>
+        </UI.Inline>
       </UI.Inline>
-      <UI.Text variant="caption">{t("tasks.run.handover.same")}</UI.Text>
     </UI.Stack>
   );
 }
 
 /** What the new session is given, as a quiet two-column list (design section 3). */
-function Given({ view }: { readonly view: ManifestView }) {
+function Given(
+  { view, reasonIsOutside }: {
+    readonly view: ManifestView;
+    readonly reasonIsOutside: boolean;
+  },
+) {
   const { translate: t } = useI18n();
   const [allDecisions, setAllDecisions] = useState(false);
   const decisions = allDecisions
     ? view.decisions
     : view.decisions.slice(0, DECISIONS_SHOWN);
   return (
-    <UI.DescriptionList labels="quiet" data-testid="handover-given">
+    <UI.DescriptionList data-testid="handover-given">
       <UI.DescriptionItem
         title={t("tasks.run.handover.next")}
         description={
@@ -485,24 +496,26 @@ function Given({ view }: { readonly view: ManifestView }) {
           description={
             <UI.Stack gap="tight">
               {view.checks.map((check, index) => (
-                <UI.Inline gap="compact" key={index}>
+                <UI.Inline variant="between" gap="compact" key={index}>
                   <UI.DataText variant="code">{check.command}</UI.DataText>
-                  <UI.Badge
-                    tone={check.result === "passed"
-                      ? "success"
-                      : check.result === "failed"
-                      ? "danger"
-                      : "neutral"}
-                  >
-                    {t(`tasks.run.handover.check.${check.result}` as never)}
-                  </UI.Badge>
-                  {check.evidenceVersionId === null ? null : (
-                    <UI.Link
-                      href={`/files/versions/${check.evidenceVersionId}`}
+                  <UI.Inline gap="compact">
+                    <UI.Badge
+                      tone={check.result === "passed"
+                        ? "success"
+                        : check.result === "failed"
+                        ? "danger"
+                        : "neutral"}
                     >
-                      {t("tasks.run.handover.checkEvidence")}
-                    </UI.Link>
-                  )}
+                      {t(`tasks.run.handover.check.${check.result}` as never)}
+                    </UI.Badge>
+                    {check.evidenceVersionId === null ? null : (
+                      <UI.Link
+                        href={`/files/versions/${check.evidenceVersionId}`}
+                      >
+                        {t("tasks.run.handover.checkEvidence")}
+                      </UI.Link>
+                    )}
+                  </UI.Inline>
                 </UI.Inline>
               ))}
             </UI.Stack>
@@ -515,14 +528,19 @@ function Given({ view }: { readonly view: ManifestView }) {
           ? t("tasks.run.handover.outsideNone")
           : (
             <UI.Stack gap="tight">
-              <UI.Badge tone="warning">
-                {t("tasks.run.handover.outsideUnconfirmed", {
-                  count: view.unconfirmedEffects,
-                })}
-              </UI.Badge>
-              <UI.Text>
-                {t("tasks.run.handover.outsideUnconfirmedBody")}
-              </UI.Text>
+              <UI.Inline gap="compact">
+                <UI.Badge tone="warning">
+                  {t("tasks.run.handover.outsideUnconfirmed", {
+                    count: view.unconfirmedEffects,
+                  })}
+                </UI.Badge>
+              </UI.Inline>
+              {/* The notice above already says why when that is the reason. */}
+              {reasonIsOutside ? null : (
+                <UI.Text>
+                  {t("tasks.run.handover.outsideUnconfirmedBody")}
+                </UI.Text>
+              )}
             </UI.Stack>
           )}
       />
@@ -556,7 +574,12 @@ function Documents(
   });
   const versions = useQueries({
     queries: refs.map((ref, index) => ({
-      ...artifactVersionsQueryOptions(api, scope, ref.artifactId),
+      ...artifactVersionAmongQueryOptions(
+        api,
+        scope,
+        ref.artifactId,
+        ref.versionId,
+      ),
       enabled: files[index]?.isError === true,
     })),
   });
@@ -570,9 +593,7 @@ function Documents(
       }];
     }
     const artifact = artifacts[index]?.data;
-    const version = versions[index]?.data?.items.find((item) =>
-      item.id === ref.versionId
-    );
+    const version = versions[index]?.data;
     return artifact && version
       ? [{
         versionId: ref.versionId,
@@ -581,12 +602,26 @@ function Documents(
       }]
       : [];
   });
-  // Only a document that is genuinely not readable counts as no access.
+  // Only a document that is genuinely not readable counts as no access; one
+  // that could not be checked is said so, never dropped.
+  const noAccess = (error: unknown) => {
+    const failure = error as { kind?: string; problem?: { status: number } };
+    return failure?.kind === "problem" &&
+      (failure.problem?.status === 403 || failure.problem?.status === 404);
+  };
   const hidden = refs.filter((_, index) => {
     if (!files[index]?.isError) return false;
-    const error = artifacts[index]?.error;
-    return error?.kind === "problem" &&
-      (error.problem.status === 403 || error.problem.status === 404);
+    if (noAccess(artifacts[index]?.error)) return true;
+    // The artifact reads, but the version is not in its list: it is gone.
+    return artifacts[index]?.data !== undefined &&
+      versions[index]?.isSuccess === true && versions[index]?.data === null;
+  }).length;
+  const unchecked = refs.filter((_, index) => {
+    if (!files[index]?.isError) return false;
+    const artifactError = artifacts[index]?.error;
+    const versionError = versions[index]?.error;
+    return (artifactError && !noAccess(artifactError)) ||
+      (versionError && !noAccess(versionError));
   }).length;
   const shown = all ? known : known.slice(0, DOCUMENTS_SHOWN);
   return (
@@ -599,6 +634,7 @@ function Documents(
             {shown.map((document) => (
               <UI.Link
                 key={document.versionId}
+                variant="sentence"
                 href={`/files/versions/${document.versionId}`}
               >
                 {t("tasks.run.handover.documentVersion", {
@@ -614,6 +650,16 @@ function Documents(
                 </UI.Button>
               )
               : null}
+            {unchecked === 0 ? null : (
+              <UI.Text
+                variant="muted"
+                data-testid="handover-documents-unchecked"
+              >
+                {t("tasks.run.handover.documentsUnchecked", {
+                  count: unchecked,
+                })}
+              </UI.Text>
+            )}
             {hidden === 0 ? null : (
               <UI.Text
                 variant="muted"
