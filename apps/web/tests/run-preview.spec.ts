@@ -310,7 +310,7 @@ test("a running preview says one thing and offers one button; its facts wait in 
   await expect(actions(page)).toHaveCount(1);
   await expect(card(page).getByRole("button", { name: "Prepare preview" }))
     .toBeEnabled();
-  await expect(card(page).getByText("not released")).toBeHidden();
+  await expect(card(page).getByText("a preview, not a release")).toBeHidden();
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeHidden();
   // One status region announces the state; the countdown is not live.
@@ -322,7 +322,8 @@ test("a running preview says one thing and offers one button; its facts wait in 
   await cardStill(page, "run-preview-running");
   await still(page, "run-preview-in-pane");
   await openDetails(page);
-  await expect(details(page).getByText("0123456, not released")).toBeVisible();
+  await expect(details(page).getByText("0123456, a preview, not a release"))
+    .toBeVisible();
   await expect(
     details(page).getByText(/\(in \d+ minutes\) or when the run ends/),
   )
@@ -522,7 +523,7 @@ for (const reason of REASONS) {
       }
       // The commit, and what stopping did to open tabs, are in Details.
       await openDetails(page);
-      await expect(details(page).getByText("0123456, not released"))
+      await expect(details(page).getByText("0123456, a preview, not a release"))
         .toBeVisible();
       await expect(
         card(page).getByText("Open tabs of this preview no longer load."),
@@ -742,7 +743,8 @@ test("a preview behind the change says so once, and still opens when the person 
   await still(page, "run-preview-behind-in-pane");
   // The two commits are in Details.
   await openDetails(page);
-  await expect(details(page).getByText("0123456, not released")).toBeVisible();
+  await expect(details(page).getByText("0123456, a preview, not a release"))
+    .toBeVisible();
   await expect(details(page).getByText("fedcba9")).toBeVisible();
   // The commit is a reference: keyboard focus opens its card with the whole id.
   const newer = details(page).locator(
