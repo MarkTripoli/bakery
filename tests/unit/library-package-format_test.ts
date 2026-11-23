@@ -6,6 +6,7 @@ import {
   importReferences,
   packageDefects,
   type PackageItemDraft,
+  unsafePackagePath,
 } from "../../packages/contracts/src/library-packages.ts";
 import { canonicalJson } from "../../packages/contracts/src/workflow-compiler/canonical.ts";
 
@@ -204,5 +205,75 @@ Deno.test("a reference to something the package does not carry is a defect", asy
     (await packageDefects(pkg)).some((d) =>
       d.code === "unresolved_package_reference"
     ),
+  );
+});
+
+Deno.test("a path that could leave its directory is refused, wherever a package carries one", async () => {
+  for (
+    const path of [
+      "../../x",
+      "a/../../x",
+      "/etc/passwd",
+      "a//b",
+      "./a",
+      "a/.",
+      "a\\b",
+      "C:/x",
+      "a\u0000b",
+      "",
+      "a".repeat(501),
+    ]
+  ) assertEquals(unsafePackagePath(path), true, JSON.stringify(path));
+  for (const path of ["SKILL.md", "references/sources.md", "a/b/c.txt"]) {
+    assertEquals(unsafePackagePath(path), false, path);
+  }
+
+  const skill = (overrides: Record<string, unknown>) =>
+    buildPackage("Starter", [{
+      kind: "skill",
+      key: "research",
+      data: {
+        slug: "research",
+        name: "Research",
+        entryPath: "SKILL.md",
+        manifest: { schemaVersion: 1, license: "MIT" },
+        files: [{
+          path: "SKILL.md",
+          mediaType: "text/markdown",
+          isExecutable: false,
+          contentBase64: "aGk=",
+        }],
+        ...overrides,
+      },
+    }]);
+  const unsafe = async (overrides: Record<string, unknown>) =>
+    (await packageDefects(await skill(overrides))).filter((d) =>
+      d.code === "package_path_unsafe"
+    ).map((d) => d.path.join("/"));
+  assertEquals(await unsafe({}), []);
+  assertEquals(await unsafe({ entryPath: "../../x" }), [
+    "items/0/data/entryPath",
+  ]);
+  assertEquals(
+    await unsafe({
+      files: [{
+        path: "../../x",
+        mediaType: "text/plain",
+        isExecutable: false,
+        contentBase64: "aGk=",
+      }],
+    }),
+    ["items/0/data/files/0/path"],
+  );
+  assertEquals(
+    await unsafe({
+      manifest: {
+        schemaVersion: 1,
+        license: "MIT",
+        entryPath: "../up",
+        files: [{ path: "/abs" }, { path: "ok.md" }],
+      },
+    }),
+    ["items/0/data/manifest/files/0", "items/0/data/manifest/entryPath"],
   );
 });

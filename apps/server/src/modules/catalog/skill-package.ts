@@ -19,7 +19,11 @@ import {
   type LocalSkillIdentity,
 } from "./skill-identity.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
-import { validateLocalSkillVersion } from "./validation.ts";
+import {
+  SkillUploadInvalid,
+  skillUploadIssues,
+  validateLocalSkillVersion,
+} from "./validation.ts";
 
 /**
  * Skills in a T0 package (#426). A package carries an organization-scope
@@ -149,9 +153,24 @@ export async function importSkillFromPackage(options: {
     manifest: data.manifest as JsonValue,
     files: data.files,
   };
-  const validated = await validateLocalSkillVersion(input, {
-    computeDigest: true,
-  });
+  // A hand-built package can hold a skill the upload rules refuse. That is the
+  // author's mistake, not a server fault: it is an unprocessable request, as it
+  // is when the same files are published directly.
+  let validated: Awaited<ReturnType<typeof validateLocalSkillVersion>>;
+  try {
+    validated = await validateLocalSkillVersion(input, {
+      computeDigest: true,
+    });
+  } catch (error) {
+    if (error instanceof SkillUploadInvalid) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        cause: error,
+        params: { issues: skillUploadIssues(error) },
+      });
+    }
+    throw new StandardError({ code: "UNPROCESSABLE", cause: error });
+  }
   const identity: LocalSkillIdentity = Object.freeze({
     skillId,
     sourceId: crypto.randomUUID(),

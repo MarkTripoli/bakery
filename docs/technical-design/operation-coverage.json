@@ -756,6 +756,10 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0076_output_transcript_archive.sql"
       },
+      "package_imports": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0339_package_imports.sql"
+      },
       "passkey": {
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/provider/0005_passkey.sql"

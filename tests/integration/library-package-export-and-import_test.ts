@@ -443,6 +443,69 @@ Deno.test("skills and agents travel, workflows are rebound to the new ids, and n
       result.openBindings.map((b) => `${b.key}:${b.kind}:${b.name}`).sort(),
       ["reviewer:billing:Reviewer", "triage:skill:House rules"],
     );
+
+    // A hand-built package whose skill names a path that leaves its directory,
+    // or whose bytes no longer match their manifest, is refused as
+    // unprocessable (never a server fault) and writes nothing.
+    const third = await seedOrganization(fixture, "third");
+    const skillItem = exported.items.find((item) => item.kind === "skill")!;
+    const skillData = skillItem.data as {
+      files: { path: string; contentBase64: string }[];
+      entryPath: string;
+    };
+    const rebuilt = (data: unknown) =>
+      buildPackage("Hand built", [{
+        kind: "skill",
+        key: "research",
+        data: data as never,
+      }]);
+    for (
+      const [name, data, expected] of [
+        [
+          "traversal in a file path",
+          {
+            ...skillData,
+            files: [{ ...skillData.files[0]!, path: "../../x" }],
+          },
+          "package_path_unsafe",
+        ],
+        [
+          "traversal in the entry path",
+          { ...skillData, entryPath: "../../x" },
+          "package_path_unsafe",
+        ],
+        [
+          "bytes that do not match the manifest",
+          {
+            ...skillData,
+            files: [{
+              ...skillData.files[0]!,
+              contentBase64: btoa("not what was published"),
+            }],
+          },
+          undefined,
+        ],
+      ] as const
+    ) {
+      const response = await third.send("POST", "/v1/library-packages/import", {
+        package: await rebuilt(data),
+      });
+      const text = await response.text();
+      assertEquals(response.status, 422, `${name}: ${text}`);
+      if (expected) assert(text.includes(expected), `${name}: ${text}`);
+    }
+    assertEquals(
+      (await owner`select count(*)::int as n from bakery.skills where organization_id = ${third.organizationId}`)[
+        0
+      ]!.n,
+      0,
+    );
+    assertEquals(
+      (await owner`select count(*)::int as n from bakery.package_imports where organization_id = ${third.organizationId}`)[
+        0
+      ]!.n,
+      0,
+    );
   } finally {
     await fixture.close();
     await Deno.remove(root, { recursive: true });

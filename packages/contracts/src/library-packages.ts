@@ -287,7 +287,8 @@ export type PackageDefect = Readonly<{
     | "installation_only_member"
     | "workflow_definition_not_json"
     | "workflow_definition_not_canonical"
-    | "unresolved_package_reference";
+    | "unresolved_package_reference"
+    | "package_path_unsafe";
   path: readonly (string | number)[];
   message: string;
 }>;
@@ -315,6 +316,24 @@ function memberDefects(
     }
     memberDefects(entry, [...path, name], out);
   }
+}
+
+/**
+ * Whether a path inside a package could leave the directory it is written
+ * under. A package is hand-built data, so every path field is checked the same
+ * way: relative, no empty, `.` or `..` segment, no backslash or drive letter,
+ * no control character, and a bounded length. Nothing here resolves a path
+ * against a disk; it only refuses the shapes that could escape one.
+ */
+export function unsafePackagePath(path: string): boolean {
+  if (path.length === 0 || path.length > 500) return true;
+  if (path.startsWith("/") || path.includes("\\")) return true;
+  // deno-lint-ignore no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(path)) return true;
+  if (/^[A-Za-z]:/.test(path)) return true;
+  return path.split("/").some((segment) =>
+    segment === "" || segment === "." || segment === ".."
+  );
 }
 
 /**
@@ -375,6 +394,45 @@ export async function packageDefects(
             path: ["items", index, "data", "definition"],
             message:
               `${identity} names ${reference}, which the package does not carry.`,
+          });
+        }
+      }
+    } else if (item.kind === "skill") {
+      const paths: { at: (string | number)[]; path: string }[] = [
+        {
+          at: ["items", index, "data", "entryPath"],
+          path: item.data.entryPath,
+        },
+        ...item.data.files.map((file, fileIndex) => ({
+          at: ["items", index, "data", "files", fileIndex, "path"],
+          path: file.path,
+        })),
+      ];
+      const listed = item.data.manifest["files"];
+      if (Array.isArray(listed)) {
+        listed.forEach((entry, entryIndex) => {
+          const path = (entry as { path?: unknown } | null)?.path;
+          if (typeof path === "string") {
+            paths.push({
+              at: ["items", index, "data", "manifest", "files", entryIndex],
+              path,
+            });
+          }
+        });
+      }
+      const manifestEntry = item.data.manifest["entryPath"];
+      if (typeof manifestEntry === "string") {
+        paths.push({
+          at: ["items", index, "data", "manifest", "entryPath"],
+          path: manifestEntry,
+        });
+      }
+      for (const { at, path } of paths) {
+        if (unsafePackagePath(path)) {
+          defects.push({
+            code: "package_path_unsafe",
+            path: at,
+            message: `${identity} names a path that could leave its directory.`,
           });
         }
       }
