@@ -251,7 +251,13 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
         params: { reason: "mcp_arguments_invalid" },
       });
     }
-    const argumentsDigest = await sha256Hex(canonicalJson(args));
+    // The key names one request: the connection, the tool as asked and its
+    // arguments. A replay that differs in any of them is another call.
+    const argumentsDigest = await sha256Hex(canonicalJson({
+      mcpConnectionId: connectionId,
+      toolName: input.toolName,
+      arguments: args,
+    }));
     const headers = context.req.raw.headers;
 
     const opened = await workerTransaction(
@@ -265,13 +271,15 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
           attemptId,
           input,
         );
-        const previous = (await transaction.query<CallRow>(
-          `select id, status, arguments_digest, result, failure_code, tool_name
-             from bakery.tool_gateway_calls
-            where organization_id = $1 and attempt_id = $2
-              and idempotency_key = $3`,
-          [organizationId, attemptId, idempotencyKey],
-        )).rows[0];
+        const readPrevious = async () =>
+          (await transaction.query<CallRow>(
+            `select id, status, arguments_digest, result, failure_code, tool_name
+               from bakery.tool_gateway_calls
+              where organization_id = $1 and attempt_id = $2
+                and idempotency_key = $3`,
+            [organizationId, attemptId, idempotencyKey],
+          )).rows[0];
+        const previous = await readPrevious();
         if (previous !== undefined) {
           return { kind: "replay" as const, previous };
         }
@@ -297,6 +305,8 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
              organization_id, attempt_id, idempotency_key, mcp_connection_id,
              tool_name, snapshot_digest, arguments_digest, read_only, status
            ) values ($1, $2, $3, $4, $5, $6, $7, $8, 'sent')
+           on conflict (organization_id, attempt_id, idempotency_key)
+             do nothing
            returning id`,
           [
             organizationId,
@@ -309,9 +319,23 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
             tool.readOnly,
           ],
         );
+        const callId = inserted.rows[0]?.id;
+        if (callId === undefined) {
+          // A request with the same key committed its row first: this one is
+          // its replay, never a second send. The attempt lock taken above
+          // queues same-attempt calls today; this keeps the key safe without
+          // relying on that lock.
+          const raced = await readPrevious();
+          if (raced === undefined) {
+            throw new Error(
+              "tool_gateway_calls row missing after key conflict",
+            );
+          }
+          return { kind: "replay" as const, previous: raced };
+        }
         return {
           kind: "send" as const,
-          callId: inserted.rows[0]!.id,
+          callId,
           organizationId,
           actorRef: scope.startedByPrincipalId,
           scope,

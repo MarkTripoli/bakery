@@ -57,8 +57,9 @@ create table bakery.tool_gateway_calls (
   mcp_connection_id uuid not null,
   tool_name text not null,
   snapshot_digest text not null,
-  -- The digest of the canonical arguments, so a replay with other arguments
-  -- under the same key is refused rather than answered with this call's result.
+  -- The digest of the canonical request (connection, tool name as asked and
+  -- arguments), so a replay that differs in any of them under the same key is
+  -- refused rather than answered with this call's result.
   arguments_digest text not null,
   read_only boolean not null,
   -- sent, completed, failed or refused. Only 'sent' is ever updated.

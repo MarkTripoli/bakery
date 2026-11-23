@@ -383,6 +383,33 @@ Deno.test("a session lists only the tools its step binds and calls one through t
       key,
     );
     assertEquals(await problemCode(mismatch), "IDEMPOTENCY_PAYLOAD_MISMATCH");
+    // The same key and arguments for another tool, or on another connection,
+    // is not this call either: it is refused, not answered with this result.
+    const otherTool = await invoke(
+      fixture,
+      s,
+      "create_note",
+      { query: "bakery" },
+      key,
+    );
+    assertEquals(
+      await problemCode(otherTool),
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+    );
+    const other = await secondConnection(fixture, s);
+    const otherConnection = await invoke(
+      fixture,
+      s,
+      "search",
+      { query: "bakery" },
+      key,
+      { connectionId: other.connectionId },
+    );
+    assertEquals(
+      await problemCode(otherConnection),
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+    );
+    assertEquals(server.calls.length, 1);
 
     const recorded = await fixture.pgDatabase.query<{ status: string }>(
       `select status from bakery.tool_gateway_calls
@@ -390,6 +417,73 @@ Deno.test("a session lists only the tools its step binds and calls one through t
       [fixture.organizationId, s.assignment.attemptId],
     );
     assertEquals(recorded.rows.map((row) => row.status), ["completed"]);
+  }));
+
+Deno.test("two calls at once with one key send once; the other is a replay, never a 500 (#436)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    await bind(fixture, s, { stepKey: "worker" }, ["search"]);
+    // Hold the connection row so the first call waits at its insert (the
+    // foreign key check needs the row) with its row uncommitted, while the
+    // second is already in flight with the same key. Today the attempt lock
+    // queues the second behind the first; the insert's key conflict is
+    // handled as a replay too, so neither order can answer a 500.
+    const holder = await fixture.pgDatabase.connect();
+    let open = false;
+    try {
+      await holder.query("begin");
+      open = true;
+      const pid = (await holder.query<{ pid: number }>(
+        "select pg_backend_pid() as pid",
+      )).rows[0]!.pid;
+      await holder.query(
+        `select id from bakery.mcp_connections
+          where organization_id = $1 and id = $2 for update`,
+        [fixture.organizationId, s.connectionId],
+      );
+      const key = crypto.randomUUID();
+      const pending = [
+        invoke(fixture, s, "search", { query: "bakery" }, key),
+        invoke(fixture, s, "search", { query: "bakery" }, key),
+      ];
+      const deadline = Date.now() + 20_000;
+      for (;;) {
+        const waiting = await fixture.pgDatabase.query<{ count: string }>(
+          // The first waits on the held row; the second on the first's
+          // uncommitted key (old code) or on the held row too.
+          `select count(*)::text as count from pg_locks
+            where not granted and cardinality(pg_blocking_pids(pid)) > 0
+              and pid <> $1`,
+          [pid],
+        );
+        if (Number(waiting.rows[0]!.count) >= 2) break;
+        if (Date.now() > deadline) throw new Error("calls never queued");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await holder.query("commit");
+      open = false;
+      const responses = await Promise.all(pending);
+      const answers = await Promise.all(responses.map(async (response) => ({
+        status: response.status,
+        body: await response.text(),
+      })));
+      // One call sends. The other replays its answer or, while the first
+      // has not settled, says the outcome is not known yet.
+      for (const answer of answers) {
+        assert(
+          answer.status === 200 ||
+            (answer.status === 409 &&
+              answer.body.includes("tool_call_outcome_unknown")),
+          `${answer.status} ${answer.body}`,
+        );
+      }
+      assertEquals(answers.filter((a) => a.status === 200).length >= 1, true);
+    } finally {
+      if (open) await holder.query("rollback");
+      holder.release();
+    }
+    assertEquals(server.calls.length, 1);
+    assertEquals((await gatewayCalls(fixture, s)).length, 1);
   }));
 
 Deno.test("a tool the session was not granted is refused before anything is sent (#436)", () =>
