@@ -27,6 +27,7 @@ import {
 } from "./StepPanel.tsx";
 import type { SkillResponse, WorkflowVersionSkills } from "../../api/client.ts";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
+import { DiagramViewSwitch, useDiagramView } from "./diagram-view.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import {
   definitionOf,
@@ -103,6 +104,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   together: "library.editor.group.together",
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
+  each: "library.editor.group.each",
   wait: "library.editor.group.wait",
 };
 
@@ -128,6 +130,7 @@ export function WorkflowEditorPage(
   const canManage = access.data?.role === "admin";
   const queryClient = useQueryClient();
   const { translate } = useI18n();
+  const [diagramView, setDiagramView] = useDiagramView();
 
   const workflow = useQuery(workflowQueryOptions(api, scope, workflowId));
   const versions = useQuery(
@@ -701,9 +704,11 @@ export function WorkflowEditorPage(
         kind: "codeOnly",
         name: translate(GROUP_LABEL[group.label] as never),
         problem: undefined,
-        ...(group.max === undefined ? {} : {
-          help: translate("library.editor.group.fixHelp" as never),
-        }),
+        ...(group.label === "each"
+          ? { help: translate("library.editor.group.eachHelp" as never) }
+          : group.max === undefined
+          ? {}
+          : { help: translate("library.editor.group.fixHelp" as never) }),
       };
     }
     // The Skills section a step's panel draws: its rows and the picker that attaches one.
@@ -969,6 +974,9 @@ export function WorkflowEditorPage(
     : (
       <UI.Inline gap="standard" data-ui-region="editor-work-surface">
         <UI.Stack gap="standard">
+          <div data-ui-region="workflow-view-switch">
+            <DiagramViewSwitch onChange={setDiagramView} view={diagramView} />
+          </div>
           <WorkflowDiagram
             tree={tree}
             selectedId={selectedId}
@@ -993,6 +1001,7 @@ export function WorkflowEditorPage(
               setSelectedId(id);
             }}
             onPickClose={() => setPickerAfter(undefined)}
+            view={diagramView}
           />
         </UI.Stack>
         {panelTarget === null ? null : (

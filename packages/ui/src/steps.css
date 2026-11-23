@@ -375,65 +375,27 @@
 [data-ui-region="editor-work-surface"] {
   align-items: flex-start;
 }
-[data-ui-region="editor-work-surface"] > *:last-child {
+/* The second column is the panel; when there is none, the one column is the
+   diagram and takes the whole width (a canvas has nothing to size itself by). */
+[data-ui-region="editor-work-surface"] > *:last-child:not(:first-child) {
   flex: 0 0 auto;
   inline-size: var(--layout-step-panel);
   max-inline-size: 100%;
+}
+[data-ui-region="editor-work-surface"] > *:first-child {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+/* The Diagram / Outline switch sits at the end of a row of its own. */
+[data-ui-region="workflow-view-switch"] {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* The problems list is a dialog of sentences and their one action: it needs a
    reading width, not the width of its longest line. */
 [data-ui-component="dialog"]:has([data-testid="editor-problem-list"]) {
   inline-size: var(--layout-session-pane);
-}
-
-/* A group is a container, not a label above loose cards (#67 UX ruling
-   6932934119 fix 10): one border holds its label, its "edited in code" line and
-   its cards, so a person can see where the group begins and ends. The rules
-   hang off the data attributes the diagram already sets, so no app file needs a
-   one-off class. */
-[data-group] {
-  background: var(--color-surface);
-  border: var(--border-default) solid var(--color-border);
-  border-radius: var(--radius-control);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  /* As wide as its steps plus padding, and never wider than the column it sits
-     in: on a phone the arms stack instead of pushing the page sideways (#67 UX
-     ruling comment 6934081003 fix 1), and on a wide page the box no longer
-     runs about 1200px around 330px cards (#62 UX sign-off). */
-  inline-size: fit-content;
-  max-inline-size: 100%;
-  min-inline-size: 0;
-  padding: var(--space-3);
-}
-[data-group-label] {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-/* The two arms of a branch sit side by side inside their one If container, and
-   stack when there is no room for two columns. */
-[data-group-arms] {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  min-inline-size: 0;
-}
-[data-group-arm] {
-  display: flex;
-  /* An arm is as wide as its steps, with a 12rem floor that is small enough for
-     a phone and wide enough to read. The box around the arms is as wide as
-     both of them, so two arms sit side by side when there is room and stack
-     when there is not; they do not stretch to fill the page (#62 UX sign-off). */
-  flex: 0 1 auto;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-inline-size: 12rem;
-  overflow-wrap: anywhere;
 }
 
 /* A picker row is its name over its one sentence, both inside the button's hit
@@ -491,19 +453,6 @@
  * layer, so this one raises the picker's own box above them.
  */
 [data-has-control] .ui-popover__content {
-  z-index: var(--layer-popover);
-}
-/*
- * The whole link that owns an OPEN picker rises above every other link. The
- * picker is absolutely positioned and hangs below its "+", so it physically
- * covers the connectors after it; painting is the problem, not hit-testing
- * (`elementFromPoint` reported the picker on top while the still showed the next
- * "+" over it — the two answer different questions). Raising only the open link
- * works because nothing else in the diagram sets a layer, so its `auto`
- * neighbours cannot outrank it (#67 UX round 5, medium).
- */
-[data-ui-region="workflow-diagram"] > [data-connector]:has(.ui-popover[data-state="open"]) {
-  position: relative;
   z-index: var(--layer-popover);
 }
 .ui-popover__trigger--plain:has(> [data-add-highlight]) {
@@ -637,35 +586,6 @@
 .ui-popover__content:has([data-testid="skill-picker"])[data-flip="true"] {
   inset-block-end: calc(100% + var(--space-2));
   inset-block-start: auto;
-}
-
-/* The diagram is a column with no gap, because a connector has to touch the
-   cards on both sides. Everything that is not a connector carries its own
-   block spacing instead (#67 UX ruling comment 6935518498 fix 1). */
-[data-ui-region="workflow-diagram"] > *:not([data-connector]):not(.ui-step-connector) {
-  margin-block: var(--space-3);
-}
-[data-ui-region="workflow-diagram"] > *:first-child {
-  margin-block-start: var(--space-0);
-}
-[data-ui-region="workflow-diagram"] > *:last-child {
-  margin-block-end: var(--space-0);
-}
-/*
- * The connector's wrapper is a plain `div` between flex children, so it must
- * keep the connector's own 40px and never shrink; otherwise the flex column
- * squeezed the line into a stub with gaps either side of it (#67 UX ruling
- * comment 6935518498 fix 1).
- */
-[data-ui-region="workflow-diagram"] > [data-connector] {
-  flex: 0 0 auto;
-  margin-block: var(--space-0);
-  min-block-size: var(--space-10);
-}
-/* A connector for a workflow this person cannot change draws nothing, so it
-   takes no room at all instead of holding an empty 40px slot. */
-[data-ui-region="workflow-diagram"] > [data-connector]:empty {
-  min-block-size: var(--space-0);
 }
 
 /*
@@ -909,13 +829,28 @@ button.ui-outline__main:focus-visible {
 [data-canvas-add]:has(.ui-popover[data-state="open"]) {
   z-index: var(--layer-popover);
 }
-[data-canvas-frame] {
+/* The workflow ends in a small outlined pill: no card, nothing to select. */
+[data-canvas-end] {
+  align-items: center;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  box-sizing: border-box;
+  color: var(--color-fg-muted);
+  display: flex;
+  inline-size: 100%;
+  justify-content: center;
+  min-block-size: var(--space-8);
+}
+.ui-canvas-frame {
   background: var(--color-canvas);
-  border: var(--border-default) solid var(--color-border);
-  border-radius: var(--radius-surface);
   box-sizing: border-box;
   inline-size: 100%;
   overflow: hidden;
+}
+.ui-canvas-frame[data-variant="page"] {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
 }
 @media (pointer: coarse) {
   [data-ui-region="workflow-canvas"] .react-flow__controls-button {

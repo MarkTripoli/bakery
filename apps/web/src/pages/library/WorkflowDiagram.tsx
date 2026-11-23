@@ -1,7 +1,11 @@
 import {
+  Component,
+  lazy,
   type ReactNode,
+  Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -15,7 +19,20 @@ import {
   ACTION_TITLES,
   PICKER_STEPS,
 } from "./workflow-state.ts";
-import type { GroupLabel, Tree, TreeNode, TreeStep } from "./workflow-tree.ts";
+import {
+  type CanvasBlock,
+  type CanvasGraph,
+  canvasGraph,
+  STEP_SIZE,
+  WIRE_LENGTH,
+} from "./canvas-graph.ts";
+import type {
+  GroupLabel,
+  Tree,
+  TreeGroup,
+  TreeNode,
+  TreeStep,
+} from "./workflow-tree.ts";
 
 /**
  * The workflow drawn top to bottom (#67, slice 1 of the owner's spec): "How it
@@ -63,6 +80,13 @@ export type DiagramProps = {
    * agent a step runs, and whether that could be read. The editor passes none.
    */
   readonly detail?: (uses: string, id: string) => ReactNode;
+  /**
+   * How the steps are drawn: the diagram, or the same workflow as a list. The
+   * page owns the choice (it is in the address as `?view=outline`) and its
+   * switch; a phone always gets the list, and the diagram's code is then not
+   * loaded at all.
+   */
+  readonly view?: "diagram" | "outline";
 };
 
 const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
@@ -71,7 +95,17 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   together: "library.editor.group.together",
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
+  each: "library.editor.group.each",
   wait: "library.editor.group.wait",
+};
+
+/** The glyph in a box's header, where one says more than the label. */
+const GROUP_ICON: Readonly<Partial<Record<GroupLabel, string>>> = {
+  together: "lanes",
+  repeat: "refresh",
+  fix: "refresh",
+  each: "refresh",
+  wait: "clock",
 };
 
 export function WorkflowDiagram(
@@ -89,6 +123,7 @@ export function WorkflowDiagram(
     readOnlyPage = false,
     selectedId,
     tree,
+    view = "diagram",
   }: DiagramProps,
 ) {
   const { translate } = useI18n();
@@ -188,34 +223,73 @@ export function WorkflowDiagram(
     </UI.Stack>
   );
 
-  // The connector between two cards: the "+" a person presses to add a step,
-  // or the bare line when the workflow cannot be changed here.
-  const connector = (afterId: string | null, last = false): ReactNode => {
-    if (!editable) {
-      return (
-        <div data-connector={afterId ?? "start"}>
-          <UI.StepConnector
-            label={translate("library.editor.pathLine" as never)}
-            readOnly
-            endLabel={last
-              ? translate("library.editor.pathEnd" as never)
-              : undefined}
-          />
-        </div>
-      );
+  const graph = useMemo<CanvasGraph>(() => canvasGraph(tree), [tree]);
+  const stepNumber = useMemo(
+    () =>
+      new Map(
+        graph.blocks.filter((block) => block.kind === "step").map((
+          block,
+          index,
+        ) => [block.id, index + 1] as const),
+      ),
+    [graph],
+  );
+  // The outermost box that is written in code carries the code mark, once: the
+  // steps and boxes inside it are in code too, and saying so again is noise.
+  const marked = useMemo(() => {
+    const out = new Set<string>();
+    const byId = new Map(graph.blocks.map((block) => [block.id, block]));
+    for (const block of graph.blocks) {
+      if (block.kind !== "box" && block.kind !== "if") continue;
+      let inside = false;
+      for (
+        let up = block.parent;
+        up !== null;
+        up = byId.get(up)?.parent ?? null
+      ) {
+        if (out.has(up)) {
+          inside = true;
+          break;
+        }
+      }
+      if (!inside) out.add(block.id);
     }
+    return out;
+  }, [graph]);
+
+  const stepsInside = (held: readonly TreeNode[]): number =>
+    held.reduce(
+      (sum, node) =>
+        sum + (node.kind === "step" ? 1 : stepsInside(node.children)),
+      0,
+    );
+
+  // The "+" a person presses to add a step after a step (or after the start):
+  // it opens the picker, as a popover beside it and a bottom sheet on a phone,
+  // so it never pushes the diagram down. Null where nothing can be added.
+  const addControl = (afterId: string | null): ReactNode => {
+    if (!editable || !canManage) return null;
     const open = pickerAt !== undefined && pickerAt === afterId;
-    if (!canManage) return <div data-connector={afterId ?? "start"} />;
-    // The picker is a popover beside the "+" it came from, and a bottom sheet
-    // on a phone, so it never pushes the diagram down (#67 UX ruling
-    // 6934081003 fix 2).
     const addLabel = translate("library.editor.addHere" as never, {
       after: afterId === null
         ? translate("library.editor.startsHere" as never)
         : title(treeStepUses(tree, afterId) ?? afterId),
     });
     return (
-      <div data-connector={afterId ?? "start"}>
+      <>
+        <UI.Popover
+          open={phone ? false : open}
+          label={addLabel}
+          triggerLabel={addLabel}
+          variant="interactive"
+          onOpenChange={(next) => {
+            if (next) onAdd(afterId);
+            else if (open) onPickClose();
+          }}
+          trigger={<span data-add-highlight="true">+</span>}
+        >
+          {pickerBody}
+        </UI.Popover>
         {phone && open
           ? (
             <UI.Sheet
@@ -229,27 +303,8 @@ export function WorkflowDiagram(
               {pickerBody}
             </UI.Sheet>
           )
-          : (
-            <UI.StepConnector
-              label={addLabel}
-              control={
-                <UI.Popover
-                  open={open}
-                  label={addLabel}
-                  triggerLabel={addLabel}
-                  variant="interactive"
-                  onOpenChange={(next) => {
-                    if (next) onAdd(afterId);
-                    else if (open) onPickClose();
-                  }}
-                  trigger={<span data-add-highlight="true">+</span>}
-                >
-                  {pickerBody}
-                </UI.Popover>
-              }
-            />
-          )}
-      </div>
+          : null}
+      </>
     );
   };
 
@@ -262,233 +317,432 @@ export function WorkflowDiagram(
     }
     return title(node.uses);
   };
+  const stepName = (node: TreeStep): string =>
+    translate("library.editor.canvas.stepName" as never, {
+      name: cardName(node),
+      number: stepNumber.get(node.id) ?? 0,
+      total: stepNumber.size,
+    });
 
-  const card = (node: TreeStep): ReactNode => {
-    const id = node.id;
-    const problemLine = problems.get(id);
-    // A step with a problem wears the red outline and says "Needs setup" in
-    // place of its usual line, whether Bakery cannot read it or can only
-    // change it in code. The sentence is never loose text under the card; it
-    // belongs to the panel and the problem list (#67 UX ruling 6932934119
-    // fixes 2 and 3).
-    const drawing = node.problem !== undefined || problemLine !== undefined;
+  // What one step says, for its card and for its row in the outline. A step with
+  // a problem wears the red outline and says "Needs setup" in place of its
+  // usual line; the sentence is never loose text under it, it belongs to the
+  // panel and the problem list (#67 UX ruling 6932934119 fixes 2 and 3). On a
+  // read-only page a known step shows its usual line, not "Edited in code".
+  const stepFacts = (node: TreeStep) => {
+    const drawing = node.problem !== undefined ||
+      problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
     const glyph = drawing ? "info" : ACTION_ICONS[node.uses];
-    // On a read-only page a known step shows its usual line, not "Edited in
-    // code": nothing can be edited there, so the label would only add noise
-    // (#67 UX ruling 6932934119 fix 14).
     const summary = drawing
       ? undefined
       : codeOnly && editedInCode !== undefined
       ? editedInCode
       : line(node.uses);
-    const extra = drawing ? undefined : detail?.(node.uses, id);
+    const extra = drawing ? undefined : detail?.(node.uses, node.id);
+    return { drawing, extra, glyph, summary };
+  };
+
+  const card = (node: TreeStep): ReactNode => {
+    const facts = stepFacts(node);
     return (
-      <div data-card={id}>
+      <div data-card={node.id}>
         <UI.StepCard
-          icon={glyph === undefined
+          aria-label={stepName(node)}
+          icon={facts.glyph === undefined
             ? undefined
-            : <UI.IconGlyph name={glyph as never} size="small" />}
+            : <UI.IconGlyph name={facts.glyph as never} size="small" />}
           title={cardName(node)}
-          selected={selectedId === id}
-          needsSetup={drawing}
+          selected={selectedId === node.id}
+          needsSetup={facts.drawing}
           needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
           writtenInCode={node.code === undefined ? undefined : (
             translate("library.editor.card.writtenInCode" as never, {
               code: node.code,
             })
           )}
-          summary={summary}
-          detail={extra === undefined
+          summary={facts.summary}
+          detail={facts.extra === undefined
             ? undefined
-            : <span data-step-extra="true">{extra}</span>}
+            : <span data-step-extra="true">{facts.extra}</span>}
           disabled={!canManage}
-          onClick={() => onSelect(id)}
+          onClick={() => onSelect(node.id)}
         />
       </div>
     );
   };
 
-  // A group is a container with an edge, not a loose label above cards: its
-  // label, its "edited in code" line and its cards sit inside one border, and
-  // the path line runs into the top and out of the bottom (#67 UX ruling
-  // 6932934119 fix 10). "Yes" and "Otherwise" are the two arms of one If.
-  const groupBody = (
-    node: Extract<TreeNode, { kind: "group" }>,
-  ): ReactNode => (
-    <>
-      {node.children.length === 0
-        ? (
-          <UI.Text variant="muted">
-            {translate("library.editor.group.noSteps" as never)}
-          </UI.Text>
-        )
-        : nodes(node.children)}
-    </>
-  );
-
-  /**
-   * The word for what kind of group this is. Where a person can select it, it
-   * is a button; where they cannot (a read-only page) it is plain text, never a
-   * disabled button, so every group's word reads at full strength (#62 QA).
-   */
-  const groupWord = (
-    node: Extract<TreeNode, { kind: "group" }>,
-  ): ReactNode =>
-    canManage
-      ? (
-        <UI.Button variant="text" onClick={() => onSelect(node.id)}>
-          {translate(GROUP_LABEL[node.label] as never)}
-        </UI.Button>
-      )
-      : <UI.Text>{translate(GROUP_LABEL[node.label] as never)}</UI.Text>;
-
-  /** A group's own label: its word, and "Edited in code" once for the group. */
-  const groupLabel = (
-    node: Extract<TreeNode, { kind: "group" }>,
-  ): ReactNode => (
-    <div data-group-label={node.id}>
-      {groupWord(node)}
-      {node.max === undefined
-        ? null
-        : (
-          <UI.Text variant="caption" data-fix-limit="true">
-            {translate("library.editor.group.fixLimit" as never, {
-              max: node.max,
-            })}
-          </UI.Text>
-        )}
-      {editedInCode === undefined
-        ? null
-        : <UI.Text variant="caption">{editedInCode}</UI.Text>}
+  const startCard = (
+    <div data-card="start">
+      <UI.StepCard
+        icon={<UI.IconGlyph name="lightning" size="small" />}
+        title={translate("library.editor.howItStarts" as never)}
+        summary={translate("library.editor.howItStartsLine" as never)}
+        selected={selectedId === "start"}
+        controls="editor-step-panel"
+        onClick={() => onSelect("start")}
+      />
     </div>
   );
 
-  /**
-   * An arm inside an If container: only its word, because the container says
-   * "Edited in code" once for both arms (#67 UX ruling 6934081003 fix 5).
-   */
-  const armLabel = (
-    node: Extract<TreeNode, { kind: "group" }>,
-  ): ReactNode => <div data-group-label={node.id}>{groupWord(node)}</div>;
+  /** The mark that says a box is written in code; its words are the same for a screen reader. */
+  const codeMark = (): ReactNode =>
+    editedInCode === undefined ? undefined : (
+      <UI.Tooltip content={editedInCode}>
+        <span aria-label={editedInCode} role="img">
+          <UI.IconGlyph name={"code" as never} size="small" />
+        </span>
+      </UI.Tooltip>
+    );
 
-  const group = (
-    node: Extract<TreeNode, { kind: "group" }>,
-  ): ReactNode => (
-    <section key={`group-${node.id}`} data-group={node.label}>
-      {groupLabel(node)}
-      {groupBody(node)}
-    </section>
-  );
+  const limitOf = (group: TreeGroup): string | undefined => {
+    if (group.max === undefined) return undefined;
+    if (group.label === "each") {
+      return translate("library.editor.group.eachLimit" as never, {
+        max: group.max,
+      });
+    }
+    if (group.label === "fix") {
+      return translate("library.editor.group.fixLimit" as never, {
+        max: group.max,
+      });
+    }
+    return undefined;
+  };
+  const wordFor = (label: GroupLabel): string =>
+    translate(GROUP_LABEL[label] as never);
+  /** "For each item, at most 5 items. 2 steps inside. Edited in code." */
+  const groupName = (
+    label: string,
+    limit: string | undefined,
+    inside: number,
+    inCode: boolean,
+  ): string => {
+    const said = limit === undefined
+      ? translate("library.editor.canvas.boxName" as never, {
+        count: inside,
+        label,
+      })
+      : translate("library.editor.canvas.boxNameLimit" as never, {
+        count: inside,
+        label,
+        limit,
+      });
+    return inCode && editedInCode !== undefined
+      ? `${said} ${editedInCode}.`
+      : said;
+  };
+  const noSteps = translate("library.editor.group.noSteps" as never);
+  const glyphOf = (label: GroupLabel): ReactNode => {
+    const name = GROUP_ICON[label];
+    return name === undefined
+      ? undefined
+      : <UI.IconGlyph name={name as never} size="small" />;
+  };
 
-  /** The two arms of a branch, side by side inside one container labelled If. */
-  const ifGroup = (
-    held: readonly [
-      Extract<TreeNode, { kind: "group" }>,
-      ...Extract<
-        TreeNode,
-        { kind: "group" }
-      >[],
-    ],
-  ): ReactNode => (
-    <section key={`if-${held[0].id}`} data-group="if" data-group-shape="if">
-      <div data-group-label="if">
-        <UI.Text variant="strong">
-          {translate("library.editor.group.if" as never)}
-        </UI.Text>
-        {editedInCode === undefined
-          ? null
-          : <UI.Text variant="caption">{editedInCode}</UI.Text>}
-      </div>
-      <div data-group-arms="true">
-        {held.map((arm) => (
-          <div key={`arm-${arm.id}`} data-group-arm={arm.label}>
-            {armLabel(arm)}
-            {groupBody(arm)}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+  // ---- the diagram: what each block of the canvas looks like ----
+  const renderBlock = (block: CanvasBlock): ReactNode => {
+    switch (block.kind) {
+      case "start":
+        return startCard;
+      case "step":
+        return block.step === undefined ? null : card(block.step);
+      case "end":
+        return (
+          <span data-canvas-end="true">
+            <UI.Text variant="caption">
+              {translate("library.editor.pathEnd" as never)}
+            </UI.Text>
+          </span>
+        );
+      case "if":
+        return (
+          <UI.StepGroup
+            data-group="if"
+            codeMark={marked.has(block.id) ? codeMark() : undefined}
+            label={translate("library.editor.group.if" as never)}
+          />
+        );
+      case "box":
+      case "arm": {
+        const group = block.group;
+        if (group === undefined) return null;
+        const arm = block.kind === "arm";
+        const inCode = marked.has(block.id);
+        const limit = limitOf(group);
+        return (
+          <UI.StepGroup
+            data-group={group.label}
+            codeMark={inCode ? codeMark() : undefined}
+            empty={group.children.length === 0 ? noSteps : undefined}
+            icon={arm ? undefined : glyphOf(group.label)}
+            label={wordFor(group.label)}
+            limit={limit}
+            onSelect={canManage ? () => onSelect(group.id) : undefined}
+            selectLabel={groupName(
+              wordFor(group.label),
+              limit,
+              stepsInside(group.children),
+              inCode,
+            )}
+            selected={selectedId === group.id}
+            variant={arm ? "arm" : "box"}
+          />
+        );
+      }
+    }
+  };
+  /** The "+" sits inside the block above it, so Tab reaches it right after that block. */
+  const renderAdd = (block: CanvasBlock): ReactNode => {
+    if (block.kind !== "start" && block.kind !== "step") return null;
+    const afterId = block.kind === "start" ? null : block.id;
+    const control = addControl(afterId);
+    return control === null
+      ? null
+      : (
+        <span data-canvas-add="true" data-connector={afterId ?? "start"}>
+          {control}
+        </span>
+      );
+  };
 
-  const nodes = (held: readonly TreeNode[]): ReactNode => {
-    const out: ReactNode[] = [];
+  // ---- the outline: the same workflow as a list ----
+  const outlineAdd = (afterId: string | null): ReactNode => {
+    const control = addControl(afterId);
+    return control === null
+      ? undefined
+      : <span data-connector={afterId ?? "start"}>{control}</span>;
+  };
+  const stepRow = (node: TreeStep): ReactNode => {
+    const facts = stepFacts(node);
+    return (
+      <UI.OutlineRow
+        add={outlineAdd(node.id)}
+        data-card={node.id}
+        icon={facts.glyph === undefined
+          ? undefined
+          : <UI.IconGlyph name={facts.glyph as never} size="small" />}
+        key={node.id}
+        needsSetup={facts.drawing}
+        needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
+        onSelect={canManage ? () => onSelect(node.id) : undefined}
+        selectLabel={stepName(node)}
+        selected={selectedId === node.id}
+        summary={facts.extra === undefined ? facts.summary : (
+          <>
+            {facts.summary}
+            <span data-step-extra="true">{facts.extra}</span>
+          </>
+        )}
+        title={cardName(node)}
+      />
+    );
+  };
+  const innerList = (held: readonly TreeNode[]): ReactNode =>
+    held.length === 0
+      ? <UI.Text variant="muted">{noSteps}</UI.Text>
+      : <UI.OutlineList>{outlineRows(held, true)}</UI.OutlineList>;
+  const groupRow = (node: TreeGroup, inCode: boolean): ReactNode => {
+    const limit = limitOf(node);
+    return (
+      <UI.OutlineRow
+        codeMark={inCode ? undefined : codeMark()}
+        data-group={node.label}
+        icon={glyphOf(node.label)}
+        key={node.id}
+        onSelect={canManage ? () => onSelect(node.id) : undefined}
+        selectLabel={groupName(
+          wordFor(node.label),
+          limit,
+          stepsInside(node.children),
+          !inCode,
+        )}
+        selected={selectedId === node.id}
+        summary={limit}
+        title={wordFor(node.label)}
+      >
+        {innerList(node.children)}
+      </UI.OutlineRow>
+    );
+  };
+  const outlineRows = (
+    held: readonly TreeNode[],
+    inCode: boolean,
+  ): ReactNode[] => {
+    const rows: ReactNode[] = [];
     for (let index = 0; index < held.length; index += 1) {
       const node = held[index];
       if (node.kind === "step") {
-        // A step draws its card and the connector AFTER it, unless it is the
-        // last thing on the page: the tail connector is drawn once by the
-        // page itself, so the path never ends in two "+" buttons (#67 UX
-        // ruling 6934081003 fix 3).
-        out.push(
-          <div key={`step-${node.id}`} data-node-index={index}>
-            {card(node)}
-            {index === held.length - 1 ? null : connector(node.id)}
-          </div>,
-        );
+        rows.push(stepRow(node));
         continue;
       }
-      // The two arms of a branch are consecutive in the tree: pair them into
-      // one If container so a person reads one decision, not two labels.
+      // The two arms of a branch are consecutive in the tree: one If row.
       const next = held[index + 1];
       if (
         node.label === "yes" && next !== undefined && next.kind === "group" &&
         next.label === "otherwise"
       ) {
-        out.push(ifGroup([node, next]));
+        rows.push(
+          <UI.OutlineRow
+            codeMark={inCode ? undefined : codeMark()}
+            data-group="if"
+            key={`if-${node.id}`}
+            title={translate("library.editor.group.if" as never)}
+          >
+            <UI.OutlineList>
+              {[node, next].map((arm) => (
+                <UI.OutlineRow
+                  caption
+                  data-group={arm.label}
+                  key={arm.id}
+                  title={wordFor(arm.label)}
+                >
+                  {innerList(arm.children)}
+                </UI.OutlineRow>
+              ))}
+            </UI.OutlineList>
+          </UI.OutlineRow>,
+        );
         index += 1;
         continue;
       }
-      out.push(group(node));
+      rows.push(groupRow(node, inCode));
     }
-    return out;
+    return rows;
   };
-
-  // gap="none": a connector must touch the cards above and below it, so the
-  // space between cards is the connector's own 40px, not a stack gap plus a
-  // connector (#67 UX ruling comment 6935518498 fix 1). Every non-connector
-  // child carries its own spacing.
-  return (
-    <UI.Stack gap="none" data-ui-region="workflow-diagram">
-      <div data-card="start">
-        <UI.StepCard
-          icon={<UI.IconGlyph name="lightning" size="small" />}
-          title={translate("library.editor.howItStarts" as never)}
-          summary={translate("library.editor.howItStartsLine" as never)}
-          selected={selectedId === "start"}
-          controls="editor-step-panel"
-          onClick={() => onSelect("start")}
-        />
-      </div>
-      {tree.unreadable
-        ? (
-          <UI.InlineNotice
-            tone="error"
-            action={
-              <UI.Button variant="secondary" onClick={onViewAsCode}>
-                {translate("library.editor.viewAsCode" as never)}
-              </UI.Button>
-            }
-          >
-            <UI.Stack gap="tight">
-              <UI.Text variant="strong">
-                {translate("library.editor.unreadable.title" as never)}
-              </UI.Text>
-              <UI.Text>
-                {translate("library.editor.unreadable.body" as never)}
-              </UI.Text>
-            </UI.Stack>
-          </UI.InlineNotice>
-        )
-        : (
-          <>
-            {connector(null)}
-            {nodes(tree.nodes)}
-            {tree.nodes.length === 0 ? null : connector("end", true)}
-          </>
-        )}
-    </UI.Stack>
+  const outline = (
+    <UI.OutlineList
+      aria-label={translate("library.editor.outline.label" as never)}
+      data-ui-region="workflow-outline"
+    >
+      <UI.OutlineRow
+        add={tree.unreadable ? undefined : outlineAdd(null)}
+        controls="editor-step-panel"
+        data-card="start"
+        icon={<UI.IconGlyph name="lightning" size="small" />}
+        onSelect={() => onSelect("start")}
+        selected={selectedId === "start"}
+        summary={translate("library.editor.howItStartsLine" as never)}
+        title={translate("library.editor.howItStarts" as never)}
+      />
+      {tree.unreadable ? null : outlineRows(tree.nodes, false)}
+    </UI.OutlineList>
   );
+
+  // The canvas is a separate chunk. If it cannot be fetched the same workflow
+  // is drawn as the outline, with a notice and a way to try again.
+  const [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const Canvas = useMemo(
+    () => lazy(() => import("./WorkflowCanvas.tsx")),
+    [attempt],
+  );
+  const mode = readOnlyPage ? "page" : "editor";
+
+  if (tree.unreadable) {
+    return (
+      <UI.Stack gap="none" data-ui-region="workflow-diagram">
+        {startCard}
+        <UI.InlineNotice
+          tone="error"
+          action={
+            <UI.Button variant="secondary" onClick={onViewAsCode}>
+              {translate("library.editor.viewAsCode" as never)}
+            </UI.Button>
+          }
+        >
+          <UI.Stack gap="tight">
+            <UI.Text variant="strong">
+              {translate("library.editor.unreadable.title" as never)}
+            </UI.Text>
+            <UI.Text>
+              {translate("library.editor.unreadable.body" as never)}
+            </UI.Text>
+          </UI.Stack>
+        </UI.InlineNotice>
+      </UI.Stack>
+    );
+  }
+  if (phone || view === "outline" || failed) {
+    return (
+      <UI.Stack gap="standard" data-ui-region="workflow-diagram">
+        {failed && !phone && view !== "outline"
+          ? (
+            <UI.InlineNotice
+              tone="information"
+              action={
+                <UI.Button
+                  variant="secondary"
+                  onClick={() => {
+                    setFailed(false);
+                    setAttempt((was) => was + 1);
+                  }}
+                >
+                  {translate("library.editor.canvas.retry" as never)}
+                </UI.Button>
+              }
+            >
+              <UI.Text>
+                {translate("library.editor.canvas.failed" as never)}
+              </UI.Text>
+            </UI.InlineNotice>
+          )
+          : null}
+        {outline}
+      </UI.Stack>
+    );
+  }
+  return (
+    <div data-ui-region="workflow-diagram">
+      <CanvasBoundary onFail={() => setFailed(true)}>
+        <Suspense
+          fallback={
+            <UI.CanvasFrame
+              height={graph.blocks.length * (STEP_SIZE.height + WIRE_LENGTH)}
+              variant={mode === "page" ? "page" : "fill"}
+            >
+              <UI.Stack gap="standard">
+                <UI.Skeleton shape="surface" />
+                <UI.Skeleton shape="surface" />
+                <UI.Skeleton shape="surface" />
+              </UI.Stack>
+            </UI.CanvasFrame>
+          }
+        >
+          <Canvas
+            graph={graph}
+            labels={{
+              canvas: translate("library.editor.canvas.label" as never),
+              fit: translate("library.editor.canvas.fit" as never),
+              zoomIn: translate("library.editor.canvas.zoomIn" as never),
+              zoomOut: translate("library.editor.canvas.zoomOut" as never),
+            }}
+            mode={mode}
+            renderAdd={renderAdd}
+            renderBlock={renderBlock}
+            selectedId={selectedId}
+          />
+        </Suspense>
+      </CanvasBoundary>
+    </div>
+  );
+}
+
+/** Catches a canvas chunk that could not be fetched, so the page can fall back to the outline. */
+class CanvasBoundary extends Component<
+  { children: ReactNode; onFail: () => void },
+  { failed: boolean }
+> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override componentDidCatch() {
+    this.props.onFail();
+  }
+  override render() {
+    return this.state.failed ? null : this.props.children;
+  }
 }
 
 /** The action a drawn step runs, for a connector's label. */
