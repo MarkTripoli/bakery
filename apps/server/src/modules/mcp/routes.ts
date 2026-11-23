@@ -13,10 +13,14 @@ import {
 } from "@bakery/contracts/contracts";
 import {
   assertImplementedActionRegistry,
+  CapabilityBindingImplementedAction as BindingAction,
+  capabilityBindingImplementedActions,
   McpConnectionImplementedAction as ConnectionAction,
   mcpConnectionImplementedActions,
   McpServerImplementedAction as Action,
   mcpServerImplementedActions,
+  ToolGatewayCallImplementedAction as GatewayCallAction,
+  toolGatewayCallImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import { createApiRouter, StandardError } from "@bakery/contracts/http";
 import type { ActionContext } from "@bakery/contracts/action-registry";
@@ -35,6 +39,12 @@ import {
   listMcpToolClassifications,
   putMcpToolClassification,
 } from "./classification-commands.ts";
+import {
+  createCapabilityBinding,
+  createCapabilityBindingsListHandler,
+  deleteCapabilityBinding,
+} from "./binding-commands.ts";
+import { settleToolGatewayCall } from "./gateway-call-commands.ts";
 import {
   createMcpUseGrant,
   listMcpUseGrants,
@@ -234,10 +244,51 @@ export function createMcpActionRegistry(
     policy: { ...ownerOrAdmin, sessionOnly: true },
     handler: revokeMcpUseGrant,
   });
+  // Capability bindings (#436): an Admin grants an agent version exact tools.
+  registry.register({
+    name: BindingAction.CapabilityBindingsList,
+    method: HttpMethod.Get,
+    path: "/v1/capability-bindings",
+    input: contractSchemas.BindingQuery,
+    output: contractSchemas["Page<CapabilityBinding>"],
+    policy: query,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: createCapabilityBindingsListHandler(dependencies.cursorSecret),
+  }).register({
+    name: BindingAction.CapabilityBindingsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/capability-bindings",
+    input: contractSchemas.CapabilityBindingCreate,
+    output: contractSchemas.CapabilityBinding,
+    policy: admin,
+    handler: createCapabilityBinding,
+  }).register({
+    name: BindingAction.CapabilityBindingsDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/capability-bindings/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.NoContent,
+    naturalIdempotency: true,
+    policy: admin,
+    handler: deleteCapabilityBinding,
+  });
+  // A gateway write whose outcome is unknown stays sent until an Admin who
+  // checked the outside system records what happened (#436).
+  registry.register({
+    name: GatewayCallAction.ToolGatewayCallsSettle,
+    method: HttpMethod.Post,
+    path: "/v1/tool-gateway-calls/:id/settlement",
+    input: contractSchemas.ToolGatewayCallSettle,
+    output: contractSchemas.ToolGatewayCall,
+    policy: admin,
+    handler: settleToolGatewayCall,
+  });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
+    ...capabilityBindingImplementedActions,
+    ...toolGatewayCallImplementedActions,
   ]);
   return registry;
 }
@@ -252,7 +303,14 @@ export function createMcpManagementRoutes(options: {
   transport?: McpTransport;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
-  for (const path of ["/v1/mcp-servers", "/v1/mcp-connections"]) {
+  for (
+    const path of [
+      "/v1/mcp-servers",
+      "/v1/mcp-connections",
+      "/v1/capability-bindings",
+      "/v1/tool-gateway-calls",
+    ]
+  ) {
     app.use(path, options.session);
     app.use(`${path}/*`, options.session);
   }
