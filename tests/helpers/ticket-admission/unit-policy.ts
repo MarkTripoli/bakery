@@ -8,6 +8,8 @@ import {
   parseOffsetInstant,
   parseTicketSourcePolicy,
   requestedIntentFromLabels,
+  requiredWorkflowId,
+  storedTicketSourcePolicy,
 } from "../../../apps/server/src/modules/work/ticket-policy.ts";
 
 /**
@@ -404,5 +406,65 @@ Deno.test("issue 82 unit policy: offset timestamps are compared by instant down 
     parseOffsetInstant("1970-01-01T00:00:01.5Z"),
     1_500_000_000n,
     "a fraction of a second",
+  );
+});
+
+Deno.test("issue 407 unit policy: a new source has no workflow and automatic admission cannot be saved on without one", () => {
+  const now = new Date("2026-11-23T12:00:00.000Z");
+  const unset = defaultTicketSourcePolicy();
+  assertEquals(unset.preset, undefined);
+  assertEquals(
+    storedTicketSourcePolicy(policyDocument(), null, now).preset,
+    undefined,
+  );
+  const error = assertThrows(() =>
+    storedTicketSourcePolicy(
+      { ...policyDocument(), automatic: { enabled: true } },
+      null,
+      now,
+    )
+  );
+  if (!(error instanceof StandardError)) {
+    throw new Error("a refused policy raises a StandardError");
+  }
+  assertEquals(error.code, "UNPROCESSABLE");
+  const withWorkflow = storedTicketSourcePolicy(
+    {
+      ...policyDocument(),
+      preset: "fixed-coding",
+      automatic: { enabled: true },
+    },
+    null,
+    now,
+  );
+  assertEquals(withWorkflow.automatic, {
+    enabled: true,
+    since: now.toISOString(),
+  });
+});
+
+Deno.test("issue 407 unit policy: a start with no workflow is refused, and a chosen, pinned or source workflow is used in that order", () => {
+  const error = assertThrows(() =>
+    requiredWorkflowId(undefined, null, undefined)
+  );
+  if (!(error instanceof StandardError)) {
+    throw new Error("a refused start raises a StandardError");
+  }
+  assertEquals(error.code, "UNPROCESSABLE");
+  assertEquals(
+    requiredWorkflowId(undefined, "fixed-coding-reviewed", undefined),
+    "fixed-coding-reviewed",
+  );
+  assertEquals(
+    requiredWorkflowId(undefined, null, "fixed-coding"),
+    "fixed-coding",
+  );
+  assertEquals(
+    requiredWorkflowId(undefined, "fixed-coding-reviewed", "fixed-coding"),
+    "fixed-coding-reviewed",
+  );
+  assertEquals(
+    requiredWorkflowId("fixed-coding", "fixed-coding-reviewed", undefined),
+    "fixed-coding",
   );
 });

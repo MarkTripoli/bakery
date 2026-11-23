@@ -6540,7 +6540,6 @@
   "issues.work.stoppedBy": "⟪stopped by {name}⟫",
   "issues.work.workflow": "⟪{name}, version {version}⟫",
   "issues.start.workflow": "⟪Workflow⟫",
-  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing the other applies to this issue only.⟫",
   "issues.status.needsAnswer": "⟪Needs an answer⟫",
   "issues.settings.preview.beforeWindow.one": "⟪{count} issue already had the “{label}” label before automatic starts were turned on. It waits for someone to press Start work.⟫",
   "issues.settings.preview.beforeWindow.many": "⟪{count} issues already had the “{label}” label before automatic starts were turned on. They wait for someone to press Start work.⟫",
@@ -6594,5 +6593,15 @@
   "tasks.delivery.release.dialog.noAnswer": "⟪Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request.⟫",
   "tasks.run.details": "⟪Run details⟫",
   "tasks.preview.details.notReleased": "⟪a preview, not a release⟫",
-  "tasks.delivery.release.dialog.reason.empty": "⟪Write why you are going back.⟫"
+  "tasks.delivery.release.dialog.reason.empty": "⟪Write why you are going back.⟫",
+  "issues.card.workflowNone": "⟪No workflow is set for {repository}. You choose one when you start work.⟫",
+  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫",
+  "issues.start.workflowUnsetHelp": "⟪{repository} has no workflow set. Your choice applies to this issue only.⟫",
+  "issues.start.workflowPlaceholder": "⟪Choose a workflow⟫",
+  "issues.start.workflowRequired": "⟪Choose a workflow first.⟫",
+  "issues.settings.workflow.runsNone": "⟪No workflow is set for this repository. People choose one when they start work.⟫",
+  "issues.settings.workflow.none": "⟪No workflow⟫",
+  "issues.settings.workflow.noneHint": "⟪People choose a workflow each time they start work. Start automatically needs one.⟫",
+  "issues.settings.automatic.needsWorkflow": "⟪Choose a workflow above first. Work that starts by itself needs one.⟫",
+  "issues.settings.automatic.turnedOff": "⟪Start automatically was turned off because no workflow is chosen.⟫"
 }

@@ -6540,7 +6540,6 @@
   "issues.work.stoppedBy": "⟦šŧôþþëð ƀÿ {name} ŧëš⟧",
   "issues.work.workflow": "⟦{name}, ṽëŕšïôñ {version} ŧëšŧ ç⟧",
   "issues.start.workflow": "⟦Ŵôŕķƒļôŵ…⟧",
-  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ ŧĥë ôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "issues.status.needsAnswer": "⟦Ñëëðš àñ àñšŵëŕ ŧëš⟧",
   "issues.settings.preview.beforeWindow.one": "⟦{count} ïššûë àļŕëàðÿ ĥàð ŧĥë “{label}” ļàƀëļ ƀëƒôŕë àûŧôɱàŧïç šŧàŕŧš ŵëŕë ŧûŕñëð ôñ. Ïŧ ŵàïŧš ƒôŕ šôɱëôñë ŧô þŕëšš Šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "issues.settings.preview.beforeWindow.many": "⟦{count} ïššûëš àļŕëàðÿ ĥàð ŧĥë “{label}” ļàƀëļ ƀëƒôŕë àûŧôɱàŧïç šŧàŕŧš ŵëŕë ŧûŕñëð ôñ. Ŧĥëÿ ŵàïŧ ƒôŕ šôɱëôñë ŧô þŕëšš Šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
@@ -6594,5 +6593,15 @@
   "tasks.delivery.release.dialog.noAnswer": "⟦Ɓàķëŕÿ ðïð ñôŧ àñšŵëŕ, šô ïŧ ɱàÿ àļŕëàðÿ ƀë ĝôïñĝ ƀàçķ. Ÿôû çàñ þŕëšš Ĝô ƀàçķ àĝàïñ; ïŧ ŕëþëàŧš ŧĥë šàɱë ŕëǫûëšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.run.details": "⟦Ŕûñ ðëŧàïļš ŧ⟧",
   "tasks.preview.details.notReleased": "⟦à þŕëṽïëŵ, ñôŧ à ŕëļëàšë ŧëšŧ ç⟧",
-  "tasks.delivery.release.dialog.reason.empty": "⟦Ŵŕïŧë ŵĥÿ ÿôû àŕë ĝôïñĝ ƀàçķ. ŧëšŧ çôþ⟧"
+  "tasks.delivery.release.dialog.reason.empty": "⟦Ŵŕïŧë ŵĥÿ ÿôû àŕë ĝôïñĝ ƀàçķ. ŧëšŧ çôþ⟧",
+  "issues.card.workflowNone": "⟦Ñô ŵôŕķƒļôŵ ïš šëŧ ƒôŕ {repository}. Ÿôû çĥôôšë ôñë ŵĥëñ ÿôû šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.start.workflowUnsetHelp": "⟦{repository} ĥàš ñô ŵôŕķƒļôŵ šëŧ. Ÿôûŕ çĥôïçë àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "issues.start.workflowPlaceholder": "⟦Çĥôôšë à ŵôŕķƒļôŵ ŧëš⟧",
+  "issues.start.workflowRequired": "⟦Çĥôôšë à ŵôŕķƒļôŵ ƒïŕšŧ. ŧëšŧ ç⟧",
+  "issues.settings.workflow.runsNone": "⟦Ñô ŵôŕķƒļôŵ ïš šëŧ ƒôŕ ŧĥïš ŕëþôšïŧôŕÿ. Þëôþļë çĥôôšë ôñë ŵĥëñ ŧĥëÿ šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.settings.workflow.none": "⟦Ñô ŵôŕķƒļôŵ ŧ⟧",
+  "issues.settings.workflow.noneHint": "⟦Þëôþļë çĥôôšë à ŵôŕķƒļôŵ ëàçĥ ŧïɱë ŧĥëÿ šŧàŕŧ ŵôŕķ. Šŧàŕŧ àûŧôɱàŧïçàļļÿ ñëëðš ôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "issues.settings.automatic.needsWorkflow": "⟦Çĥôôšë à ŵôŕķƒļôŵ àƀôṽë ƒïŕšŧ. Ŵôŕķ ŧĥàŧ šŧàŕŧš ƀÿ ïŧšëļƒ ñëëðš ôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "issues.settings.automatic.turnedOff": "⟦Šŧàŕŧ àûŧôɱàŧïçàļļÿ ŵàš ŧûŕñëð ôƒƒ ƀëçàûšë ñô ŵôŕķƒļôŵ ïš çĥôšëñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }

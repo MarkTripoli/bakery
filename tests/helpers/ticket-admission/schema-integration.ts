@@ -101,7 +101,10 @@ async function withTicketRows(
           seed.applicationId,
           seed.repositoryId,
           resource.external_id,
-          JSON.stringify(defaultTicketSourcePolicy()),
+          JSON.stringify({
+            ...defaultTicketSourcePolicy(),
+            preset: "fixed-coding",
+          }),
         ],
       );
       const seeded: Seeded = {

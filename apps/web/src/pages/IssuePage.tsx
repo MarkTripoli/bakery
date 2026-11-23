@@ -492,11 +492,15 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                 ? translate("issues.card.startWhenReadyCaption" as never, {
                   dependency: waitingOn,
                 })
+                : presetOfPolicy(source?.policy) === null
+                ? translate("issues.card.workflowNone" as never, {
+                  repository: snapshot.repository,
+                })
                 : translate("issues.card.workflow" as never, {
                   repository: snapshot.repository,
                   workflow: presetCopy(
                     translate,
-                    presetOfPolicy(source?.policy),
+                    presetOfPolicy(source?.policy) ?? "",
                   ).title,
                 })}
             </UI.Text>

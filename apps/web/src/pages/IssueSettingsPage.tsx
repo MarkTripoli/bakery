@@ -42,7 +42,7 @@ import {
   ruleSetOf,
 } from "./issues/routing-model.ts";
 import { RoutingRules } from "./issues/RoutingRules.tsx";
-import { BuiltInWorkflowChoice } from "./BuiltInWorkflowChoice.tsx";
+import { TICKET_PRESETS } from "./issue-sources.ts";
 import { presetCopy } from "./task-composer-labels.ts";
 
 /** The pages that share one repository's draft. */
@@ -157,6 +157,8 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
     "notFound" | "cannotTrigger" | null
   >(null);
   const [confirming, setConfirming] = useState(false);
+  const [workflowError, setWorkflowError] = useState(false);
+  const [turnedOff, setTurnedOff] = useState(false);
   const [showingIssues, setShowingIssues] = useState(false);
 
   const shown = draft ?? (saved === null ? null : formOf(saved));
@@ -590,6 +592,63 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 </UI.Stack>
               </UI.Stack>
 
+              <UI.Stack gap="compact" data-testid="issue-settings-workflow">
+                <UI.Heading level="section">
+                  {translate("issues.settings.workflow.title")}
+                </UI.Heading>
+                {isAdmin
+                  ? (
+                    <>
+                      <UI.Text variant="muted">
+                        {translate("issues.settings.workflow.help")}
+                      </UI.Text>
+                      <UI.Combobox
+                        disabled={save.isPending}
+                        label={translate("issues.settings.workflow.title")}
+                        onChange={(event) => {
+                          const chosen =
+                            TICKET_PRESETS.find((id) =>
+                              id === event.currentTarget.value
+                            ) ?? null;
+                          setWorkflowError(false);
+                          if (chosen === null && shown.automatic) {
+                            setTurnedOff(true);
+                            edit({ preset: null, automatic: false });
+                            return;
+                          }
+                          setTurnedOff(false);
+                          edit({ preset: chosen });
+                        }}
+                        options={[
+                          {
+                            label: translate("issues.settings.workflow.none"),
+                            value: "",
+                          },
+                          ...TICKET_PRESETS.map((id) => ({
+                            label: presetCopy(translate, id).title,
+                            value: id,
+                          })),
+                        ]}
+                        value={shown.preset ?? ""}
+                      />
+                      <UI.Text variant="hint">
+                        {shown.preset === null
+                          ? translate("issues.settings.workflow.noneHint")
+                          : presetCopy(translate, shown.preset).description}
+                      </UI.Text>
+                    </>
+                  )
+                  : (
+                    <UI.Text variant="muted">
+                      {shown.preset === null
+                        ? translate("issues.settings.workflow.runsNone")
+                        : translate("issues.settings.workflow.runs", {
+                          workflow: presetCopy(translate, shown.preset).title,
+                        })}
+                    </UI.Text>
+                  )}
+              </UI.Stack>
+
               <UI.Stack gap="standard" data-testid="issue-settings-automatic">
                 <UI.Heading level="section">
                   {translate("issues.settings.automatic.title")}
@@ -599,6 +658,10 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                   disabled={labelsDisabled}
                   onChange={(event) => {
                     if (event.currentTarget.checked) {
+                      if (shown.preset === null) {
+                        setWorkflowError(true);
+                        return;
+                      }
                       setConfirming(true);
                       return;
                     }
@@ -609,6 +672,20 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                     label: shown.start,
                   })}
                 </UI.Switch>
+                {workflowError && shown.preset === null
+                  ? (
+                    <UI.Text role="alert" variant="muted">
+                      {translate("issues.settings.automatic.needsWorkflow")}
+                    </UI.Text>
+                  )
+                  : null}
+                {turnedOff && !shown.automatic
+                  ? (
+                    <UI.Text role="status" variant="muted">
+                      {translate("issues.settings.automatic.turnedOff")}
+                    </UI.Text>
+                  )
+                  : null}
                 {shown.automatic
                   ? (
                     <>
@@ -743,34 +820,6 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 repositoryName={repositoryName}
                 rows={rows}
               />
-
-              <UI.Stack gap="compact" data-testid="issue-settings-workflow">
-                <UI.Heading level="section">
-                  {translate("issues.settings.workflow.title")}
-                </UI.Heading>
-                {isAdmin
-                  ? (
-                    <>
-                      <UI.Text variant="muted">
-                        {translate("issues.settings.workflow.help")}
-                      </UI.Text>
-                      <BuiltInWorkflowChoice
-                        disabled={save.isPending}
-                        label={translate("issues.settings.workflow.title")}
-                        name="issue-settings-workflow"
-                        onChange={(preset) => edit({ preset })}
-                        value={shown.preset}
-                      />
-                    </>
-                  )
-                  : (
-                    <UI.Text variant="muted">
-                      {translate("issues.settings.workflow.runs", {
-                        workflow: presetCopy(translate, shown.preset).title,
-                      })}
-                    </UI.Text>
-                  )}
-              </UI.Stack>
 
               <UI.Stack gap="standard" data-testid="issue-settings-preview">
                 <UI.Heading level="section">

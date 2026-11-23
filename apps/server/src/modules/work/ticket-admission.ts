@@ -52,6 +52,7 @@ import {
 import {
   intentFromLabels,
   requestedIntentFromLabels,
+  requiredWorkflowId,
   type TicketLabelBasis,
 } from "./ticket-policy.ts";
 import {
@@ -250,7 +251,11 @@ function framePreset(
   request: TicketRequest | null,
 ): WorkflowPresetDefinition {
   return presetDefinition(
-    request?.pinnedPreset.id ?? frame.call.preset ?? frame.source.policy.preset,
+    requiredWorkflowId(
+      request?.pinnedPreset.id,
+      frame.call.preset,
+      frame.source.policy.preset,
+    ),
   );
 }
 

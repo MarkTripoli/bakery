@@ -578,27 +578,26 @@ for (
       )).toBeVisible();
     });
 
+    const workflowBox = (page: Page) =>
+      page.getByTestId("issue-settings-workflow");
+    const automaticSwitch = (page: Page) =>
+      page.getByLabel(/Start when the “bakery” label is added/);
+
     test("an administrator chooses the repository's built-in workflow, saved by the one Save", async ({ page }) => {
       const seen = await settingsFixture(page);
       await openSettings(page);
-      const group = page.getByTestId("issue-settings-workflow").getByRole(
-        "radiogroup",
-        { name: "Workflow" },
-      );
+      const choice = workflowBox(page).getByLabel("Workflow");
       await expect(
-        page.getByTestId("issue-settings-workflow").getByText(
+        workflowBox(page).getByText(
           "The steps Bakery follows for issues from this repository.",
         ),
       ).toBeVisible();
-      await expect(group.getByRole("radio")).toHaveCount(2);
-      await expect(group.getByRole("radio", { name: "Fixed coding" }))
-        .toBeChecked();
+      await expect(choice.getByRole("option")).toHaveCount(3);
+      await expect(choice).toHaveValue("fixed-coding");
       await still(page, "issue-settings-workflow", undefined, {
-        scrollTo: page.getByTestId("issue-settings-workflow"),
+        scrollTo: workflowBox(page),
       });
-      await group.getByRole("radio", { name: "Coding with independent review" })
-        .check();
-      // The one Save bar appears and says it applies from now on.
+      await choice.selectOption("fixed-coding-reviewed");
       await expect(page.getByText(
         "Applies to issues started from now on. Work already started keeps the settings and routing it started with.",
       )).toBeVisible();
@@ -614,11 +613,72 @@ for (
         saved: { policy: policy({ preset: "fixed-coding-reviewed" }) },
       });
       await openSettings(page);
-      await expect(
-        page.getByTestId("issue-settings-workflow").getByRole("radio", {
-          name: "Coding with independent review",
-        }),
-      ).toBeChecked();
+      await expect(workflowBox(page).getByLabel("Workflow")).toHaveValue(
+        "fixed-coding-reviewed",
+      );
+    });
+
+    test("a repository with no workflow shows No workflow and what that means, and saves labels without inventing one", async ({ page }) => {
+      const seen = await settingsFixture(page, {
+        saved: { policy: policy({ preset: undefined }) },
+      });
+      await openSettings(page);
+      await expect(workflowBox(page).getByLabel("Workflow")).toHaveValue("");
+      await expect(workflowBox(page)).toContainText(
+        "People choose a workflow each time they start work. Start automatically needs one.",
+      );
+      await still(page, "issue-settings-workflow-none", undefined, {
+        scrollTo: workflowBox(page),
+      });
+      await page.getByLabel("Start work").fill("ready");
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText("Settings saved.")).toBeVisible();
+      const sent = seen.patches[0].policy as Record<string, unknown>;
+      expect("preset" in sent).toBe(false);
+    });
+
+    test("Start automatically cannot be turned on without a workflow, and says what to do", async ({ page }) => {
+      await settingsFixture(page, {
+        saved: { policy: policy({ preset: undefined }) },
+      });
+      await openSettings(page);
+      await automaticSwitch(page).click();
+      await expect(page.getByText(
+        "Choose a workflow above first. Work that starts by itself needs one.",
+      )).toBeVisible();
+      await expect(automaticSwitch(page)).not.toBeChecked();
+      await expect(page.getByText("Start work automatically?"))
+        .toHaveCount(0);
+      await still(page, "issue-settings-automatic-needs-workflow", undefined, {
+        scrollTo: page.getByTestId("issue-settings-automatic"),
+      });
+      await workflowBox(page).getByLabel("Workflow").selectOption(
+        "fixed-coding",
+      );
+      await automaticSwitch(page).click();
+      await expect(page.getByText("Start work automatically?"))
+        .toBeVisible();
+    });
+
+    test("choosing No workflow while Start automatically is on turns it off and says so", async ({ page }) => {
+      await settingsFixture(page, {
+        saved: {
+          policy: policy({
+            automatic: { enabled: true, since: STAMP },
+            delegation: { principalId: uuid(7), externalActorIds: ["4242"] },
+          }),
+        },
+      });
+      await openSettings(page);
+      await expect(automaticSwitch(page)).toBeChecked();
+      await workflowBox(page).getByLabel("Workflow").selectOption("");
+      await expect(automaticSwitch(page)).not.toBeChecked();
+      await expect(page.getByText(
+        "Start automatically was turned off because no workflow is chosen.",
+      )).toBeVisible();
+      await still(page, "issue-settings-automatic-turned-off", undefined, {
+        scrollTo: page.getByTestId("issue-settings-automatic"),
+      });
     });
 
     test("someone who is not an administrator reads the workflow and cannot change it", async ({ page }) => {
@@ -626,11 +686,23 @@ for (
       await openSettings(page);
       await expect(page.getByText("This repository runs Fixed coding."))
         .toBeVisible();
-      await expect(
-        page.getByTestId("issue-settings-workflow").getByRole("radio"),
-      ).toHaveCount(0);
+      await expect(workflowBox(page).getByLabel("Workflow")).toHaveCount(0);
       await still(page, "issue-settings-workflow-read-only", undefined, {
-        scrollTo: page.getByTestId("issue-settings-workflow"),
+        scrollTo: workflowBox(page),
+      });
+    });
+
+    test("someone who is not an administrator is told when no workflow is set", async ({ page }) => {
+      await settingsFixture(page, {
+        role: "developer",
+        saved: { policy: policy({ preset: undefined }) },
+      });
+      await openSettings(page);
+      await expect(page.getByText(
+        "No workflow is set for this repository. People choose one when they start work.",
+      )).toBeVisible();
+      await still(page, "issue-settings-workflow-read-only-none", undefined, {
+        scrollTo: workflowBox(page),
       });
     });
 
