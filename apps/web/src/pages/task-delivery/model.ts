@@ -408,6 +408,13 @@ export type DeliveryInput = Readonly<{
    * there, so no merge is offered.
    */
   mergeUnavailable: boolean;
+  /**
+   * The run's releases, as `deployments.list` returns them. A read that failed
+   * or was refused is an empty list: nothing is said that was not reported.
+   */
+  deployments?: readonly DeliveryDeployment[];
+  /** The person may deploy this repository (administrator or developer). */
+  mayDeploy?: boolean;
   paused: boolean;
 }>;
 
@@ -434,6 +441,50 @@ export type FindingRow = Readonly<{
   path: string;
   line: number | null;
   body: string;
+}>;
+
+export type DeploymentStatus =
+  | "queued"
+  | "deploying"
+  | "verifying"
+  | "healthy"
+  | "degraded"
+  | "failed"
+  | "unknown"
+  | "rolling_back"
+  | "rolled_back";
+
+/** A release as `deployments.list` serves it, with only what the section reads. */
+export type DeliveryDeployment = Readonly<{
+  id: string;
+  environment: string;
+  commitSha: string;
+  status: DeploymentStatus;
+  /** The commit of the release this one replaced; null when it replaced nothing. */
+  previousCommitSha: string | null;
+  /** Going back ended in failure, so the environment may not run the release before. */
+  rollbackFailed: boolean;
+  createdAt: string;
+}>;
+
+/** `preview` is a real environment on the server; the page never calls it "Preview". */
+export type ReleaseEnvironment = "staging" | "production" | "preview";
+
+/**
+ * Who may go back: `offer` shows the button, `viewer` says someone who may
+ * deploy can, `none` says nothing (no release before this one, or a status that
+ * cannot be rolled back).
+ */
+export type GoBack = "offer" | "viewer" | "none";
+
+export type ReleaseView = Readonly<{
+  id: string;
+  environment: ReleaseEnvironment;
+  status: DeploymentStatus;
+  commitSha: string;
+  previousCommitSha: string | null;
+  rollbackFailed: boolean;
+  goBack: GoBack;
 }>;
 
 export type NowCard =
@@ -467,6 +518,16 @@ export type NowCard =
   | Readonly<{ kind: "mergeRefused"; head: string; mayMerge: boolean }>
   | Readonly<
     { kind: "mergeMoved"; approved: string; current: string; tried: boolean }
+  >
+  /** The change is merged and a release exists for this run. */
+  | Readonly<
+    {
+      kind: "release";
+      status: DeploymentStatus;
+      environment: ReleaseEnvironment;
+      rollbackFailed: boolean;
+      goBack: GoBack;
+    }
   >
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
@@ -565,6 +626,8 @@ export type DeliveryModel = Readonly<{
   /** What the person may do about merging, else null. */
   merge: MergeView | null;
   now: NowCard;
+  /** This run's newest release once its change is merged, else null. */
+  release: ReleaseView | null;
   /** Every whole commit id the section may name, so a sentence that shows a short one can draw it as a reference. */
   commits: readonly string[];
 }>;
@@ -1026,6 +1089,13 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     unavailable: input.mergeUnavailable,
   });
   const after = afterApproval(input.pullRequests, input.runId);
+  const release = releaseView(
+    input.deployments ?? [],
+    // Never "merged" without the merge commit GitHub reported.
+    chosenPullRequest?.status === "merged" &&
+      chosenPullRequest.mergedSha !== null,
+    input.mayDeploy ?? false,
+  );
   const commits = [
     ...new Set(
       [
@@ -1039,6 +1109,8 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
         merge?.approvedSha,
         merge?.attemptedSha,
         after.pullRequest?.mergedSha,
+        release?.commitSha,
+        release?.previousCommitSha,
       ].filter((sha): sha is string => typeof sha === "string" && sha !== ""),
     ),
   ];
@@ -1056,21 +1128,66 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     approval,
     afterApproval: mergeBadge(after, merge),
     merge,
-    now: mergeNow(
-      nowCard({
-        input,
-        latestDecision,
-        repairs,
-        maxRepairs,
-        checks,
-        review,
-        open,
-        approval,
-        outOfDate,
-      }),
-      merge,
-      input.paused,
-    ),
+    now: release === null
+      ? mergeNow(
+        nowCard({
+          input,
+          latestDecision,
+          repairs,
+          maxRepairs,
+          checks,
+          review,
+          open,
+          approval,
+          outOfDate,
+        }),
+        merge,
+        input.paused,
+      )
+      : {
+        kind: "release",
+        status: release.status,
+        environment: release.environment,
+        rollbackFailed: release.rollbackFailed,
+        goBack: release.goBack,
+      },
+    release,
+  };
+}
+
+const ENVIRONMENTS: readonly ReleaseEnvironment[] = [
+  "staging",
+  "production",
+  "preview",
+];
+
+/**
+ * The run's release, once its change is merged: the newest one the server
+ * listed. Before the merge, or with no release recorded, the headline stays as
+ * it is. An environment this page has no words for is not shown.
+ */
+export function releaseView(
+  deployments: readonly DeliveryDeployment[],
+  merged: boolean,
+  mayDeploy: boolean,
+): ReleaseView | null {
+  if (!merged) return null;
+  const newest = [...deployments].sort(byCreatedAt).at(-1);
+  if (newest === undefined) return null;
+  const environment = ENVIRONMENTS.find((name) => name === newest.environment);
+  if (environment === undefined) return null;
+  const canRollBack = newest.status === "healthy" ||
+    newest.status === "degraded";
+  return {
+    id: newest.id,
+    environment,
+    status: newest.status,
+    commitSha: newest.commitSha,
+    previousCommitSha: newest.previousCommitSha,
+    rollbackFailed: newest.rollbackFailed,
+    goBack: canRollBack && newest.previousCommitSha !== null
+      ? mayDeploy ? "offer" : "viewer"
+      : "none",
   };
 }
 

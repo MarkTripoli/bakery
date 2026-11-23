@@ -13,6 +13,8 @@ import type {
   NowCard,
 } from "./model.ts";
 import type { DecisionPhase } from "./use-approval-decision.ts";
+import type { GoBackPhase } from "./use-go-back.ts";
+import { environmentWord, releaseCopy, releaseTone } from "./release-copy.ts";
 import {
   MERGE_NOTICE_KEYS,
   MERGE_REFUSAL_ABOVE,
@@ -56,6 +58,12 @@ export type DeliverySectionViewProps = Readonly<{
   onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
   /** Forgets the last merge notice before a new attempt. */
   onClearMerge: () => void;
+  /** Where a request to go back to the last release stands. */
+  goBackPhase: GoBackPhase;
+  /** Asks Bakery to go back; resolves to how it ended (`idle` when accepted). */
+  onGoBack: (deploymentId: string, reason: string) => Promise<GoBackPhase>;
+  /** Forgets the last refusal before a new attempt. */
+  onClearGoBack: () => void;
 }>;
 
 /** The Now card's title takes focus after a decision, so it is announced. */
@@ -73,6 +81,7 @@ type NowCopy = Readonly<{
     | "decide"
     | "retryApprovals"
     | Exclude<MergeCardAction, null>
+    | "goBack"
     | null;
 }>;
 
@@ -203,6 +212,8 @@ function nowCopy(
         }),
         action: null,
       };
+    case "release":
+      return releaseCopy(t, now);
     case "changesRequested":
       return {
         title: t("tasks.delivery.now.changesRequested.title"),
@@ -302,8 +313,12 @@ function stoppedCopy(
  * The Now card's tone says whose turn it is: success when nothing is waiting,
  * information while Bakery is working, warning when it is the person's turn.
  */
-function nowTone(now: NowCard): "success" | "information" | "warning" {
+function nowTone(
+  now: NowCard,
+): "success" | "information" | "warning" | "error" {
   switch (now.kind) {
+    case "release":
+      return releaseTone(now.status);
     case "clean":
     case "approved":
       return "success";
@@ -338,8 +353,11 @@ export function DeliverySectionView(
     model,
     offline,
     onCheckAgain,
+    goBackPhase,
+    onClearGoBack,
     onClearMerge,
     onDecide,
+    onGoBack,
     onMerge,
     onOpenRules,
     onRetry,
@@ -393,8 +411,11 @@ export function DeliverySectionView(
             model={model}
             offline={offline}
             onCheckAgain={onCheckAgain}
+            goBackPhase={goBackPhase}
+            onClearGoBack={onClearGoBack}
             onClearMerge={onClearMerge}
             onDecide={onDecide}
+            onGoBack={onGoBack}
             onMerge={onMerge}
             onOpenRules={onOpenRules}
             onRetryApprovals={onRetryApprovals}
@@ -429,14 +450,17 @@ const fieldInOpenDialog = (id: string) => () =>
 function ReadyView(
   {
     decisionPhase,
+    goBackPhase,
     lastUpdated,
     mergePhase,
     mergeTarget,
     model,
     offline,
     onCheckAgain,
+    onClearGoBack,
     onClearMerge,
     onDecide,
+    onGoBack,
     onMerge,
     onOpenRules,
     onRetryApprovals,
@@ -448,6 +472,9 @@ function ReadyView(
     decisionPhase: DecisionPhase;
     mergePhase: MergePhase;
     mergeTarget: MergeTarget | null;
+    goBackPhase: GoBackPhase;
+    onGoBack: (deploymentId: string, reason: string) => Promise<GoBackPhase>;
+    onClearGoBack: () => void;
     onMerge: (view: MergeView) => Promise<MergePhase>;
     onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
     onClearMerge: () => void;
@@ -467,6 +494,11 @@ function ReadyView(
   const [dialog, setDialog] = useState<ApprovalDialog | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [comment, setComment] = useState("");
+  const [goBackOpen, setGoBackOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const reasonId = `${fieldId}-reason`;
+  const release = model.release;
+  const goingBack = goBackPhase === "working";
   const deciding = decisionPhase === "deciding";
   const copy = nowCopy(t, model.now, { model });
   const head = model.headSha === null
@@ -546,6 +578,54 @@ function ReadyView(
     // A note is typed straight away, so its field, not the close button, takes focus.
     if (next === "changes") focusAfterPaint(fieldInOpenDialog(changesFieldId));
   };
+
+  const openGoBack = () => {
+    onClearGoBack();
+    setReason("");
+    setGoBackOpen(true);
+    // The reason is typed straight away, so its field takes focus.
+    focusAfterPaint(fieldInOpenDialog(reasonId));
+  };
+  const closeGoBack = () => {
+    if (goingBack) return;
+    setGoBackOpen(false);
+    onClearGoBack();
+  };
+  const confirmGoBack = async () => {
+    if (release === null) return;
+    const outcome = await onGoBack(release.id, reason.trim());
+    // A refusal keeps the dialog and the typed reason, with its one notice.
+    if (outcome !== "idle") return;
+    setGoBackOpen(false);
+    setReason("");
+    focusAfterPaint(() =>
+      document.querySelector("dialog[open]") !== null
+        ? null
+        : document.getElementById(NOW_TITLE_ID)
+    );
+  };
+  const goBackNotice: MessageKey | null = goBackPhase === "notCurrent"
+    ? "tasks.delivery.release.dialog.notCurrent"
+    : goBackPhase === "outcomeUnknown"
+    ? "tasks.delivery.release.dialog.unknown"
+    : goBackPhase === "forbidden"
+    ? "tasks.delivery.release.dialog.forbidden"
+    : goBackPhase === "noAnswer"
+    ? "tasks.delivery.release.dialog.noAnswer"
+    : goBackPhase === "error"
+    ? "tasks.delivery.release.dialog.error"
+    : null;
+  const goBackDisabled = offline || goingBack;
+  const goBackButton = (variant: "primary" | "outline") => (
+    <UI.Button
+      disabled={goBackDisabled}
+      key="goBack"
+      onClick={openGoBack}
+      variant={variant}
+    >
+      {t("tasks.delivery.release.goBack.button")}
+    </UI.Button>
+  );
 
   const mergeDisabled = offline || mergeWorking;
   const mergeButton = (variant: "primary" | "secondary", again = false) => (
@@ -641,6 +721,8 @@ function ReadyView(
     : null;
   const phoneActions = !phone
     ? null
+    : copy.action === "goBack"
+    ? [goBackButton("primary")]
     : copy.action === "merge"
     ? [mergeButton("primary")]
     : copy.action === "mergeAgain"
@@ -668,6 +750,8 @@ function ReadyView(
         {phoneActions}
       </UI.Inline>
     ))
+    : copy.action === "goBack"
+    ? goBackButton("primary")
     : copy.action === "merge"
     ? mergeButton("primary")
     : copy.action === "mergeAgain"
@@ -815,7 +899,14 @@ function ReadyView(
         </UI.InlineNotice>
       )}
       {!noticeAbove && mergeNoticeElement}
-      <DeliveryBody model={model} onOpenRules={onOpenRules} />
+      <DeliveryBody
+        goBackButton={release?.status === "healthy" &&
+            release.goBack === "offer"
+          ? goBackButton("outline")
+          : null}
+        model={model}
+        onOpenRules={onOpenRules}
+      />
       <UI.AlertDialog
         cancelAction={
           <UI.Button
@@ -995,6 +1086,83 @@ function ReadyView(
       >
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
         {dialog === "reject" && dialogNotice}
+      </UI.AlertDialog>
+      <UI.AlertDialog
+        cancelAction={
+          <UI.Button
+            disabled={goingBack}
+            onClick={closeGoBack}
+            variant="secondary"
+          >
+            {t("tasks.delivery.release.dialog.keep")}
+          </UI.Button>
+        }
+        confirmAction={
+          <UI.Button
+            disabled={goBackDisabled || reason.trim() === ""}
+            loading={goingBack}
+            onClick={() => void confirmGoBack()}
+            variant="destructive"
+          >
+            {t("tasks.delivery.release.dialog.confirm")}
+          </UI.Button>
+        }
+        onOpenChange={(open) => !open && closeGoBack()}
+        open={goBackOpen && release !== null}
+        state={goingBack
+          ? "confirming"
+          : goBackNotice !== null
+          ? "error"
+          : "open"}
+        title={t("tasks.delivery.release.dialog.title")}
+        variant="destructive"
+      >
+        <UI.Stack gap="compact">
+          <UI.Text>
+            <ReferenceText
+              known={known}
+              text={release === null ? "" : t(
+                "tasks.delivery.release.dialog.body",
+                {
+                  environment: environmentWord(
+                    t,
+                    release.environment,
+                    true,
+                  ),
+                  commit: release.previousCommitSha === null
+                    ? ""
+                    : UI.shortReference("commit", release.previousCommitSha),
+                },
+              )}
+            />
+          </UI.Text>
+          <UI.Field
+            hint={t("tasks.delivery.release.dialog.reason.help")}
+            htmlFor={reasonId}
+            label={t("tasks.delivery.release.dialog.reason.label")}
+            variant="textarea"
+          >
+            <textarea
+              aria-required="true"
+              id={reasonId}
+              name="reason"
+              onChange={(event) => setReason(event.currentTarget.value)}
+              readOnly={goingBack}
+              required
+              rows={3}
+              value={reason}
+            />
+          </UI.Field>
+          {goBackNotice === null ? null : (
+            <UI.InlineNotice
+              data-testid="delivery-go-back-notice"
+              role="alert"
+              tone="error"
+            >
+              {t(goBackNotice)}
+            </UI.InlineNotice>
+          )}
+        </UI.Stack>
       </UI.AlertDialog>
     </>
   );

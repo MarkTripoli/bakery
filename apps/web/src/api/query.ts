@@ -35,6 +35,7 @@ import type {
   ConversationTurnListResponse,
   CoordinationPlanListResponse,
   DeliveryDecisionListResponse,
+  DeploymentListResponse,
   DispatchBlockersResponse,
   EffectiveAccess,
   EnrollmentStatus,
@@ -3490,6 +3491,27 @@ export function approvalsQueryOptions(
  * what the section shows) and kept fresh, so a refused or unknown attempt is
  * what the page says after a reload, never a guess.
  */
+/** One run's releases, newest first. The delivery section reads the newest. */
+export function runDeploymentsQueryOptions(
+  client: Pick<BakeryApiClient, "listDeployments">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<DeploymentListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "deployments.list", { runId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listDeployments({
+          organizationId: requireOrganization(scope),
+          runId,
+          limit: 10,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function mergeAttemptsQueryOptions(
   client: Pick<BakeryApiClient, "listMergeAttempts">,
   scope: ApiScope,
