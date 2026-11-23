@@ -12,6 +12,26 @@ import { shot } from "./helpers/real-api.ts";
 import { still } from "./helpers/stills.ts";
 
 /**
+ * The text of every step card whose box lies inside this group's box. In the
+ * canvas the steps of a group are drawn over its frame rather than inside its
+ * markup, and in the outline they are nested in its row: the box says it for
+ * both, which is also what a person sees.
+ */
+async function cardsInside(group: Locator): Promise<string[]> {
+  return await group.evaluate((element) => {
+    const frame = element.getBoundingClientRect();
+    return [...document.querySelectorAll("[data-card]")]
+      .filter((card) => card.getAttribute("data-card") !== "start")
+      .filter((card) => {
+        const box = card.getBoundingClientRect();
+        return box.left >= frame.left - 1 && box.right <= frame.right + 1 &&
+          box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1;
+      })
+      .map((card) => (card as HTMLElement).innerText);
+  });
+}
+
+/**
  * The editor's save state, in the page's own status line. The shell adds an
  * empty live region for notification arrivals, which is also a status, so the
  * one with words is the one to read.
@@ -151,15 +171,17 @@ for (
           cards.map((card) => card.getAttribute("data-card"))
         ),
       ).toEqual(["start", "brief", "implement", "review"]);
-      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator("[data-card='brief']")).toBeVisible();
       await expect(steps.locator(".ui-step-item")).toHaveCount(0);
       // Nothing to press: a built-in is maintained by Bakery.
       await expect(steps.getByRole("button", { name: "Add a step" }))
         .toHaveCount(0);
       await expect(steps).not.toContainText("Remove");
-      // The line runs to the end and stops there.
-      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
-      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
+      // The diagram's path runs to the end and stops there; the outline a
+      // phone shows is a list and has no end mark.
+      if (viewport.name === "desktop") {
+        await expect(steps.locator("[data-canvas-end]")).toHaveText("End");
+      }
       await shot(page, "workflow-built-in", [], { windowOnly: true });
     });
 
@@ -172,10 +194,14 @@ for (
       // The If container holds both arms, one of them empty.
       await expect(steps.locator("[data-group=if]")).toHaveCount(1);
       await expect(steps.locator("[data-group=if]")).toContainText("If");
-      await expect(steps.locator("[data-group-arm=yes]")).toContainText(
-        "Implement",
+      await expect(steps.locator("[data-group=yes]")).toContainText("Yes");
+      await expect.poll(async () =>
+        (await cardsInside(steps.locator("[data-group=yes]"))).join(" ")
+      ).toContain("Implement");
+      await expect(steps.locator("[data-group=otherwise]")).toContainText(
+        "Otherwise",
       );
-      await expect(steps.locator("[data-group-arm=otherwise]")).toContainText(
+      await expect(steps.locator("[data-group=otherwise]")).toContainText(
         "No steps",
       );
       // The repeat is its own container.
@@ -223,15 +249,17 @@ for (
           cards.map((card) => card.getAttribute("data-card"))
         ),
       ).toEqual(["start", "brief", "implement", "review"]);
-      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator("[data-card='brief']")).toBeVisible();
       await expect(steps.locator(".ui-step-item")).toHaveCount(0);
       await expect(steps.getByRole("button", { name: "Add a step" }))
         .toHaveCount(0);
       await expect(steps).not.toContainText("Move");
       await expect(steps).not.toContainText("Remove");
-      // The path still runs from the first card to the last and stops.
-      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
-      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
+      // The diagram's path runs from the first card to the last and stops;
+      // the outline a phone shows has no end mark.
+      if (viewport.name === "desktop") {
+        await expect(steps.locator("[data-canvas-end]")).toHaveText("End");
+      }
       await expect(steps).not.toContainText("task.brief");
       const versions = page.getByTestId("workflow-versions");
       // The sentence about versions never changing belongs to Versions.
@@ -667,8 +695,7 @@ for (
       await expect(steps.getByText("Unreadable step")).toHaveCount(2);
       // Each of them is a card that says it needs setup (design-ux's ruling:
       // the cards, not a numbered row, and the state is never colour alone).
-      await expect(steps.locator('.ui-step-card[data-needs-setup="true"]'))
-        .toHaveCount(2);
+      await expect(steps.locator('[data-needs-setup="true"]')).toHaveCount(2);
       await expect(steps.getByText("Needs setup")).toHaveCount(2);
       await shot(page, "workflow-unreadable-steps", [], { windowOnly: true });
     });
@@ -1163,7 +1190,7 @@ for (
       await expect(page.locator("[data-group='if']")).toContainText(
         "Edited in code",
       );
-      await expect(page.locator("[data-group-arm='yes']")).toContainText(
+      await expect(page.locator("[data-group='yes']")).toContainText(
         "No steps",
       );
       // Labels are the ruling's words, not the old ones.
@@ -2227,7 +2254,8 @@ for (
       await expect(fix).toHaveCount(1);
       await expect(fix).toContainText("Fix until it passes");
       await expect(fix).toContainText("At most 2 tries");
-      await expect(fix).toContainText("Fix problems");
+      await expect.poll(async () => (await cardsInside(fix)).join(" "))
+        .toContain("Fix problems");
       // The other repeat is still just a repeat, with no limit claimed.
       const plain = page.locator("[data-group=repeat]");
       await expect(plain).toHaveCount(1);
@@ -2292,7 +2320,7 @@ for (
       // Every step is still drawn: four before the loop, three inside it.
       await expect(steps.locator("[data-card]:not([data-card=start])"))
         .toHaveCount(7);
-      await expect(fix.locator("[data-card]")).toHaveCount(3);
+      await expect.poll(async () => (await cardsInside(fix)).length).toBe(3);
       await page.mouse.move(700, 700);
       await shot(page, "workflow-built-in-fix-block");
     });
@@ -2303,7 +2331,8 @@ for (
       const fix = page.locator("[data-group=fix]");
       await expect(fix).toContainText("Fix until it passes");
       await expect(fix).toContainText("At most 2 tries");
-      await expect(fix).toContainText("Edited in code");
+      await expect(fix.getByRole("img", { name: "Edited in code" }))
+        .toBeVisible();
       await fix.getByRole("button", { name: "Fix until it passes" }).click();
       const panel = page.getByRole("complementary", {
         name: "The selected step",
