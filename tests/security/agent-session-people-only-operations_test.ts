@@ -169,7 +169,7 @@ Deno.test("an agent session asking for secrets, consent, grants, restore or purg
       const response = await workerRequest(
         fixture,
         worker.credential,
-        "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
+        "/v1/session/call",
         { tool, arguments: args },
         { headers: { "x-session-credential": token } },
       );
@@ -186,7 +186,7 @@ Deno.test("an agent session asking for secrets, consent, grants, restore or purg
     const unknown = await workerRequest(
       fixture,
       worker.credential,
-      "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
+      "/v1/session/call",
       { tool: "secrets.exfiltrate", arguments: {} },
       { headers: { "x-session-credential": token } },
     );
