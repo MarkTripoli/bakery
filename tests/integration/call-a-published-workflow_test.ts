@@ -269,5 +269,8 @@ Deno.test("calls nest two levels through the loader and a third level is refused
     );
   } finally {
     await fixture.close();
+    // This is the last test of the file: leave no organization or user behind
+    // for the next integration file that bootstraps the shared database.
+    await resetDatabase();
   }
 });
