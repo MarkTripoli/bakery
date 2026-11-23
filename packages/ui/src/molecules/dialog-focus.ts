@@ -29,10 +29,8 @@ export function useNativeDialogOpen(
       dialog.showModal();
       for (const selector of initialFocusSelectors) {
         const target = dialog.querySelector<HTMLElement>(selector);
-        if (target) {
-          target.focus();
-          break;
-        }
+        target?.focus();
+        if (target !== null && document.activeElement === target) break;
       }
     };
 

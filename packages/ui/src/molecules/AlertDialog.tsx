@@ -22,7 +22,7 @@ export type AlertDialogProps =
   };
 
 const initialFocusSelectors = [
-  "input:not([type=hidden], [type=radio], [type=checkbox]):not(:disabled), textarea:not(:disabled), select:not(:disabled)",
+  "input:not([type=hidden], [type=radio], [type=checkbox], [readonly]):not(:disabled), textarea:not([readonly]):not(:disabled), select:not(:disabled)",
   ".ui-alert-dialog__safe-action button:not(:disabled)",
 ] as const;
 

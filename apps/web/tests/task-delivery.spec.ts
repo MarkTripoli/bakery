@@ -2575,8 +2575,8 @@ for (const [name, scenario] of MERGE_STILLS) {
         await stillOfSection(page, `merge-${name}-${size}-${scheme}.png`);
         await page.setViewportSize({ width, height });
         if (name === "ready") {
-          // The confirmation, with the focus ring on Cancel where it lands.
-          await button(nowCard(page), "Merge").click();
+          await button(nowCard(page), "Merge").focus();
+          await page.keyboard.press("Enter");
           const dialog = page.getByRole("alertdialog");
           await dialog.waitFor();
           await expect(button(dialog, "Cancel")).toBeFocused();
