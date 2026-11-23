@@ -72,3 +72,35 @@ export function jobCommand(
     : ["deno", "run", "--no-prompt", "--no-remote"];
   return [...base, `${mount}/${entry}`];
 }
+
+/**
+ * Everything the worker keeps that a contained job must never read: its state
+ * directory, the registration, spool and enrollment-token files, and the
+ * directories holding harness logins. The job runs as the worker's own user
+ * and sees the host read-only, so each of these is hidden by name.
+ */
+export function workerOwnedPaths(
+  config: Readonly<{
+    stateDir: string;
+    registrationPath: string;
+    spoolPath: string;
+    enrollmentTokenPath?: string | undefined;
+    claudeAuthSourceDir?: string | undefined;
+    codexAuthSourceDir?: string | undefined;
+  }>,
+): string[] {
+  return [
+    ...new Set(
+      [
+        config.stateDir,
+        config.registrationPath,
+        config.spoolPath,
+        config.enrollmentTokenPath,
+        config.claudeAuthSourceDir,
+        config.codexAuthSourceDir,
+      ].filter((path): path is string =>
+        typeof path === "string" && path !== ""
+      ),
+    ),
+  ];
+}

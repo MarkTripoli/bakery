@@ -5,7 +5,10 @@ import {
   HIDDEN_DIRS,
   refusalReason,
 } from "../../apps/worker/src/plugin-job-bwrap.ts";
-import { jobCommand } from "../../apps/worker/src/plugin-job-select.ts";
+import {
+  jobCommand,
+  workerOwnedPaths,
+} from "../../apps/worker/src/plugin-job-select.ts";
 
 // #29 (QA of #932): the bubblewrap boundary is built from what the host has,
 // starts a job with no inherited environment, hides the worker's own state,
@@ -96,4 +99,66 @@ Deno.test("the boundary always unshares user, pid, net, ipc and uts and drops ev
   // The root is read-only: a job gets no writable view of the host.
   const root = args.indexOf("--ro-bind");
   assertEquals([args[root + 1], args[root + 2]], ["/", "/"]);
+});
+
+Deno.test("the production environment directory is hidden by default, where the host token and secrets key live", () => {
+  assertEquals(HIDDEN_DIRS.includes("/etc/bakery" as never), true);
+  const args = boundaryArgs({
+    stat: (p) => p === "/etc/bakery" ? "dir" : undefined,
+  });
+  assertEquals(tmpfsDirs(args).includes("/etc/bakery"), true);
+  // Where the host has no such directory there is nothing to hide, and no mount to fail.
+  assertEquals(
+    tmpfsDirs(boundaryArgs({ stat: () => undefined })).includes("/etc/bakery"),
+    false,
+  );
+});
+
+Deno.test("a secret file is covered by an empty file and a secret directory by an empty tmpfs", () => {
+  const kinds: Record<string, "dir" | "file"> = {
+    "/var/lib/bakery-worker": "dir",
+    "/var/lib/bakery-worker/registration.json": "file",
+  };
+  const args = boundaryArgs({
+    hide: Object.keys(kinds),
+    stat: (path) => kinds[path],
+  });
+  assertEquals(tmpfsDirs(args).includes("/var/lib/bakery-worker"), true);
+  const bind = args.findIndex((arg, i) =>
+    arg === "--ro-bind" && args[i + 1] === "/dev/null"
+  );
+  assertEquals(args[bind + 2], "/var/lib/bakery-worker/registration.json");
+  // The file is covered, never tmpfs'd: a tmpfs cannot be mounted over a file.
+  assertEquals(
+    tmpfsDirs(args).includes("/var/lib/bakery-worker/registration.json"),
+    false,
+  );
+});
+
+Deno.test("every path the worker keeps secrets in is handed to the boundary", () => {
+  const owned = workerOwnedPaths({
+    stateDir: "/var/lib/bakery-worker",
+    registrationPath: "/var/lib/bakery-worker/registration.json",
+    spoolPath: "/var/lib/bakery-worker/spool.jsonl",
+    enrollmentTokenPath: "/run/credentials/enrollment-token",
+    claudeAuthSourceDir: "/srv/claude-login",
+    codexAuthSourceDir: "/srv/codex-login",
+  });
+  assertEquals(owned.sort(), [
+    "/run/credentials/enrollment-token",
+    "/srv/claude-login",
+    "/srv/codex-login",
+    "/var/lib/bakery-worker",
+    "/var/lib/bakery-worker/registration.json",
+    "/var/lib/bakery-worker/spool.jsonl",
+  ]);
+  // Absent settings add nothing, and a repeated path is named once.
+  assertEquals(
+    workerOwnedPaths({
+      stateDir: "/s",
+      registrationPath: "/s",
+      spoolPath: "/s/spool",
+    }),
+    ["/s", "/s/spool"],
+  );
 });

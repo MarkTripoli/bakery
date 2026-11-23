@@ -40,6 +40,10 @@ export const HIDDEN_DIRS = [
   "/mnt",
   "/media",
   "/var/tmp",
+  // The production layout keeps the worker's own environment here: the host
+  // token in worker.env, secrets.key and the other env files. The job runs as
+  // the worker's user, so the read-only root alone would leave them readable.
+  "/etc/bakery",
 ] as const;
 
 /**
@@ -52,17 +56,24 @@ export const BWRAP_CODE_MOUNT = "/tmp/code";
 const JOB_PATH = "/usr/local/bin:/usr/bin:/bin";
 
 export type BoundaryOptions = Readonly<{
-  /** Extra host directories to hide, such as the worker's state directory. */
+  /**
+   * Extra host paths to hide, such as the worker's state directory and the
+   * files it keeps secrets in. A directory is hidden behind an empty tmpfs and
+   * a file behind an empty file, so neither can be read.
+   */
   hide?: readonly string[];
   /** Whether a host directory exists; a test swaps this. */
   exists?: (path: string) => boolean;
+  /** What a host path is, or undefined when it is absent; a test swaps this. */
+  stat?: (path: string) => "dir" | "file" | undefined;
 }>;
 
-function directoryExists(path: string): boolean {
+function hostKind(path: string): "dir" | "file" | undefined {
   try {
-    return Deno.statSync(path).isDirectory;
+    const info = Deno.statSync(path);
+    return info.isDirectory ? "dir" : info.isFile ? "file" : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
@@ -72,10 +83,15 @@ function directoryExists(path: string): boolean {
  * probe refuse it.
  */
 export function boundaryArgs(options: BoundaryOptions = {}): string[] {
-  const exists = options.exists ?? directoryExists;
-  const hidden = [
-    ...new Set([...HIDDEN_DIRS, ...(options.hide ?? [])]),
-  ].filter((path) => exists(path));
+  const stat = options.stat ??
+    (options.exists
+      ? (path: string) => options.exists!(path) ? "dir" as const : undefined
+      : hostKind);
+  const kinds = new Map<string, "dir" | "file">();
+  for (const path of new Set([...HIDDEN_DIRS, ...(options.hide ?? [])])) {
+    const kind = stat(path);
+    if (kind !== undefined) kinds.set(path, kind);
+  }
   return [
     "--die-with-parent",
     "--new-session",
@@ -104,7 +120,11 @@ export function boundaryArgs(options: BoundaryOptions = {}): string[] {
     "/dev",
     "--tmpfs",
     "/tmp",
-    ...hidden.flatMap((path) => ["--tmpfs", path]),
+    // A directory is replaced by an empty tmpfs. A file is covered by an empty
+    // file, because a tmpfs cannot be mounted over one.
+    ...[...kinds].flatMap(([path, kind]) =>
+      kind === "dir" ? ["--tmpfs", path] : ["--ro-bind", "/dev/null", path]
+    ),
   ];
 }
 

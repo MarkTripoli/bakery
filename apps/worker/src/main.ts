@@ -46,6 +46,7 @@ import {
   jobCommand,
   PLUGIN_JOB_CAPABILITY,
   selectPluginRuntime,
+  workerOwnedPaths,
 } from "./plugin-job-select.ts";
 import {
   WorkerShutdownQuiescenceError,
@@ -165,7 +166,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     const pluginRuntime = options.executor
       ? { kind: "none", reasons: [] } as const
       : await selectPluginRuntime(pluginEnv, {}, {
-        hide: [config.stateDir],
+        hide: workerOwnedPaths(config),
       });
     if (pluginRuntime.kind === "selected") {
       if (!config.capabilities.includes(PLUGIN_JOB_CAPABILITY)) {

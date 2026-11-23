@@ -275,3 +275,37 @@ bwrapTest(
     assertEquals(seen.caps, "0000000000000000");
   },
 );
+
+async function readsFile(hide: readonly string[], file: string) {
+  const code = await job(
+    `if [ -s "${file}" ]; then r=read; else r=hidden; fi; echo "{\\"result\\":{\\"state\\":\\"$r\\"}}"`,
+  );
+  const end = await runPluginJob({
+    runtime: createBwrapRuntime({ env: ENV, hide }),
+    spec: {
+      name: "secret-file",
+      codeDir: code,
+      command: ["sh", `${MOUNT}/main.sh`],
+      limits: LIMITS,
+    },
+    relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+    identity: "i:j:secret",
+    sink: memoryResultSink(),
+  });
+  assertEquals(end.kind, "result");
+  return (end as { value: { state: string } }).value.state;
+}
+
+bwrapTest(
+  "a configured secret file is unreadable to a job, and a file under a hidden path too",
+  async () => {
+    // A file the lane can read and the boundary does not hide by default,
+    // standing in for the worker's registration or secrets.key.
+    await Deno.stat("/etc/passwd");
+    assertEquals(await readsFile([], "/etc/passwd"), "read");
+    // Named as a secret file: covered by an empty file.
+    assertEquals(await readsFile(["/etc/passwd"], "/etc/passwd"), "hidden");
+    // Under a hidden directory: the directory is gone for the job.
+    assertEquals(await readsFile(["/etc"], "/etc/passwd"), "hidden");
+  },
+);
