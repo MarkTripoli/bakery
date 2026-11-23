@@ -4,7 +4,10 @@
 //! page's own document with the web's own Toast classes (the same styles the web shows), made from
 //! text nodes only: nothing from a file name or a path is ever read as markup. A button in it asks the
 //! app to act by navigating to `bakery-action://<nonce>/<action>/<id>`, which the app answers itself
-//! and never loads; the nonce is made when the app starts, so a page cannot ask for an action.
+//! and never loads. The nonce is made when the app starts, from the system's random source. It stops a
+//! page that only knows the address from asking for an action; it is not a secret from the server page the
+//! notice is drawn in, which can find a button and press it. What it can ask for is small: reveal a saved
+//! file in its folder, or try a save again.
 
 use serde_json::json;
 

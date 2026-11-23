@@ -87,7 +87,7 @@ pub struct Shell {
     window_page: Mutex<WindowPage>,
     /// Made when the app starts: a notice's buttons carry it, so a page cannot ask for an action.
     toasts: Mutex<std::collections::HashMap<u64, ToastTarget>>,
-    downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
+    downloads: Mutex<std::collections::HashMap<u64, DownloadState>>,
     next_toast: std::sync::atomic::AtomicU64,
 }
 
@@ -99,6 +99,8 @@ struct ToastTarget {
 
 struct DownloadState {
     id: u64,
+    /// The address the file came from.
+    url: String,
     done: bool,
     name: String,
     /// Where the webview wrote the file while it came in: a private folder of the app's own.
@@ -118,17 +120,11 @@ pub fn run_nonce() -> &'static str {
     NONCE.get_or_init(random_nonce)
 }
 
-/// A value a page cannot guess: the hasher's random seed is new for every process.
+/// A value that cannot be guessed: 128 bits from the operating system's random source. It is not a
+/// secret from the server page it is drawn in (that page can find a notice's button and press it): it
+/// stops anything else, such as a page that merely knows the address scheme, from asking for an action.
 fn random_nonce() -> String {
-    use std::hash::{BuildHasher, Hasher};
-    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
-    hasher.write_u64(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos() as u64)
-            .unwrap_or(0),
-    );
-    format!("a{:016x}", hasher.finish())
+    format!("a{:032x}", rand::random::<u128>())
 }
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -395,17 +391,19 @@ impl Shell {
     /// A page offered a file from the connected server and the person chose where to put it.
     pub fn download_started(self: &Arc<Self>, url: &str, name: &str, temp: PathBuf) {
         let id = self.new_toast_id();
+        // Keyed by this download's own id: two saves of one file at once each keep their own state.
         self.downloads.lock().unwrap().insert(
-            url.to_string(),
+            id,
             DownloadState {
                 id,
+                url: url.to_string(),
                 done: false,
                 name: name.to_string(),
                 temp,
             },
         );
         let shell = Arc::clone(self);
-        let (url, name) = (url.to_string(), name.to_string());
+        let name = name.to_string();
         // Only a save that takes more than a second says so.
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_secs(1));
@@ -413,7 +411,7 @@ impl Shell {
                 .downloads
                 .lock()
                 .unwrap()
-                .get(&url)
+                .get(&id)
                 .is_some_and(|d| !d.done);
             if still_going {
                 shell.show_toast(Toast {
@@ -432,13 +430,34 @@ impl Shell {
 
     /// The webview finished, or gave up on, a file. The file came in to a private folder of the app's
     /// own; only now is the person asked where to keep it, and nothing is written anywhere else.
-    pub fn download_finished(self: &Arc<Self>, url: &str, success: bool) {
+    pub fn download_finished(
+        self: &Arc<Self>,
+        url: &str,
+        path: Option<&std::path::Path>,
+        success: bool,
+    ) {
         // Harness only: a download that arrived whole is treated as one that stopped half way, so the
         // failure path runs against a real part file.
         let success = success && std::env::var("BAKERY_DESKTOP_DOWNLOAD_FAIL").is_err();
         let (id, name, temp) = {
             let mut downloads = self.downloads.lock().unwrap();
-            match downloads.get_mut(url) {
+            // The download is found by the private file it came in to; when the web view gives no path (a
+            // save that failed), by its address, the oldest one still going first.
+            let key = path
+                .and_then(|p| {
+                    downloads
+                        .iter()
+                        .find(|(_, d)| !d.done && d.temp == p)
+                        .map(|(key, _)| *key)
+                })
+                .or_else(|| {
+                    downloads
+                        .iter()
+                        .filter(|(_, d)| !d.done && d.url == url)
+                        .map(|(key, _)| *key)
+                        .min()
+                });
+            match key.and_then(|key| downloads.get_mut(&key)) {
                 Some(d) => {
                     d.done = true;
                     (d.id, d.name.clone(), d.temp.clone())
@@ -614,6 +633,11 @@ impl Shell {
             return;
         }
         *self.pending_open.lock().unwrap() = Some(path);
+        if signed_in {
+            // Signed in but not showing the server's pages: an earlier handoff failed. The new link asks
+            // for another try, so it is not left waiting for a sign-in that will not come.
+            self.window_page.lock().unwrap().tried = false;
+        }
         self.dispatch(Event::OpenLinkArrived).await;
     }
 
@@ -774,12 +798,9 @@ impl Shell {
         if signed_in && !on_server && !tried {
             self.window_page.lock().unwrap().tried = true;
             let Some(credential) = credential else { return };
-            let path = self
-                .pending_open
-                .lock()
-                .unwrap()
-                .take()
-                .unwrap_or_else(|| "/".into());
+            let pending = self.pending_open.lock().unwrap().take();
+            let had_link = pending.is_some();
+            let path = pending.unwrap_or_else(|| "/".into());
             match self.client.create_handoff(&credential, &path).await {
                 Some(code) => {
                     let url = format!(
@@ -794,7 +815,11 @@ impl Shell {
                     }
                 }
                 None => {
-                    // The signed-in panel stays; the page is asked for again at the next sign-in.
+                    // The signed-in panel stays; the page is asked for again at the next sign-in or the
+                    // next link, and a link that was waiting is kept for that try.
+                    if had_link {
+                        *self.pending_open.lock().unwrap() = Some(path);
+                    }
                     self.report("handoff_failed", json!({}));
                 }
             }

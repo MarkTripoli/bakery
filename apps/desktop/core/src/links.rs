@@ -54,8 +54,9 @@ pub const ACTION_SCHEME: &str = "bakery-action";
 
 /// What a notice's button asks for, as `(action, notice id)`, when the address is exactly
 /// `bakery-action://<nonce>/<action>/<id>` and the nonce is this run's. The nonce is made when the app
-/// starts and lives only in the buttons the app draws, so a page that does not hold it, or any other
-/// address, asks for nothing.
+/// starts and lives in the buttons the app draws, which means in the server page they are drawn in: it
+/// stops any other sender, or an address without it, from asking for anything, and does not hide it from
+/// that page.
 pub fn toast_action(raw: &str, nonce: &str) -> Option<(String, u64)> {
     if nonce.is_empty() {
         return None;
@@ -216,13 +217,61 @@ fn page_path(path: &str) -> Result<&str, &'static str> {
     {
         return Err("not a page of the web app");
     }
-    if before_query
+    // The path as a server or the web view would read it: every spelling of a dot is a dot, however its
+    // percent-escapes are cased or nested, so a list of spellings is never enough.
+    let Some(read) = read_as_a_server(before_query) else {
+        return Err("path holds a forbidden character");
+    };
+    if read.chars().any(|c| c.is_control() || c == '\\') {
+        return Err("path holds a forbidden character");
+    }
+    if read
         .split('/')
-        .any(|segment| matches!(segment, ".." | "%2e%2e" | "%2E%2E" | ".%2e" | "%2e."))
+        .any(|segment| segment == "." || segment == "..")
     {
         return Err("path climbs a directory");
     }
+    if SERVER_OWNED
+        .iter()
+        .chain(SIGN_IN_OUT.iter())
+        .any(|p| owns(&read, p))
+    {
+        return Err("not a page of the web app");
+    }
     Ok(path)
+}
+
+/// The path with its percent-escapes undone (again and again, since an escaped escape is still an escape
+/// to some readers) and in lower case. `None` when it is still changing after four rounds.
+fn read_as_a_server(path: &str) -> Option<String> {
+    let mut current = path.to_string();
+    for _ in 0..4 {
+        let decoded = percent_decode_once(&current);
+        if decoded == current {
+            return Some(current.to_ascii_lowercase());
+        }
+        current = decoded;
+    }
+    None
+}
+
+fn percent_decode_once(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && bytes.len() >= i + 3 {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+            if let Some(byte) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// The address the window loads for an accepted path on a server, or `None` when the server is not a
@@ -420,6 +469,50 @@ mod tests {
                 "path climbs a directory",
             ),
             ("bakery://open?path=%5Cevil", "not a path on this server"),
+            // Every spelling of a dot segment is refused, whatever the case or the nesting of its escapes
+            // (a reviewer found %2E%2e, .%2E and %2E. getting through).
+            (
+                "bakery://open?path=%2Fx%2F%2E%2e%2Fsign-out",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2Fx%2F%2e%2E%2Fsign-out",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2Fx%2F.%2E%2Fsign-out",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2Fx%2F%2E.%2Fsign-out",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2Fx%2F%252E%252e%2Fsign-out",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2Fx%2F%25252e%25252e%2Fv1%2Ftasks",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2F.%2Fsign-out",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2F%2e%2Fsign-out",
+                "path climbs a directory",
+            ),
+            // An escaped letter is still the letter: the reserved pages are refused by their decoded name.
+            (
+                "bakery://open?path=%2F%2573ign-out",
+                "not a page of the web app",
+            ),
+            (
+                "bakery://open?path=%2F%2576%2531%2Ftasks",
+                "not a page of the web app",
+            ),
+            ("bakery://open?path=%2Fv%2531", "not a page of the web app"),
             (
                 "bakery://open?path=%2Fa%5Cb",
                 "path holds a forbidden character",

@@ -62,10 +62,10 @@ pub fn handler(
                 shell.download_started(url.as_str(), &name, temp);
                 true
             }
-            DownloadEvent::Finished { url, success, .. } => {
+            DownloadEvent::Finished { url, path, success } => {
                 report("download_finished", json!({ "success": success }));
                 if let Some(shell) = &shell {
-                    shell.download_finished(url.as_str(), success);
+                    shell.download_finished(url.as_str(), path.as_deref(), success);
                 }
                 true
             }
