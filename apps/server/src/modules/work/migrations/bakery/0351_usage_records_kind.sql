@@ -10,4 +10,3 @@ alter table bakery.usage_records
   alter column provider_call_id drop not null;
 
 grant insert (kind) on bakery.usage_records to bakery_app;
-grant update (kind) on bakery.usage_records to bakery_app;

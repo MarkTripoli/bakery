@@ -2389,14 +2389,15 @@ export function createBakeryPostgresWorkflowRepository(options: {
           );
           return { key, terminal: true };
         }
+        const ownRequirements = repositoryExecutionRequirements(
+          profile,
+          action,
+          requiredCapabilities,
+        );
         let requirements;
         try {
           requirements = withRunPlacement(
-            repositoryExecutionRequirements(
-              profile,
-              action,
-              requiredCapabilities,
-            ),
+            ownRequirements,
             RunPlacementSchema.parse(row.runPlacement ?? {}),
           );
         } catch (error) {
