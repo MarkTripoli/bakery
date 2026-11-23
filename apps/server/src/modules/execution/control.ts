@@ -510,6 +510,19 @@ export async function runControlAction(
         }),
       },
     });
+  } else {
+    // A person's control is recorded as theirs, so a read can say who
+    // stopped a run (#61: "Stopped by {name}" on a ticket request).
+    await appendAudit(transaction, {
+      organizationId,
+      principalId,
+      operation: "runs.control",
+      resourceType: "workflow_run",
+      resourceId: runId,
+      requestId: context.requestId,
+      traceId: context.traceId,
+      details: { action: input.action },
+    });
   }
   await appendDomainEvent(transaction, {
     organizationId,

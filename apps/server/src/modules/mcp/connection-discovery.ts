@@ -93,7 +93,7 @@ export function manifestChanges(before: unknown, after: unknown) {
 }
 
 /** The connection's credential as plaintext, for the one request that needs it. */
-async function loadBearerToken(
+export async function loadBearerToken(
   transaction: PgTransactionClient,
   organizationId: string,
   secretId: string | null,

@@ -3555,10 +3555,12 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "LEASE_EXPIRED",
-        "LEASE_FENCED"
+        "LEASE_FENCED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Skills",
@@ -3580,10 +3582,12 @@
         "LEASE_FENCED",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "SKILL_CONTENT_INTEGRITY_FAILED"
+        "SKILL_CONTENT_INTEGRITY_FAILED",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Skills",
@@ -12776,6 +12780,32 @@
     },
     {
       "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-requests/{id}/cancellations",
+      "action": "ticketRequests.cancel",
+      "access": "Developer+admission authority",
+      "permission": "ticketRequest:write",
+      "input": "TicketRequestCancel",
+      "output": "TicketRequestView",
+      "event": "ticket.request.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "GET",
       "path": "/v1/ticket-requests/{id}",
       "action": "ticketRequests.get",
@@ -15127,6 +15157,7 @@
     "ticketRequests.create",
     "ticketRequests.list",
     "ticketRequests.get",
+    "ticketRequests.cancel",
     "notifications.list",
     "notifications.count",
     "notifications.get",
@@ -15255,6 +15286,8 @@
     "skills.takeSourceUpdate",
     "skillDraftFiles.rename",
     "skillVersions.list",
+    "skillVersions.get",
+    "skillFiles.get",
     "library.search",
     "pluginPackages.list",
     "pluginPackages.create",
@@ -21040,7 +21073,7 @@
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -24557,6 +24590,18 @@
                 "type": "string",
                 "pattern": "^(?:0|[1-9][0-9]*)$"
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -24641,6 +24686,18 @@
                 "description": "Current fence value carried in the X-Bakery-Fence header for the requesting worker's attempt; a stale or mismatched fence rejects the read as belonging to a superseded attempt.",
                 "type": "string",
                 "pattern": "^(?:0|[1-9][0-9]*)$"
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -47031,6 +47088,70 @@
           }
         }
       },
+      "/v1/ticket-requests/{id}/cancellations": {
+        "post": {
+          "operationId": "ticketRequests.cancel",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TicketRequestView"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketRequestCancel"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/ticket-requests/{id}": {
         "get": {
           "operationId": "ticketRequests.get",
@@ -59905,6 +60026,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -73212,6 +73334,193 @@
             }
           ]
         },
+        "ToolCallInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Connection the tool call runs through: an integration connection or an MCP server connection of the run's organization; the server finds which kind it is, the author never names it."
+            },
+            "tool": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Identifier of the tool to call: the registered integration action id, for example github.issue.comment.create, or the name of an MCP tool pinned in the connection's capability snapshot. ToolCallInput.tool must contain at most 200 characters."
+            },
+            "toolVersion": {
+              "description": "Exact registered version of an integration action, pinned in the workflow so retries and reconciliation stay bound to it; required for an integration connection and unused for an MCP tool. ToolCallInput.toolVersion must be at least 1.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "resourceId": {
+              "description": "Selected integration resource, such as one repository, that an integration action runs against; required for an integration connection and unused for an MCP tool.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "arguments": {
+              "description": "Tool-specific input, type-checked against the exact schema the pinned tool version declares before anything is sent; it cannot carry credentials, host, authority or budget overrides. ToolCallInput.arguments must contain at most 65536 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ToolCallInput____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/ToolCallInput____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 65536
+            }
+          },
+          "required": [
+            "connectionId",
+            "tool",
+            "arguments"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
+        },
+        "ToolCallInput____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ToolCallInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
         "IntegrationEffectQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -74354,6 +74663,13 @@
           "additionalProperties": false,
           "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
         },
+        "TicketRequestCancel": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false,
+          "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+        },
         "TicketTaskLinkNoteSync": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -74426,6 +74742,14 @@
               "type": "string",
               "maxLength": 200,
               "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria. TicketRequestCreate.requirementsDigest must contain at most 200 characters."
+            },
+            "preset": {
+              "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own.",
+              "type": "string",
+              "enum": [
+                "fixed-coding",
+                "fixed-coding-reviewed"
+              ]
             }
           },
           "required": [
@@ -76045,7 +76369,7 @@
             "arguments"
           ],
           "additionalProperties": false,
-          "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph."
+          "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph."
         },
         "IntegrationAction____schema0": {
           "description": "JSON value node.",
@@ -76792,7 +77116,7 @@
                 "harness.repair",
                 "quality.check",
                 "review.independent",
-                "integration.action",
+                "tool.call",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -112132,6 +112456,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -112831,6 +113156,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -113530,6 +113856,7 @@
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
                 "ticketRequests.list",
+                "ticketRequests.cancel",
                 "ticketRequests.get",
                 "ticketSources.labels",
                 "ticketTaskLinks.resyncNote",
@@ -136738,6 +137065,12 @@
               "minimum": 0,
               "maximum": 9007199254740991
             },
+            "openQuestionCount": {
+              "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
             "createdAt": {
               "type": "string",
               "format": "date-time",
@@ -159747,6 +160080,7 @@
                       "ticketTaskLinks.create",
                       "ticketTaskLinks.list",
                       "ticketRequests.list",
+                      "ticketRequests.cancel",
                       "ticketRequests.get",
                       "ticketSources.labels",
                       "ticketTaskLinks.resyncNote",
@@ -181344,7 +181678,7 @@
                 "harness.repair",
                 "quality.check",
                 "review.independent",
-                "integration.action",
+                "tool.call",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -181507,7 +181841,7 @@
                       "harness.repair",
                       "quality.check",
                       "review.independent",
-                      "integration.action",
+                      "tool.call",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
                       "delivery.merge",
@@ -181723,7 +182057,7 @@
                 "harness.repair",
                 "quality.check",
                 "review.independent",
-                "integration.action",
+                "tool.call",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
                 "delivery.merge",
@@ -181998,7 +182332,7 @@
                       "harness.repair",
                       "quality.check",
                       "review.independent",
-                      "integration.action",
+                      "tool.call",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
                       "delivery.merge",
@@ -223782,6 +224116,12 @@
                       "maxLength": 65536,
                       "description": "Registered action input entry."
                     },
+                    "versionId": {
+                      "description": "Registered action input versionId.",
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
                     "repositoryProfile": {
                       "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
                       "type": "object",
@@ -241249,6 +241589,12 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
+                  "openQuestionCount": {
+                    "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -242666,9 +243012,10 @@
                     "run_canceled",
                     "task_completed",
                     "task_failed",
-                    "task_canceled"
+                    "task_canceled",
+                    "request_canceled"
                   ],
-                  "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                  "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                 },
                 {
                   "type": "null",
@@ -242740,6 +243087,49 @@
                 }
               ],
               "description": "TicketRequestView.workflowRunId may be null in this transport value."
+            },
+            "stoppedByPrincipalId": {
+              "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "stoppedByName": {
+              "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "presetId": {
+              "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+              "type": "string",
+              "enum": [
+                "fixed-coding",
+                "fixed-coding-reviewed"
+              ]
+            },
+            "presetRevision": {
+              "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
             },
             "createdAt": {
               "type": "string",
@@ -242987,9 +243377,10 @@
                           "run_canceled",
                           "task_completed",
                           "task_failed",
-                          "task_canceled"
+                          "task_canceled",
+                          "request_canceled"
                         ],
-                        "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                        "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                       },
                       {
                         "type": "null",
@@ -243061,6 +243452,49 @@
                       }
                     ],
                     "description": "TicketRequestView.workflowRunId may be null in this transport value."
+                  },
+                  "stoppedByPrincipalId": {
+                    "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "stoppedByName": {
+                    "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "presetId": {
+                    "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+                    "type": "string",
+                    "enum": [
+                      "fixed-coding",
+                      "fixed-coding-reviewed"
+                    ]
+                  },
+                  "presetRevision": {
+                    "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   },
                   "createdAt": {
                     "type": "string",
@@ -246135,6 +246569,12 @@
                   "minimum": 0,
                   "maximum": 9007199254740991,
                   "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+                },
+                "labeledBeforeWindow": {
+                  "description": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it. TicketPreviewCounts.labeledBeforeWindow must be at least 0.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -246260,6 +246700,12 @@
               "minimum": 0,
               "maximum": 9007199254740991,
               "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+            },
+            "labeledBeforeWindow": {
+              "description": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it. TicketPreviewCounts.labeledBeforeWindow must be at least 0.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": [
@@ -246269,7 +246715,7 @@
             "blocked"
           ],
           "additionalProperties": false,
-          "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket."
+          "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one of wouldStart, planOnly, held and blocked. labeledBeforeWindow is a part of blocked, not a bucket of its own."
         },
         "TicketPreviewIssue": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -271514,6 +271960,12 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
             },
+            "revision": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+            },
             "workflowId": {
               "type": "string",
               "format": "uuid",
@@ -271553,6 +272005,7 @@
             "id",
             "skillId",
             "skillVersionId",
+            "revision",
             "workflowId",
             "workflowName",
             "stepPath",
@@ -272520,6 +272973,12 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
                   },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+                  },
                   "workflowId": {
                     "type": "string",
                     "format": "uuid",
@@ -272559,6 +273018,7 @@
                   "id",
                   "skillId",
                   "skillVersionId",
+                  "revision",
                   "workflowId",
                   "workflowName",
                   "stepPath",
@@ -289654,7 +290114,7 @@
           "additionalProperties": false,
           "description": "WorkflowStopOutput is the pinned worker action output contract."
         },
-        "IntegrationActionOutput": {
+        "ToolCallOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
@@ -289706,7 +290166,7 @@
                     {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                        "$ref": "#/components/schemas/ToolCallOutput____schema0"
                       },
                       "description": "JSON array value."
                     },
@@ -289717,7 +290177,7 @@
                         "description": "JSON object key."
                       },
                       "additionalProperties": {
-                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                        "$ref": "#/components/schemas/ToolCallOutput____schema0"
                       },
                       "description": "JSON object value."
                     }
@@ -289741,7 +290201,7 @@
           "additionalProperties": false,
           "description": "Result of invoking one integration action: whether the request was accepted, which registered action ran, the linked external-effect identity when a write is involved, and the action's result payload. A read returns this immediately; a write returns it only after the external effect is reconciled by that stable effect identity."
         },
-        "IntegrationActionOutput____schema0": {
+        "ToolCallOutput____schema0": {
           "description": "JSON value node.",
           "anyOf": [
             {
@@ -289784,7 +290244,7 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON array value."
                   },
@@ -289795,7 +290255,7 @@
                       "description": "JSON object key."
                     },
                     "additionalProperties": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -289831,7 +290291,7 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON array value."
                   },
@@ -289842,7 +290302,7 @@
                       "description": "JSON object key."
                     },
                     "additionalProperties": {
-                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      "$ref": "#/components/schemas/ToolCallOutput____schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -289855,7 +290315,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f97bdb70f1e54000a097fec3022714248e693d4ff4bf3e27e29d3431b11e1d56",
+  "compatibilityDigest": "sha256:384517c80e21108e22877a42e64a9e33de1b4725ddbc405a59fe344942045a30",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -297648,6 +298108,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -310995,6 +311456,195 @@
         }
       }
     },
+    "ToolCallInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Connection the tool call runs through: an integration connection or an MCP server connection of the run's organization; the server finds which kind it is, the author never names it."
+        },
+        "tool": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Identifier of the tool to call: the registered integration action id, for example github.issue.comment.create, or the name of an MCP tool pinned in the connection's capability snapshot. ToolCallInput.tool must contain at most 200 characters."
+        },
+        "toolVersion": {
+          "description": "Exact registered version of an integration action, pinned in the workflow so retries and reconciliation stay bound to it; required for an integration connection and unused for an MCP tool. ToolCallInput.toolVersion must be at least 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "resourceId": {
+          "description": "Selected integration resource, such as one repository, that an integration action runs against; required for an integration connection and unused for an MCP tool.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "arguments": {
+          "description": "Tool-specific input, type-checked against the exact schema the pinned tool version declares before anything is sent; it cannot carry credentials, host, authority or budget overrides. ToolCallInput.arguments must contain at most 65536 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 65536
+        }
+      },
+      "required": [
+        "connectionId",
+        "tool",
+        "arguments"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "IntegrationEffectQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -312143,6 +312793,13 @@
       "additionalProperties": false,
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -312215,6 +312872,14 @@
           "type": "string",
           "maxLength": 200,
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria. TicketRequestCreate.requirementsDigest must contain at most 200 characters."
+        },
+        "preset": {
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
         }
       },
       "required": [
@@ -313842,7 +314507,7 @@
         "arguments"
       ],
       "additionalProperties": false,
-      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph.",
+      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -314593,7 +315258,7 @@
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -350055,6 +350720,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -350754,6 +351420,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -351453,6 +352120,7 @@
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
             "ticketRequests.list",
+            "ticketRequests.cancel",
             "ticketRequests.get",
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
@@ -374749,6 +375417,12 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "openQuestionCount": {
+          "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -397820,6 +398494,7 @@
                   "ticketTaskLinks.create",
                   "ticketTaskLinks.list",
                   "ticketRequests.list",
+                  "ticketRequests.cancel",
                   "ticketRequests.get",
                   "ticketSources.labels",
                   "ticketTaskLinks.resyncNote",
@@ -419457,7 +420132,7 @@
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -419620,7 +420295,7 @@
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -419836,7 +420511,7 @@
             "harness.repair",
             "quality.check",
             "review.independent",
-            "integration.action",
+            "tool.call",
             "delivery.candidate_evidence",
             "delivery.prepare",
             "delivery.merge",
@@ -420111,7 +420786,7 @@
                   "harness.repair",
                   "quality.check",
                   "review.independent",
-                  "integration.action",
+                  "tool.call",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
                   "delivery.merge",
@@ -461919,6 +462594,12 @@
                   "maxLength": 65536,
                   "description": "Registered action input entry."
                 },
+                "versionId": {
+                  "description": "Registered action input versionId.",
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
                 "repositoryProfile": {
                   "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
                   "type": "object",
@@ -479416,6 +480097,12 @@
                 "minimum": 0,
                 "maximum": 9007199254740991
               },
+              "openQuestionCount": {
+                "description": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it. ExternalTicket.openQuestionCount must be at least 0.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -480837,9 +481524,10 @@
                 "run_canceled",
                 "task_completed",
                 "task_failed",
-                "task_canceled"
+                "task_canceled",
+                "request_canceled"
               ],
-              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
             },
             {
               "type": "null",
@@ -480911,6 +481599,49 @@
             }
           ],
           "description": "TicketRequestView.workflowRunId may be null in this transport value."
+        },
+        "stoppedByPrincipalId": {
+          "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "stoppedByName": {
+          "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "presetId": {
+          "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ]
+        },
+        "presetRevision": {
+          "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "createdAt": {
           "type": "string",
@@ -481158,9 +481889,10 @@
                       "run_canceled",
                       "task_completed",
                       "task_failed",
-                      "task_canceled"
+                      "task_canceled",
+                      "request_canceled"
                     ],
-                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded."
                   },
                   {
                     "type": "null",
@@ -481232,6 +481964,49 @@
                   }
                 ],
                 "description": "TicketRequestView.workflowRunId may be null in this transport value."
+              },
+              "stoppedByPrincipalId": {
+                "description": "TicketRequestView.stoppedByPrincipalId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "stoppedByName": {
+                "description": "TicketRequestView.stoppedByName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "presetId": {
+                "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+                "type": "string",
+                "enum": [
+                  "fixed-coding",
+                  "fixed-coding-reviewed"
+                ]
+              },
+              "presetRevision": {
+                "description": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it. TicketRequestView.presetRevision must be at least 1.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
               },
               "createdAt": {
                 "type": "string",
@@ -484316,6 +485091,12 @@
               "minimum": 0,
               "maximum": 9007199254740991,
               "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+            },
+            "labeledBeforeWindow": {
+              "description": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it. TicketPreviewCounts.labeledBeforeWindow must be at least 0.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": [
@@ -484441,6 +485222,12 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+        },
+        "labeledBeforeWindow": {
+          "description": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it. TicketPreviewCounts.labeledBeforeWindow must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       },
       "required": [
@@ -484450,7 +485237,7 @@
         "blocked"
       ],
       "additionalProperties": false,
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket."
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one of wouldStart, planOnly, held and blocked. labeledBeforeWindow is a part of blocked, not a bucket of its own."
     },
     "TicketPreviewIssue": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -509727,6 +510514,12 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
         },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+        },
         "workflowId": {
           "type": "string",
           "format": "uuid",
@@ -509766,6 +510559,7 @@
         "id",
         "skillId",
         "skillVersionId",
+        "revision",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -510739,6 +511533,12 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
               },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -510778,6 +511578,7 @@
               "id",
               "skillId",
               "skillVersionId",
+              "revision",
               "workflowId",
               "workflowName",
               "stepPath",
@@ -527907,7 +528708,7 @@
       "additionalProperties": false,
       "description": "WorkflowStopOutput is the pinned worker action output contract."
     },
-    "IntegrationActionOutput": {
+    "ToolCallOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {

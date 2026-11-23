@@ -7320,6 +7320,53 @@ const transportSchemas = {
       ],
       "description": "Body for invoking one registered action on this connection: which action, which pinned version, on which selected resource, with what arguments. Connection, organization and actor identity come from the route and trusted request context, never from this payload."
     },
+    "ToolCallInput": {
+      "fields": [
+        {
+          "name": "connectionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Connection the tool call runs through: an integration connection or an MCP server connection of the run's organization; the server finds which kind it is, the author never names it."
+        },
+        {
+          "name": "tool",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Identifier of the tool to call: the registered integration action id, for example github.issue.comment.create, or the name of an MCP tool pinned in the connection's capability snapshot."
+        },
+        {
+          "name": "toolVersion",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1
+          },
+          "description": "Exact registered version of an integration action, pinned in the workflow so retries and reconciliation stay bound to it; required for an integration connection and unused for an MCP tool."
+        },
+        {
+          "name": "resourceId",
+          "type": "uuid",
+          "required": false,
+          "description": "Selected integration resource, such as one repository, that an integration action runs against; required for an integration connection and unused for an MCP tool."
+        },
+        {
+          "name": "arguments",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Tool-specific input, type-checked against the exact schema the pinned tool version declares before anything is sent; it cannot carry credentials, host, authority or budget overrides."
+        }
+      ],
+      "rules": [
+        "A deterministic step with no agent. The organization and the acting person come from the run, never from this payload. Reads return at once; a write is keyed by the step and returns only after its effect is confirmed, and an effect whose outcome is not known waits instead of being sent again."
+      ],
+      "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -7985,6 +8032,13 @@ const transportSchemas = {
       "pagination": "pagination",
       "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
     },
+    "TicketRequestCancel": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the request version required; refused with STATE_CONFLICT ticket_request_has_run (with the run id) while the request or its task has a live run, and ticket_request_finished once the request ended."
+      ],
+      "description": "Asks Bakery to stop one start request that has no run yet (#61). The request ends canceled with the reason request_canceled and the audit row names the caller; its task, plan and links stay as they are and nothing is written on the provider. A request that owns a live run is stopped with runs.control instead."
+    },
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
@@ -8062,6 +8116,16 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria."
+        },
+        {
+          "name": "preset",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
         }
       ],
       "rules": [
@@ -8870,7 +8934,7 @@ const transportSchemas = {
           "description": "Action-specific input payload, validated against the exact schema registered for the named action; the caller cannot use it to supply credentials, host, authority or budget overrides."
         }
       ],
-      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use IntegrationActionInput instead, where version and resource are pinned in the graph."
+      "description": "REST body for POST /v1/integration-connections/{id}/actions: names a registered integration action and supplies its arguments. The connection comes from the path and the actor from the session; the host resolves the action's current registered version and the target resource named inside arguments under the caller's grant. Workflow steps use ToolCallInput instead, where connection, version and resource are pinned in the graph."
     },
     "DesignInput": {
       "description": "Input to the rpi.design workflow action: the research artifact produced by the preceding rpi.research step, which the design step reads to ground its proposed design.",
@@ -9157,7 +9221,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -25796,7 +25860,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -25841,7 +25905,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -29112,6 +29176,7 @@ const transportSchemas = {
         "activeRequest",
         "linkedTaskIds",
         "linkedTaskCount",
+        "openQuestionCount",
         "createdAt",
         "updatedAt",
         "version"
@@ -29136,7 +29201,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "linkedTaskIds": "uuid[]",
-        "linkedTaskCount": "integer"
+        "linkedTaskCount": "integer",
+        "openQuestionCount": "integer"
       },
       "nullableFields": [
         "number",
@@ -29164,19 +29230,24 @@ const transportSchemas = {
         "updatedAt": "Timestamp recording the last update to this external ticket record.",
         "version": "Monotonic revision used to order or conditionally update this external ticket record.",
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
-        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it."
+        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
+        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
         "activeRequest",
         "linkedTaskIds",
-        "linkedTaskCount"
+        "linkedTaskCount",
+        "openQuestionCount"
       ],
       "fieldBounds": {
         "linkedTaskIds": {
           "maxItems": 25
         },
         "linkedTaskCount": {
+          "min": 0
+        },
+        "openQuestionCount": {
           "min": 0
         }
       }
@@ -29350,6 +29421,10 @@ const transportSchemas = {
         "pausedReason",
         "progress",
         "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName",
+        "presetId",
+        "presetRevision",
         "createdAt",
         "updatedAt",
         "version",
@@ -29364,11 +29439,15 @@ const transportSchemas = {
         "requestedByPrincipalId": "uuid|null",
         "triggerLabelName": "string|null",
         "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled|request_canceled)|null",
         "pausedAt": "timestamp|null",
         "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
         "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
         "workflowRunId": "uuid|null",
+        "stoppedByPrincipalId": "uuid|null",
+        "stoppedByName": "string|null",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
+        "presetRevision": "integer",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
@@ -29380,7 +29459,9 @@ const transportSchemas = {
         "dispositionReasonCode",
         "pausedAt",
         "pausedReason",
-        "workflowRunId"
+        "workflowRunId",
+        "stoppedByPrincipalId",
+        "stoppedByName"
       ],
       "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
       "fieldDescriptions": {
@@ -29392,15 +29473,30 @@ const transportSchemas = {
         "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
         "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
         "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, run_*/task_* for one that ended with its run or task, or request_canceled for one a person stopped before it had a run (ticketRequests.cancel); null while none is recorded.",
         "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
         "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
         "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
         "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "stoppedByPrincipalId": "Principal who stopped the request (#61): the caller of ticketRequests.cancel, or of the runs.control cancel of its run, as the audit row records it. Null unless progress is canceled, for a run canceled without a person, or after that principal was removed. Omitted by servers that predate it.",
+        "stoppedByName": "Display name of that principal, resolved by the server so the page can say who stopped the work. Null whenever stoppedByPrincipalId is null. Omitted by servers that predate it.",
         "createdAt": "When the request was admitted.",
         "updatedAt": "When the request last changed.",
         "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository.",
+        "presetId": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+        "presetRevision": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "presetId",
+        "presetRevision",
+        "stoppedByPrincipalId",
+        "stoppedByName"
+      ],
+      "fieldBounds": {
+        "presetRevision": {
+          "min": 1
+        }
       }
     },
     "Page<TicketRequestView>": {
@@ -30055,21 +30151,27 @@ const transportSchemas = {
         "wouldStart",
         "planOnly",
         "held",
-        "blocked"
+        "blocked",
+        "labeledBeforeWindow"
       ],
       "fieldTypes": {
         "wouldStart": "integer",
         "planOnly": "integer",
         "held": "integer",
-        "blocked": "integer"
+        "blocked": "integer",
+        "labeledBeforeWindow": "integer"
       },
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one of wouldStart, planOnly, held and blocked. labeledBeforeWindow is a part of blocked, not a bucket of its own.",
       "fieldDescriptions": {
         "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
         "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
         "held": "Issues carrying the hold label; the hold wins over every other label.",
-        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which.",
+        "labeledBeforeWindow": "Blocked issues held back only because their request label was applied before automatic starts were turned on (automatic.since): every other check passes, they are also counted in blocked, nothing starts them automatically, and a person's Start work admits them. Omitted by servers that predate it."
       },
+      "optionalFields": [
+        "labeledBeforeWindow"
+      ],
       "fieldBounds": {
         "wouldStart": {
           "min": 0
@@ -30081,6 +30183,9 @@ const transportSchemas = {
           "min": 0
         },
         "blocked": {
+          "min": 0
+        },
+        "labeledBeforeWindow": {
           "min": 0
         }
       }
@@ -35246,6 +35351,7 @@ const transportSchemas = {
         "id",
         "skillId",
         "skillVersionId",
+        "revision",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35257,6 +35363,7 @@ const transportSchemas = {
         "id": "uuid",
         "skillId": "uuid",
         "skillVersionId": "uuid",
+        "revision": "integer",
         "workflowId": "uuid",
         "workflowName": "string",
         "stepPath": "string",
@@ -35270,6 +35377,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying the grant.",
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
@@ -39953,7 +40061,8 @@ const transportSchemas = {
     "plugin.job": {
       "inputFields": {
         "installId": "uuid",
-        "entry": "string"
+        "entry": "string",
+        "versionId": "uuid?"
       },
       "outputFields": {
         "resultJson": "string<=65536"
@@ -39961,7 +40070,7 @@ const transportSchemas = {
       "capabilities": [
         "plugin.job.contained"
       ],
-      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package, or from the install's current version when versionId is omitted; the install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {
@@ -40070,7 +40179,7 @@ const transportSchemas = {
       "model-capability actions require non-null agentVersionId/billing/installationReservationId before dispatch",
       "resolve workflow.agents[actionName], else pinned repositoryProfile.config.agentBindings[actionName]; reject missing/out-of-scope binding",
       "billing is copied from pinned agent_versions.config.billing and narrowed by repository/run policy, never from mutable runtime defaults",
-      "integration.action receives actionId/actionVersion/resourceId/arguments; connection and organization bind through trusted route/run context. Read-only actions return typed ActionResult 200; writes persist external_effects and return IntegrationActionReceipt 202."
+      "tool.call receives connectionId/tool/toolVersion/resourceId/arguments; organization and actor bind through the run, never the input. Read-only tools return a typed ActionResult at once; writes persist external_effects and complete the step only when the effect is confirmed."
     ],
     "integrationActionInput": "IntegrationActionInput",
     "integrationActionResponse": "IntegrationActionResponse"

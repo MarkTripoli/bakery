@@ -152,7 +152,7 @@ Deno.test("a plan's runtime survives storage and resolves to the pinned revision
   assert(runtime !== null);
   assertEquals(runtime.pin, snapshot.runtime.pin);
   assertEquals(runtime.document, document);
-  assert(runtime.interpreter === INTERPRETER_REVISIONS["2"]);
+  assert(runtime.interpreter === INTERPRETER_REVISIONS["3"]);
 });
 
 Deno.test("a runtime section that is there but wrong is refused by name, never read as legacy", async () => {
@@ -214,15 +214,15 @@ Deno.test("an old run resumes on its pinned revision or is refused, never moved"
   // The pinned revision is no longer deployed.
   const gone = await assertRejects(
     () =>
-      planRuntimeFromSnapshot(snapshot, { "3": () => ({ kind: "finished" }) }),
+      planRuntimeFromSnapshot(snapshot, { "4": () => ({ kind: "finished" }) }),
     WorkflowInterpreterError,
   );
   assertEquals(gone.code, "revision_unavailable");
 
   // A deploy that adds a revision leaves the old run on the old one.
-  const later = { ...INTERPRETER_REVISIONS, "3": () => ({ kind: "finished" }) };
+  const later = { ...INTERPRETER_REVISIONS, "4": () => ({ kind: "finished" }) };
   const kept = await planRuntimeFromSnapshot(snapshot, later as never);
-  assert(kept !== null && kept.interpreter === INTERPRETER_REVISIONS["2"]);
+  assert(kept !== null && kept.interpreter === INTERPRETER_REVISIONS["3"]);
 });
 
 Deno.test("the frozen inputs are read from the snapshot, and a snapshot without them is refused", () => {

@@ -29,6 +29,10 @@ import {
   stepSkillIssues,
 } from "./version-skills.ts";
 import {
+  checkToolCallPins,
+  writeToolCallBindings,
+} from "./version-tool-bindings.ts";
+import {
   insertSkillSlots,
   resolveSkillSlots,
   stripPersonalSkills,
@@ -1287,10 +1291,21 @@ export async function publishWorkflowVersion(
       definition: draft.definition,
     })
     : [];
+  // A tool.call step over an MCP connection is pinned to the connection's
+  // current snapshot and the exact tool, or the version is refused.
+  const toolPins = report.valid
+    ? await checkToolCallPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId,
+      definition: draft.definition,
+    })
+    : { issues: [], pins: [] };
   const issues = [
     ...report.errors,
     ...bindingErrors,
     ...skillErrors,
+    ...toolPins.issues,
     ...sourceErrors,
   ];
   if (!report.valid || issues.length > 0 || report.normalizedDigest === null) {
@@ -1332,6 +1347,11 @@ export async function publishWorkflowVersion(
     starts: canonicalJson(
       readStarts(WorkflowStartsSchema.parse(draft.starts)),
     ),
+  });
+  await writeToolCallBindings(transaction, {
+    organizationId,
+    workflowVersionId: draft.id,
+    pins: toolPins.pins,
   });
   await transaction.query(
     `delete from bakery.workflow_drafts
@@ -1602,7 +1622,20 @@ export async function validateWorkflow(
       definition,
     })
     : [];
-  const bindingErrors = [...bindingResult.errors, ...skillErrors];
+  // The dry run says what publish would say about a tool.call step's MCP pin.
+  const toolErrors = report.valid
+    ? (await checkToolCallPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId: null,
+      definition,
+    })).issues
+    : [];
+  const bindingErrors = [
+    ...bindingResult.errors,
+    ...skillErrors,
+    ...toolErrors,
+  ];
   const failed = !report.valid || bindingErrors.length > 0;
   const { graph, requiresRepository, registryVersion, registryDigest } = report;
   return {
