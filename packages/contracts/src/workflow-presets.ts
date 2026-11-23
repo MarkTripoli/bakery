@@ -534,13 +534,13 @@ export const FIXED_CODING_REVIEWED_PRESET: WorkflowPresetDefinition = Object
 const DELIVER_PRESET_DIGESTS: Readonly<Record<DeliverTemplateId, string>> =
   Object.freeze({
     "deliver-oneshot":
-      "2c5eb61044fbc8f6663c5e1bc8b06c905dbc9d967f082f83fb0f8e523ecc0c5f",
+      "5269550bbd81212b09ece7e8bfe26e9e8db98efb00226b84490f3c32c8942ae4",
     "deliver-lean":
-      "b1ea62043e7b930af4f0464814b92397dff26548512bd39e59fb26299d9bb655",
+      "ed5ab58b003dba85d69f63689e4879219ae9116b8f4ba1dd729fa2e05ba1862a",
     "deliver-full":
-      "3c4d5f3122bace42a302ce39088c1cfcfa0cf336677b9f0f59e8abcb7dd5bab6",
+      "c23eaecd7c838ee34477714a1ead58969630d8082368b2cef10aabdfdf39770e",
     "deliver-prd":
-      "bd2a8222aac2b6a4fac0e526295f3cc9d4883e0b852e982bdb262999725e0cc0",
+      "8fdab1845660e911e136721911de600ddac658e6d19f3e0fde32a5e570857136",
   });
 
 const DELIVER_NAME_KEYS: Readonly<Record<DeliverTemplateId, string>> = Object

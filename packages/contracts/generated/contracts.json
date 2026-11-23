@@ -76669,7 +76669,7 @@
               "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
             },
             "audience": {
-              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -289898,7 +289898,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:3a2480d09a93dc96772f62b1bee2de3bbe346e6e82584ab24f85012e50119b9b",
+  "compatibilityDigest": "sha256:7f2a2bcbc0ceb0d014a94c0343f868cc6e3501bc23ea7cb3ae9fecad1bfdda41",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -314552,7 +314552,7 @@
           "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
         },
         "audience": {
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",

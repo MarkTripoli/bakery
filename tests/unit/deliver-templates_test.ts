@@ -121,15 +121,84 @@ Deno.test("the variants differ only in their planning prefix and share the build
   assertEquals(new Set(prefixIds).size, 4);
 });
 
-Deno.test("every plan sign-off applies only when the run asks for gates: plan (#429)", () => {
+Deno.test("every sign-off is a branch on gates: plan, so the steps after it run whichever arm is taken (#429)", () => {
   for (const id of DELIVER_TEMPLATE_IDS) {
-    const approvals = (deliverTemplateDefinition(id).steps as readonly Record<
+    const steps = deliverTemplateDefinition(id).steps as readonly Record<
       string,
       unknown
-    >[]).filter((step) => step.uses === "human.approval");
-    assert(approvals.length >= 1, id);
-    for (const approval of approvals) {
-      assertEquals(approval.if, '$input.gates == "plan"', id);
+    >[];
+    const branches = steps.filter((step) => step.branch !== undefined);
+    assert(branches.length >= 1, id);
+    for (const node of branches) {
+      const branch = node.branch as {
+        when: string;
+        then: { id: string; uses: string }[];
+        else: unknown[];
+      };
+      assertEquals(branch.when, '$input.gates == "plan"', id);
+      assertEquals(
+        branch.then.map((step) => step.uses),
+        ["human.approval"],
+        id,
+      );
+      assertEquals(branch.else, [], id);
+    }
+    // No sign-off is a skippable step: a skipped step skips whatever needs it.
+    assert(
+      !steps.some((step) => step.uses === "human.approval"),
+      `${id} has a bare human.approval step`,
+    );
+    assert(
+      !steps.some((step) => step.uses !== undefined && step.if !== undefined),
+      `${id} has a step with an if that later steps need`,
+    );
+  }
+});
+
+Deno.test("each Deliver preset's digest is the digest of its definition, so an edited template cannot keep a stale one (#429)", async () => {
+  const { WORKFLOW_PRESETS } = await import(
+    "../../packages/contracts/src/workflow-presets.ts"
+  );
+  const { canonicalJson, sha256Hex } = await import(
+    "../../apps/server/src/platform/canonical-json.ts"
+  );
+  for (const id of DELIVER_TEMPLATE_IDS) {
+    const preset = WORKFLOW_PRESETS.find((candidate) => candidate.id === id);
+    assert(preset, id);
+    assertEquals(
+      preset.digest,
+      await sha256Hex(canonicalJson(deliverTemplateDefinition(id))),
+      id,
+    );
+    // What a person copies is the document the digest covers.
+    assertEquals(
+      JSON.parse(preset.sourceYaml),
+      JSON.parse(JSON.stringify(preset.spec)),
+      id,
+    );
+  }
+});
+
+Deno.test("a template names only references the engine can resolve: the brief is the one artifact a step can be handed (#429)", () => {
+  const slotSources = (value: unknown, found: string[] = []): string[] => {
+    if (Array.isArray(value)) value.forEach((v) => slotSources(v, found));
+    else if (value !== null && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (Array.isArray(record.inputs)) {
+        for (const slot of record.inputs) {
+          const from = (slot as { from?: unknown }).from;
+          if (typeof from === "string") found.push(from);
+        }
+      }
+      for (const child of Object.values(record)) slotSources(child, found);
+    }
+    return found;
+  };
+  for (const id of DELIVER_TEMPLATE_IDS) {
+    for (const from of slotSources(deliverTemplateDefinition(id))) {
+      // A produced artifact of an agent.freeform step is a list, so
+      // $step.<id>.artifacts.versionId compiles but never resolves at run time.
+      assertEquals(from, "$step.brief.artifact.versionId", id);
     }
   }
 });

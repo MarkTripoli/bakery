@@ -34,6 +34,13 @@ export const DELIVER_TEMPLATE_AUDIT_GAPS: readonly Readonly<
   { construct: string; design: string; stand_in: string }
 >[] = Object.freeze([
   {
+    construct:
+      "a later step reads the document an earlier step wrote (named slots over a step's produced artifacts)",
+    design: "A1",
+    stand_in:
+      "a slot takes one artifact version id and a freeform step's artifacts are a list, so only the brief is handed on; each writer reads the brief and the repository",
+  },
+  {
     construct: "artifact kinds with validators and facts on a step's output",
     design: "A1/A2",
     stand_in:
@@ -103,8 +110,13 @@ function writer(
     needs: Object.freeze([...needs]),
     uses: "agent.freeform",
     role,
+    // Only the brief can be handed to a step: a produced document is one of a
+    // list of artifacts and no reference picks it, so a slot naming one would
+    // compile and then fail to resolve (see DELIVER_TEMPLATE_AUDIT_GAPS).
     inputs: Object.freeze(
-      from.map(([name, ref]) => Object.freeze({ name, from: ref })),
+      from
+        .filter(([, ref]) => ref === BRIEF_REF)
+        .map(([name, ref]) => Object.freeze({ name, from: ref })),
     ),
     outputs: Object.freeze([Object.freeze({ name: output, kind: output })]),
     with: Object.freeze({
@@ -118,14 +130,31 @@ function writer(
 const BRIEF_REF = "$step.brief.artifact.versionId";
 const artifactOf = (id: string) => `$step.${id}.artifacts.versionId`;
 
-/** A human sign-off that applies only when the run was started with gates: plan. */
+/**
+ * A human sign-off that applies only when the run was started with gates: plan.
+ *
+ * It is a branch, not a step with an `if`: a step that is skipped makes every
+ * step that needs it skip too, so a skipped sign-off would silently skip the
+ * whole build. A branch completes whichever arm runs, so what follows it runs
+ * either way. The step inside is `<id>.approve`.
+ */
 function signoff(id: string, needs: readonly string[], prompt: string): Json {
   return Object.freeze({
     id,
     needs: Object.freeze([...needs]),
-    if: '$input.gates == "plan"',
-    uses: "human.approval",
-    with: Object.freeze({ prompt, audience: "task_owner" }),
+    branch: Object.freeze({
+      when: '$input.gates == "plan"',
+      then: Object.freeze([
+        Object.freeze({
+          id: "approve",
+          uses: "human.approval",
+          // No audience: the approver is the workflow's owner, else the person
+          // who started the run (a built-in has no owner).
+          with: Object.freeze({ prompt }),
+        }),
+      ]),
+      else: Object.freeze([]),
+    }),
   });
 }
 
@@ -339,9 +368,6 @@ function tail(planStep: string, afterSignoff: string): Json[] {
         Object.freeze({
           id: "implement",
           uses: "harness.implement",
-          inputs: Object.freeze([
-            Object.freeze({ name: "plan", from: artifactOf(planStep) }),
-          ]),
           with: Object.freeze({
             repositoryId: "$input.repositoryId",
             planArtifact: BRIEF_REF,

@@ -11,6 +11,8 @@ import {
 } from "@bakery/persistence/repository-admission";
 import {
   HUMAN_APPROVAL_EVENT,
+  HUMAN_APPROVAL_WAIT_LIMIT_MS,
+  HumanApprovalInputSchema,
   normalizeWorkflowStop,
   WorkflowStopInputSchema,
 } from "@bakery/contracts/human-approval";
@@ -38,7 +40,7 @@ import {
 } from "@bakery/contracts/workflow-interpreter";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
-import { stopRun } from "../work/human-approval-store.ts";
+import { requestHumanApproval, stopRun } from "../work/human-approval-store.ts";
 import {
   budgetContentDigest,
   type BudgetPolicy,
@@ -1061,6 +1063,11 @@ async function appendPlanStep(
     iteration: 0,
     actionVersion: context.workflowVersionId,
   });
+  // A human.approval step is settled by the engine, not by a worker: it asks a
+  // person, and the step waits for the answer like a human.approval wait does.
+  if (planned.kind === "action" && planned.action === "human.approval") {
+    return await appendApprovalWait(transaction, context, activeOwner, planned);
+  }
   if (planned.kind === "wait") {
     // A human.approval wait is the one event wait with a producer: a person's
     // decision writes it. Its dispatch pins the approval id, so the step waits
@@ -1138,6 +1145,111 @@ async function appendPlanStep(
     ],
   );
   return keyOf(planned.key);
+}
+
+/**
+ * The row of a `human.approval` step. The engine asks the person itself: it
+ * creates the approval (who may decide, the prompt, the seven-day window) and
+ * writes a waiting row whose dispatch pins that approval's id, exactly the row a
+ * `wait` node on `human.approval.decided` has, so the decide route, the answer
+ * poll and the expiry path need no second mechanism. The approvers are the
+ * step's audience, else the workflow's owner, else the person who started the
+ * run: a workflow nobody owns (a built-in) is answered by whoever ran it, never
+ * by an administrator nobody named. Admission is idempotent: a replay finds the
+ * row and asks nobody twice.
+ */
+async function appendApprovalWait(
+  transaction: PgTransactionClient,
+  context: RunEndRow,
+  activeOwner: EngineOwner,
+  planned: ActionDispatch,
+): Promise<LogicalInvocationKey | undefined> {
+  const key: LogicalInvocationKey = {
+    runId: context.runId,
+    stepKey: planned.key,
+    iteration: 0,
+    actionVersion: context.workflowVersionId,
+  };
+  const existing = await transaction.query(
+    `select 1 from bakery.run_steps
+      where organization_id = $1 and run_id = $2 and step_key = $3
+        and iteration = 0`,
+    [context.organizationId, context.runId, planned.key],
+  );
+  if (existing.rows.length > 0) return key;
+  const input = HumanApprovalInputSchema.safeParse(planned.input);
+  if (!input.success) {
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      "APPROVAL_INPUT_INVALID",
+    );
+    return undefined;
+  }
+  const owner = await transaction.query<{ owner: string | null }>(
+    `select definition.owner_principal_id as owner
+       from bakery.workflow_versions version
+       join bakery.workflow_definitions definition
+         on definition.organization_id = version.organization_id
+        and definition.id = version.workflow_id
+      where version.organization_id = $1 and version.id = $2`,
+    [context.organizationId, context.workflowVersionId],
+  );
+  let asked;
+  try {
+    asked = await requestHumanApproval(transaction, {
+      organizationId: context.organizationId,
+      runId: context.runId,
+      taskId: context.taskId,
+      conversationId: context.conversationId,
+      stepKey: planned.key,
+      prompt: input.data.prompt,
+      ...(input.data.audience === undefined
+        ? {}
+        : { audience: input.data.audience }),
+      ownerPrincipalId: owner.rows[0]?.owner ?? context.requestedBy,
+      traceId: context.originalTraceId ?? crypto.randomUUID(),
+      applicationId: context.applicationId,
+      repositoryId: context.repositoryId,
+    });
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+    // Nobody can answer: the run ends with the store's own reason, never waits
+    // on an approval that could only expire.
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      String(error.params?.reason ?? "APPROVAL_UNRESOLVABLE"),
+    );
+    return undefined;
+  }
+  const wait: WaitDispatch = {
+    kind: "wait",
+    key: planned.key,
+    id: planned.id,
+    wait: {
+      kind: "event",
+      event: HUMAN_APPROVAL_EVENT,
+      timeoutMs: HUMAN_APPROVAL_WAIT_LIMIT_MS,
+      approvalId: asked.approvalId,
+    },
+    iterationPath: planned.iterationPath,
+  };
+  await transaction.query(
+    `insert into bakery.run_steps (
+       organization_id, run_id, step_key, position, iteration, status, input,
+       dispatch, started_at
+     )
+     select $1, $2, $3, coalesce(max(position), 0) + 1, 0, 'waiting',
+            '{}'::jsonb, $4::jsonb, clock_timestamp()
+       from bakery.run_steps
+      where organization_id = $1 and run_id = $2
+     on conflict (run_id, step_key, iteration) do nothing`,
+    [context.organizationId, context.runId, planned.key, JSON.stringify(wait)],
+  );
+  return key;
 }
 
 /** Audit operation recorded when the engine completes a projection step itself. */

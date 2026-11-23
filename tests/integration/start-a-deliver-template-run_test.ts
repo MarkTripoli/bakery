@@ -10,6 +10,8 @@ import {
 } from "../helpers/fixed-coding-preset.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { onboardObserved } from "../helpers/review-repair/preset-integration-cases.ts";
+import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
+import { presetBudgetPolicy } from "../helpers/fixed-coding-preset.ts";
 
 // #429: the Deliver templates are built-in workflows. The preset read carries
 // their whole definition and says whether the composer can start them; a run of
@@ -119,4 +121,164 @@ Deno.test("a Deliver run takes gates from the request and defaults to the plan s
     );
     assert(malformed.status >= 400 && malformed.status < 500);
     await malformed.body?.cancel();
+  }));
+
+Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a decision lets the run go on (#429)", () =>
+  withFixture(async (fixture) => {
+    const agent = await seedFundedCodingAgent(fixture, fixture, "signoff");
+    const repository = await onboardObserved(
+      fixture,
+      Object.fromEntries(MODEL_ACTIONS.map((action) => [action, agent])),
+    );
+    const database = fixture.pgDatabase;
+    const engine = createBakeryPostgresWorkflowRepository({
+      database,
+      maxAttempts: 1,
+      budgetPolicy: presetBudgetPolicy,
+    });
+
+    /** Why the engine ended the run, by the stable code it records. */
+    const failureOf = async (runId: string) =>
+      (await database.query<{ code: string }>(
+        `select details->>'code' as code from bakery.audit_events
+          where resource_id = $1 and operation = 'workflow.plan_failed'`,
+        [runId],
+      )).rows.map((row) => row.code).join(",") || "no failure recorded";
+    /** Starts a run of the preset and walks the engine to just past the plan step. */
+    const startedAtThePlan = async (extra: Record<string, unknown>) => {
+      const task = await createPresetTask(fixture, fixture, repository, {
+        title: `signoff ${crypto.randomUUID().slice(0, 8)}`,
+      });
+      const run = await expectJson<{ id: string }>(
+        await startPresetRun(fixture, fixture, task, repository, { extra }),
+        201,
+      );
+      const owner = await engine.acquireEngineOwner(
+        run.id,
+        crypto.randomUUID(),
+        60_000,
+      );
+      assert(owner);
+      const complete = async (stepKey: string, output: unknown) => {
+        await database.query(
+          `update bakery.run_steps
+              set status = 'completed', output = $3::jsonb, finished_at = now()
+            where organization_id = $1 and run_id = $2 and step_key = $4`,
+          [fixture.organizationId, run.id, JSON.stringify(output), stepKey],
+        );
+      };
+      const brief = await engine.findNext(run.id, owner);
+      assertEquals(brief?.stepKey, "brief");
+      await complete("brief", {
+        artifact: {
+          artifactId: crypto.randomUUID(),
+          versionId: crypto.randomUUID(),
+          sha256: "d".repeat(64),
+        },
+      });
+      const plan = await engine.findNext(run.id, owner);
+      assertEquals(plan?.stepKey, "plan");
+      await complete("plan", {
+        sessionId: crypto.randomUUID(),
+        status: "completed",
+        artifacts: [{
+          artifactId: crypto.randomUUID(),
+          versionId: crypto.randomUUID(),
+          sha256: "e".repeat(64),
+        }],
+      });
+      return { task, run, owner };
+    };
+
+    // gates: plan, the default: the engine reaches the sign-off, asks the
+    // person who started the run, and waits.
+    const gated = await startedAtThePlan({ presetId: "deliver-oneshot" });
+    try {
+      const signoff = await engine.findNext(gated.run.id, gated.owner);
+      assertEquals(signoff?.stepKey, "plan_signoff.approve");
+      const step = (await database.query<{
+        status: string;
+        dispatch: { kind: string; wait?: { approvalId?: string } };
+      }>(
+        `select status, dispatch from bakery.run_steps
+          where run_id = $1 and step_key = 'plan_signoff.approve'`,
+        [gated.run.id],
+      )).rows[0];
+      assertEquals(step.status, "waiting");
+      assertEquals(step.dispatch.kind, "wait");
+      const approvalId = step.dispatch.wait?.approvalId;
+      assert(approvalId, "the wait pins the approval it waits on");
+
+      const listed = await expectJson<
+        { items: { id: string; version: number; status: string }[] }
+      >(
+        await apiCall(
+          fixture,
+          fixture,
+          "GET",
+          `/v1/approvals?taskId=${gated.task.id}&limit=100`,
+        ),
+        200,
+      );
+      const approval = listed.items.find((item) => item.id === approvalId);
+      assert(approval, "the sign-off is in the task's approvals");
+      assertEquals(approval.status, "open");
+
+      // Until someone decides, the step keeps waiting; nothing is approved by silence.
+      assertEquals(
+        await engine.completeApprovalWait(signoff!, gated.owner),
+        false,
+      );
+      const decided = await apiCall(
+        fixture,
+        fixture,
+        "POST",
+        `/v1/approvals/${approvalId}/decision`,
+        { body: { decision: "approve", expectedVersion: approval.version } },
+      );
+      assertEquals(decided.status, 200, await decided.clone().text());
+      assertEquals(
+        await engine.completeApprovalWait(signoff!, gated.owner),
+        true,
+      );
+      const output =
+        (await database.query<{ status: string; output: { decision: string } }>(
+          `select status, output from bakery.run_steps
+          where run_id = $1 and step_key = 'plan_signoff.approve'`,
+          [gated.run.id],
+        )).rows[0];
+      assertEquals(output.status, "completed");
+      assertEquals(output.output.decision, "approve");
+      // The run goes on to the build.
+      const next = await engine.findNext(gated.run.id, gated.owner);
+      assertEquals(
+        next?.stepKey,
+        "build.implement",
+        await failureOf(gated.run.id),
+      );
+    } finally {
+      await engine.releaseEngineOwner(gated.owner);
+    }
+
+    // gates: none, the plan sign-off is skipped and no approval is asked for.
+    const ungated = await startedAtThePlan({
+      presetId: "deliver-oneshot",
+      gates: "none",
+    });
+    try {
+      const next = await engine.findNext(ungated.run.id, ungated.owner);
+      assertEquals(
+        next?.stepKey,
+        "build.implement",
+        await failureOf(ungated.run.id),
+      );
+      const asked = await database.query<{ n: string }>(
+        `select count(*)::text as n from bakery.questions
+          where organization_id = $1 and run_id = $2 and kind = 'approval'`,
+        [fixture.organizationId, ungated.run.id],
+      );
+      assertEquals(asked.rows[0].n, "0");
+    } finally {
+      await engine.releaseEngineOwner(ungated.owner);
+    }
   }));
