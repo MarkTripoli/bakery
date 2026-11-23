@@ -616,6 +616,41 @@ mapping from port verbs to tools.
 | Local or remote    | Remote servers are called by the server-side broker; local (`stdio`) servers are launched by the worker from a pinned command, as a placement requirement. Third-party local servers run under the T1 sandbox or an operator allowlist                                                                                                                                                                                                                                                                                |
 | Trust              | Results never carry authority, are schema-validated and size-bounded. Tools only first (O31): resources later as read tools; sampling, elicitation and roots stay off                                                                                                                                                                                                                                                                                                                                                 |
 
+**Local (`stdio`) servers as shipped (#441).**
+
+- **Definition.** A `stdio` server definition carries a pinned launch: an
+  absolute command path, its arguments and the SHA-256 of the command file
+  (`artifactDigest`). The worker runs exactly that command, never through a
+  shell or `PATH`, and refuses a file whose digest differs. The command must be
+  a regular file of at most 256 MiB; the worker hashes it while copying it into
+  a private directory and runs the copy.
+- **Placement.** A `stdio` connection names its `workerHostId` at create: a host
+  of the same organization that advertises every capability the server requires.
+  A remote connection names no host (`worker_host_not_for_remote`), a `stdio`
+  one must (`worker_host_required`), and a host outside the organization is
+  `worker_host_unknown`. Placement is fixed at create; moving a server to
+  another host means creating a new connection there.
+- **Discovery.** Only the placed host lists the connection, launches it and
+  reports its `tools/list` for the server to pin as the snapshot; another host
+  neither sees it nor may report for it.
+- **Sandbox or allowlist.** The worker launches a third-party server under the
+  T1 sandbox. An operator may instead allowlist a launch by its artifact digest,
+  and then the worker runs it outside the sandbox; the digest, not the path, is
+  what is trusted.
+- **Sessions.** A session gets a local tool only on the placed host, with its
+  pinned launch. On any other host the tool is listed as unavailable with reason
+  `host_not_placed`, and a call is refused.
+- **Calls.** The broker never sends a local call. The worker first opens the
+  call through `local-tool-calls`, where the server checks the grant and the
+  pinned input schema and records it under its Idempotency-Key, bound to the
+  connection, the tool and the arguments, as a remote call is; the worker then
+  sends it to the process and settles the outcome once. A failure before the
+  request reached the process (the launch, the handshake, or a request never
+  written) settles the call as failed. A write that may have reached it stays
+  sent with an unknown outcome: replaying it is refused rather than sent again,
+  so a write is never retried blind. A process that exits is dropped and
+  launched again on the session's next allowed call.
+
 ### 15.5 Skills, integrations and MCP tools in a workflow
 
 | Building block           | Attaches to                                                                                                          | Pinned by                                      |
