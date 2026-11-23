@@ -284981,7 +284981,7 @@
             "bundleDigest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "SHA-256 of the install's pinned bundle archive."
+              "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
             },
             "entry": {
               "type": "string",
@@ -285020,7 +285020,7 @@
             "files"
           ],
           "additionalProperties": false,
-          "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
+          "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
         },
         "Page<InstallationUpdateEvent>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -289566,7 +289566,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:75905e04d31de3743314b5ff80e6fa7612a5082556251830e6afb376cfee380d",
+  "compatibilityDigest": "sha256:aeafd077b1a492a11e8a22c4bee9250360400d56713a58e1e087d376bcbe9430",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -522968,7 +522968,7 @@
         "bundleDigest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "SHA-256 of the install's pinned bundle archive."
+          "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
         },
         "entry": {
           "type": "string",
@@ -523007,7 +523007,7 @@
         "files"
       ],
       "additionalProperties": false,
-      "description": "The code of the install a leased plugin job runs: the files of its pinned bundle, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
+      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
     },
     "Page<InstallationUpdateEvent>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
