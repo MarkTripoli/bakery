@@ -881,21 +881,15 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 });
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
-  // The approval currently in force: the base it was bound to, and the digest
-  // of the tree it authorises.
   const approvedBases = [
-    "59ed9251f7c9dd591571f1c596c9c36b8f79bb98",
+    "148a9f03e4a47506c2f1ab7abb1d1ef93b84d9d4",
   ];
   const approvedDigest =
     "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9";
-  // Every approval this one displaced, in order. They are history: none of
-  // them may pass again, or a stale digest would silently re-authorise a delta
-  // nobody reviewed.
   const rejectedPriorDigests = [
+    "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
     "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
-    // Displaced by the #34 plugin job version pin rebind onto main 59ed9251f: main's own approval, kept unchanged.
     "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
-    // Displaced by the #34 plugin job version pin rebind onto main 54fbfe00e: main's own approval, kept unchanged.
     "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
     // Displaced by the #63 release page rebind onto main 03305bcbe: main's own approval on 2864ff3cf, kept unchanged.
     "sha256:29f2c36d33afdecc79f3465c7a3cb9e355afab0dd86fa13acfc86dcf154d80de",
@@ -1307,10 +1301,6 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     }),
     false,
   );
-  // A rebind that changes no contract keeps the same digest, so the approval it
-  // displaced and the one in force share a digest. They are told apart by the
-  // base each was bound to: the displaced base must never pass, even with the
-  // live digest.
   const displacedBase = "59ed9251f7c9dd591571f1c596c9c36b8f79bb98";
   for (const compatibilityDigest of rejectedPriorDigests) {
     const base = compatibilityDigest === approvedDigest

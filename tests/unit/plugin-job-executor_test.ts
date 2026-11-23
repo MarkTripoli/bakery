@@ -11,14 +11,7 @@ import type {
 } from "../../apps/worker/src/plugin-job-runtime.ts";
 import type { JobAssignment } from "../../apps/worker/src/types.ts";
 
-/**
- * One plugin.job attempt (#29, B14.02), with the runtime and the server faked:
- * how every way a job can end becomes the attempt's outcome, that a job the
- * worker cannot contain never runs, and that its code never outlives it.
- */
-
 const INSTALL = crypto.randomUUID();
-/** The version every job is admitted against; a job without one is refused. */
 const VERSION = crypto.randomUUID();
 const assignment = (over: Record<string, unknown> = {}) =>
   ({

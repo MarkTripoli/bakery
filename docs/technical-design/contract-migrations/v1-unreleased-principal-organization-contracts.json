@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "59ed9251f7c9dd591571f1c596c9c36b8f79bb98"
+    "148a9f03e4a47506c2f1ab7abb1d1ef93b84d9d4"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 59ed9251f7c9dd591571f1c596c9c36b8f79bb98: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed by this branch.",
+  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 148a9f03e4a47506c2f1ab7abb1d1ef93b84d9d4: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed by this branch.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "59ed9251f7c9dd591571f1c596c9c36b8f79bb98"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
+      "reason": "Displaced by the #34 plugin job version pin rebind onto main 148a9f03e: main's own approval, kept unchanged."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
