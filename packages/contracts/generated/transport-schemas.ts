@@ -39949,7 +39949,8 @@ const transportSchemas = {
     "plugin.job": {
       "inputFields": {
         "installId": "uuid",
-        "entry": "string"
+        "entry": "string",
+        "versionId": "uuid?"
       },
       "outputFields": {
         "resultJson": "string<=65536"
@@ -39957,7 +39958,7 @@ const transportSchemas = {
       "capabilities": [
         "plugin.job.contained"
       ],
-      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package, or from the install's current version when versionId is omitted; the install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {
