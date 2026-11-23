@@ -109,7 +109,15 @@ export type TaskComposerPlanFirst = Readonly<{
   onChange: (checked: boolean) => void;
 }>;
 
+export type TaskComposerApproval = Readonly<{
+  label: ReactNode;
+  hint: ReactNode;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}>;
+
 export type TaskComposerFormProps = {
+  approval?: TaskComposerApproval;
   labels: TaskComposerLabels;
   planFirst?: TaskComposerPlanFirst;
   repositories: readonly { id: string; label: string }[];
@@ -144,6 +152,7 @@ const TASK_TYPES = TASK_COMPOSER_TASK_TYPES;
  */
 export function TaskComposerForm(
   {
+    approval,
     headingLevel = 2,
     labels,
     onChange,
@@ -306,6 +315,27 @@ export function TaskComposerForm(
           </Text>
         </>
       )}
+      {withWorkflow && approval
+        ? (
+          <div
+            className="ui-task-composer__approval"
+            data-ui-region="approval"
+          >
+            <Checkbox
+              aria-describedby={`${id}-approval-hint`}
+              checked={approval.checked}
+              disabled={inert}
+              name="approval"
+              onChange={(event) => approval.onChange(event.target.checked)}
+            >
+              {approval.label}
+            </Checkbox>
+            <Text id={`${id}-approval-hint`} variant="hint">
+              {approval.hint}
+            </Text>
+          </div>
+        )
+        : null}
       {withWorkflow
         ? (
           <Field

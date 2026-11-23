@@ -639,7 +639,8 @@ input.ui-password-input__field {
 .ui-task-composer textarea.ui-text-input {
   resize: vertical;
 }
-.ui-task-composer__plan-first {
+.ui-task-composer__plan-first,
+.ui-task-composer__approval {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);

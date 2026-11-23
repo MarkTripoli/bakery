@@ -3740,6 +3740,8 @@
   "tasks.conversation.runControls.heading": "Run controls",
   "tasks.composer.planFirst": "Plan first",
   "tasks.composer.planFirstHint": "Create the task and ask the agent for a plan. Nothing runs until you approve the plan.",
+  "tasks.composer.approval": "Wait for my approval before building",
+  "tasks.composer.approvalHint": "This workflow has approval steps before it builds. Ticked: the run waits at each one until you approve it. Cleared: it skips them and builds straight away.",
   "tasks.composer.submitPlan": "Create task and plan",
   "tasks.conversation.steering.saved": "A run is in progress. Your message is saved and the agent reads it at its next step.",
   "tasks.conversation.steering.paused": "This run is paused. Your message is saved and the agent reads it when the run is resumed.",
