@@ -1093,7 +1093,9 @@ def phase_web_shots():
                 wait_report(p, "system_dialog", 1, timeout=20)
                 time.sleep(2)
             elif how == "file":
-                eval_in_window(p, "location.href = 'file:///etc/hostname'")
+                # A click, as a person's: an address set from script never reaches the app, a pressed link does.
+                eval_in_window(p, "(() => { const f = document.createElement('a'); f.href = 'file:///etc/hostname'; "
+                                  "document.body.appendChild(f); f.click(); })()")
                 wait_report(p, "system_dialog", 1, timeout=20)
                 time.sleep(2)
             elif how == "menu":
