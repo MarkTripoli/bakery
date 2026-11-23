@@ -43,11 +43,12 @@ part-write guard lived inside the old lock denylist), so moving the mechanism
 WITHOUT deleting its embedded rule silently drops the rule - after any
 rebase that relocates a guard, red-prove the guard still fails a test.
 
-Corollary on comments (dev-server, 2026-11-17): "A test comment that claims
+Corollary on test names (dev-server, 2026-11-17): "A test claim that says
 more than the test can fail on is the same defect as a test that passes with
-its defence removed." A comment must state exactly the property whose
+its defence removed." The test name must state exactly the property whose
 removal fails the test - not the defences that happen to sit nearby (the
-org-key comment overstated a session-scoped pin; #517's Low).
+org-key claim overstated a session-scoped pin; #517's Low). The claim lives
+in the name, not in a comment (AGENTS.md hard rule 6).
 
 Third-recurring form (qa-qa, #520, three PRs running): the test drives the
 path the author had in mind, not the path the NAME claims. Instance: a test
