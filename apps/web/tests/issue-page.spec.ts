@@ -402,6 +402,7 @@ for (
         .click();
       const dialog = page.getByRole("alertdialog");
       const workflow = dialog.getByLabel("Workflow");
+      await expect(workflow).toBeFocused();
       await expect(workflow.getByRole("option")).toHaveCount(2);
       await expect(workflow).toHaveValue("fixed-coding");
       await expect(dialog).toContainText(

@@ -177,6 +177,7 @@ export async function executePluginJob(
   const parsed = registeredWorkerActionInputSchema("plugin.job").safeParse({
     installId: raw.installId,
     entry: raw.entry,
+    versionId: raw.versionId,
   });
   if (!parsed.success) {
     return fault(
@@ -185,7 +186,11 @@ export async function executePluginJob(
       "The plugin job input was not valid.",
     );
   }
-  const input = parsed.data as { installId: string; entry: string };
+  const input = parsed.data as {
+    installId: string;
+    entry: string;
+    versionId: string;
+  };
 
   let code: Awaited<ReturnType<typeof materializePluginCode>>;
   try {
