@@ -590,6 +590,7 @@ function ReadyView(
     if (goingBack) return;
     setGoBackOpen(false);
     onClearGoBack();
+    focusAfterPaint(() => document.getElementById(NOW_TITLE_ID));
   };
   const confirmGoBack = async () => {
     if (release === null) return;
@@ -1087,83 +1088,85 @@ function ReadyView(
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
         {dialog === "reject" && dialogNotice}
       </UI.AlertDialog>
-      <UI.AlertDialog
-        cancelAction={
-          <UI.Button
-            disabled={goingBack}
-            onClick={closeGoBack}
-            variant="secondary"
-          >
-            {t("tasks.delivery.release.dialog.keep")}
-          </UI.Button>
-        }
-        confirmAction={
-          <UI.Button
-            disabled={goBackDisabled || reason.trim() === ""}
-            loading={goingBack}
-            onClick={() => void confirmGoBack()}
-            variant="destructive"
-          >
-            {t("tasks.delivery.release.dialog.confirm")}
-          </UI.Button>
-        }
-        onOpenChange={(open) => !open && closeGoBack()}
-        open={goBackOpen && release !== null}
-        state={goingBack
-          ? "confirming"
-          : goBackNotice !== null
-          ? "error"
-          : "open"}
-        title={t("tasks.delivery.release.dialog.title")}
-        variant="destructive"
-      >
-        <UI.Stack gap="compact">
-          <UI.Text>
-            <ReferenceText
-              known={known}
-              text={release === null ? "" : t(
-                "tasks.delivery.release.dialog.body",
-                {
-                  environment: environmentWord(
-                    t,
-                    release.environment,
-                    true,
-                  ),
-                  commit: release.previousCommitSha === null
-                    ? ""
-                    : UI.shortReference("commit", release.previousCommitSha),
-                },
-              )}
-            />
-          </UI.Text>
-          <UI.Field
-            hint={t("tasks.delivery.release.dialog.reason.help")}
-            htmlFor={reasonId}
-            label={t("tasks.delivery.release.dialog.reason.label")}
-            variant="textarea"
-          >
-            <textarea
-              aria-required="true"
-              id={reasonId}
-              name="reason"
-              onChange={(event) => setReason(event.currentTarget.value)}
-              readOnly={goingBack}
-              required
-              rows={3}
-              value={reason}
-            />
-          </UI.Field>
-          {goBackNotice === null ? null : (
-            <UI.InlineNotice
-              data-testid="delivery-go-back-notice"
-              role="alert"
-              tone="error"
+      {goBackOpen && release !== null && (
+        <UI.AlertDialog
+          cancelAction={
+            <UI.Button
+              disabled={goingBack}
+              onClick={closeGoBack}
+              variant="secondary"
             >
-              {t(goBackNotice)}
-            </UI.InlineNotice>
-          )}
-        </UI.Stack>
-      </UI.AlertDialog>
+              {t("tasks.delivery.release.dialog.keep")}
+            </UI.Button>
+          }
+          confirmAction={
+            <UI.Button
+              disabled={goBackDisabled || reason.trim() === ""}
+              loading={goingBack}
+              onClick={() => void confirmGoBack()}
+              variant="destructive"
+            >
+              {t("tasks.delivery.release.dialog.confirm")}
+            </UI.Button>
+          }
+          onOpenChange={(open) => !open && closeGoBack()}
+          open
+          state={goingBack
+            ? "confirming"
+            : goBackNotice !== null
+            ? "error"
+            : "open"}
+          title={t("tasks.delivery.release.dialog.title")}
+          variant="destructive"
+        >
+          <UI.Stack gap="compact">
+            <UI.Text>
+              <ReferenceText
+                known={known}
+                text={release === null ? "" : t(
+                  "tasks.delivery.release.dialog.body",
+                  {
+                    environment: environmentWord(
+                      t,
+                      release.environment,
+                      true,
+                    ),
+                    commit: release.previousCommitSha === null
+                      ? ""
+                      : UI.shortReference("commit", release.previousCommitSha),
+                  },
+                )}
+              />
+            </UI.Text>
+            <UI.Field
+              hint={t("tasks.delivery.release.dialog.reason.help")}
+              htmlFor={reasonId}
+              label={t("tasks.delivery.release.dialog.reason.label")}
+              variant="textarea"
+            >
+              <textarea
+                aria-required="true"
+                id={reasonId}
+                name="reason"
+                onChange={(event) => setReason(event.currentTarget.value)}
+                readOnly={goingBack}
+                required
+                rows={3}
+                value={reason}
+              />
+            </UI.Field>
+            {goBackNotice === null ? null : (
+              <UI.InlineNotice
+                data-testid="delivery-go-back-notice"
+                role="alert"
+                tone="error"
+              >
+                {t(goBackNotice)}
+              </UI.InlineNotice>
+            )}
+          </UI.Stack>
+        </UI.AlertDialog>
+      )}
     </>
   );
 }
