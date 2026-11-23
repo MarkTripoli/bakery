@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
 import { McpServerImplementedAction } from "@bakery/contracts/implemented-actions";
+import { McpStdioLaunchSpecSchema } from "@bakery/contracts/mcp-capabilities";
 import {
   requireCommandMetadata,
   StandardError,
@@ -29,9 +30,11 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
  * and grants nothing. A connection (a separate group) is one use of it, and
  * discovery pins what the server offers.
  *
- * Remote only. A `stdio` server is launched by a worker on a particular host, which
- * this version does not do, so one is refused at registration rather than stored
- * as a definition nothing can use.
+ * A `stdio` server (#441) is local: it carries a pinned launch (command,
+ * arguments and the command file's digest) and the host capabilities it needs,
+ * and no endpoint. A worker on the host a connection names launches it; a
+ * third-party one runs under the T1 sandbox unless that host's operator
+ * allowlisted its digest (docs/technical-design/25-one-engine.md 15.4).
  */
 
 type ServerOutput = z.output<typeof contractSchemas.McpServer>;
@@ -133,6 +136,25 @@ export function endpointTemplateProblem(template: string): string | null {
   return null;
 }
 
+/** What a local (stdio) definition must carry, as a field problem. */
+function localProblem(
+  input: {
+    launchSpec?: unknown;
+    endpointTemplate?: string | null;
+  },
+): { path: string[]; code: string } | null {
+  if (input.launchSpec === undefined || input.launchSpec === null) {
+    return { path: ["launchSpec"], code: "launch_spec_required" };
+  }
+  if (!McpStdioLaunchSpecSchema.safeParse(input.launchSpec).success) {
+    return { path: ["launchSpec"], code: "launch_spec_invalid" };
+  }
+  if (input.endpointTemplate !== undefined && input.endpointTemplate !== null) {
+    return { path: ["endpointTemplate"], code: "endpoint_not_for_stdio" };
+  }
+  return null;
+}
+
 /** What a remote definition may and may not carry, as field problems. */
 function remoteProblem(
   input: {
@@ -143,7 +165,7 @@ function remoteProblem(
   },
 ): { path: string[]; code: string } | null {
   if (input.transport !== undefined && input.transport !== "streamable_http") {
-    return { path: ["transport"], code: "transport_not_supported_yet" };
+    return { path: ["transport"], code: "transport_invalid" };
   }
   if (input.launchSpec !== undefined && input.launchSpec !== null) {
     return { path: ["launchSpec"], code: "launch_spec_not_for_remote" };
@@ -318,8 +340,8 @@ export function createMcpServersListHandler(cursorSecret: string) {
 }
 
 /**
- * `mcpServers.create`: Admin. Remote (`streamable_http`) only; a definition starts
- * disabled, so registering one never makes it usable on its own.
+ * `mcpServers.create`: Admin. Remote (`streamable_http`) or local (`stdio`); a
+ * definition starts disabled, so registering one never makes it usable on its own.
  */
 export async function createMcpServer(
   context: ActionContext,
@@ -328,7 +350,8 @@ export async function createMcpServer(
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
-  const problem = remoteProblem(input);
+  const local = input.transport === "stdio";
+  const problem = local ? localProblem(input) : remoteProblem(input);
   if (problem) throw unprocessable(problem.path, problem.code);
   if (!isPlainObject(input.configSchema)) {
     throw unprocessable(["configSchema"], "config_schema_not_object");
@@ -336,23 +359,32 @@ export async function createMcpServer(
   if (!compileConfigSchema(input.configSchema)) {
     throw unprocessable(["configSchema"], "config_schema_unsupported");
   }
-  if (input.endpointTemplate === undefined || input.endpointTemplate === null) {
+  if (
+    !local &&
+    (input.endpointTemplate === undefined || input.endpointTemplate === null)
+  ) {
     throw unprocessable(["endpointTemplate"], "endpoint_required");
   }
+  const launchSpec = local
+    ? McpStdioLaunchSpecSchema.parse(input.launchSpec)
+    : null;
   let id: string;
   try {
     const inserted = await transaction.query<{ id: string }>(
       `insert into bakery.mcp_servers (
          organization_id, slug, name, transport, launch_spec, endpoint_template,
          config_schema, required_capabilities, source_revision
-       ) values ($1, $2, $3, 'streamable_http', null, $4, $5::jsonb, '[]'::jsonb, $6)
+       ) values ($1, $2, $3, $4, $5::jsonb, $6, $7::jsonb, $8::jsonb, $9)
        returning id`,
       [
         organizationId,
         input.slug,
         input.name,
-        input.endpointTemplate,
+        local ? "stdio" : "streamable_http",
+        launchSpec === null ? null : JSON.stringify(launchSpec),
+        local ? null : input.endpointTemplate,
         JSON.stringify(input.configSchema),
+        JSON.stringify(local ? input.requiredCapabilities : []),
         input.sourceRevision,
       ],
     );

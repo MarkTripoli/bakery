@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import { chmod, copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { z } from "zod";
+import {
+  type McpStdioLaunchSpec,
+  McpStdioLaunchSpecSchema,
+} from "@bakery/contracts/mcp-capabilities";
 
 /**
  * Local (`stdio`) MCP servers (#441, docs/technical-design/25-one-engine.md
@@ -41,32 +44,9 @@ const STDIO_ENVIRONMENT = Object.freeze({
   LANG: "C.UTF-8",
 });
 
-const absoluteCommand = z.string().min(2).max(1024).regex(
-  /^\/[^\0]*$/,
-  "an absolute path",
-).refine(
-  (path) => !path.split("/").includes(".."),
-  "no .. segment",
-).describe("An absolute path with no .. segment.");
-
 /** The pinned launch of a stdio server, as an `mcp_servers.launch_spec`. */
-export const StdioLaunchSpecSchema = z.strictObject({
-  command: absoluteCommand.describe(
-    "Absolute path of the executable the worker runs; never resolved through PATH or a shell.",
-  ),
-  args: z.array(
-    z.string().max(4096).refine((value) => !value.includes("\0"), "no NUL")
-      .describe("One argument, passed as is; no shell interpolation."),
-  ).max(64).default([]).describe(
-    "Arguments passed to the command, in order.",
-  ),
-  artifactDigest: z.string().regex(SHA256).describe(
-    "Lowercase SHA-256 of the command file; a file with any other digest is refused, never run.",
-  ),
-}).describe(
-  "Pinned launch of a local stdio MCP server: command, arguments and the command file's digest.",
-);
-export type StdioLaunchSpec = z.output<typeof StdioLaunchSpecSchema>;
+export const StdioLaunchSpecSchema = McpStdioLaunchSpecSchema;
+export type StdioLaunchSpec = McpStdioLaunchSpec;
 
 /** How a launch runs: the T1 sandbox, or outside it because the operator allowlisted it. */
 export type StdioIsolation = "sandbox" | "allowlisted";

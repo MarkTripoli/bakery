@@ -183,13 +183,22 @@ export function createMcpDiscoverer(dependencies: McpDiscoveryDependencies) {
     }
     const server = (await transaction.query<{
       enabled: boolean;
+      transport: string;
       endpoint_template: string | null;
     }>(
-      `select enabled, endpoint_template from bakery.mcp_servers
+      `select enabled, transport, endpoint_template from bakery.mcp_servers
         where organization_id = $1 and id = $2`,
       [organizationId, connection.server_id],
     )).rows[0];
     if (!server) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    // A local server runs only on its connection's host; that worker discovers
+    // it and reports the snapshot (#441), never the server.
+    if (server.transport === "stdio") {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "mcp_stdio_discovered_by_worker" },
+      });
+    }
     if (!server.enabled || server.endpoint_template === null) {
       throw new StandardError({
         code: "STATE_CONFLICT",

@@ -25,6 +25,33 @@ export const MCP_TRANSPORTS = Object.freeze(
 );
 export type McpTransport = typeof MCP_TRANSPORTS[number];
 
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/**
+ * The pinned launch of a local (`stdio`) MCP server (#441), as stored in
+ * `mcp_servers.launch_spec`. The worker runs exactly this command with exactly
+ * these arguments, never through a shell or PATH, and only when the command
+ * file's SHA-256 is `artifactDigest`.
+ */
+export const McpStdioLaunchSpecSchema = z.strictObject({
+  command: z.string().min(2).max(1024)
+    .regex(/^\/[^\0]*$/, "an absolute path")
+    .refine((path) => !path.split("/").includes(".."), "no .. segment")
+    .describe(
+      "Absolute path of the executable the worker runs; never resolved through PATH or a shell.",
+    ),
+  args: z.array(
+    z.string().max(4096).refine((value) => !value.includes("\0"), "no NUL")
+      .describe("One argument, passed as is; no shell interpolation."),
+  ).max(64).default([]).describe("Arguments passed to the command, in order."),
+  artifactDigest: z.string().regex(SHA256_HEX).describe(
+    "Lowercase SHA-256 of the command file; a file with any other digest is refused, never run.",
+  ),
+}).describe(
+  "Pinned launch of a local stdio MCP server: command, arguments and the command file's digest.",
+);
+export type McpStdioLaunchSpec = z.output<typeof McpStdioLaunchSpecSchema>;
+
 /**
  * A connection's lifecycle. `degraded` is distinct from `disabled` on purpose:
  * degraded means the server is reachable but not answering usefully (a protocol

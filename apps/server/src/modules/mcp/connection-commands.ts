@@ -253,13 +253,22 @@ export async function loadServerForConnection(
   transaction: PgTransactionClient,
   organizationId: string,
   serverId: string,
-): Promise<{ enabled: boolean; transport: string; configSchema: unknown }> {
+): Promise<
+  {
+    enabled: boolean;
+    transport: string;
+    configSchema: unknown;
+    requiredCapabilities: string[];
+  }
+> {
   const result = await transaction.query<{
     enabled: boolean;
     transport: string;
     config_schema: unknown;
+    required_capabilities: unknown;
   }>(
-    `select enabled, transport, config_schema from bakery.mcp_servers
+    `select enabled, transport, config_schema, required_capabilities
+       from bakery.mcp_servers
       where organization_id = $1 and id = $2`,
     [organizationId, serverId],
   );
@@ -269,7 +278,51 @@ export async function loadServerForConnection(
     enabled: row.enabled,
     transport: row.transport,
     configSchema: row.config_schema,
+    requiredCapabilities: Array.isArray(row.required_capabilities)
+      ? row.required_capabilities.filter((entry): entry is string =>
+        typeof entry === "string"
+      )
+      : [],
   };
+}
+
+/**
+ * Where a connection's server runs (#441). A remote server runs nowhere in
+ * particular and names no host. A local (`stdio`) server runs on exactly one
+ * worker host, which is a placement requirement: the connection names a host of
+ * this organization that advertises every capability the server requires, and
+ * a call is dispatched only there.
+ */
+export async function requirePlacement(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  server: { transport: string; requiredCapabilities: readonly string[] },
+  workerHostId: string | null,
+): Promise<string | null> {
+  if (server.transport !== "stdio") {
+    if (workerHostId !== null) {
+      throw unprocessable(["workerHostId"], "worker_host_not_for_remote");
+    }
+    return null;
+  }
+  if (workerHostId === null) {
+    throw unprocessable(["workerHostId"], "worker_host_required");
+  }
+  const host = (await transaction.query<{ capabilities: unknown }>(
+    `select capabilities from bakery.worker_hosts
+      where organization_id = $1 and id = $2`,
+    [organizationId, workerHostId],
+  )).rows[0];
+  if (host === undefined) {
+    throw unprocessable(["workerHostId"], "worker_host_unknown");
+  }
+  const offered = new Set(
+    Array.isArray(host.capabilities) ? host.capabilities : [],
+  );
+  if (!server.requiredCapabilities.every((name) => offered.has(name))) {
+    throw unprocessable(["workerHostId"], "worker_host_lacks_capabilities");
+  }
+  return workerHostId;
 }
 
 /** Refuses a config the server's schema does not accept, naming the path. */
@@ -449,9 +502,6 @@ export function createMcpConnectionCreator(
     if (draft && !personal) {
       throw refuseAgent("scope", AgentConnectionRefusal.Personal);
     }
-    if (input.workerHostId != null) {
-      throw unprocessable(["workerHostId"], "worker_host_not_for_remote");
-    }
     if (input.integrationConnectionId != null) {
       throw unprocessable(
         ["integrationConnectionId"],
@@ -475,6 +525,12 @@ export function createMcpConnectionCreator(
         params: { reason: "mcp_server_disabled" },
       });
     }
+    const workerHostId = await requirePlacement(
+      transaction,
+      organizationId,
+      server,
+      input.workerHostId ?? null,
+    );
     requireValidConfig(server.configSchema, input.config);
     const id = crypto.randomUUID();
     // The credential is sealed first, in this transaction: if the key is missing
@@ -493,8 +549,8 @@ export function createMcpConnectionCreator(
     await transaction.query(
       `insert into bakery.mcp_connections (
          id, organization_id, server_id, owner_principal_id, label, config,
-         secret_id, enabled_capabilities, status
-       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, '[]'::jsonb, $8)`,
+         secret_id, enabled_capabilities, status, worker_host_id
+       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, '[]'::jsonb, $8, $9)`,
       [
         id,
         organizationId,
@@ -504,6 +560,7 @@ export function createMcpConnectionCreator(
         JSON.stringify(input.config),
         sealed?.secretId ?? null,
         draft ? "disabled" : "enabled",
+        workerHostId,
       ],
     );
     const created = toConnection(

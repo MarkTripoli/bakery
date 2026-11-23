@@ -33,6 +33,7 @@
     "@bakery/contracts/workflow-compiler/default-catalog": "./packages/contracts/src/workflow-compiler/default-catalog.ts",
     "@bakery/contracts/worker-skill-read": "./packages/contracts/src/worker-skill-read.ts",
     "@bakery/contracts/workflow-action-registry": "./packages/contracts/src/workflow-action-registry.ts",
+    "@bakery/contracts/mcp-capabilities": "./packages/contracts/src/mcp-capabilities.ts",
     "@bakery/contracts/memory-promotion": "./packages/contracts/src/memory-promotion.ts",
     "@bakery/contracts/plugin-sdk": "./packages/contracts/src/plugin-sdk.ts",
     "@bakery/contracts/plugin-authoring-kit": "./packages/contracts/src/plugin-authoring-kit/kit.ts",
