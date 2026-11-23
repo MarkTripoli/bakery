@@ -214,12 +214,20 @@ Deno.test("a duplicate assignment never re-executes; it resends the last report"
 
 Deno.test("a crash before the switch recovers to failed switch_not_completed", () =>
   withHarness(async (harness) => {
-    harness.switchHook = () => hang();
+    // The executor stages the release before it switches. The test lifts the
+    // hook only once the executor is inside it, so a slow stage on a busy host
+    // cannot let the switch run for real once the hook is gone.
+    let switching = false;
+    harness.switchHook = () => {
+      switching = true;
+      return hang();
+    };
     const crashed = await harness.executor();
     const work = assignment();
     void crashed.accept([work]);
-    while (harness.sent.length < 1) await new Promise((r) => setTimeout(r, 5));
-    await new Promise((r) => setTimeout(r, 50));
+    while (harness.sent.length < 1 || !switching) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
     // Claims stay closed while the journal entry is unfinished.
     assert(crashed.claimsClosed());
     harness.switchHook = null;
