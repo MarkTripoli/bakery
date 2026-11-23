@@ -2664,7 +2664,6 @@
   "issues.card.checkFailed": "⟦Ɓàķëŕÿ çôûļð ñôŧ çĥëçķ ŧĥïš ïššûë ĵûšŧ ñôŵ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "issues.card.passed": "⟦{count, plural, one {# other check passed} other {# other checks passed}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "issues.card.title": "⟦Çàñ Ɓàķëŕÿ šŧàŕŧ ŧĥïš? ŧëšŧŧ⟧",
-  "issues.card.workflow": "⟦Ûšëš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ ïñ {repository}. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.check.acceptance_present": "⟦Ïŧ ĥàš àççëþŧàñçë çŕïŧëŕïà ŧëšŧ çô⟧",
   "issues.check.authority_live": "⟦Ŧĥë ĜïŧĤûƀ çôññëçŧïôñ ïš ôñ ŧëšŧ çô⟧",
   "issues.check.dependencies_satisfied": "⟦Ŵĥàŧ ïŧ ðëþëñðš ôñ ïš ðôñë ŧëšŧ çô⟧",
@@ -2701,7 +2700,6 @@
   "issues.page.truncated": "⟦Ôñļÿ ŧĥë šŧàŕŧ ôƒ ŧĥë ðëšçŕïþŧïôñ ïš šĥôŵñ. Ôþëñ ŧĥë ïššûë ôñ ĜïŧĤûƀ ŧô ŕëàð àļļ ôƒ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "issues.refused.failed": "⟦Ŵôŕķ ðïð ñôŧ šŧàŕŧ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþ⟧",
   "issues.refused.reload": "⟦Ŕëļôàð…⟧",
-  "issues.start.body": "⟦Ɓàķëŕÿ çŕëàŧëš à ŧàšķ àñð ŕûñš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ ïñ {repository}. Ÿôû çàñ ƒôļļôŵ ïŧ ïñ Ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "issues.start.bodyPlan": "⟦Ɓàķëŕÿ ŵŕïŧëš à þļàñ àñð ŵàïŧš ƒôŕ ÿôûŕ àþþŕôṽàļ ƀëƒôŕë çĥàñĝïñĝ çôðë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "issues.start.button": "⟦Šŧàŕŧ ŵôŕķ ŧ⟧",
   "issues.start.confirm": "⟦Šŧàŕŧ ŵôŕķ ŧ⟧",
@@ -4384,7 +4382,6 @@
   "issues.work.banner.onHold": "⟦Þàûšëð: ôñ ĥôļð. ŧëš⟧",
   "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "issues.settings.draft.detail": "⟦Àþþļïëš ŧô ïššûëš šŧàŕŧëð ƒŕôɱ ñôŵ ôñ. Ŵôŕķ àļŕëàðÿ šŧàŕŧëð ķëëþš ŧĥë šëŧŧïñĝš àñð ŕôûŧïñĝ ïŧ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "issues.settings.workflow.standard": "⟦Ëṽëŕÿ ŕëþôšïŧôŕÿ ŕûñš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.settings.routing.removeShort": "⟦Ŕëɱôṽë ŕûļë ŧ⟧",
   "settings.roles.thing.runRequest": "⟦ŕëǫûëšŧš…⟧",
   "settings.sso.provider.delete.body": "⟦Þëôþļë àŧ {domain} ŵïļļ ñô ļôñĝëŕ ƀë àƀļë ŧô šïĝñ ïñ ŧĥŕôûĝĥ ŧĥïš þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -6338,7 +6335,6 @@
   "issues.work.stop.keep": "⟦Ķëëþ ŵôŕķïñĝ ŧë⟧",
   "issues.work.stop.confirm": "⟦Šŧôþ ŵôŕķ ŧ⟧",
   "issues.work.progress.stopping": "⟦Šŧôþþïñĝ… ŧ⟧",
-  "issues.work.stop.slow": "⟦Ɓàķëŕÿ ïš šŧôþþïñĝ ŧĥïš. Ïŧ çàñ ŧàķë ûþ ŧô 5 ɱïñûŧëš ŧô šĥôŵ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "issues.work.stop.failed": "⟦Ŵôŕķ çôûļð ñôŧ ƀë šŧôþþëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧",
   "issues.work.stop.beforeStart": "⟦Ŧô šŧôþ ŧĥïš ƀëƒôŕë ïŧ šŧàŕŧš, ŕëɱôṽë ŧĥë ļàƀëļ ôñ ĜïŧĤûƀ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "machines.wizard.system": "⟦Šÿšŧëɱ…⟧",
@@ -6465,5 +6461,7 @@
   "issues.settings.workflow.runs": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ŕûñš {workflow}. ŧëšŧ çôþÿ⟧",
   "issues.settings.workflow.help": "⟦Ŧĥë šŧëþš Ɓàķëŕÿ ƒôļļôŵš ƒôŕ ïššûëš ƒŕôɱ ŧĥïš ŕëþôšïŧôŕÿ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "issues.work.stoppedByYou": "⟦šŧôþþëð ƀÿ ÿôû ŧë⟧",
-  "issues.line.needsAnswer": "⟦Ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš. ŧëšŧ çôþÿŧ⟧"
+  "issues.line.needsAnswer": "⟦Ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš. ŧëšŧ çôþÿŧ⟧",
+  "issues.card.workflow": "⟦Ûšëš {workflow} ïñ {repository}. ŧëšŧ çôþÿ⟧",
+  "issues.start.body": "⟦Ɓàķëŕÿ çŕëàŧëš à ŧàšķ ïñ {repository}. Ÿôû çàñ ƒôļļôŵ ïŧ ïñ Ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }
