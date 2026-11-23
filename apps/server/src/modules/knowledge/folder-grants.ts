@@ -191,6 +191,14 @@ export async function createFolderGrant(
       [organizationId, folder.id, existing.rows[0].id, input.level],
     )).rows[0]!;
   } else {
+    const live = await tx.query<{ n: number }>(
+      `select count(*)::integer as n from bakery.storage_folder_grants
+        where organization_id = $1 and folder_id = $2 and revoked_at is null`,
+      [organizationId, folder.id],
+    );
+    if (live.rows[0].n >= MAX_LISTED) {
+      unprocessable("principalId", "folder_grant_limit");
+    }
     row = (await tx.query<GrantRow>(
       `insert into bakery.storage_folder_grants
          (organization_id, folder_id, principal_id, level, granted_by)

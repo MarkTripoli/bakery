@@ -292,3 +292,42 @@ Deno.test("AC4: a malformed path input is refused by name", async () => {
     await fx.close();
   }
 });
+
+Deno.test("AC4: a path under a restricted folder is pinned only for a member with a grant inside it", async () => {
+  const fx = await openCoordinationFixture();
+  try {
+    const taskId = await fx.insertTask("restricted pin", { repo: "api" });
+    const made = await publishOutput(fx, taskId, "brief.md", "plan");
+    const entryId = await projectArtifactEntry(db(fx), {
+      organizationId: fx.organizationId,
+      artifactId: made.artifactId,
+    });
+    assert(entryId);
+    const path = await pathOf(fx, fx.organizationId, taskId, "brief.md");
+    const folder = (await fx.owner`
+      select parent_id as id from bakery.storage_entries
+       where organization_id = ${fx.organizationId} and id = ${entryId}`)[0]
+      .id as string;
+    await fx.owner`
+      update bakery.storage_entries set restricted = true
+       where organization_id = ${fx.organizationId} and id = ${folder}`;
+
+    const refused = await runWith(fx, taskId, { inputPaths: { taskId: path } });
+    assertEquals(refused.status, 422);
+    assert(
+      (await refused.text()).includes("input_storage_path_unavailable"),
+    );
+    assertEquals(await runCount(fx, taskId), 0);
+
+    await fx.owner`
+      insert into bakery.storage_folder_grants
+        (organization_id, folder_id, principal_id, level, granted_by)
+      values (${fx.organizationId}, ${folder}, ${fx.developer.principalId},
+              'view', ${fx.admin.principalId})`;
+    const allowed = await runWith(fx, taskId, { inputPaths: { taskId: path } });
+    assertEquals(allowed.status, 201, await allowed.clone().text());
+    assertEquals(await runCount(fx, taskId), 1);
+  } finally {
+    await fx.close();
+  }
+});

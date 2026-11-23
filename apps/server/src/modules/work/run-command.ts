@@ -1012,7 +1012,13 @@ export async function createRunCommand(
   }
   const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
     transaction,
-    { organizationId, inputs: suppliedInputs, inputPaths: input.inputPaths },
+    {
+      organizationId,
+      principalId,
+      context,
+      inputs: suppliedInputs,
+      inputPaths: input.inputPaths,
+    },
   );
   validateRunInputs(inputs);
 

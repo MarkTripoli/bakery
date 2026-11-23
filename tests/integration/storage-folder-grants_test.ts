@@ -1,6 +1,29 @@
 import { assert, assertEquals } from "@std/assert";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { addMember, type Member } from "../helpers/durable-questions.ts";
+import {
+  readTestDatabaseConfig,
+  readTestDatabaseResetOptions,
+} from "../../packages/config/src/env.ts";
+import {
+  closeDatabase,
+  openDatabase,
+} from "../../apps/server/src/platform/database.ts";
+import { resetTestDatabase } from "../../apps/server/src/platform/migrate.ts";
+
+const databaseConfig = readTestDatabaseConfig();
+
+async function resetDatabase(): Promise<void> {
+  const reset = openDatabase(databaseConfig.databaseUrl);
+  try {
+    await resetTestDatabase(reset, {
+      targetUrl: databaseConfig.databaseUrl,
+      ...readTestDatabaseResetOptions(),
+    });
+  } finally {
+    await closeDatabase(reset);
+  }
+}
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -83,7 +106,9 @@ const listing = (fixture: Fixture, cookie: string, folderId: string) =>
 const names = async (response: Response): Promise<string[]> =>
   ((await ok(response)).items as Json[]).map((item) => String(item.name));
 
-async function scenario1(fixture: Fixture): Promise<void> { // a restricted folder does not exist to a member without a grant, and a grant opens it at its level
+async function restrictedFolderIsHiddenAndAGrantOpensItAtItsLevel(
+  fixture: Fixture,
+): Promise<void> {
   const admin = fixture.adminCookie;
   const seed = { organizationId: fixture.organizationId } as never;
   const bob: Member = await addMember(fixture as never, seed, "bob");
@@ -129,7 +154,7 @@ async function scenario1(fixture: Fixture): Promise<void> { // a restricted fold
     ),
   );
   const refused = await put(fixture, bob.cookie, "/shared/secret/x.txt");
-  assertEquals(refused.status, 403 === refused.status ? 403 : refused.status);
+  assertEquals(refused.status, 409);
   const refusal = JSON.parse(await refused.text()) as Json;
   assertEquals(refusal.code, "STORAGE_AREA_REFUSED");
   assertEquals(
@@ -184,7 +209,9 @@ async function scenario1(fixture: Fixture): Promise<void> { // a restricted fold
   );
 }
 
-async function scenario2(fixture: Fixture): Promise<void> { // what is granted above a restricted folder does not reach below it
+async function aGrantAboveARestrictedFolderDoesNotReachBelowIt(
+  fixture: Fixture,
+): Promise<void> {
   const admin = fixture.adminCookie;
   const seed = { organizationId: fixture.organizationId } as never;
   const bob: Member = await addMember(fixture as never, seed, "bob");
@@ -218,7 +245,9 @@ async function scenario2(fixture: Fixture): Promise<void> { // what is granted a
   );
 }
 
-async function scenario3(fixture: Fixture): Promise<void> { // a file trashed out of a restricted folder stays hidden from those who could not see the folder
+async function aFileTrashedOutOfARestrictedFolderStaysHidden(
+  fixture: Fixture,
+): Promise<void> {
   const admin = fixture.adminCookie;
   const seed = { organizationId: fixture.organizationId } as never;
   const bob: Member = await addMember(fixture as never, seed, "bob");
@@ -256,7 +285,9 @@ async function scenario3(fixture: Fixture): Promise<void> { // a file trashed ou
   );
 }
 
-async function scenario4(fixture: Fixture): Promise<void> { // personal and artifact areas take no grants, and an agent cannot widen who opens a folder
+async function personalAndRecordAreasTakeNoGrants(
+  fixture: Fixture,
+): Promise<void> {
   const admin = fixture.adminCookie;
   const seed = { organizationId: fixture.organizationId } as never;
   const bob: Member = await addMember(fixture as never, seed, "bob");
@@ -287,10 +318,256 @@ async function scenario4(fixture: Fixture): Promise<void> { // personal and arti
   await ok(await put(fixture, bob.cookie, "/shared/open/ok.txt"));
 }
 
-Deno.test("folder grants and restricted folders", () =>
-  withWorkerFixture(async (fixture) => {
-    await scenario1(fixture); // a restricted folder does not exist to a member without a grant, and a grant opens it at its level
-    await scenario2(fixture); // what is granted above a restricted folder does not reach below it
-    await scenario3(fixture); // a file trashed out of a restricted folder stays hidden from those who could not see the folder
-    await scenario4(fixture); // personal and artifact areas take no grants, and an agent cannot widen who opens a folder
-  }));
+const move = (
+  fixture: Fixture,
+  cookie: string,
+  entry: Json,
+  destinationPath: string,
+) =>
+  call(
+    fixture,
+    cookie,
+    "POST",
+    `/v1/storage/entries/${entry.id}/move`,
+    { destinationPath },
+    { "If-Match": `"${entry.version}"` },
+  );
+
+const trash = (fixture: Fixture, cookie: string, entry: Json) =>
+  call(
+    fixture,
+    cookie,
+    "DELETE",
+    `/v1/storage/entries/${entry.id}`,
+    undefined,
+    { "If-Match": `"${entry.version}"` },
+  );
+
+const restore = (fixture: Fixture, cookie: string, entry: Json) =>
+  call(
+    fixture,
+    cookie,
+    "POST",
+    `/v1/storage/entries/${entry.id}/restore`,
+    undefined,
+    { "If-Match": `"${entry.version}"` },
+  );
+
+const refusal = async (
+  response: Response,
+): Promise<[number, string, string]> => {
+  const body = JSON.parse(await response.text()) as Json;
+  const params = body.params as Json | undefined;
+  return [
+    response.status,
+    String(body.code),
+    String(params?.reason ?? body.reason),
+  ];
+};
+
+const searchPaths = async (
+  fixture: Fixture,
+  cookie: string,
+  query: string,
+): Promise<string[]> =>
+  ((await ok(
+    await call(
+      fixture,
+      cookie,
+      "GET",
+      `/v1/files/search?query=${encodeURIComponent(query)}`,
+    ),
+  )).items as Json[]).map((item) => String(item.path));
+
+async function aViewGranteeCannotMoveTrashOrRestore(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const bob: Member = await addMember(fixture as never, seed, "bob");
+  const ledger = await folder(fixture, admin, "/shared/ledger");
+  const free = await folder(fixture, admin, "/shared/free");
+  const kept = await ok(await put(fixture, admin, "/shared/ledger/kept.txt"));
+  const gone = await ok(await put(fixture, admin, "/shared/ledger/gone.txt"));
+  await ok(await restrict(fixture, admin, ledger, true));
+  await ok(await grant(fixture, admin, ledger, bob.principalId, "view"), 201);
+
+  assertEquals(
+    await refusal(
+      await move(fixture, bob.cookie, kept, "/shared/free/kept.txt"),
+    ),
+    [409, "STORAGE_AREA_REFUSED", "folder_view_only"],
+  );
+  assertEquals(await names(await listing(fixture, admin, free)), []);
+  assertEquals(
+    await refusal(await trash(fixture, bob.cookie, kept)),
+    [409, "STORAGE_AREA_REFUSED", "folder_view_only"],
+  );
+  assertEquals(
+    (await names(await listing(fixture, bob.cookie, ledger))).sort(),
+    ["gone.txt", "kept.txt"],
+  );
+
+  const trashed = await trash(fixture, admin, gone);
+  assert(trashed.status < 300, await trashed.clone().text());
+  const trashedEntry = ((await ok(
+    await call(fixture, bob.cookie, "GET", "/v1/storage/trash"),
+  )).items as Json[]).find((item) => item.name === "gone.txt")!;
+  assertEquals(
+    await refusal(await restore(fixture, bob.cookie, trashedEntry)),
+    [409, "STORAGE_AREA_REFUSED", "folder_view_only"],
+  );
+  assertEquals(
+    (await names(await listing(fixture, admin, ledger))).includes("gone.txt"),
+    false,
+  );
+
+  await ok(await grant(fixture, admin, ledger, bob.principalId, "edit"), 201);
+  const moved = await move(fixture, bob.cookie, kept, "/shared/free/kept.txt");
+  assert(moved.status < 300, await moved.clone().text());
+  assertEquals(await names(await listing(fixture, admin, free)), ["kept.txt"]);
+}
+
+async function onlyAManagerRevokesAGrant(fixture: Fixture): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const bob: Member = await addMember(fixture as never, seed, "bob");
+  const cara: Member = await addMember(fixture as never, seed, "cara");
+  const dan: Member = await addMember(fixture as never, seed, "dan");
+  const board = await folder(fixture, admin, "/shared/board");
+  await ok(await restrict(fixture, admin, board, true));
+  await ok(await grant(fixture, admin, board, bob.principalId, "view"), 201);
+  await ok(await grant(fixture, admin, board, cara.principalId, "view"), 201);
+  const grants = (await ok(
+    await call(fixture, admin, "GET", `/v1/storage/folders/${board}/grants`),
+  )).items as Json[];
+  const caras = grants.find((g) => g.principalId === cara.principalId)!;
+  const revoke = (cookie: string) =>
+    call(
+      fixture,
+      cookie,
+      "POST",
+      `/v1/storage/folder-grants/${caras.id}/revoke`,
+    );
+
+  assertEquals(
+    await refusal(await revoke(bob.cookie)),
+    [409, "STORAGE_AREA_REFUSED", "folder_manage_required"],
+  );
+  assertEquals(await shape(await revoke(dan.cookie)), [
+    404,
+    "RESOURCE_NOT_FOUND",
+  ]);
+  assertEquals(
+    ((await ok(
+      await call(fixture, admin, "GET", `/v1/storage/folders/${board}/grants`),
+    )).items as Json[]).some((g) => g.id === caras.id),
+    true,
+  );
+
+  await ok(await grant(fixture, admin, board, bob.principalId, "manage"), 201);
+  await ok(await revoke(bob.cookie));
+  assertEquals(
+    await shape(await listing(fixture, cara.cookie, board)),
+    [404, "RESOURCE_NOT_FOUND"],
+  );
+}
+
+async function searchHidesFilesInARestrictedFolder(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const bob: Member = await addMember(fixture as never, seed, "bob");
+  const vault = await folder(fixture, admin, "/shared/search-vault");
+  await ok(
+    await put(fixture, admin, "/shared/search-vault/quarterly-plan.txt"),
+  );
+  await ok(await put(fixture, admin, "/shared/quarterly-open.txt"));
+  await ok(await restrict(fixture, admin, vault, true));
+
+  assertEquals(await searchPaths(fixture, bob.cookie, "quarterly"), [
+    "/shared/quarterly-open.txt",
+  ]);
+  assertEquals(
+    (await searchPaths(fixture, admin, "quarterly")).sort(),
+    ["/shared/quarterly-open.txt", "/shared/search-vault/quarterly-plan.txt"],
+  );
+  const scoped = await ok(
+    await call(
+      fixture,
+      bob.cookie,
+      "GET",
+      "/v1/files/search?query=quarterly&path=%2Fshared%2Fsearch-vault",
+    ),
+  );
+  assertEquals(scoped.items, []);
+
+  await ok(await grant(fixture, admin, vault, bob.principalId, "view"), 201);
+  assertEquals(
+    (await searchPaths(fixture, bob.cookie, "quarterly")).sort(),
+    ["/shared/quarterly-open.txt", "/shared/search-vault/quarterly-plan.txt"],
+  );
+
+  const grants = (await ok(
+    await call(fixture, admin, "GET", `/v1/storage/folders/${vault}/grants`),
+  )).items as Json[];
+  await ok(
+    await call(
+      fixture,
+      admin,
+      "POST",
+      `/v1/storage/folder-grants/${
+        grants.find((g) => g.principalId === bob.principalId)!.id
+      }/revoke`,
+    ),
+  );
+  assertEquals(await searchPaths(fixture, bob.cookie, "quarterly"), [
+    "/shared/quarterly-open.txt",
+  ]);
+}
+
+async function aFolderTakesAtMostTwoHundredGrants(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const bob: Member = await addMember(fixture as never, seed, "bob");
+  const crowded = await folder(fixture, admin, "/shared/crowded");
+  await ok(await restrict(fixture, admin, crowded, true));
+  await fixture.pgDatabase.query(
+    `with made as (
+       insert into bakery.principals (display_name, principal_type)
+       select 'grantee ' || n, 'service' from generate_series(1, 200) as n
+       returning id)
+     insert into bakery.storage_folder_grants
+       (organization_id, folder_id, principal_id, level, granted_by)
+     select $1, $2, id, 'view', $3 from made`,
+    [fixture.organizationId, crowded, fixture.principalId],
+  );
+  const refused = await grant(fixture, admin, crowded, bob.principalId, "view");
+  const body = JSON.parse(await refused.text()) as Json;
+  assertEquals(refused.status, 422);
+  assert(JSON.stringify(body).includes("folder_grant_limit"));
+  const listed = (await ok(
+    await call(fixture, admin, "GET", `/v1/storage/folders/${crowded}/grants`),
+  )).items as Json[];
+  assertEquals(listed.length, 200);
+}
+
+Deno.test("folder grants and restricted folders", async () => {
+  try {
+    await withWorkerFixture(async (fixture) => {
+      await restrictedFolderIsHiddenAndAGrantOpensItAtItsLevel(fixture);
+      await aGrantAboveARestrictedFolderDoesNotReachBelowIt(fixture);
+      await aFileTrashedOutOfARestrictedFolderStaysHidden(fixture);
+      await personalAndRecordAreasTakeNoGrants(fixture);
+      await aViewGranteeCannotMoveTrashOrRestore(fixture);
+      await onlyAManagerRevokesAGrant(fixture);
+      await searchHidesFilesInARestrictedFolder(fixture);
+      await aFolderTakesAtMostTwoHundredGrants(fixture);
+    });
+  } finally {
+    await resetDatabase();
+  }
+});

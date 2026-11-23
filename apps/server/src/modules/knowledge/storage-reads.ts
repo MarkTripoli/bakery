@@ -384,6 +384,17 @@ export async function listStorageRoots(
   for (const key of keys) {
     const row = byKey.get(key);
     if (!row) continue;
+    if (
+      !(await mayViewAt(
+        tx,
+        organizationId,
+        principalId,
+        row.id,
+        reader.isAdmin,
+      ))
+    ) {
+      continue;
+    }
     const path = key === "user:" + principalId
       ? "/users/" + row.name
       : "/" + row.name;

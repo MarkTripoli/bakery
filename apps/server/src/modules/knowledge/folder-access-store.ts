@@ -129,23 +129,28 @@ export async function mayEditAt(
   );
 }
 
-export async function hiddenRestrictedChildren(
-  tx: PgTransactionClient,
-  organizationId: string,
-  principalId: string,
-  children: readonly { id: string; restricted: boolean }[],
-  isAdmin: boolean,
-): Promise<Set<string>> {
-  const restricted = children.filter((child) => child.restricted);
-  if (restricted.length === 0 || isAdmin) return new Set();
-  const grants = await liveGrants(
-    tx,
-    organizationId,
-    principalId,
-    restricted.map((child) => child.id),
-  );
-  const held = new Set(grants.map((grant) => grant.folderId));
-  return new Set(
-    restricted.filter((child) => !held.has(child.id)).map((child) => child.id),
-  );
+export function deniedEntriesCte(
+  organization: string,
+  principal: string,
+  name = "denied",
+): string {
+  const granted = (entry: string) =>
+    `exists (select 1 from bakery.storage_folder_grants g
+              where g.organization_id = ${entry}.organization_id
+                and g.folder_id = ${entry}.id
+                and g.principal_id = ${principal}::uuid
+                and g.revoked_at is null)`;
+  return `${name}(id, in_restricted, granted) as (
+    select root.id, root.restricted, ${granted("root")}
+      from bakery.storage_entries root
+     where root.organization_id = ${organization}::uuid
+       and root.parent_id is null
+    union all
+    select child.id, up.in_restricted or child.restricted,
+           case when child.restricted then ${granted("child")}
+                else up.granted or ${granted("child")} end
+      from bakery.storage_entries child
+      join ${name} up on child.parent_id = up.id
+     where child.organization_id = ${organization}::uuid
+  )`;
 }
