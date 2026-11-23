@@ -63,6 +63,8 @@ import {
   passwordResetsRedeem,
 } from "./installation-handlers.ts";
 import type { PasswordHasher } from "../../../adapters/password-reset-links-postgres.ts";
+import type { DesktopUpdateFeed } from "@bakery/config/desktop-update-feed";
+import { desktopUpdatesGetAction } from "./desktop-update-handler.ts";
 import {
   desktopSignInsExchange,
   desktopSignInsStart,
@@ -131,6 +133,8 @@ export type AuthActionRegistryOptions = {
   passwordHasher?: () => Promise<PasswordHasher>;
   /** The release this server runs, shown on the public installation status. */
   release?: string;
+  /** Signed desktop builds this server offers; absent means no app updates (404). */
+  desktopUpdateFeed?: DesktopUpdateFeed;
 };
 
 /**
@@ -231,7 +235,7 @@ export function createAuthActionRegistry(
         database: options.database,
         secret: options.secret,
       }),
-  }).register({
+  }).register(desktopUpdatesGetAction(options.desktopUpdateFeed)).register({
     name: AuthImplementedAction.ProfileGet,
     method: HttpMethod.Get,
     path: "/v1/me/profile",
@@ -1176,6 +1180,7 @@ export function createAuthV1Routes(
     acceptAccessTokens: true,
   });
   app.use("/v1/me", browserSession);
+  app.use("/v1/desktop/update", browserSession);
   app.use("/v1/me/sessions", browserSession);
   app.use("/v1/desktop-handoffs", browserSession);
   app.use("/v1/me/sessions/*", browserSession);
