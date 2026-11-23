@@ -1866,6 +1866,27 @@ async function openMerge(
   return seen;
 }
 
+test("a confirmation opens on Cancel past a read-only field and a field that cannot take focus", async ({ page }) => {
+  await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
+  const now = nowCard(page);
+  await button(now, "Merge").click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Merge pull request #482?",
+  });
+  await button(dialog, "Cancel").click();
+  await expect(dialog).toBeHidden();
+  await page.locator("dialog", { hasText: "Merge pull request #482?" })
+    .evaluate((element) => {
+      const hidden = document.createElement("input");
+      hidden.hidden = true;
+      const readOnly = document.createElement("input");
+      readOnly.readOnly = true;
+      element.prepend(readOnly, hidden);
+    });
+  await button(now, "Merge").click();
+  await expect(button(dialog, "Cancel")).toBeFocused();
+});
+
 test("an approved candidate at the reviewed head offers Merge, asks first, and queues the candidate it saw once", async ({ page }) => {
   const scenario: Scenario = { ...CLEAN, pullRequests: [pullRequestRow(482)] };
   const seen = await openMerge(page, scenario, {

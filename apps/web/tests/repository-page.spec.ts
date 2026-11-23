@@ -1488,7 +1488,7 @@ test.describe("names, testing a name, and details for support", () => {
     return dialog;
   };
 
-  test("Test a name opens on its Name field, not on a button", async ({ page }) => {
+  test("field first: Test a name opens on its Name field, not on Cancel", async ({ page }) => {
     await open(page, { names: NAMES });
     await page.getByRole("button", { name: /^More/ }).first().click();
     const entry = page.getByRole("button", {
