@@ -16,6 +16,7 @@ import {
   PLAN_COLUMNS,
 } from "./coordination-query.ts";
 import { releaseDependentRuns } from "./dependency-release.ts";
+import { requestLaneDispatch } from "./coordination-dispatch-request.ts";
 
 // Persisted coordination projection and shared plan helpers. Kept apart from
 // the command module so engine and execution code can reconcile a plan without
@@ -184,11 +185,24 @@ export async function reconcileCoordinationPlan(
     prerequisites: lane.prerequisites,
     status: laneProjectionStatus(lane),
   })));
+  let changed = false;
   for (const lane of lanes) {
     const next = projection.lanes.get(lane.lane_key);
     if (next && next !== lane.status) {
       await setLaneStatus(transaction, facts.organizationId, lane.id, next);
+      changed = true;
     }
+  }
+  // A lane that became ready, or one that ended and freed a place, is a reason
+  // for the engine to look at the plan's lanes again. The request is a durable
+  // outbox event: the lanes are started in a transaction of their own, never
+  // here, where the plan's lock order does not allow a run to be admitted.
+  if (changed && projection.plan === "materialized") {
+    await requestLaneDispatch(transaction, {
+      organizationId: facts.organizationId,
+      planId,
+      traceId: facts.traceId,
+    });
   }
   if (projection.plan === plan.status) return;
   const version = await bumpPlan(
