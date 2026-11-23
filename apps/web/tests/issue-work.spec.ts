@@ -235,11 +235,25 @@ for (
         .toBeVisible();
       await expect(
         section(page).getByText(
-          "stopped by Ana Reyes · started by you · Fixed coding, version 1 · 12 minutes ago",
+          "started by you · Fixed coding, version 1 · 12 minutes ago · stopped by Ana Reyes",
         ),
       ).toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "issue-work-stopped-by");
+    });
+
+    test("the person who stopped it is told it was them", async ({ page }) => {
+      await open(page, {
+        issue: 201,
+        progress: "canceled",
+        stoppedBy: "Fixture Admin",
+        stoppedByMe: true,
+      });
+      await expect(
+        section(page).getByText(
+          "started by you · Fixed coding, version 1 · 12 minutes ago · stopped by you",
+        ),
+      ).toBeVisible();
     });
 
     test("a run canceled without a person says Stopped and no name", async ({ page }) => {
@@ -701,7 +715,7 @@ for (
       expect(seen.cancels[0]!.ifMatch).toMatch(/1/);
       expect(seen.stops).toHaveLength(0);
       await expect(
-        work.getByText(/stopped by Ana Reyes · started by you/),
+        work.getByText(/started by you · .* · stopped by Ana Reyes$/),
       ).toBeVisible();
       await expect(stopButton(page)).toHaveCount(0);
     });

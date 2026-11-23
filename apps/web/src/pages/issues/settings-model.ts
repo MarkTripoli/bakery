@@ -177,6 +177,7 @@ export function isDirty(
     form.hold !== saved.hold ||
     form.requireAcceptanceCriteria !== saved.requireAcceptanceCriteria ||
     form.approval !== saved.approval ||
+    form.preset !== saved.preset ||
     form.automatic !== saved.automatic ||
     (form.automatic &&
       (form.principalId !== saved.principalId ||

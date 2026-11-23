@@ -9,6 +9,7 @@ import {
 } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -148,6 +149,16 @@ for (
       // The question's badge replaces In progress; an issue with no question keeps it.
       await expect(row(page, 204)).toContainText("Needs an answer");
       await expect(row(page, 204)).not.toContainText("In progress");
+      // The line under its title says why, not that Bakery is working on it.
+      await expect(row(page, 204)).toContainText(
+        "acme/web · Work is paused until someone answers.",
+      );
+      await expect(row(page, 204)).not.toContainText(
+        "Bakery is working on this.",
+      );
+      await expect(row(page, 206)).toContainText(
+        "acme/web · Bakery is working on this.",
+      );
       await expect(row(page, 206)).toContainText("In progress");
       await expect(row(page, 206)).not.toContainText("Needs an answer");
       await expect(row(page, 201)).toHaveCount(0);
@@ -156,7 +167,7 @@ for (
         row(page, 204).getByRole("link", { name: /Needs an answer/ }),
       ).toBeVisible();
       await page.mouse.move(700, 700);
-      await shot(page, "issues-list-needs-answer", [], { windowOnly: true });
+      await still(page, "issues-list-needs-answer");
     });
 
     test("nothing ready says why and offers All open", async ({ page }) => {

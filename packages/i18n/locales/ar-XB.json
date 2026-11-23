@@ -6352,11 +6352,14 @@
   "issues.work.stoppedBy": "⟪stopped by {name}⟫",
   "issues.work.workflow": "⟪{name}, version {version}⟫",
   "issues.start.workflow": "⟪Workflow⟫",
-  "issues.start.workflowHelp": "⟪The one set for {repository} is chosen first. Choosing the other applies to this issue only.⟫",
   "issues.status.needsAnswer": "⟪Needs an answer⟫",
   "issues.settings.preview.beforeWindow.one": "⟪{count} issue already had the “{label}” label before automatic starts were turned on. It waits for someone to press Start work.⟫",
   "issues.settings.preview.beforeWindow.many": "⟪{count} issues already had the “{label}” label before automatic starts were turned on. They wait for someone to press Start work.⟫",
   "issues.start.body": "⟪Bakery creates a task in {repository}. You can follow it in Work.⟫",
   "issues.card.workflow": "⟪Uses {workflow} in {repository}.⟫",
-  "issues.settings.workflow.runs": "⟪This repository runs {workflow}.⟫"
+  "issues.settings.workflow.runs": "⟪This repository runs {workflow}.⟫",
+  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing the other applies to this issue only.⟫",
+  "issues.settings.workflow.help": "⟪The steps Bakery follows for issues from this repository.⟫",
+  "issues.work.stoppedByYou": "⟪stopped by you⟫",
+  "issues.line.needsAnswer": "⟪Work is paused until someone answers.⟫"
 }

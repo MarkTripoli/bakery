@@ -6352,11 +6352,14 @@
   "issues.work.stoppedBy": "⟦šŧôþþëð ƀÿ {name} ŧëš⟧",
   "issues.work.workflow": "⟦{name}, ṽëŕšïôñ {version} ŧëšŧ ç⟧",
   "issues.start.workflow": "⟦Ŵôŕķƒļôŵ…⟧",
-  "issues.start.workflowHelp": "⟦Ŧĥë ôñë šëŧ ƒôŕ {repository} ïš çĥôšëñ ƒïŕšŧ. Çĥôôšïñĝ ŧĥë ôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "issues.status.needsAnswer": "⟦Ñëëðš àñ àñšŵëŕ ŧëš⟧",
   "issues.settings.preview.beforeWindow.one": "⟦{count} ïššûë àļŕëàðÿ ĥàð ŧĥë “{label}” ļàƀëļ ƀëƒôŕë àûŧôɱàŧïç šŧàŕŧš ŵëŕë ŧûŕñëð ôñ. Ïŧ ŵàïŧš ƒôŕ šôɱëôñë ŧô þŕëšš Šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "issues.settings.preview.beforeWindow.many": "⟦{count} ïššûëš àļŕëàðÿ ĥàð ŧĥë “{label}” ļàƀëļ ƀëƒôŕë àûŧôɱàŧïç šŧàŕŧš ŵëŕë ŧûŕñëð ôñ. Ŧĥëÿ ŵàïŧ ƒôŕ šôɱëôñë ŧô þŕëšš Šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "issues.start.body": "⟦Ɓàķëŕÿ çŕëàŧëš à ŧàšķ ïñ {repository}. Ÿôû çàñ ƒôļļôŵ ïŧ ïñ Ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "issues.card.workflow": "⟦Ûšëš {workflow} ïñ {repository}. ŧëšŧ çôþÿ⟧",
-  "issues.settings.workflow.runs": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ŕûñš {workflow}. ŧëšŧ çôþÿ⟧"
+  "issues.settings.workflow.runs": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ŕûñš {workflow}. ŧëšŧ çôþÿ⟧",
+  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ ŧĥë ôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "issues.settings.workflow.help": "⟦Ŧĥë šŧëþš Ɓàķëŕÿ ƒôļļôŵš ƒôŕ ïššûëš ƒŕôɱ ŧĥïš ŕëþôšïŧôŕÿ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "issues.work.stoppedByYou": "⟦šŧôþþëð ƀÿ ÿôû ŧë⟧",
+  "issues.line.needsAnswer": "⟦Ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš. ŧëšŧ çôþÿŧ⟧"
 }

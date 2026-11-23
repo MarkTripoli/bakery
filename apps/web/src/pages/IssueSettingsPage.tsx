@@ -42,6 +42,7 @@ import {
   ruleSetOf,
 } from "./issues/routing-model.ts";
 import { RoutingRules } from "./issues/RoutingRules.tsx";
+import { BuiltInWorkflowChoice } from "./BuiltInWorkflowChoice.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
 
 /** The pages that share one repository's draft. */
@@ -747,11 +748,28 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 <UI.Heading level="section">
                   {translate("issues.settings.workflow.title")}
                 </UI.Heading>
-                <UI.Text variant="muted">
-                  {translate("issues.settings.workflow.runs", {
-                    workflow: presetCopy(translate, shown.preset).title,
-                  })}
-                </UI.Text>
+                {isAdmin
+                  ? (
+                    <>
+                      <UI.Text variant="muted">
+                        {translate("issues.settings.workflow.help")}
+                      </UI.Text>
+                      <BuiltInWorkflowChoice
+                        disabled={save.isPending}
+                        label={translate("issues.settings.workflow.title")}
+                        name="issue-settings-workflow"
+                        onChange={(preset) => edit({ preset })}
+                        value={shown.preset}
+                      />
+                    </>
+                  )
+                  : (
+                    <UI.Text variant="muted">
+                      {translate("issues.settings.workflow.runs", {
+                        workflow: presetCopy(translate, shown.preset).title,
+                      })}
+                    </UI.Text>
+                  )}
               </UI.Stack>
 
               <UI.Stack gap="standard" data-testid="issue-settings-preview">

@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -7,7 +7,7 @@ import { failureStatus } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { issueNumber, type IssueRow, issueSnapshot } from "./issue-state.ts";
-import { TICKET_PRESETS } from "./issue-sources.ts";
+import { BuiltInWorkflowChoice } from "./BuiltInWorkflowChoice.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
 
 /** What a refused start says, from the server's answer. */
@@ -57,7 +57,6 @@ export function StartWorkDialog(
   const number = issueNumber(row);
   const { repository } = issueSnapshot(row);
   const [preset, setPreset] = useState<TicketPresetId>(sourcePreset);
-  const workflowLabelId = useId();
   const start = useMutation({
     mutationKey: ["ticketRequests.create"],
     mutationFn: async () => {
@@ -123,32 +122,22 @@ export function StartWorkDialog(
             { repository },
           )}
         </UI.Text>
-        <UI.Stack
-          gap="compact"
-          role="radiogroup"
-          aria-labelledby={workflowLabelId}
-          data-testid="start-work-workflow"
-        >
-          <UI.Text variant="strong" id={workflowLabelId}>
+        <UI.Stack gap="compact" data-testid="start-work-workflow">
+          <UI.Text variant="strong">
             {translate("issues.start.workflow" as never)}
           </UI.Text>
-          {TICKET_PRESETS.map((id) => {
-            const copy = presetCopy(translate, id);
-            return (
-              <UI.PresetOption
-                key={id}
-                checked={preset === id}
-                description={copy.description}
-                disabled={start.isPending}
-                name="start-work-workflow"
-                onChange={() => setPreset(id)}
-                title={copy.title}
-                value={id}
-              />
-            );
-          })}
+          <BuiltInWorkflowChoice
+            disabled={start.isPending}
+            label={translate("issues.start.workflow" as never)}
+            name="start-work-workflow"
+            onChange={setPreset}
+            value={preset}
+          />
           <UI.Text variant="caption">
-            {translate("issues.start.workflowHelp" as never, { repository })}
+            {translate("issues.start.workflowHelp" as never, {
+              repository,
+              workflow: presetCopy(translate, sourcePreset).title,
+            })}
           </UI.Text>
         </UI.Stack>
       </UI.Stack>

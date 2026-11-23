@@ -382,7 +382,7 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
               wouldStart: 1,
               planOnly: 0,
               held: 0,
-              blocked: 2,
+              blocked: (options.labeledBeforeWindow ?? 1) + 1,
               ...(options.labeledBeforeWindow === undefined
                 ? {}
                 : { labeledBeforeWindow: options.labeledBeforeWindow }),
@@ -395,15 +395,22 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
                 verdict: "ready",
                 reasons: [],
               },
+              // As many waiting issues as the preview says only wait for the
+              // label's date, so the counts are ones the server can return together.
+              ...Array.from(
+                { length: options.labeledBeforeWindow ?? 1 },
+                (_, index) => ({
+                  number: 2 + index,
+                  title: `Waiting ${index + 1}`,
+                  outcome: "blocked",
+                  verdict: "waiting",
+                  reasons: options.labeledBeforeWindow === undefined
+                    ? ["predecessor_open"]
+                    : ["adoption_required"],
+                }),
+              ),
               {
-                number: 2,
-                title: "Waiting",
-                outcome: "blocked",
-                verdict: "waiting",
-                reasons: ["predecessor_open"],
-              },
-              {
-                number: 3,
+                number: 99,
                 title: "Refused",
                 outcome: "blocked",
                 verdict: "rejected",
@@ -571,15 +578,60 @@ for (
       )).toBeVisible();
     });
 
-    test("the workflow is read-only", async ({ page }) => {
-      await settingsFixture(page);
+    test("an administrator chooses the repository's built-in workflow, saved by the one Save", async ({ page }) => {
+      const seen = await settingsFixture(page);
       await openSettings(page);
-      await expect(page.getByText(
-        "This repository runs Fixed coding.",
-      )).toBeVisible();
+      const group = page.getByTestId("issue-settings-workflow").getByRole(
+        "radiogroup",
+        { name: "Workflow" },
+      );
       await expect(
-        page.getByTestId("issue-settings-workflow").getByRole("combobox"),
+        page.getByTestId("issue-settings-workflow").getByText(
+          "The steps Bakery follows for issues from this repository.",
+        ),
+      ).toBeVisible();
+      await expect(group.getByRole("radio")).toHaveCount(2);
+      await expect(group.getByRole("radio", { name: "Fixed coding" }))
+        .toBeChecked();
+      await still(page, "issue-settings-workflow", undefined, {
+        scrollTo: page.getByTestId("issue-settings-workflow"),
+      });
+      await group.getByRole("radio", { name: "Coding with independent review" })
+        .check();
+      // The one Save bar appears and says it applies from now on.
+      await expect(page.getByText(
+        "Applies to issues started from now on. Work already started keeps the settings and routing it started with.",
+      )).toBeVisible();
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText("Settings saved.")).toBeVisible();
+      expect(seen.patches).toHaveLength(1);
+      const sent = seen.patches[0].policy as Record<string, unknown>;
+      expect(sent.preset).toBe("fixed-coding-reviewed");
+    });
+
+    test("a repository set to the reviewed workflow shows it chosen", async ({ page }) => {
+      await settingsFixture(page, {
+        saved: { policy: policy({ preset: "fixed-coding-reviewed" }) },
+      });
+      await openSettings(page);
+      await expect(
+        page.getByTestId("issue-settings-workflow").getByRole("radio", {
+          name: "Coding with independent review",
+        }),
+      ).toBeChecked();
+    });
+
+    test("someone who is not an administrator reads the workflow and cannot change it", async ({ page }) => {
+      await settingsFixture(page, { role: "developer" });
+      await openSettings(page);
+      await expect(page.getByText("This repository runs Fixed coding."))
+        .toBeVisible();
+      await expect(
+        page.getByTestId("issue-settings-workflow").getByRole("radio"),
       ).toHaveCount(0);
+      await still(page, "issue-settings-workflow-read-only", undefined, {
+        scrollTo: page.getByTestId("issue-settings-workflow"),
+      });
     });
 
     const rules = (page: Page) => page.getByTestId("issue-settings-routing");
@@ -822,8 +874,9 @@ for (
         .toHaveText(
           "2 issues already had the “bakery” label before automatic starts were turned on. They wait for someone to press Start work.",
         );
-      await shot(page, "issue-settings-preview-before-window", [], {
-        windowOnly: true,
+      // Framed on the preview, so the phone still shows the sentence too.
+      await still(page, "issue-settings-preview-before-window", undefined, {
+        scrollTo: page.getByTestId("issue-settings-preview"),
       });
     });
 

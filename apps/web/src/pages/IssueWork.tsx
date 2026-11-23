@@ -621,15 +621,6 @@ export function IssueWork(
                 : null}
               <UI.Text variant="muted">
                 {[
-                  // Who stopped it, by the name the server resolved; a run
-                  // canceled without a person says nothing here.
-                  request.progress === "canceled" &&
-                    request.stoppedByName !== null &&
-                    request.stoppedByName !== undefined
-                    ? translate("issues.work.stoppedBy" as never, {
-                      name: request.stoppedByName,
-                    })
-                    : "",
                   translate(`issues.work.by.${byKey(by)}` as never, {
                     label: by.kind === "label" ? by.label ?? "" : "",
                     name: by.kind === "member" || by.kind === "memberAdopted"
@@ -646,6 +637,18 @@ export function IssueWork(
                       version: request.presetRevision,
                     }),
                   ago(request.createdAt, translate),
+                  // Who stopped it comes last: the time above is when the work
+                  // started. The viewer is "you"; a run canceled without a
+                  // person says nothing (#61 revision 7).
+                  request.progress === "canceled" &&
+                    request.stoppedByName !== null &&
+                    request.stoppedByName !== undefined
+                    ? request.stoppedByPrincipalId === viewer
+                      ? translate("issues.work.stoppedByYou" as never)
+                      : translate("issues.work.stoppedBy" as never, {
+                        name: request.stoppedByName,
+                      })
+                    : "",
                 ].filter(Boolean).join(" · ")}
               </UI.Text>
               {!openAndStopTogether ? openTaskButton : null}

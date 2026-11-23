@@ -9,6 +9,7 @@ import {
 } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -344,12 +345,10 @@ for (
         }),
       ).not.toBeChecked();
       await expect(dialog).toContainText(
-        "Choosing the other applies to this issue only.",
+        "acme/web is set to Fixed coding. Choosing the other applies to this issue only.",
       );
       await page.mouse.move(700, 700);
-      await shot(page, "issue-start-dialog-workflow", [], {
-        windowOnly: true,
-      });
+      await still(page, "issue-start-dialog-workflow");
       await dialog.getByRole("button", { name: "Start work" }).click();
       await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
       expect(seen.starts).toHaveLength(1);
@@ -379,7 +378,14 @@ for (
       await expect(
         dialog.getByRole("radio", { name: "Coding with independent review" }),
       ).toBeChecked();
+      await expect(dialog).toContainText(
+        "acme/web is set to Coding with independent review. Choosing the other applies to this issue only.",
+      );
       await dialog.getByRole("radio", { name: "Fixed coding" }).check();
+      // The help keeps naming the repository's own workflow after the choice changes.
+      await expect(dialog).toContainText(
+        "acme/web is set to Coding with independent review.",
+      );
       await dialog.getByRole("button", { name: "Start work" }).click();
       await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
       expect(seen.starts[0]!.preset).toBe("fixed-coding");

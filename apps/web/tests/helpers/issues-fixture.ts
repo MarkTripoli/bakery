@@ -164,6 +164,8 @@ export type WorkSeed = {
   preset?: { id: "fixed-coding" | "fixed-coding-reviewed"; revision: number };
   /** Who stopped it, by name, once it is stopped; nobody by default. */
   stoppedBy?: string | null;
+  /** The signed-in person stopped it (the read then carries their own id). */
+  stoppedByMe?: boolean;
   /**
    * What stopping a request with no run answers: accepted (default), a run that
    * began meanwhile (hasRun), work that already ended (finished), or a failure.
@@ -660,6 +662,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
           stoppedByPrincipalId: stoppedNow() || work.progress === "canceled"
             ? (work.stoppedBy === undefined || work.stoppedBy === null
               ? null
+              : work.stoppedByMe
+              ? MOCK_PRINCIPAL_ID
               : uuid(8800))
             : null,
           stoppedByName: stoppedNow() || work.progress === "canceled"

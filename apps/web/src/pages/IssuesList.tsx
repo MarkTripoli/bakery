@@ -53,7 +53,9 @@ export function reasonSentence(
  */
 export function issueLine(row: IssueRow, translate: Translator): string {
   const { status, reason } = issueStatus(row);
-  const note = status === "inProgress"
+  const note = listedStatus(row) === "needsAnswer"
+    ? translate("issues.line.needsAnswer" as never)
+    : status === "inProgress"
     ? translate("issues.line.inProgress" as never)
     : reason !== null
     ? reasonSentence(row, reason, translate)
