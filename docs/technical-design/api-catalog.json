@@ -11582,6 +11582,29 @@
     {
       "group": "Storage",
       "method": "POST",
+      "path": "/v1/storage/connection-syncs/{id}/resume",
+      "action": "storageConnectionSyncs.resume",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
       "path": "/v1/storage/connection-exports",
       "action": "storageConnectionExports.create",
       "access": "Developer",

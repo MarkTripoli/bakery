@@ -116,6 +116,7 @@ import {
   mountConnectionAction,
   pauseConnectionSyncAction,
   readConnectionPathAction,
+  resumeConnectionSyncAction,
   statConnectionPathAction,
   type StorageConnectionDeps,
 } from "./storage-connections.ts";
@@ -934,6 +935,22 @@ function registerStorageConnectionActions(
           await pauseConnectionSyncAction(
             context,
             storageReader(context, A.StorageConnectionSyncsPause),
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionSyncsResume,
+      method: HttpMethod.Post,
+      path: "/v1/storage/connection-syncs/:id/resume",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.StorageConnectionSync,
+      explicitIdempotency: "key",
+      policy: command,
+      handler: async (context) =>
+        contractSchemas.StorageConnectionSync.parse(
+          await resumeConnectionSyncAction(
+            context,
+            storageReader(context, A.StorageConnectionSyncsResume),
           ),
         ),
     })

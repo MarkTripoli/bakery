@@ -11236,6 +11236,30 @@ export const clientManifest = {
     {
       "group": "Storage",
       "method": "POST",
+      "path": "/v1/storage/connection-syncs/{id}/resume",
+      "action": "storageConnectionSyncs.resume",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "IdPath",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
       "path": "/v1/storage/connection-exports",
       "action": "storageConnectionExports.create",
       "access": "Developer",
@@ -20743,6 +20767,7 @@ export const clientManifest = {
             "storageConnectionSyncs.create",
             "storageConnectionSyncs.list",
             "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
             "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
@@ -50953,6 +50978,7 @@ export const clientManifest = {
                   "storageConnectionSyncs.create",
                   "storageConnectionSyncs.list",
                   "storageConnectionSyncs.pause",
+                  "storageConnectionSyncs.resume",
                   "storageConnectionExports.create",
                   "integrationAuth.manifestCallback",
                   "integrationResources.list",
@@ -74112,6 +74138,7 @@ export const clientManifest = {
             "storageConnectionSyncs.create",
             "storageConnectionSyncs.list",
             "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
             "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
@@ -125251,7 +125278,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "The provider change-feed position the last run reached; null before the first run."
+              "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
             },
             {
               "type": "null",
@@ -125266,7 +125293,7 @@ export const clientManifest = {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When the workflow last ran the sync; null before the first run."
+              "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
             },
             {
               "type": "null",
@@ -125281,7 +125308,7 @@ export const clientManifest = {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When someone paused the sync; a paused sync is never run. Null while it runs."
+              "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
             },
             {
               "type": "null",
@@ -125289,6 +125316,20 @@ export const clientManifest = {
             }
           ],
           "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.lastFailure may be null in this transport value."
         },
         "createdAt": {
           "type": "string",
@@ -125311,6 +125352,7 @@ export const clientManifest = {
         "changePosition",
         "lastRunAt",
         "pausedAt",
+        "lastFailure",
         "createdAt",
         "version"
       ],
@@ -125355,7 +125397,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The provider change-feed position the last run reached; null before the first run."
+                    "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
                   },
                   {
                     "type": "null",
@@ -125370,7 +125412,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "When the workflow last ran the sync; null before the first run."
+                    "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
                   },
                   {
                     "type": "null",
@@ -125385,7 +125427,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "When someone paused the sync; a paused sync is never run. Null while it runs."
+                    "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
                   },
                   {
                     "type": "null",
@@ -125393,6 +125435,20 @@ export const clientManifest = {
                   }
                 ],
                 "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+              },
+              "lastFailure": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.lastFailure may be null in this transport value."
               },
               "createdAt": {
                 "type": "string",
@@ -125415,6 +125471,7 @@ export const clientManifest = {
               "changePosition",
               "lastRunAt",
               "pausedAt",
+              "lastFailure",
               "createdAt",
               "version"
             ],

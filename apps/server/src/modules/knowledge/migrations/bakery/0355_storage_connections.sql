@@ -77,6 +77,10 @@ create table bakery.storage_connection_syncs (
   change_position text,
   last_run_at timestamptz,
   paused_at timestamptz,
+  walk_folders jsonb,
+  walk_cursor text,
+  walk_position text,
+  last_failure text,
   created_by uuid not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -104,5 +108,6 @@ create index storage_connection_syncs_page_idx
   on bakery.storage_connection_syncs (organization_id, created_at, id);
 
 grant select, insert on bakery.storage_connection_syncs to bakery_app;
-grant update (change_position, last_run_at, paused_at, updated_at, version)
+grant update (change_position, last_run_at, paused_at, walk_folders,
+  walk_cursor, walk_position, last_failure, updated_at, version)
   on bakery.storage_connection_syncs to bakery_app;

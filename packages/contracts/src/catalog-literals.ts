@@ -479,6 +479,7 @@ export type CatalogActionName =
   | "storageConnectionSyncs.create"
   | "storageConnectionSyncs.list"
   | "storageConnectionSyncs.pause"
+  | "storageConnectionSyncs.resume"
   | "storageConnections.mount"
   | "storageEntries.copy"
   | "storageEntries.move"

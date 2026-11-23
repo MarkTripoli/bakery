@@ -820,6 +820,9 @@ export function createApp(options: {
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       storageLocalRoot: options.config.storageLocalRoot?.root,
+      ...(skillFileStore
+        ? { storageBlobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
@@ -1194,6 +1197,9 @@ export function createApp(options: {
       pluginBroker,
       artifactPreviewOrigin: previewOrigin,
       storageLocalRoot: options.config.storageLocalRoot?.root,
+      ...(skillFileStore
+        ? { storageBlobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
     }),
   );
 

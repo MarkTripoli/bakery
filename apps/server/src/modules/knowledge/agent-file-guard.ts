@@ -411,6 +411,52 @@ export async function agentFileReadFor(
   });
 }
 
+export async function agentReadGrantedFolders(
+  tx: PgTransactionClient,
+  context: Pick<ActionContext, "agentSession">,
+  scope: Readonly<{
+    organizationId: string;
+    folderId: string;
+    childIds: readonly string[];
+    now?: Date;
+  }>,
+): Promise<{ folder: boolean; children: ReadonlySet<string> }> {
+  if (context.agentSession === undefined) {
+    return { folder: true, children: new Set(scope.childIds) };
+  }
+  const origin = await attemptOrigin(
+    tx,
+    scope.organizationId,
+    context.agentSession.attemptId,
+  );
+  if (origin === null) return { folder: false, children: new Set() };
+  const chain = (await folderChain(tx, scope.organizationId, scope.folderId))
+    .map((row) => row.id);
+  const grants = await tx.query<GrantRow>(
+    "select id, organization_id, workflow_id, folder_id, access, granted_by," +
+      " expires_at, revoked_at from bakery.agent_file_grants" +
+      " where organization_id = $1 and workflow_id = $2" +
+      " and folder_id = any($3::uuid[])",
+    [scope.organizationId, origin.workflowId, [...chain, ...scope.childIds]],
+  );
+  const live = grants.rows.map(toAgentFileGrant);
+  const now = scope.now ?? new Date();
+  const covers = (folderChain: readonly string[]) =>
+    grantRefusal(live, {
+      organizationId: scope.organizationId,
+      workflowId: origin.workflowId,
+      access: AgentFileAccess.Read,
+      folderChain: [...folderChain],
+      now,
+    }).refusal === undefined;
+  return {
+    folder: covers(chain),
+    children: new Set(
+      scope.childIds.filter((childId) => covers([...chain, childId])),
+    ),
+  };
+}
+
 /** The tree areas an agent session's roots listing may show, or null for a person. */
 export function agentDeclaredReadAreas(
   context: Pick<ActionContext, "agentSession" | "sessionScopes">,

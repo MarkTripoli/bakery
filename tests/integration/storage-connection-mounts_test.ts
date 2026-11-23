@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertRejects,
+} from "@std/assert";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
@@ -15,6 +20,7 @@ import {
   createConnectionSync,
   ingestConnectionInput,
   listConnectionFolder,
+  MAX_EXPORT_ATTEMPTS,
   mountStorageConnection,
   prepareStorageExport,
   readConnectionRange,
@@ -30,6 +36,8 @@ import {
   pinStoragePath,
   storageQueryOf,
 } from "../../apps/server/src/modules/knowledge/storage-tree.ts";
+import { putStorageFile } from "../../apps/server/src/modules/knowledge/storage-working-areas.ts";
+import type { OrganizationBlobStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import {
   recordInputPaths,
   resolveInputPaths,
@@ -701,4 +709,427 @@ Deno.test("routes refuse another organization and list and pause syncs", () =>
     } finally {
       await closeWorkerOrganization(fixture.pgDatabase, other.organizationId);
     }
+  }));
+
+function memoryBlobs(): OrganizationBlobStore {
+  const objects = new Map<string, Uint8Array>();
+  const key = (organizationId: string, sha256: string) =>
+    organizationId + "/" + sha256;
+  return {
+    putIfAbsent(organizationId, sha256, content) {
+      objects.set(key(organizationId, sha256), content);
+      return Promise.resolve();
+    },
+    read(organizationId, sha256) {
+      const found = objects.get(key(organizationId, sha256));
+      return found === undefined
+        ? Promise.reject(new Error("missing object"))
+        : Promise.resolve(found);
+    },
+    stat(organizationId, sha256) {
+      const found = objects.get(key(organizationId, sha256));
+      return Promise.resolve(
+        found === undefined ? null : { sizeBytes: found.byteLength },
+      );
+    },
+    recover() {
+      return Promise.resolve();
+    },
+  };
+}
+
+async function exportOf(
+  r: Rig,
+  path: string,
+  key: string,
+  deps: StorageConnectionDeps = r.deps,
+) {
+  const source = await as(
+    r,
+    (context, tx) =>
+      ingestConnectionInput(context, tx, reader, deps, {
+        organizationId: r.organizationId,
+        principalId: r.principalId,
+        taskId: r.taskId,
+        path: r.mount.path + path,
+      }),
+  );
+  return await as(
+    r,
+    (context) =>
+      prepareStorageExport(context, reader, r.deps, {
+        path: r.mount.path + "/out/" + key + ".txt",
+        artifactVersionId: source.versionId,
+        idempotencyKey: key,
+      }),
+  );
+}
+
+async function clearEffects(
+  fixture: WorkerFixture,
+  r: Rig,
+): Promise<void> {
+  await fixture.pgDatabase.query(
+    "delete from bakery.external_effects where organization_id = $1",
+    [r.organizationId],
+  );
+}
+
+Deno.test("an export refuses a version the caller may not read", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    const other = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.principals (id, display_name, principal_type)
+       values ($1, 'Someone else', 'service')`,
+      [other],
+    );
+    let entryId: string | null = null;
+    try {
+      await withPgTransaction(
+        r.db,
+        (tx) =>
+          putStorageFile(personContext(tx, r.organizationId, r.principalId), {
+            path: "/users/" + r.principalId + "/secret.txt",
+            mediaType: "text/plain",
+            content: "only mine",
+          }),
+      );
+      const secret = await r.db.query<{ entry_id: string; version_id: string }>(
+        `select entry.id as entry_id, artifact.current_version_id as version_id
+           from bakery.storage_entries entry
+           join bakery.artifacts artifact
+             on artifact.organization_id = entry.organization_id
+            and artifact.id = entry.artifact_id
+          where entry.organization_id = $1 and entry.name = 'secret.txt'`,
+        [r.organizationId],
+      );
+      assertEquals(secret.rows.length, 1);
+      entryId = secret.rows[0].entry_id;
+      const exportIt = (key: string) =>
+        as(r, (context) =>
+          prepareStorageExport(context, reader, r.deps, {
+            path: r.mount.path + "/out/" + key + ".txt",
+            artifactVersionId: secret.rows[0].version_id,
+            idempotencyKey: key,
+          }));
+      assertEquals((await exportIt("mine")).status, "prepared");
+      await fixture.pgDatabase.query(
+        `update bakery.storage_entries set owner_id = $3
+          where organization_id = $1 and id = $2`,
+        [r.organizationId, entryId, other],
+      );
+      assertEquals(await code(exportIt("leak")), "RESOURCE_NOT_FOUND");
+      const effects = await r.db.query<{ idempotency_key: string }>(
+        `select idempotency_key from bakery.external_effects
+          where organization_id = $1`,
+        [r.organizationId],
+      );
+      assertEquals(effects.rows.map((row) => row.idempotency_key), ["mine"]);
+      assertEquals(r.storage.calls.write, 0);
+    } finally {
+      if (entryId !== null) {
+        await fixture.pgDatabase.query(
+          `update bakery.storage_entries set owner_id = $3
+            where organization_id = $1 and id = $2`,
+          [r.organizationId, entryId, r.principalId],
+        );
+      }
+      await clearEffects(fixture, r);
+      await fixture.pgDatabase.query(
+        "delete from bakery.principals where id = $1",
+        [other],
+      );
+    }
+  }));
+
+Deno.test("a blob-backed export settles, and one whose bytes are gone fails once", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    try {
+      const blobDeps: StorageConnectionDeps = {
+        ...r.deps,
+        blobStore: memoryBlobs(),
+      };
+      const stored = await exportOf(r, "/docs/a.txt", "blob-1", blobDeps);
+      const sent = await runStorageExport(r.db, blobDeps, {
+        organizationId: r.organizationId,
+        effectId: stored.effectId,
+      });
+      assertEquals(sent.outcome, "confirmed");
+      assertEquals(
+        decoder.decode(r.storage.bytesOf("/out/blob-1.txt")),
+        "alpha",
+      );
+
+      const orphan = await exportOf(r, "/docs/b.txt", "blob-2", blobDeps);
+      const lost = await runStorageExport(r.db, r.deps, {
+        organizationId: r.organizationId,
+        effectId: orphan.effectId,
+      });
+      assertEquals(lost.outcome, "failed");
+      assertEquals(lost.effect.failureCode, "export_source_unavailable");
+      const again = await runStorageExport(r.db, r.deps, {
+        organizationId: r.organizationId,
+        effectId: orphan.effectId,
+      });
+      assertEquals([again.outcome, again.dispatched], ["failed", false]);
+    } finally {
+      await clearEffects(fixture, r);
+    }
+  }));
+
+Deno.test("an export whose lease expired is claimed again, and its attempts are capped", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    try {
+      const stale = await exportOf(r, "/docs/a.txt", "lease-1");
+      await r.db.query(
+        `update bakery.external_effects
+            set status = 'submitted', dispatch_generation = 1,
+                lease_expires_at = now() - interval '1 minute'
+          where organization_id = $1 and id = $2`,
+        [r.organizationId, stale.effectId],
+      );
+      const reclaimed = await runStorageExport(r.db, r.deps, {
+        organizationId: r.organizationId,
+        effectId: stale.effectId,
+      });
+      assertEquals([reclaimed.outcome, reclaimed.dispatched], [
+        "confirmed",
+        true,
+      ]);
+      assertEquals(reclaimed.effect.dispatchGeneration, 2);
+
+      const failing: StorageConnectionDeps = {
+        resolver: (connection) => {
+          const bound = r.deps.resolver(connection);
+          return bound === undefined ? undefined : {
+            ...bound,
+            port: {
+              ...bound.port,
+              write: () => Promise.reject(new Error("remote down")),
+            },
+          };
+        },
+      };
+      const stuck = await exportOf(r, "/docs/b.txt", "retry-1");
+      const outcomes: string[] = [];
+      for (let attempt = 0; attempt <= MAX_EXPORT_ATTEMPTS; attempt++) {
+        const ran = await runStorageExport(r.db, failing, {
+          organizationId: r.organizationId,
+          effectId: stuck.effectId,
+        });
+        outcomes.push(ran.outcome);
+        await r.db.query(
+          `update bakery.external_effects set next_retry_at = null
+            where organization_id = $1 and id = $2`,
+          [r.organizationId, stuck.effectId],
+        );
+      }
+      assertEquals(outcomes, [
+        ...Array(MAX_EXPORT_ATTEMPTS).fill("retry_scheduled"),
+        "failed",
+      ]);
+      const last = await runStorageExport(r.db, failing, {
+        organizationId: r.organizationId,
+        effectId: stuck.effectId,
+      });
+      assertEquals(last.effect.failureCode, "export_attempts_exhausted");
+    } finally {
+      await clearEffects(fixture, r);
+    }
+  }));
+
+Deno.test("a sync longer than one run resumes where it stopped and only then moves the feed", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    const { syncId } = await as(
+      r,
+      (context) =>
+        createConnectionSync(context, reader, r.deps, {
+          path: r.mount.path + "/docs",
+          taskId: r.taskId,
+        }),
+    );
+    const position = async () =>
+      (await r.db.query<{ change_position: string | null; walking: boolean }>(
+        `select change_position, walk_folders is not null as walking
+           from bakery.storage_connection_syncs
+          where organization_id = $1 and id = $2`,
+        [r.organizationId, syncId],
+      )).rows[0];
+    const run = () =>
+      runConnectionSync(r.db, r.deps, {
+        organizationId: r.organizationId,
+        syncId,
+        maxFiles: 1,
+      });
+    const counts: number[] = [];
+    for (let i = 0; i < 3; i++) counts.push((await run()).ingested);
+    assertEquals(counts, [1, 1, 1]);
+    assertEquals(await ingestedCount(r), 3);
+    assertEquals((await position()).walking, false);
+    assert((await position()).change_position !== null);
+    assertEquals((await run()).unchanged, true);
+    r.storage.put("/docs/deep/d.txt", "delta");
+    const walked: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const result = await run();
+      walked.push(result.ingested + result.replayed);
+    }
+    assertEquals(walked, [1, 1, 1, 1]);
+    assertEquals(await ingestedCount(r), 4);
+    assertEquals((await run()).unchanged, true);
+  }));
+
+Deno.test("a paused sync never runs until it is resumed", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    const { syncId } = await as(
+      r,
+      (context) =>
+        createConnectionSync(context, reader, r.deps, {
+          path: r.mount.path + "/docs",
+          taskId: r.taskId,
+        }),
+    );
+    const paused = await call(
+      fixture,
+      "POST",
+      "/v1/storage/connection-syncs/" + syncId + "/pause",
+    );
+    assertEquals(paused.status, 201, JSON.stringify(paused.body));
+    const skipped = await runConnectionSync(r.db, r.deps, {
+      organizationId: r.organizationId,
+      syncId,
+    });
+    assertEquals(skipped.unchanged, true);
+    assertEquals(await ingestedCount(r), 0);
+    const resumed = await call(
+      fixture,
+      "POST",
+      "/v1/storage/connection-syncs/" + syncId + "/resume",
+    );
+    assertEquals(resumed.status, 201, JSON.stringify(resumed.body));
+    assertEquals(resumed.body.pausedAt, null);
+    const ran = await runConnectionSync(r.db, r.deps, {
+      organizationId: r.organizationId,
+      syncId,
+    });
+    assertEquals(ran.ingested, 3);
+  }));
+
+Deno.test("a failing sync is recorded and the sweep moves on", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    const { syncId } = await as(
+      r,
+      (context) =>
+        createConnectionSync(context, reader, r.deps, {
+          path: r.mount.path + "/docs",
+          taskId: r.taskId,
+        }),
+    );
+    const broken: StorageConnectionDeps = {
+      resolver: (connection) => {
+        const bound = r.deps.resolver(connection);
+        return bound === undefined ? undefined : {
+          ...bound,
+          port: {
+            ...bound.port,
+            changes: () => Promise.reject(new Error("EACCES")),
+          },
+        };
+      },
+    };
+    const sweep = await runDueConnectionSyncs(r.db, broken);
+    assertEquals(sweep.failed >= 1, true);
+    const row = await r.db.query<
+      { last_failure: string | null; ran: boolean }
+    >(
+      `select last_failure, last_run_at is not null as ran
+         from bakery.storage_connection_syncs
+        where organization_id = $1 and id = $2`,
+      [r.organizationId, syncId],
+    );
+    assertEquals(row.rows[0], { last_failure: "sync_failed", ran: true });
+    const listed = await call(fixture, "GET", "/v1/storage/connection-syncs");
+    const items = listed.body.items as Record<string, unknown>[];
+    assertEquals(items.map((item) => item.lastFailure), ["sync_failed"]);
+    await runConnectionSync(r.db, r.deps, {
+      organizationId: r.organizationId,
+      syncId,
+    });
+    const cleared = await r.db.query<{ last_failure: string | null }>(
+      `select last_failure from bakery.storage_connection_syncs
+        where organization_id = $1 and id = $2`,
+      [r.organizationId, syncId],
+    );
+    assertEquals(cleared.rows[0].last_failure, null);
+  }));
+
+Deno.test("a connections path in any case goes through the guarded ingest", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    const asked: string[] = [];
+    const spelled = "/Connections/" + r.mount.name + "/docs/a.txt";
+    await withPgTransaction(r.db, (tx) =>
+      resolveInputPaths(tx, {
+        organizationId: r.organizationId,
+        inputs: {},
+        inputPaths: { brief: spelled },
+        connections: (path: string) => {
+          asked.push(path);
+          return ingestConnectionInput(
+            personContext(tx, r.organizationId, r.principalId),
+            tx,
+            reader,
+            r.deps,
+            {
+              organizationId: r.organizationId,
+              principalId: r.principalId,
+              taskId: r.taskId,
+              path,
+            },
+          );
+        },
+      }));
+    assertEquals(asked, [spelled]);
+    const refused = await assertRejects(() =>
+      withPgTransaction(r.db, (tx) =>
+        resolveInputPaths(tx, {
+          organizationId: r.organizationId,
+          inputs: {},
+          inputPaths: { brief: r.mount.path + "/docs/a.txt" },
+        }))
+    );
+    assert(refused instanceof StandardError);
+    assertEquals(
+      JSON.stringify(refused.params).includes("input_storage_path_unavailable"),
+      true,
+    );
+  }));
+
+Deno.test("two remote names that differ only in case both land in the tree", () =>
+  withWorkerFixture(async (fixture) => {
+    const r = await rig(fixture);
+    r.storage.put("/cased/Report.txt", "upper");
+    r.storage.put("/cased/report.txt", "lower");
+    const pins = [];
+    for (const path of ["/cased/Report.txt", "/cased/report.txt"]) {
+      pins.push(
+        await as(
+          r,
+          (context, tx) =>
+            ingestConnectionInput(context, tx, reader, r.deps, {
+              organizationId: r.organizationId,
+              principalId: r.principalId,
+              taskId: r.taskId,
+              path: r.mount.path + path,
+            }),
+        ),
+      );
+    }
+    assertNotEquals(pins[0].entryId, pins[1].entryId);
   }));

@@ -863,6 +863,7 @@ export const StorageImplementedAction = Object.freeze(
     StorageConnectionSyncsCreate: "storageConnectionSyncs.create",
     StorageConnectionSyncsList: "storageConnectionSyncs.list",
     StorageConnectionSyncsPause: "storageConnectionSyncs.pause",
+    StorageConnectionSyncsResume: "storageConnectionSyncs.resume",
     StorageConnectionExportsCreate: "storageConnectionExports.create",
     StorageFoldersCreate: "storageFolders.create",
     StorageEntriesCopy: "storageEntries.copy",

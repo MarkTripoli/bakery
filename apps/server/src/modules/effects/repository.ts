@@ -193,6 +193,7 @@ export type PreparedEffectInsert = Readonly<{
   approvalId: string | null;
   approvalStage: string | null;
   approvalPolicyDigest: string | null;
+  argumentArtifactVersionId?: string | null;
 }>;
 
 /**
@@ -212,10 +213,11 @@ export async function insertPreparedEffect(
        idempotency_key, request_digest, safe_arguments, external_account_id,
        external_resource_id, adapter_version, authorization_revision,
        budget_reservation_id, approval_id, approval_stage,
-       approval_policy_digest, mcp_connection_id, status
+       approval_policy_digest, mcp_connection_id,
+       argument_artifact_version_id, status
      ) values (
        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-       $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25, $26, 'prepared'
+       $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, 'prepared'
      )
      on conflict (organization_id, operation, target, idempotency_key)
      do nothing
@@ -247,58 +249,7 @@ export async function insertPreparedEffect(
       row.approvalStage,
       row.approvalPolicyDigest,
       row.mcpConnectionId ?? null,
-    ],
-  );
-  return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);
-}
-
-export type HostEffectInsert = Readonly<{
-  id: string;
-  organizationId: string;
-  operation: string;
-  actionVersion: number;
-  target: string;
-  integrationConnectionId: string;
-  requestingPrincipalId: string;
-  actorRef: string;
-  idempotencyKey: string;
-  requestDigest: string;
-  safeArguments: unknown;
-  argumentArtifactVersionId: string | null;
-  adapterVersion: string;
-}>;
-
-export async function insertPreparedHostEffect(
-  tx: PgTransactionClient,
-  row: HostEffectInsert,
-): Promise<ExternalEffectRow | null> {
-  const result = await tx.query(
-    `insert into bakery.external_effects (
-       id, organization_id, operation, action_version, target,
-       integration_connection_id, requesting_principal_id, actor_ref,
-       idempotency_key, request_digest, safe_arguments,
-       argument_artifact_version_id, adapter_version, status
-     ) values (
-       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13,
-       'prepared'
-     )
-     on conflict (organization_id, operation, target, idempotency_key)
-     do nothing
-     returning ${SELECT_COLUMNS}`,
-    [
-      row.id,
-      row.organizationId,
-      row.operation,
-      row.actionVersion,
-      row.target,
-      row.integrationConnectionId,
-      row.requestingPrincipalId,
-      row.actorRef,
-      row.idempotencyKey,
-      row.requestDigest,
-      JSON.stringify(row.safeArguments ?? null),
-      row.argumentArtifactVersionId,
-      row.adapterVersion,
+      row.argumentArtifactVersionId ?? null,
     ],
   );
   return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);

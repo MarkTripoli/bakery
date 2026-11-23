@@ -65,6 +65,14 @@ const expected = {
     "IdPath",
     "StorageConnectionSync",
   ],
+  "storageConnectionSyncs.resume": [
+    "POST",
+    "/v1/storage/connection-syncs/{id}/resume",
+    "Developer",
+    "integrationConnection:invoke",
+    "IdPath",
+    "StorageConnectionSync",
+  ],
   "storageConnectionExports.create": [
     "POST",
     "/v1/storage/connection-exports",
@@ -111,7 +119,8 @@ Deno.test("the catalog declares every storage connection operation", () => {
     }
     if (
       action !== "storageConnectionSyncs.list" &&
-      action !== "storageConnectionSyncs.pause"
+      action !== "storageConnectionSyncs.pause" &&
+      action !== "storageConnectionSyncs.resume"
     ) {
       assert(
         (entry.errors as readonly string[]).includes(
@@ -136,6 +145,7 @@ Deno.test("the server registers the storage connection actions with catalog pari
       StorageImplementedAction.StorageConnectionsMount,
       StorageImplementedAction.StorageConnectionSyncsCreate,
       StorageImplementedAction.StorageConnectionSyncsPause,
+      StorageImplementedAction.StorageConnectionSyncsResume,
       StorageImplementedAction.StorageConnectionExportsCreate,
     ]
   ) {

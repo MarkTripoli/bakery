@@ -12068,6 +12068,30 @@
     {
       "group": "Storage",
       "method": "POST",
+      "path": "/v1/storage/connection-syncs/{id}/resume",
+      "action": "storageConnectionSyncs.resume",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "IdPath",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
       "path": "/v1/storage/connection-exports",
       "action": "storageConnectionExports.create",
       "access": "Developer",
@@ -15648,6 +15672,7 @@
     "storageConnectionSyncs.create",
     "storageConnectionSyncs.list",
     "storageConnectionSyncs.pause",
+    "storageConnectionSyncs.resume",
     "storageConnectionExports.create",
     "storageFolders.create",
     "storageEntries.copy",
@@ -48921,6 +48946,79 @@
           }
         }
       },
+      "/v1/storage/connection-syncs/{id}/resume": {
+        "post": {
+          "operationId": "storageConnectionSyncs.resume",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionSync"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/storage/connection-exports": {
         "post": {
           "operationId": "storageConnectionExports.create",
@@ -65770,6 +65868,7 @@
                 "storageConnectionSyncs.create",
                 "storageConnectionSyncs.list",
                 "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
                 "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
@@ -118625,6 +118724,7 @@
                 "storageConnectionSyncs.create",
                 "storageConnectionSyncs.list",
                 "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
                 "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
@@ -119335,6 +119435,7 @@
                 "storageConnectionSyncs.create",
                 "storageConnectionSyncs.list",
                 "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
                 "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
@@ -120045,6 +120146,7 @@
                 "storageConnectionSyncs.create",
                 "storageConnectionSyncs.list",
                 "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
                 "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
@@ -166416,6 +166518,7 @@
                       "storageConnectionSyncs.create",
                       "storageConnectionSyncs.list",
                       "storageConnectionSyncs.pause",
+                      "storageConnectionSyncs.resume",
                       "storageConnectionExports.create",
                       "integrationAuth.manifestCallback",
                       "integrationResources.list",
@@ -294901,7 +295004,7 @@
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "The provider change-feed position the last run reached; null before the first run."
+                  "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
                 },
                 {
                   "type": "null",
@@ -294916,7 +295019,7 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                  "description": "When the workflow last ran the sync; null before the first run."
+                  "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
                 },
                 {
                   "type": "null",
@@ -294931,7 +295034,7 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                  "description": "When someone paused the sync; a paused sync is never run. Null while it runs."
+                  "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
                 },
                 {
                   "type": "null",
@@ -294939,6 +295042,20 @@
                 }
               ],
               "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+            },
+            "lastFailure": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionSync.lastFailure may be null in this transport value."
             },
             "createdAt": {
               "type": "string",
@@ -294961,6 +295078,7 @@
             "changePosition",
             "lastRunAt",
             "pausedAt",
+            "lastFailure",
             "createdAt",
             "version"
           ],
@@ -295005,7 +295123,7 @@
                       {
                         "type": "string",
                         "maxLength": 65536,
-                        "description": "The provider change-feed position the last run reached; null before the first run."
+                        "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
                       },
                       {
                         "type": "null",
@@ -295020,7 +295138,7 @@
                         "type": "string",
                         "format": "date-time",
                         "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                        "description": "When the workflow last ran the sync; null before the first run."
+                        "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
                       },
                       {
                         "type": "null",
@@ -295035,7 +295153,7 @@
                         "type": "string",
                         "format": "date-time",
                         "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                        "description": "When someone paused the sync; a paused sync is never run. Null while it runs."
+                        "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
                       },
                       {
                         "type": "null",
@@ -295043,6 +295161,20 @@
                       }
                     ],
                     "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+                  },
+                  "lastFailure": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionSync.lastFailure may be null in this transport value."
                   },
                   "createdAt": {
                     "type": "string",
@@ -295065,6 +295197,7 @@
                   "changePosition",
                   "lastRunAt",
                   "pausedAt",
+                  "lastFailure",
                   "createdAt",
                   "version"
                 ],
@@ -297599,7 +297732,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:310fdc6228924dbe2d04f67296de89c02455d26c05a6f5c455270473999830e1",
+  "compatibilityDigest": "sha256:b9af3e6fd56e18c2e5cc839b504e22083e75281bb353a94b6dcb749b64f9673e",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -305407,6 +305540,7 @@
             "storageConnectionSyncs.create",
             "storageConnectionSyncs.list",
             "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
             "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
@@ -358446,6 +358580,7 @@
             "storageConnectionSyncs.create",
             "storageConnectionSyncs.list",
             "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
             "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
@@ -359156,6 +359291,7 @@
             "storageConnectionSyncs.create",
             "storageConnectionSyncs.list",
             "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
             "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
@@ -359866,6 +360002,7 @@
             "storageConnectionSyncs.create",
             "storageConnectionSyncs.list",
             "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
             "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
@@ -406387,6 +406524,7 @@
                   "storageConnectionSyncs.create",
                   "storageConnectionSyncs.list",
                   "storageConnectionSyncs.pause",
+                  "storageConnectionSyncs.resume",
                   "storageConnectionExports.create",
                   "integrationAuth.manifestCallback",
                   "integrationResources.list",
@@ -535044,7 +535182,7 @@
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "The provider change-feed position the last run reached; null before the first run."
+              "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
             },
             {
               "type": "null",
@@ -535059,7 +535197,7 @@
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When the workflow last ran the sync; null before the first run."
+              "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
             },
             {
               "type": "null",
@@ -535074,7 +535212,7 @@
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When someone paused the sync; a paused sync is never run. Null while it runs."
+              "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
             },
             {
               "type": "null",
@@ -535082,6 +535220,20 @@
             }
           ],
           "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.lastFailure may be null in this transport value."
         },
         "createdAt": {
           "type": "string",
@@ -535104,6 +535256,7 @@
         "changePosition",
         "lastRunAt",
         "pausedAt",
+        "lastFailure",
         "createdAt",
         "version"
       ],
@@ -535148,7 +535301,7 @@
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The provider change-feed position the last run reached; null before the first run."
+                    "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
                   },
                   {
                     "type": "null",
@@ -535163,7 +535316,7 @@
                     "type": "string",
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "When the workflow last ran the sync; null before the first run."
+                    "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
                   },
                   {
                     "type": "null",
@@ -535178,7 +535331,7 @@
                     "type": "string",
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "When someone paused the sync; a paused sync is never run. Null while it runs."
+                    "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
                   },
                   {
                     "type": "null",
@@ -535186,6 +535339,20 @@
                   }
                 ],
                 "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+              },
+              "lastFailure": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.lastFailure may be null in this transport value."
               },
               "createdAt": {
                 "type": "string",
@@ -535208,6 +535375,7 @@
               "changePosition",
               "lastRunAt",
               "pausedAt",
+              "lastFailure",
               "createdAt",
               "version"
             ],

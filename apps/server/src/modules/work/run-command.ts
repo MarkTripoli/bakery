@@ -33,6 +33,11 @@ import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import { auditAgentSessionId } from "../auth/application/agent-power-grants.ts";
+import { authorize } from "../auth/application/authorize.ts";
+import type {
+  AuthorizedActionContext,
+  OrganizationActor,
+} from "../auth/application/authority.ts";
 import {
   pinDeclaredRunInputs,
   recordInputPaths,
@@ -1030,14 +1035,16 @@ export async function createRunCommand(
       inputs: suppliedInputs,
       inputPaths: input.inputPaths,
       ...(storageConnections === undefined ? {} : {
-        connections: (path: string) =>
-          ingestConnectionInput(
+        connections: (path: string) => {
+          authorizeConnectionReads(context);
+          return ingestConnectionInput(
             context,
             transaction,
             { isAdmin: false },
             storageConnections,
             { organizationId, principalId, taskId: task.id, path },
-          ),
+          );
+        },
       }),
     },
   );
@@ -1113,16 +1120,18 @@ export async function createRunCommand(
     },
   );
 
+  const boundConnectionIds = [
+    ...new Set(
+      buildWorkflowPlan(planAdmission.document).steps.flatMap((step) =>
+        boundStepConnections(step.files)
+      ),
+    ),
+  ];
+  if (boundConnectionIds.length > 0) authorizeConnectionReads(context);
   await assertConnectionsBindable(context, transaction, { isAdmin: false }, {
     organizationId,
     principalId,
-    connectionIds: [
-      ...new Set(
-        buildWorkflowPlan(planAdmission.document).steps.flatMap((step) =>
-          boundStepConnections(step.files)
-        ),
-      ),
-    ],
+    connectionIds: boundConnectionIds,
   });
 
   // A plan binds a repository through its inputs, and that binding is only
@@ -1381,4 +1390,15 @@ export async function createRunCommand(
     traceId: context.traceId,
   });
   return toRun(run);
+}
+
+export function authorizeConnectionReads(context: ActionContext): void {
+  const authority = (context as Partial<AuthorizedActionContext>).authority;
+  if (
+    authority === undefined || !("subject" in authority) ||
+    !("organizationId" in authority)
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  authorize(authority as OrganizationActor, "integrationConnection:read");
 }

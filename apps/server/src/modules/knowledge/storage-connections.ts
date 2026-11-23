@@ -26,9 +26,11 @@ import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import {
   casClaim,
   casOutcome,
+  casToFailed,
   findEffectById,
   findEffectByKey,
-  insertPreparedHostEffect,
+  insertPreparedEffect,
+  type OutcomeChange,
   readEffectState,
 } from "../effects/repository.ts";
 import { computeRequestDigest } from "../effects/digest.ts";
@@ -38,7 +40,11 @@ import { sha256Bytes } from "./bytes.ts";
 import { commitArtifactVersion } from "./persistence.ts";
 import { connectionMountKey } from "./agent-file-scope.ts";
 import { createLocalDiskStorageProvider } from "./local-disk-storage.ts";
-import { readableEntry, type StorageReader } from "./storage-reads.ts";
+import {
+  readableEntry,
+  readableVersionFile,
+  type StorageReader,
+} from "./storage-reads.ts";
 import {
   ensureChildFolder,
   ensureFolder,
@@ -78,6 +84,7 @@ export const STORAGE_EXPORT_OPERATION = "storage.file.export";
 export const STORAGE_EXPORT_VERSION = 1;
 const EXPORT_LEASE_SECONDS = 60;
 const EXPORT_RETRY_SECONDS = 30;
+export const MAX_EXPORT_ATTEMPTS = 5;
 const CONNECTIONS_PREFIX = "/connections/";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -516,14 +523,19 @@ async function mountFileEntry(
     if (error instanceof StorageNameError) refused("connection_path_invalid");
     throw error;
   }
-  const id = await insertFileEntry(db, {
-    organizationId,
-    parentId: parentId!,
-    name: segments[segments.length - 1],
-    artifactId,
-  });
-  if (!id) conflict("connection_path_conflict");
-  return id;
+  const leaf = segments[segments.length - 1];
+  for (
+    const name of [leaf, `${leaf} (${artifactId.slice(0, 8)})`, artifactId]
+  ) {
+    const id = await insertFileEntry(db, {
+      organizationId,
+      parentId: parentId!,
+      name,
+      artifactId,
+    });
+    if (id) return id;
+  }
+  conflict("connection_path_conflict");
 }
 
 export async function ingestConnectionFile(
@@ -815,20 +827,41 @@ type SyncRow = {
   remote_path: string;
   task_id: string;
   change_position: string | null;
+  walk_folders: string[] | null;
+  walk_cursor: string | null;
+  walk_position: string | null;
+  paused_at: Date | null;
   created_by: string;
+};
+
+type SyncWalk = {
+  folders: string[];
+  cursor: string | null;
+  position: string | null;
+};
+
+const QUIET_SYNC: ConnectionSyncResult = {
+  unchanged: true,
+  ingested: 0,
+  replayed: 0,
+  skipped: 0,
 };
 
 export async function runConnectionSync(
   database: PgDatabase,
   deps: StorageConnectionDeps,
-  input: Readonly<{ organizationId: string; syncId: string }>,
+  input: Readonly<
+    { organizationId: string; syncId: string; maxFiles?: number }
+  >,
 ): Promise<ConnectionSyncResult> {
   const { organizationId } = input;
+  const maxFiles = input.maxFiles ?? MAX_SYNC_FILES_PER_RUN;
   const opened = await withPgTransaction(database, async (tx) => {
     const found = await tx.query<SyncRow>(
       `select sync.id, sync.mount_id, mount.entry_id, entry.name as mount_name,
               mount.connection_id, sync.remote_path, sync.task_id,
-              sync.change_position, sync.created_by
+              sync.change_position, sync.walk_folders, sync.walk_cursor,
+              sync.walk_position, sync.paused_at, sync.created_by
          from bakery.storage_connection_syncs sync
          join bakery.storage_connection_mounts mount
            on mount.organization_id = sync.organization_id
@@ -841,6 +874,7 @@ export async function runConnectionSync(
     );
     const row = found.rows[0];
     if (!row) notFound();
+    if (row.paused_at !== null) return null;
     const connection = await liveConnection(
       tx,
       organizationId,
@@ -848,6 +882,7 @@ export async function runConnectionSync(
     );
     return { row, binding: bindingFor(deps, organizationId, connection) };
   });
+  if (opened === null) return QUIET_SYNC;
   const { row, binding } = opened;
   const mount: StorageMount = {
     mountId: row.mount_id,
@@ -857,8 +892,72 @@ export async function runConnectionSync(
     path: CONNECTIONS_PREFIX + row.mount_name,
   };
 
+  let walk: SyncWalk | null = row.walk_folders === null ? null : {
+    folders: [...row.walk_folders],
+    cursor: row.walk_cursor,
+    position: row.walk_position,
+  };
+  if (walk === null) {
+    const feed = await readChangeFeed(binding, row);
+    if (!feed.changed) {
+      await saveSyncProgress(database, organizationId, row.id, {
+        changePosition: feed.position,
+        walk: null,
+      });
+      return QUIET_SYNC;
+    }
+    walk = {
+      folders: [row.remote_path],
+      cursor: null,
+      position: feed.position,
+    };
+  }
+
+  const result = { unchanged: false, ingested: 0, replayed: 0, skipped: 0 };
+  let visited = 0;
+  while (walk.folders.length > 0 && visited < maxFiles) {
+    const page = StorageListPageSchema.safeParse(
+      await binding.port.list({
+        path: walk.folders[0],
+        cursor: walk.cursor,
+        limit: Math.min(MAX_STORAGE_PAGE_SIZE, maxFiles - visited),
+        ctx: binding.ctx,
+      }),
+    );
+    if (!page.success) providerAnswerInvalid(page.error);
+    for (const item of page.data.items) {
+      if (item.kind === "folder") {
+        walk.folders.push(item.path);
+        continue;
+      }
+      visited++;
+      const outcome = await syncOneFile(database, deps, {
+        organizationId,
+        row,
+        mount,
+        binding,
+        remotePath: item.path,
+      });
+      result[outcome]++;
+    }
+    walk.cursor = page.data.nextCursor;
+    if (walk.cursor === null) walk.folders.shift();
+  }
+  const finished = walk.folders.length === 0;
+  await saveSyncProgress(database, organizationId, row.id, {
+    changePosition: finished ? walk.position : row.change_position,
+    walk: finished ? null : walk,
+  });
+  return result;
+}
+
+async function readChangeFeed(
+  binding: StorageConnectionBinding,
+  row: SyncRow,
+): Promise<{ position: string | null; changed: boolean }> {
   let position = row.change_position;
   let changed = row.change_position === null;
+  const prefix = row.remote_path === "/" ? "/" : row.remote_path + "/";
   for (;;) {
     const page = StorageChangesPageSchema.safeParse(
       await binding.port.changes({
@@ -868,75 +967,91 @@ export async function runConnectionSync(
       }),
     );
     if (!page.success) providerAnswerInvalid(page.error);
-    const prefix = row.remote_path === "/" ? "/" : row.remote_path + "/";
     if (
       page.data.events.some((event) =>
         event.kind !== "deleted" && event.path.startsWith(prefix)
       )
     ) changed = true;
     if (page.data.events.length === 0 || page.data.position === position) {
-      position = page.data.position ?? position;
-      break;
+      return { position: page.data.position ?? position, changed };
     }
     position = page.data.position;
   }
+}
 
-  const result = { unchanged: !changed, ingested: 0, replayed: 0, skipped: 0 };
-  if (changed) {
-    const folders = [row.remote_path];
-    let visited = 0;
-    while (folders.length > 0 && visited < MAX_SYNC_FILES_PER_RUN) {
-      const folder = folders.shift()!;
-      let cursor: string | null = null;
-      do {
-        const page = StorageListPageSchema.safeParse(
-          await binding.port.list({
-            path: folder,
-            cursor,
-            limit: MAX_STORAGE_PAGE_SIZE,
-            ctx: binding.ctx,
-          }),
-        );
-        if (!page.success) providerAnswerInvalid(page.error);
-        for (const item of page.data.items) {
-          if (item.kind === "folder") {
-            folders.push(item.path);
-            continue;
-          }
-          if (visited >= MAX_SYNC_FILES_PER_RUN) break;
-          visited++;
-          try {
-            const ingest = await withPgTransaction(
-              database,
-              (tx) =>
-                ingestConnectionFile(tx, deps, {
-                  organizationId,
-                  principalId: row.created_by,
-                  taskId: row.task_id,
-                  mount,
-                  binding,
-                  remotePath: item.path,
-                }),
-            );
-            if (ingest.replayed) result.replayed++;
-            else result.ingested++;
-          } catch (error) {
-            if (!(error instanceof StandardError)) throw error;
-            result.skipped++;
-          }
-        }
-        cursor = page.data.nextCursor;
-      } while (cursor !== null && visited < MAX_SYNC_FILES_PER_RUN);
-    }
+async function syncOneFile(
+  database: PgDatabase,
+  deps: StorageConnectionDeps,
+  input: Readonly<{
+    organizationId: string;
+    row: SyncRow;
+    mount: StorageMount;
+    binding: StorageConnectionBinding;
+    remotePath: string;
+  }>,
+): Promise<"ingested" | "replayed" | "skipped"> {
+  try {
+    const ingest = await withPgTransaction(
+      database,
+      (tx) =>
+        ingestConnectionFile(tx, deps, {
+          organizationId: input.organizationId,
+          principalId: input.row.created_by,
+          taskId: input.row.task_id,
+          mount: input.mount,
+          binding: input.binding,
+          remotePath: input.remotePath,
+        }),
+    );
+    return ingest.replayed ? "replayed" : "ingested";
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+    return "skipped";
   }
+}
+
+async function saveSyncProgress(
+  database: PgDatabase,
+  organizationId: string,
+  syncId: string,
+  progress: Readonly<{ changePosition: string | null; walk: SyncWalk | null }>,
+): Promise<void> {
   await database.query(
     `update bakery.storage_connection_syncs
-        set change_position = $3, last_run_at = now(), updated_at = now(),
+        set change_position = $3, walk_folders = $4::jsonb, walk_cursor = $5,
+            walk_position = $6, last_failure = null, last_run_at = now(),
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2`,
+    [
+      organizationId,
+      syncId,
+      progress.changePosition,
+      progress.walk === null ? null : JSON.stringify(progress.walk.folders),
+      progress.walk?.cursor ?? null,
+      progress.walk?.position ?? null,
+    ],
+  );
+}
+
+function syncFailureCode(error: unknown): string {
+  if (!(error instanceof StandardError)) return "sync_failed";
+  const reason = (error.params as { reason?: unknown } | undefined)?.reason;
+  return typeof reason === "string" ? reason : error.code;
+}
+
+async function recordSyncFailure(
+  database: PgDatabase,
+  organizationId: string,
+  syncId: string,
+  failure: string,
+): Promise<void> {
+  await database.query(
+    `update bakery.storage_connection_syncs
+        set last_failure = $3, last_run_at = now(), updated_at = now(),
             version = version + 1
       where organization_id = $1 and id = $2`,
-    [organizationId, input.syncId, position],
+    [organizationId, syncId, failure],
   );
-  return result;
 }
 
 export const MAX_SYNCS_PER_SWEEP = 50;
@@ -962,8 +1077,13 @@ export async function runDueConnectionSyncs(
       });
       ran++;
     } catch (error) {
-      if (!(error instanceof StandardError)) throw error;
       failed++;
+      await recordSyncFailure(
+        database,
+        sync.organization_id,
+        sync.id,
+        syncFailureCode(error),
+      );
     }
   }
   return { ran, failed };
@@ -1032,7 +1152,11 @@ export async function prepareStorageExport(
     path: input.path,
   });
   if (opened.remotePath === "/") refused("connection_path_not_a_file");
-  if (!UUID.test(input.artifactVersionId)) notFound();
+  await readableVersionFile(context, tx, reader, {
+    organizationId,
+    principalId,
+    versionId: input.artifactVersionId,
+  });
   const version = await tx.query<
     { sha256: string; size_bytes: number; media_type: string }
   >(
@@ -1081,20 +1205,33 @@ export async function prepareStorageExport(
   };
   const existing = await findEffectByKey(tx, key);
   if (existing) return replay(existing);
-  const inserted = await insertPreparedHostEffect(tx, {
+  const inserted = await insertPreparedEffect(tx, {
     id: crypto.randomUUID(),
     organizationId,
+    runStepId: null,
+    automationDefinitionId: null,
     operation: STORAGE_EXPORT_OPERATION,
     actionVersion: STORAGE_EXPORT_VERSION,
     target,
     integrationConnectionId: opened.mount.connectionId,
+    integrationResourceId: null,
+    integrationInstallId: null,
+    integrationGrantId: null,
+    adapterManifestDigest: null,
     requestingPrincipalId: principalId,
     actorRef: principalId,
     idempotencyKey: input.idempotencyKey,
     requestDigest: digest,
     safeArguments: args,
-    argumentArtifactVersionId: input.artifactVersionId,
+    externalAccountId: null,
+    externalResourceId: null,
     adapterVersion: opened.binding.adapterVersion,
+    authorizationRevision: null,
+    budgetReservationId: null,
+    approvalId: null,
+    approvalStage: null,
+    approvalPolicyDigest: null,
+    argumentArtifactVersionId: input.artifactVersionId,
   });
   if (inserted) {
     return { effectId: inserted.id, status: inserted.status, replayed: false };
@@ -1168,57 +1305,45 @@ export async function runStorageExport(
     }
     if (row.status === "submitted" && state.leaseLive) return { settled: row };
     if (row.status === "prepared" && !state.due) return { settled: row };
-    const connection = await liveConnection(
+    if (row.status !== "prepared" && row.status !== "submitted") {
+      return { settled: row };
+    }
+    const ready = row.status === "submitted"
+      ? await casOutcome(tx, organizationId, effectId, row.dispatchGeneration, {
+        kind: "retry",
+        delaySeconds: 0,
+      })
+      : row;
+    if (!ready || ready.status !== "prepared") return { settled: ready ?? row };
+    const binding = await exportBinding(tx, deps, organizationId, ready);
+    if (binding === null) {
+      return {
+        settled: await failExport(tx, ready, "export_connection_unavailable"),
+      };
+    }
+    if (ready.dispatchGeneration >= MAX_EXPORT_ATTEMPTS) {
+      return {
+        settled: await failExport(tx, ready, "export_attempts_exhausted"),
+      };
+    }
+    const claim = await casClaim(
       tx,
       organizationId,
-      row.integrationConnectionId!,
+      effectId,
+      ready.dispatchGeneration,
+      EXPORT_LEASE_SECONDS,
     );
-    const binding = bindingFor(deps, organizationId, connection);
-    if (row.status === "prepared") {
-      const claim = await casClaim(
-        tx,
-        organizationId,
-        effectId,
-        row.dispatchGeneration,
-        EXPORT_LEASE_SECONDS,
-      );
-      if (!claim) return { settled: row };
-      return { effect: claim, binding };
-    }
-    return { effect: row, binding };
+    return claim ? { effect: claim, binding } : { settled: ready };
   });
   if ("settled" in claimed) return settledExport(claimed.settled, false);
   const { effect, binding } = claimed;
-  const args = effect.safeArguments as ExportArguments;
-  const bytes = await exportBytes(database, deps, organizationId, args);
-  let outcome:
-    | { kind: "confirmed"; remoteId: string | null; safeResult: unknown }
-    | { kind: "failed"; failureCode: string }
-    | { kind: "retry"; delaySeconds: number };
-  try {
-    const written = StorageWriteResultSchema.parse(
-      await binding.port.write({
-        path: args.remotePath,
-        mediaType: args.mediaType,
-        ifMatch: args.ifMatch,
-        idempotencyKey: effect.id,
-        bytes,
-        ctx: binding.ctx,
-      }),
-    );
-    outcome = written.kind === "written"
-      ? {
-        kind: "confirmed",
-        remoteId: written.object.revision,
-        safeResult: {
-          path: written.object.path,
-          revision: written.object.revision,
-        },
-      }
-      : { kind: "failed", failureCode: "provider_rejected" };
-  } catch {
-    outcome = { kind: "retry", delaySeconds: EXPORT_RETRY_SECONDS };
-  }
+  const outcome = await dispatchExport(
+    database,
+    deps,
+    organizationId,
+    effect,
+    binding,
+  );
   const recorded = await withPgTransaction(
     database,
     (tx) =>
@@ -1237,6 +1362,82 @@ export async function runStorageExport(
   );
   if (!current) notFound();
   return settledExport(current, true);
+}
+
+async function failExport(
+  tx: PgTransactionClient,
+  effect: ExternalEffectRow,
+  failureCode: string,
+): Promise<ExternalEffectRow> {
+  const failed = await casToFailed(
+    tx,
+    effect.organizationId,
+    effect.id,
+    effect.dispatchGeneration,
+    failureCode,
+  );
+  return failed ?? effect;
+}
+
+async function exportBinding(
+  tx: PgTransactionClient,
+  deps: StorageConnectionDeps,
+  organizationId: string,
+  effect: ExternalEffectRow,
+): Promise<StorageConnectionBinding | null> {
+  try {
+    const connection = await liveConnection(
+      tx,
+      organizationId,
+      effect.integrationConnectionId!,
+    );
+    return bindingFor(deps, organizationId, connection);
+  } catch (error) {
+    if (error instanceof StandardError) return null;
+    throw error;
+  }
+}
+
+async function dispatchExport(
+  database: PgDatabase,
+  deps: StorageConnectionDeps,
+  organizationId: string,
+  effect: ExternalEffectRow,
+  binding: StorageConnectionBinding,
+): Promise<OutcomeChange> {
+  const args = effect.safeArguments as ExportArguments;
+  let bytes: Uint8Array;
+  try {
+    bytes = await exportBytes(database, deps, organizationId, args);
+  } catch (error) {
+    return error instanceof StandardError
+      ? { kind: "failed", failureCode: "export_source_unavailable" }
+      : { kind: "retry", delaySeconds: EXPORT_RETRY_SECONDS };
+  }
+  try {
+    const written = StorageWriteResultSchema.parse(
+      await binding.port.write({
+        path: args.remotePath,
+        mediaType: args.mediaType,
+        ifMatch: args.ifMatch,
+        idempotencyKey: effect.id,
+        bytes,
+        ctx: binding.ctx,
+      }),
+    );
+    return written.kind === "written"
+      ? {
+        kind: "confirmed",
+        remoteId: written.object.revision,
+        safeResult: {
+          path: written.object.path,
+          revision: written.object.revision,
+        },
+      }
+      : { kind: "failed", failureCode: "provider_rejected" };
+  } catch {
+    return { kind: "retry", delaySeconds: EXPORT_RETRY_SECONDS };
+  }
 }
 
 export type StorageProviderEntry = Readonly<{
@@ -1449,6 +1650,7 @@ type SyncOutputRow = {
   change_position: string | null;
   last_run_at: Date | null;
   paused_at: Date | null;
+  last_failure: string | null;
   created_at: Date;
   created_cursor: string;
   version: number;
@@ -1457,7 +1659,8 @@ type SyncOutputRow = {
 
 const SYNC_OUTPUT_SELECT = `select sync.id, sync.mount_id,
     entry.name as mount_name, sync.remote_path, sync.task_id,
-    sync.change_position, sync.last_run_at, sync.paused_at, sync.created_at,
+    sync.change_position, sync.last_run_at, sync.paused_at, sync.last_failure,
+    sync.created_at,
     to_char(sync.created_at at time zone 'UTC',
       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_cursor,
     sync.version, mount.entry_id
@@ -1483,6 +1686,7 @@ function syncOutput(row: SyncOutputRow) {
     pausedAt: row.paused_at === null
       ? null
       : new Date(row.paused_at).toISOString(),
+    lastFailure: row.last_failure,
     createdAt: new Date(row.created_at).toISOString(),
     version: row.version,
   };
@@ -1565,6 +1769,21 @@ export async function pauseConnectionSyncAction(
   context: ActionContext,
   reader: StorageReader,
 ) {
+  return await setSyncPaused(context, reader, true);
+}
+
+export async function resumeConnectionSyncAction(
+  context: ActionContext,
+  reader: StorageReader,
+) {
+  return await setSyncPaused(context, reader, false);
+}
+
+async function setSyncPaused(
+  context: ActionContext,
+  reader: StorageReader,
+  paused: boolean,
+) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
   const row = await syncRowById(tx, organizationId, context.params.id ?? "");
@@ -1578,15 +1797,18 @@ export async function pauseConnectionSyncAction(
     row.entry_id,
   );
   await tx.query(
-    `update bakery.storage_connection_syncs
-        set paused_at = coalesce(paused_at, now()),
-            updated_at = now(), version = version + 1
-      where organization_id = $1 and id = $2 and paused_at is null`,
+    paused
+      ? `update bakery.storage_connection_syncs
+          set paused_at = now(), updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2 and paused_at is null`
+      : `update bakery.storage_connection_syncs
+          set paused_at = null, updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2 and paused_at is not null`,
     [organizationId, row.id],
   );
-  const paused = await syncRowById(tx, organizationId, row.id);
-  if (!paused) notFound();
-  return syncOutput(paused);
+  const changed = await syncRowById(tx, organizationId, row.id);
+  if (!changed) notFound();
+  return syncOutput(changed);
 }
 
 export async function createConnectionExportAction(
@@ -1634,8 +1856,7 @@ export async function runDueStorageExports(
         effectId: effect.id,
       });
       ran++;
-    } catch (error) {
-      if (!(error instanceof StandardError)) throw error;
+    } catch {
       failed++;
     }
   }

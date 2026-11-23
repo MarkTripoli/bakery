@@ -38843,6 +38843,7 @@
         "changePosition",
         "lastRunAt",
         "pausedAt",
+        "lastFailure",
         "createdAt",
         "version"
       ],
@@ -38854,13 +38855,15 @@
         "changePosition": "string|null",
         "lastRunAt": "timestamp|null",
         "pausedAt": "timestamp|null",
+        "lastFailure": "string|null",
         "createdAt": "timestamp",
         "version": "integer"
       },
       "nullableFields": [
         "changePosition",
         "lastRunAt",
-        "pausedAt"
+        "pausedAt",
+        "lastFailure"
       ],
       "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first.",
       "fieldDescriptions": {
@@ -38868,9 +38871,10 @@
         "mountId": "The mount the sync reads from.",
         "path": "The synced folder's path in the storage tree.",
         "taskId": "Work item the synced files are recorded on.",
-        "changePosition": "The provider change-feed position the last run reached; null before the first run.",
-        "lastRunAt": "When the workflow last ran the sync; null before the first run.",
-        "pausedAt": "When someone paused the sync; a paused sync is never run. Null while it runs.",
+        "changePosition": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes.",
+        "lastRunAt": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run.",
+        "pausedAt": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs.",
+        "lastFailure": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded.",
         "createdAt": "When the sync was made.",
         "version": "Counter that increases every time the sync changes."
       }
