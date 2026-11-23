@@ -8,6 +8,7 @@ const namespacePrefixes = [
   "artifact.",
   "core.actions.",
   "core.pagination.",
+  "core.reference.",
   "shell.navigation.",
   "shell.health.",
   "shell.states.",
