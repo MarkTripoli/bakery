@@ -528,6 +528,8 @@ export function WorkflowEditorPage(
     if (!publishAfterSave) return;
     if (saveState.kind === "failed") {
       setPublishAfterSave(false);
+      globalThis.document.querySelector<HTMLElement>("[data-retry-save]")
+        ?.focus();
       return;
     }
     if (saveState.kind === "saved" && !changed && !save.isPending) {
@@ -1046,7 +1048,11 @@ export function WorkflowEditorPage(
   const tryAgain = (variant: "secondary" | "quiet") => (
     shownSave.kind === "failed"
       ? (
-        <UI.Button variant={variant} onClick={() => save.mutate(steps)}>
+        <UI.Button
+          data-retry-save="true"
+          variant={variant}
+          onClick={() => save.mutate(steps)}
+        >
           {translate("library.editor.save.tryAgain" as never)}
         </UI.Button>
       )
@@ -1077,33 +1083,25 @@ export function WorkflowEditorPage(
     </UI.Button>
   );
   const pressPublish = () => {
-    if (notSaved) return;
+    if (notSaved) {
+      setSaveState({ kind: "saving" });
+      setPublishAfterSave(true);
+      save.mutate(steps);
+      return;
+    }
     if (changed || save.isPending || shownSave.kind === "saving") {
       setPublishAfterSave(true);
     } else setPublishOpen(true);
   };
-  const publishCore = (
+  const publishButton = (
     <UI.Button
-      aria-disabled={notSaved ? true : undefined}
       loading={publishAfterSave}
       onClick={pressPublish}
-      state={notSaved ? "disabled" : undefined}
       variant="primary"
     >
       {translate("library.editor.publish" as never)}
     </UI.Button>
   );
-  const publishButton = notSaved
-    ? (
-      <UI.Tooltip
-        align="end"
-        content={translate("library.editor.publish.notSaved" as never)}
-        placement="below"
-      >
-        {publishCore}
-      </UI.Tooltip>
-    )
-    : publishCore;
 
   return (
     <>

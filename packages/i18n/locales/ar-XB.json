@@ -6594,7 +6594,6 @@
   "tasks.delivery.release.dialog.noAnswer": "⟪Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request.⟫",
   "tasks.delivery.release.dialog.reason.empty": "⟪Write why you are going back.⟫",
   "tasks.run.details": "⟪Run details⟫",
-  "library.editor.publish.notSaved": "⟪Your latest changes are not saved. Press Try again first.⟫",
   "library.editor.view.label": "⟪Workflow view⟫",
   "library.editor.view.diagram": "⟪Diagram⟫",
   "library.editor.view.outline": "⟪Outline⟫",

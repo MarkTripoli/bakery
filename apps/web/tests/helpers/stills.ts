@@ -80,6 +80,7 @@ export async function still(
         ),
       scheme,
     );
+    await canvasSettled(page);
     const path = `${directory}/${name}-${
       phone ? "phone" : "desktop"
     }-${scheme}.png`;
@@ -110,6 +111,7 @@ export async function windowStill(page: Page, name: string): Promise<void> {
         ),
       scheme,
     );
+    await canvasSettled(page);
     await page.screenshot({
       path: `${directory}/${name}-${phone ? "phone" : "desktop"}-${scheme}.png`,
     });

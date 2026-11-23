@@ -1231,6 +1231,36 @@ test.describe("the workflow canvas on a wide window", () => {
     expect(seen.loading).toBeGreaterThan(0);
   });
 
+  test("the Edited in code tip is as wide as its words", async ({ page }) => {
+    await libraryFixture(page, {
+      ...WORLD,
+      versions: [
+        ...VERSIONS.filter((row) => row.status !== "draft"),
+        {
+          ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+          spec: [
+            { kind: "action", id: "brief", uses: "task.brief" },
+            {
+              kind: "repeat",
+              steps: [{ kind: "action", id: "fix", uses: "harness.implement" }],
+            },
+          ],
+        },
+      ],
+    });
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    await page.locator("[data-card='brief']").getByRole("img", {
+      name: "Edited in code",
+    }).hover();
+    const tip = page.getByRole("tooltip").filter({ hasText: "Edited in code" });
+    await expect(tip).toBeVisible();
+    const box = (await tip.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(90);
+    expect(box.height).toBeLessThanOrEqual(48);
+  });
+
   test("the add menu stays whole inside the canvas, from a + near the top and one near the bottom", async ({ page }) => {
     const steps = Array.from({ length: 12 }, (_, index) => ({
       id: "s" + index,
@@ -1348,33 +1378,84 @@ test.describe("Publish and the save", () => {
     expect(published).not.toContain("04".repeat(32));
   });
 
-  test("after a failed save Publish stays focusable, does nothing and says why; Ready to publish is gone and the problems stay", async ({ page }) => {
+  test("after a failed save Publish stays enabled and the problems stay", async ({ page }) => {
     await libraryFixture(page, { ...WORLD, validation: "errors" });
     await page.goto(editorUrl + "?state=save-failed");
     await expect(saveStatus(page)).toContainText("Not saved");
     const publish = page.getByRole("button", { name: "Publish" });
-    await expect(publish).toHaveAttribute("aria-disabled", "true");
+    await expect(publish).not.toHaveAttribute("aria-disabled", "true");
+    await expect(publish).toBeEnabled();
     await expect(page.getByTestId("editor-problems")).toHaveText("2 problems");
-    await publish.focus();
-    const tooltip = page.getByRole("tooltip").filter({
-      hasText: "Your latest changes are not saved. Press Try again first.",
-    });
-    await expect(tooltip).toBeVisible();
-    const box = (await tooltip.boundingBox())!;
-    const window = page.viewportSize()!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.y).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(window.width);
-    expect(box.y + box.height).toBeLessThanOrEqual(window.height);
-    expect(box.width).toBeGreaterThanOrEqual(200);
-    expect(box.height).toBeLessThanOrEqual(80);
-    const publishBox = (await publish.boundingBox())!;
-    expect(box.y).toBeGreaterThanOrEqual(publishBox.y + publishBox.height);
-    await publish.click({ force: true });
-    await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await page.mouse.move(5, 5);
-    await publish.focus();
     await windowStill(page, "publish-not-saved");
+  });
+
+  const failingSaves = async (page: Page) => {
+    const state = { failing: true, published: "" };
+    const seen = await libraryFixture(
+      page,
+      flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+      ]),
+    );
+    await page.route(
+      (url) => /^\/v1\/workflows\/[^/]+\/versions\/[^/]+$/.test(url.pathname),
+      (route) =>
+        state.failing && route.request().method() === "PATCH"
+          ? route.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({ status: 500, code: "INTERNAL_ERROR" }),
+          })
+          : route.fallback(),
+    );
+    await page.route(
+      (url) => /\/versions\/[^/]+\/publish$/.test(url.pathname),
+      (route) => {
+        state.published = JSON.stringify({
+          ifMatch: route.request().headers()["if-match"] ?? "",
+          body: route.request().postData() ?? "",
+        });
+        return route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          body: JSON.stringify({ status: 500, code: "INTERNAL_ERROR" }),
+        });
+      },
+    );
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    await page.locator("[data-connector='brief'] button").click();
+    await page.locator("[data-pick-step='review.independent']").click();
+    await expect(saveStatus(page)).toContainText("Not saved");
+    return { state, seen };
+  };
+
+  test("after a failed save, Publish saves again and then opens the dialog with the new digest", async ({ page }) => {
+    const { state, seen } = await failingSaves(page);
+    const publish = page.getByRole("button", { name: "Publish" });
+    await expect(publish).not.toHaveAttribute("aria-disabled", "true");
+    const savesBefore = seen.draftSaves.length;
+    state.failing = false;
+    await publish.click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    expect(seen.draftSaves.length).toBeGreaterThan(savesBefore);
+    await dialog.getByRole("button", { name: "Publish only" }).click();
+    await expect.poll(() => state.published).not.toBe("");
+    expect(state.published).toContain(SAVED_DIGEST);
+  });
+
+  test("when the save fails again, Publish opens no dialog and sends nothing, Not saved stays and Try again has focus", async ({ page }) => {
+    const { state } = await failingSaves(page);
+    await page.getByRole("button", { name: "Publish" }).click();
+    await expect(page.getByRole("button", { name: "Try again" }))
+      .toBeFocused();
+    await expect(saveStatus(page)).toContainText("Not saved");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(state.published).toBe("");
   });
 
   test("a failed save with nothing wrong hides Ready to publish", async ({ page }) => {
@@ -1463,7 +1544,7 @@ test.describe("the editor header on a phone", () => {
       .toBeVisible();
     await expect(actions(page).getByRole("button")).toHaveCount(2);
     await expect(actions(page).getByRole("button", { name: "Publish" }))
-      .toHaveAttribute("aria-disabled", "true");
+      .not.toHaveAttribute("aria-disabled", "true");
     await expect(page.getByText("Ready to publish")).toHaveCount(0);
     await page.mouse.move(5, 5);
     await still(page, "editor-header-save-failed");
@@ -2873,6 +2954,193 @@ for (
       await fix.getByRole("button", { name: "Fix until it passes" }).click();
       await page.mouse.move(600, 700);
       await shot(page, "workflow-fix-block-editor");
+    });
+  });
+}
+
+const EACHING: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "forEach",
+          items: "issues",
+          as: "issue",
+          max: 12,
+          steps: [
+            { kind: "action", id: "implement", uses: "harness.implement" },
+            { kind: "action", id: "check", uses: "quality.check" },
+          ],
+        },
+        { kind: "action", id: "review", uses: "review.independent" },
+        { kind: "forEach", items: "files", as: "file", max: 3, steps: [] },
+        {
+          kind: "repeat",
+          max: 2,
+          steps: [{
+            kind: "forEach",
+            items: "notes",
+            as: "note",
+            max: 1,
+            steps: [{ kind: "action", id: "again", uses: "agent.review" }],
+          }],
+        },
+      ],
+    },
+  ],
+};
+
+const EACHING_IF: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "forEach",
+          items: "issues",
+          as: "issue",
+          max: 5,
+          steps: [
+            {
+              kind: "branch",
+              then: [{
+                kind: "action",
+                id: "implement",
+                uses: "harness.implement",
+              }],
+              else: [],
+            },
+            { kind: "action", id: "check", uses: "quality.check" },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const insideBox = (inner: Locator, outer: Locator) =>
+  Promise.all([inner.boundingBox(), outer.boundingBox()]).then(([i, o]) =>
+    i !== null && o !== null && i.x >= o.x - 1 && i.y >= o.y - 1 &&
+    i.x + i.width <= o.x + o.width + 1 && i.y + i.height <= o.y + o.height + 1
+  );
+
+const marksInside = (group: Locator) =>
+  group.evaluate((element) => {
+    const frame = element.getBoundingClientRect();
+    return [
+      ...document.querySelectorAll(".ui-step-group__code, .ui-outline__code"),
+    ].filter((mark) => {
+      const box = mark.getBoundingClientRect();
+      return box.left >= frame.left - 1 && box.right <= frame.right + 1 &&
+        box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1;
+    }).length;
+  });
+
+const ringOf = (group: Locator) =>
+  group.evaluate((element) =>
+    getComputedStyle(element.querySelector(".ui-outline__row") ?? element)
+      .borderTopColor
+  );
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the For each item block`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("a forEach is one block with its steps once and its limit; an empty one and a nested one read the same way", async ({ page }) => {
+      await libraryFixture(page, EACHING);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1004)}`,
+      );
+      const each = page.locator("[data-group=each]");
+      await expect(each).toHaveCount(3);
+      await expect(each.first()).toContainText("For each item");
+      await expect(each.first()).toContainText("At most 12 items");
+      await expect(each.first()).not.toContainText("issues");
+      expect(await cardsInside(each.first())).toHaveLength(2);
+      await expect(each.nth(1)).toContainText("At most 3 items");
+      await expect(each.nth(1)).toContainText("No steps");
+      const repeat = page.locator("[data-group=repeat]");
+      await expect(repeat).toHaveCount(1);
+      expect(await insideBox(each.nth(2), repeat)).toBe(true);
+      await expect(each.nth(2)).toContainText("At most 1 item");
+      await expect(each.nth(2)).not.toContainText("At most 1 items");
+      await expect(page.getByTestId("workflow-steps")).not.toContainText(
+        "Edited in code",
+      );
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-for-each");
+    });
+
+    test("an If inside a For each item says nothing more about code, and shows which arm is selected", async ({ page }) => {
+      await libraryFixture(page, EACHING_IF);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const each = page.locator("[data-group=each]");
+      await expect(each).toHaveCount(1);
+      const inner = page.locator("[data-group=if]");
+      await expect(inner).toHaveCount(1);
+      expect(await insideBox(inner, each)).toBe(true);
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      expect(await marksInside(each)).toBe(1);
+      expect(await marksInside(inner)).toBe(0);
+      if (viewport.name === "phone") return;
+      const yes = page.locator("[data-group=yes]");
+      const otherwise = page.locator("[data-group=otherwise]");
+      await expect(yes).not.toHaveAttribute("data-selected", "true");
+      await yes.getByRole("button").first().click();
+      await expect(yes).toHaveAttribute("data-selected", "true");
+      await expect(otherwise).not.toHaveAttribute("data-selected", "true");
+      await expect(each).not.toHaveAttribute("data-selected", "true");
+    });
+
+    test("in the editor the block says what it does as text, with no field for the limit", async ({ page }) => {
+      await libraryFixture(page, EACHING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const each = page.locator("[data-group=each]").first();
+      await expect(each).toContainText("For each item");
+      await expect(each).toContainText("At most 12 items");
+      await expect(each.getByRole("img", { name: "Edited in code" }))
+        .toHaveCount(1);
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      expect(await marksInside(page.locator("[data-group=repeat]"))).toBe(1);
+      const name = each.getByRole("button").first();
+      await expect(each).not.toHaveAttribute("data-selected", "true");
+      await name.click();
+      await expect(each).toHaveAttribute("data-selected", "true");
+      await expect(page.locator("[data-group=each][data-selected=true]"))
+        .toHaveCount(1);
+      const plain = await ringOf(page.locator("[data-group=each]").nth(1));
+      expect(await ringOf(each)).not.toBe(plain);
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toContainText("For each item");
+      await expect(panel).toContainText(
+        "Runs these steps once for each item in a list, one item at a time.",
+      );
+      await expect(panel).toContainText(
+        "A list with more items than the limit fails the run before any step starts.",
+      );
+      await expect(panel).not.toContainText("At most");
+      await expect(panel.getByRole("textbox")).toHaveCount(0);
+      await expect(panel.getByRole("spinbutton")).toHaveCount(0);
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-for-each-editor");
     });
   });
 }

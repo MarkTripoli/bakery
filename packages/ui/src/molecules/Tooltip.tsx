@@ -34,23 +34,14 @@ export type TooltipProps =
     | "tabIndex"
   >
   & {
-    align?: "center" | "end";
     children: ReactElement<TooltipTriggerProps>;
     content: ReactNode;
-    placement?: "above" | "below";
     variant?: "label" | "description";
   };
 
 /** Supplies supplementary text on hover and keyboard focus. */
 export function Tooltip(
-  {
-    align = "center",
-    children,
-    content,
-    placement = "above",
-    variant = "label",
-    ...props
-  }: TooltipProps,
+  { children, content, variant = "label", ...props }: TooltipProps,
 ) {
   const descriptionId = useId();
   const [dismissed, setDismissed] = useState(false);
@@ -98,9 +89,7 @@ export function Tooltip(
         " ",
       )}
       {...props}
-      data-align={align}
       data-dismissed={dismissed || undefined}
-      data-placement={placement}
       data-state={dismissed ? "closed" : interactionState}
       data-ui-component="tooltip"
       data-variant={variant}
