@@ -545,6 +545,9 @@ for (
         .click();
       await expect(page.getByText("Start work automatically?"))
         .toBeVisible();
+      await expect(
+        page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }),
+      ).toBeFocused();
       await page.getByRole("button", { name: "Turn on" }).click();
       await page.getByLabel("GitHub username").fill("ada");
       await page.getByRole("button", { name: "Add person" }).click();
