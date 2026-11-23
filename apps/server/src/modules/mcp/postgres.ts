@@ -77,6 +77,12 @@ export function createPostgresMcpPinnedStatePort(
                 from bakery.capability_bindings binding_any
                where binding_any.organization_id = connection.organization_id
                  and binding_any.mcp_connection_id = connection.id
+                 -- A binding an Admin withdrew grants nothing (#436).
+                 and not exists (
+                   select 1 from bakery.capability_binding_revocations revoked
+                    where revoked.organization_id = binding_any.organization_id
+                      and revoked.binding_id = binding_any.id
+                 )
                  and (binding_any.actor_ref is null
                       or binding_any.actor_ref = ${input.actorRef})
             ) as grant_live,
@@ -108,6 +114,11 @@ export function createPostgresMcpPinnedStatePort(
               from bakery.capability_bindings b
              where b.organization_id = connection.organization_id
                and b.mcp_connection_id = connection.id
+               and not exists (
+                 select 1 from bakery.capability_binding_revocations revoked
+                  where revoked.organization_id = b.organization_id
+                    and revoked.binding_id = b.id
+               )
                -- The caller's own grant outranks an organization-wide one, and
                -- another actor's binding is not a candidate at all: selecting it
                -- would let a stranger's operation list stand in for this one.
@@ -126,6 +137,9 @@ export function createPostgresMcpPinnedStatePort(
                    or b.agent_version_id = ${input.agentVersionId ?? null})
                  and (b.step_key is null or b.step_key = ${
         input.stepKey ?? null
+      })
+                 and (b.seat_key is null or b.seat_key = ${
+        input.seatKey ?? null
       })
                  and (b.repository_id is null
                    or b.repository_id = ${input.repositoryId ?? null})
@@ -146,6 +160,7 @@ export function createPostgresMcpPinnedStatePort(
                         (b.workflow_version_id is not null)::int
                         + (b.agent_version_id is not null)::int
                         + (b.step_key is not null)::int
+                        + (b.seat_key is not null)::int
                         + (b.repository_id is not null)::int
                         + (b.skill_version_owner_id is not null)::int
                         + (b.automation_version_id is not null)::int

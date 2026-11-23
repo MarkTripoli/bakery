@@ -1,5 +1,5 @@
 {
-  "revision": "6ffb32e1e5779f8be87f7f15929d23fe8fefe41ecf914022493a9a30b8aecbb0",
+  "revision": "c994fcf87cf88ce3da5012126746249d9df4a244dd23a3315bb28fbee47fd6ff",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -25037,6 +25037,141 @@
           ],
           "pointer:fine": [
             "runtime:ui.notificationPopover.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
+      "id": "ui.reference",
+      "name": "Reference",
+      "description": "An id, number or name that points at something: a link when it has a page, plain text when it does not, and a card with the whole value and Copy when the short form hides part of it.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/Reference",
+      "usage": {
+        "whenToUse": "Show any id that points at a commit, release, pull request, issue, task, run, machine or person, in a sentence or a row.",
+        "whenNotToUse": "Do not trim an id by hand, and do not show an id with no way to open or copy it.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The value is code or a command, not an id",
+            "use": "ui.dataText"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "Designed in the #59 UX design comment on the shared reference link (comment 7085237524); no Paper frame names it.",
+      "a11y": {
+        "role": "link",
+        "accessibleName": "content",
+        "keyboard": [
+          "Tab reaches the reference and opens its card; the next Tab is Copy",
+          "Escape closes the card"
+        ],
+        "targetSize": "min 44px (coarse pointer)",
+        "notes": "A reference with a destination is a native link; an outside one says it opens in a new tab. One without a destination is plain text that takes focus only when it has a card. Copy announces Copied."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-surface-raised",
+        "--layer-tooltip",
+        "--layout-menu",
+        "--radius-overlay",
+        "--shadow-subtle",
+        "--space-0-5",
+        "--space-2",
+        "--space-3"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "linked",
+        "external",
+        "plain",
+        "card-open"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises a commit that links outside Bakery, a task that links inside it, a release with no page, a pull request and a task shown by their own label, a machine and a person as plain names, and the card open with the whole value and Copy.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "linked",
+            "external",
+            "plain",
+            "card-open"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.reference.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.reference.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.reference.contract.desktop-light-fine"
           ],
           "pointer:coarse": [
             "suite:storybook.coarse-targets"

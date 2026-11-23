@@ -53,6 +53,11 @@ import {
   withHarnessRestore,
 } from "./harness-common.ts";
 import { executeClaudeCoordinatorTurn } from "./claude-coordinator.ts";
+import {
+  TOOL_GATEWAY_SERVER_NAME,
+  type ToolGatewayFactory,
+  type ToolGatewaySession,
+} from "./tool-gateway.ts";
 /**
  * The child environment for one Claude turn.
  *
@@ -154,9 +159,17 @@ export type ClaudeHarnessOptions = {
   /**
    * Whether this worker has the design tool `rpi.design` declares (the
    * `paper` capability). Off unless set: a worker without it refuses the step as
-   * capability_unavailable rather than doing design work with no tool.
+   * capability_unavailable rather than doing design work with no tool. With a
+   * tool gateway, the design tool is a capability binding instead (#436): the
+   * step has it when its session's gateway lists a tool, and this is unused.
    */
   designToolAvailable?: boolean;
+  /**
+   * Opens the worker-local tool gateway of a freeform session (#436): a
+   * loopback MCP endpoint listing exactly the session's effective tools, each
+   * call sent to worker.invokeTool. Absent, sessions get no MCP tools.
+   */
+  readonly toolGateway?: ToolGatewayFactory;
   /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
   readonly readAttemptContext?: ReadAttemptContext;
   /** Configured output redaction secrets; also withheld from published patches. */
@@ -1760,8 +1773,40 @@ async function executeClaudeFreeform(
   options: ClaudeHarnessOptions,
   /** A repository to read, for a step that reads one; otherwise an empty directory. */
   workspace?: string,
+  /** The session's tool gateway, when the caller already opened one. */
+  openedGateway?: ToolGatewaySession | null,
 ): Promise<ExecutionOutcome> {
   await enforceWorkerFixedPolicy(assignment);
+  // The caller's gateway, or one opened here for this session alone. A gateway
+  // that cannot open leaves the session without MCP tools rather than failing
+  // work that may not need them.
+  const gateway = openedGateway !== undefined
+    ? openedGateway
+    : options.toolGateway
+    ? await options.toolGateway(assignment, signal).catch(() => null)
+    : null;
+  try {
+    return await runClaudeFreeform(
+      assignment,
+      signal,
+      output,
+      options,
+      workspace,
+      gateway,
+    );
+  } finally {
+    if (openedGateway === undefined) await gateway?.close();
+  }
+}
+
+async function runClaudeFreeform(
+  assignment: JobAssignment,
+  signal: AbortSignal,
+  output: NativeOutputSink | undefined,
+  options: ClaudeHarnessOptions,
+  workspace: string | undefined,
+  gateway: ToolGatewaySession | null,
+): Promise<ExecutionOutcome> {
   const request = readFreeformRequest(assignment, CLAUDE_FREEFORM_NAMING);
   if (isFreeformFault(request)) return request;
   const tools = freeformTools(
@@ -1879,6 +1924,21 @@ async function executeClaudeFreeform(
     const relay = () => stopper.abort();
     signal.addEventListener("abort", relay, { once: true });
     let stop: FreeformStop | undefined;
+    // The gateway's tools reach the session as one MCP server, and no other:
+    // its config lives in the attempt config dir the file tools cannot read.
+    let gatewayArgs: string[] = [];
+    if (gateway !== null && gateway.tools.length > 0) {
+      const configFile = join(config.path, "tool-gateway.mcp.json");
+      await Deno.writeTextFile(
+        configFile,
+        JSON.stringify(gateway.mcpConfig()),
+        { mode: 0o600 },
+      );
+      gatewayArgs = ["--mcp-config", configFile, "--strict-mcp-config"];
+    }
+    const allowed = gatewayArgs.length === 0
+      ? tools
+      : [...tools, `mcp__${TOOL_GATEWAY_SERVER_NAME}`];
     const args = [
       "-p",
       "--output-format",
@@ -1891,7 +1951,8 @@ async function executeClaudeFreeform(
       "dontAsk",
       "--permission-prompts",
       "none",
-      ...(tools.length === 0 ? [] : ["--allowedTools", tools.join(",")]),
+      ...(allowed.length === 0 ? [] : ["--allowedTools", allowed.join(",")]),
+      ...gatewayArgs,
       "--disallowedTools",
       `Read(/${resolve(config.path)}/**)`,
       "--max-budget-usd",
@@ -2148,11 +2209,40 @@ export function createClaudeHarnessExecutor(
       }
       if (isRpiFreeformAction(assignment.action)) {
         // A design or a plan is a bounded freeform session over a pinned artifact.
-        return executeRpiFreeform(
-          assignment,
-          (derived) => executeClaudeFreeform(derived, signal, output, options),
-          { designToolAvailable: options.designToolAvailable },
-        );
+        // With a tool gateway, the design tool is a capability binding (#436):
+        // the gateway opens first, and a design step whose session lists no
+        // tool (no Paper connection bound to it) has no design tool.
+        if (options.toolGateway === undefined) {
+          return executeRpiFreeform(
+            assignment,
+            (derived) =>
+              executeClaudeFreeform(derived, signal, output, options),
+            { designToolAvailable: options.designToolAvailable },
+          );
+        }
+        const openGateway = options.toolGateway;
+        return (async () => {
+          const gateway = await openGateway(assignment, signal).catch(() =>
+            null
+          );
+          try {
+            return await executeRpiFreeform(
+              assignment,
+              (derived) =>
+                executeClaudeFreeform(
+                  derived,
+                  signal,
+                  output,
+                  options,
+                  undefined,
+                  gateway,
+                ),
+              { designToolAvailable: (gateway?.tools.length ?? 0) > 0 },
+            );
+          } finally {
+            await gateway?.close();
+          }
+        })();
       }
       if (!isHarnessEditAction(assignment.action)) {
         if (!inner) {

@@ -885,13 +885,6 @@
       "context": "desktop-light-fine"
     },
     {
-      "id": "ui.stepGroup.contract.desktop-light-fine",
-      "catalogId": "ui.stepGroup",
-      "requiredCaseId": "contract",
-      "storyId": "bakery-molecules-stepgroup--contract",
-      "context": "desktop-light-fine"
-    },
-    {
       "id": "ui.outlineRow.contract.desktop-light-fine",
       "catalogId": "ui.outlineRow",
       "requiredCaseId": "contract",
@@ -903,6 +896,20 @@
       "catalogId": "ui.outlineList",
       "requiredCaseId": "contract",
       "storyId": "bakery-molecules-outlinelist--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.reference.contract.desktop-light-fine",
+      "catalogId": "ui.reference",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-reference--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stepGroup.contract.desktop-light-fine",
+      "catalogId": "ui.stepGroup",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stepgroup--contract",
       "context": "desktop-light-fine"
     },
     {
