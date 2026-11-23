@@ -674,7 +674,7 @@ export function IssueWork(
               : mayStop && !stopping && phone
               ? stopButton
               : null}
-            {outran && mayStop && !stopping && !workFinished(request.progress)
+            {outran && mayStop && !stopping
               ? (
                 <UI.InlineNotice tone="warning">
                   {translate("issues.work.stop.changed" as never)}
