@@ -21,6 +21,10 @@ lives in the linked docs, not here.
 5. **Check the learnings first.** Before calling anything a local blocker, read
    [learnings/index.xml](learnings/index.xml); record durable corrections back
    into it, with no secrets and no transient status.
+6. **No comments in code.** Make the code say it: names, small functions, types,
+   tests. The why goes in the commit message and PR description. Delete a
+   comment on any line you edit. Exempt only tool-read text: shebangs, license
+   headers, directives such as `// @vitest-environment`.
 
 Write like this file: terse, technical substance kept, filler dropped (the
 optional `caveman` skill enforces this style).
