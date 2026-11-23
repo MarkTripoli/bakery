@@ -38,6 +38,9 @@ export type ContainmentProbe =
   | Readonly<{ supported: true; runtime: string }>
   | Readonly<{ supported: false; runtime: string; reason: string }>;
 
+/** Where a runtime that names no mount puts the job's code. */
+export const DEFAULT_CODE_MOUNT = "/code";
+
 /** What the host hands a runtime to start one job. */
 export type PluginJobSpec = Readonly<{
   /** Names the container or process so a stuck one can be found and removed. */
@@ -62,6 +65,12 @@ export type RunningPluginJob = Readonly<{
 
 export type ContainmentRuntime = Readonly<{
   name: string;
+  /**
+   * Where the job's code appears inside the boundary. The command the job runs
+   * names its entry under this directory, so the runtime that picks it also
+   * owns it: a path the boundary has to create must be one it can create.
+   */
+  codeMount?: string;
   /** Proves the boundary on this host, or says plainly why it cannot. */
   probe(): Promise<ContainmentProbe>;
   start(spec: PluginJobSpec): Promise<RunningPluginJob>;

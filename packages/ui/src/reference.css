@@ -1,0 +1,88 @@
+/* A reference: an id that points at something. Plain text with a dotted line
+   when it goes nowhere; a small glyph after a link that opens outside Bakery;
+   a card under it with the whole value and Copy. */
+.ui-reference {
+  display: inline;
+  position: relative;
+}
+
+.ui-reference__plain,
+.ui-reference__plain .ui-data-text {
+  text-decoration: underline dotted;
+  text-underline-offset: var(--space-0-5);
+}
+
+.ui-reference__glyph {
+  display: inline-block;
+  margin-inline-start: var(--space-0-5);
+  transform: rotate(-45deg);
+  vertical-align: middle;
+}
+
+.ui-reference__card {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-subtle);
+  color: var(--color-fg);
+  display: grid;
+  gap: var(--space-2);
+  inline-size: max-content;
+  inset-block-start: calc(100% + var(--space-2));
+  inset-inline-start: 0;
+  justify-items: start;
+  max-inline-size: var(--layout-menu);
+  padding: var(--space-3);
+  position: absolute;
+  text-align: start;
+  white-space: normal;
+  z-index: var(--layer-tooltip);
+}
+
+.ui-reference__card .ui-data-text {
+  overflow-wrap: anywhere;
+}
+
+/* The card's own lines are spans, never paragraphs: a reference sits inside
+   running text, which may itself be a paragraph. */
+.ui-reference__note {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+
+.ui-reference__copy {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+/* Close is drawn only where the card is the phone sheet; the desktop card
+   closes with Escape or by moving away. */
+.ui-reference__close {
+  display: none;
+}
+
+/* On a phone the card is a sheet at the bottom of the window, so a long id
+   never runs off the screen. */
+@media (max-width: 743px) {
+  .ui-reference__card {
+    inline-size: auto;
+    inset-block: auto var(--space-4);
+    inset-inline: var(--space-4);
+    max-inline-size: none;
+    position: fixed;
+  }
+  /* Copy and Close share one row, equal widths, thumb-height. */
+  .ui-reference__copy {
+    display: flex;
+    inline-size: 100%;
+  }
+  .ui-reference__copy > *,
+  .ui-reference__close {
+    display: flex;
+    flex: 1 1 0;
+  }
+  .ui-reference__copy .ui-button {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+  }
+}

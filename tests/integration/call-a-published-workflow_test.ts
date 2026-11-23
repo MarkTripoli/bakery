@@ -228,3 +228,49 @@ Deno.test("a workflow calls a published version of its own organization, and no 
     await fixture.close();
   }
 });
+
+Deno.test("calls nest two levels through the loader and a third level is refused (#418)", async () => {
+  await resetDatabase();
+  const fixture = await openAuthFixture({ databaseConfig });
+  try {
+    const org = await seedOrganization(fixture, "nest");
+    const leaf = {
+      ...base,
+      steps: [{ id: "leafstep", uses: "workflow.noop", with: {} }],
+    };
+    const g = await draftOf(org, "grand", leaf);
+    const gp = await publish(org, g.workflowId, g.draftId);
+    const m = await draftOf(org, "middle", {
+      ...base,
+      steps: [{ id: "middlestep", call: { workflow: gp.id } }],
+    });
+    const mp = await publish(org, m.workflowId, m.draftId);
+    // parent -> middle -> grandchild: two levels, valid
+    const two = await validate(org, {
+      ...base,
+      steps: [{ id: "parentstep", call: { workflow: mp.id } }],
+    });
+    assertEquals(two.compilerDiagnostics, []);
+    assertEquals(two.valid, true);
+    // publish the parent, then a fourth: top -> parent -> middle -> grandchild is three levels
+    const p = await draftOf(org, "parent", {
+      ...base,
+      steps: [{ id: "parentstep", call: { workflow: mp.id } }],
+    });
+    const pp = await publish(org, p.workflowId, p.draftId);
+    const three = await validate(org, {
+      ...base,
+      steps: [{ id: "topstep", call: { workflow: pp.id } }],
+    });
+    assertEquals(three.valid, false);
+    assert(
+      three.compilerDiagnostics.some((d) => d.code === "call_depth_exceeded"),
+      JSON.stringify(three.compilerDiagnostics),
+    );
+  } finally {
+    await fixture.close();
+    // This is the last test of the file: leave no organization or user behind
+    // for the next integration file that bootstraps the shared database.
+    await resetDatabase();
+  }
+});
